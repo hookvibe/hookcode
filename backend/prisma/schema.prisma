@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Task {
+  id           String   @id @db.Uuid
+  groupId      String?  @map("group_id") @db.Uuid
+  eventType    String   @map("event_type")
+  status       String
+  payload      Json?    @map("payload_json") @db.JsonB
+  promptCustom String?  @map("prompt_custom")
+  title        String?
+  projectId    Int?     @map("project_id")
+  repoProvider String?  @map("repo_provider")
+  repoId       String?  @map("repo_id") @db.Uuid
+  robotId      String?  @map("robot_id") @db.Uuid
+  ref          String?
+  mrId         Int?     @map("mr_id")
+  issueId      Int?     @map("issue_id")
+  retries      Int      @default(0)
+  result       Json?    @map("result_json") @db.JsonB
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  group        TaskGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@map("tasks")
+  @@index([status, createdAt], map: "tasks_status_created_at_idx")
+  @@index([groupId, createdAt], map: "tasks_group_id_created_at_idx")
+}
+
+model TaskGroup {
+  id           String   @id @db.Uuid
+  repoProvider String?  @map("repo_provider")
+  repoId       String?  @map("repo_id") @db.Uuid
+  robotId      String?  @map("robot_id") @db.Uuid
+  kind         String
+  bindingKey   String   @unique @map("binding_key")
+  threadId     String?  @map("thread_id")
+  title        String?
+  issueId      Int?     @map("issue_id")
+  mrId         Int?     @map("mr_id")
+  commitSha    String?  @map("commit_sha")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  tasks        Task[]
+
+  @@map("task_groups")
+  @@index([repoId, robotId, updatedAt], map: "task_groups_repo_robot_updated_at_idx")
+}
+
+model User {
+  id               String   @id @db.Uuid
+  username         String
+  usernameLower    String   @unique @map("username_lower")
+  displayName      String?  @map("display_name")
+  modelCredentials Json?    @map("model_credentials_json") @db.JsonB
+  passwordHash     String   @map("password_hash")
+  passwordSalt     String   @map("password_salt")
+  disabled         Boolean  @default(false)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
+
+model Repository {
+  id                     String   @id @db.Uuid
+  provider               String
+  name                   String
+  externalId             String?  @map("external_id")
+  apiBaseUrl             String?  @map("api_base_url")
+  branches               Json?    @map("branches_json") @db.JsonB
+  webhookSecret          String?  @map("webhook_secret")
+  repoProviderCredentials  Json?  @map("repo_provider_credentials_json") @db.JsonB
+  modelProviderCredentials Json?  @map("model_provider_credentials_json") @db.JsonB
+  webhookVerifiedAt      DateTime? @map("webhook_verified_at") @db.Timestamptz(6)
+  enabled                Boolean  @default(true)
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  robots           RepoRobot[]
+  automationConfig RepoAutomationConfig?
+  webhookDeliveries RepoWebhookDelivery[]
+
+  @@map("repositories")
+  @@unique([provider, externalId], map: "repositories_provider_external_unique")
+}
+
+model RepoWebhookDelivery {
+  id         String   @id @db.Uuid
+  repoId     String   @map("repo_id") @db.Uuid
+  provider   String
+  eventName  String?  @map("event_name")
+  deliveryId String?  @map("delivery_id")
+  result     String
+  httpStatus Int      @map("http_status")
+  code       String?
+  message    String?
+  taskIds    String[] @default([]) @map("task_ids")
+  payload    Json?    @map("payload_json") @db.JsonB
+  response   Json?    @map("response_json") @db.JsonB
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  repo Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@map("repo_webhook_deliveries")
+  @@index([repoId, createdAt], map: "repo_webhook_deliveries_repo_id_created_at_idx")
+}
+
+model RepoRobot {
+  id                    String    @id @db.Uuid
+  repoId                String    @map("repo_id") @db.Uuid
+  name                  String
+  permission            String
+  token                 String?
+  cloneUsername         String?   @map("clone_username")
+  repoCredentialProfileId String? @map("repo_credential_profile_id")
+  repoTokenUserId       String?   @map("repo_token_user_id")
+  repoTokenUsername     String?   @map("repo_token_username")
+  repoTokenUserName     String?   @map("repo_token_user_name")
+  repoTokenUserEmail    String?   @map("repo_token_user_email")
+  repoTokenRepoRole     String?   @map("repo_token_repo_role")
+  repoTokenRepoRoleJson Json?     @map("repo_token_repo_role_json") @db.JsonB
+  promptDefault         String?   @map("prompt_default")
+  language              String?
+  modelProvider         String    @default("codex") @map("model_provider")
+  modelProviderConfig   Json?     @map("model_provider_config_json") @db.JsonB
+  defaultBranchRole     String?   @map("default_branch_role")
+  defaultBranch         String?   @map("default_branch")
+  activatedAt           DateTime? @map("activated_at") @db.Timestamptz(6)
+  lastTestAt            DateTime? @map("last_test_at") @db.Timestamptz(6)
+  lastTestOk            Boolean?  @map("last_test_ok")
+  lastTestMessage       String?   @map("last_test_message")
+  enabled               Boolean   @default(false)
+  isDefault             Boolean   @default(false) @map("is_default")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  repo Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@map("repo_robots")
+  @@index([repoId], map: "repo_robots_repo_id_idx")
+}
+
+model RepoAutomationConfig {
+  repoId     String   @id @map("repo_id") @db.Uuid
+  config     Json     @map("config_json") @db.JsonB
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  repo       Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@map("repo_automation_configs")
+}

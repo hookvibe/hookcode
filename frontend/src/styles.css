@@ -1,0 +1,1904 @@
+/* =============================================================================
+ * Global theme variables (light/dark) for the static chat demo.
+ *
+ * Business context:
+ * - Module: Frontend Chat / Styles.
+ * - Purpose: provide CSS variables that work with `<html data-theme="...">`.
+ *
+ * Change record:
+ * - 2026-01-11: Added base tokens + Agent Chat page layout styles.
+ * - 2026-01-11: Add task list card styles for the migrated Tasks page.
+ * - 2026-01-12: Modernize layout + palette (soft surfaces, accent-tinted states, consistent elevation).
+ * - 2026-01-13: Redesign dark mode to a neutral near-black base (less navy/blue), keeping accent glows subtle.
+ * - 2026-01-13: Unify input/control styling across the app (single-border, consistent surface, theme-aware placeholder/icons).
+ * ========================================================================== */
+
+:root {
+  /* =============================================================================
+   * Design system tokens
+   *
+   * Business context:
+   * - Module: Frontend Chat / Styles / Theme.
+   * - Purpose: keep the UI modern, neutral, and consistent across pages while still
+   *   allowing a user-configurable accent color (see `--accent*` in App.tsx).
+   *
+   * Usage:
+   * - Prefer `--hc-*` variables for component surfaces/borders/shadows.
+   * - Use `--hc-accent-*` helpers instead of hard-coding any specific accent hue.
+   *
+   * Change record (2026-01-12):
+   * - Refresh the base palette to a "soft neutral" look (light/dark).
+   * - Add reusable elevation + accent-derived tokens for consistent focus/active states.
+   * ========================================================================== */
+
+  --bg: #f8fafc;
+  --text: #0f172a;
+  --muted: #475569;
+  --card-bg: #ffffff;
+  --border: #e2e8f0;
+  --page-padding: 24px;
+  --hc-page-max: 1040px;
+
+  /* Layout/background: keep the page background subtle + "alive" via accent-tinted gradients. */
+  --hc-content-bg: transparent;
+  --hc-app-bg: radial-gradient(
+      1200px circle at 20% -10%,
+      color-mix(in srgb, var(--accent) 14%, #ffffff) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      900px circle at 110% 10%,
+      color-mix(in srgb, var(--accent) 8%, #ffffff) 0%,
+      transparent 60%
+    ),
+    var(--bg);
+
+  /* Surfaces/borders: tuned to look good with both AntD and custom components. */
+  --hc-sider-bg: rgba(255, 255, 255, 0.72);
+  --hc-surface: rgba(255, 255, 255, 0.92);
+  --hc-surface-elevated: #ffffff;
+  --hc-hover: rgba(15, 23, 42, 0.04);
+  --hc-border: #e2e8f0;
+
+  /* Form controls (inputs/selects/pickers):
+   * - Visual goal: a consistent "soft surface" control across light/dark pages + modals.
+   * - UX: keep a single border (avoid nested input borders) and a clear focus ring.
+   *
+   * Change record:
+   * - 2026-01-13: Extract theme-aware control tokens for consistent input styling across pages.
+   */
+  --hc-control-bg: color-mix(in srgb, #ffffff 92%, #f8fafc);
+  --hc-control-bg-hover: color-mix(in srgb, var(--hc-control-bg) 92%, var(--hc-hover));
+  --hc-control-bg-disabled: color-mix(in srgb, var(--hc-control-bg) 88%, var(--bg));
+  --hc-control-placeholder: color-mix(in srgb, var(--muted) 82%, transparent);
+  --hc-control-icon: color-mix(in srgb, var(--muted) 84%, transparent);
+
+  /* User panel surfaces: keep the modal readable and visually separated from the page background. */
+  /* Usage: applied by `.hc-user-modal` + `.hc-user-panel` (UserPanelPopover.tsx). */
+  --hc-panel-bg: var(--hc-surface-elevated);
+
+  /* Scrollbars:
+   * - UX: keep scrollbars readable without looking "heavy" in both themes.
+   * - Notes: `color-scheme` + `scrollbar-color` cover modern browsers; WebKit pseudo-elements handle Chrome/Safari.
+   */
+  --hc-scrollbar-track: rgba(15, 23, 42, 0.06);
+  --hc-scrollbar-thumb: rgba(15, 23, 42, 0.18);
+  --hc-scrollbar-thumb-hover: rgba(15, 23, 42, 0.28);
+
+  /* Elevation: shared shadows to avoid "random" shadows across the app. */
+  --hc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 1px rgba(15, 23, 42, 0.04);
+  --hc-shadow-md: 0 10px 26px rgba(15, 23, 42, 0.12);
+  --hc-shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.16);
+
+  /* Accent-derived helpers (do NOT hardcode accent colors in component styles). */
+  --hc-accent-soft: color-mix(in srgb, var(--accent) 12%, #ffffff);
+  --hc-accent-soft-hover: color-mix(in srgb, var(--accent) 16%, #ffffff);
+  --hc-accent-border: color-mix(in srgb, var(--accent) 34%, var(--hc-border));
+  --hc-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+
+  /* Chat-specific surfaces. */
+  --hc-bubble-user-bg: var(--hc-accent-soft);
+  --hc-bubble-assistant-bg: var(--hc-surface-elevated);
+  --hc-code-bg: rgba(15, 23, 42, 0.06);
+  --hc-top-right-safe: 120px;
+
+  /* Accent color (overridden by App.tsx via CSS variables). */
+  --accent: #2563eb;
+  --accent-hover: #3b82f6;
+  --accent-active: #1d4ed8;
+
+  /* Native controls: hint UA to render built-in UI (incl. scrollbars) for light mode. */
+  color-scheme: light;
+
+  color: var(--text);
+  background-color: var(--bg);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+:root[data-theme='dark'] {
+  /* Dark palette: neutral, near-black base (avoid the "navy cast" while keeping accent configurable). */
+  /* Change record (2026-01-13): shift the base background/surfaces to neutral blacks and reduce ambient accent tint. */
+  --bg: #09090b;
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --card-bg: #111113;
+  --border: #232327;
+
+  --hc-content-bg: transparent;
+  --hc-app-bg: radial-gradient(
+      1200px circle at 20% -10%,
+      color-mix(in srgb, var(--accent) 12%, var(--bg)) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      900px circle at 110% 10%,
+      color-mix(in srgb, var(--accent) 6%, var(--bg)) 0%,
+      transparent 60%
+    ),
+    var(--bg);
+
+  --hc-sider-bg: rgba(17, 17, 19, 0.72);
+  --hc-surface: rgba(17, 17, 19, 0.92);
+  --hc-surface-elevated: #111113;
+  --hc-hover: rgba(244, 244, 245, 0.06);
+  --hc-border: #232327;
+
+  /* User panel surfaces (2026-01-13):
+   * - Visual goal: avoid large "pure black" blocks in the settings modal; use a neutral gray surface instead.
+   * - Pitfall: do not tie this to `--bg`, otherwise blue accents can make the panel look tinted.
+   */
+  --hc-panel-bg: #18181b;
+
+  /* Form controls (dark): keep inputs readable and consistent with the neutral gray surfaces. */
+  /* Change record (2026-01-13): use a slightly lighter control surface than cards to improve affordance on dark pages. */
+  --hc-control-bg: #18181b;
+  --hc-control-bg-hover: color-mix(in srgb, var(--hc-control-bg) 92%, #ffffff);
+  --hc-control-bg-disabled: color-mix(in srgb, var(--hc-control-bg) 80%, var(--bg));
+  --hc-control-placeholder: color-mix(in srgb, var(--muted) 82%, transparent);
+  --hc-control-icon: color-mix(in srgb, var(--muted) 84%, transparent);
+
+  /* Scrollbars (dark): avoid the "white track" when scrollbars become visible on dark surfaces. */
+  /* Change record (2026-01-13): adapt scrollbars to match the neutral dark palette. */
+  --hc-scrollbar-track: rgba(244, 244, 245, 0.08);
+  --hc-scrollbar-thumb: rgba(244, 244, 245, 0.22);
+  --hc-scrollbar-thumb-hover: rgba(244, 244, 245, 0.32);
+
+  /* Native controls: hint UA to render built-in UI (incl. scrollbars) for dark mode. */
+  color-scheme: dark;
+
+  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 1px rgba(0, 0, 0, 0.22);
+  --hc-shadow-md: 0 14px 30px rgba(0, 0, 0, 0.45);
+  --hc-shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.55);
+
+  --hc-accent-soft: color-mix(in srgb, var(--accent) 20%, var(--bg));
+  --hc-accent-soft-hover: color-mix(in srgb, var(--accent) 26%, var(--bg));
+  --hc-accent-border: color-mix(in srgb, var(--accent) 38%, var(--hc-border));
+  --hc-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent);
+
+  --hc-bubble-user-bg: var(--hc-accent-soft);
+  --hc-bubble-assistant-bg: var(--hc-surface-elevated);
+  --hc-code-bg: rgba(244, 244, 245, 0.08);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --hc-top-right-safe: 56px;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  /* Fallback first, then the accent-tinted gradient background. */
+  background: var(--hc-app-bg);
+  color: var(--text);
+  transition: background-color 0.25s ease, color 0.25s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =============================================================================
+ * Scrollbars (light/dark)
+ *
+ * Business context:
+ * - Module: Frontend Chat / Styles / Theme.
+ * - Purpose: keep scrollbars readable in dark mode (avoid a white track) while staying subtle in light mode.
+ *
+ * Notes:
+ * - Firefox uses `scrollbar-color`; Chromium/WebKit use the `::-webkit-scrollbar*` pseudo-elements.
+ * - `color-scheme` (set in `:root`) helps native UI match the active theme.
+ *
+ * Change record:
+ * - 2026-01-13: Add theme-aware scrollbar tokens and apply them globally.
+ * ========================================================================== */
+
+:root {
+  scrollbar-color: var(--hc-scrollbar-thumb) var(--hc-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--hc-scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--hc-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--hc-scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--hc-scrollbar-track);
+}
+
+/* =============================================================================
+ * App Shell (Home/Tasks/Groups)
+ * ========================================================================== */
+
+.hc-shell {
+  height: 100vh;
+  background: var(--hc-content-bg);
+}
+
+.hc-sider {
+  background: var(--hc-sider-bg) !important;
+  border-right: 1px solid var(--hc-border);
+  /* Visual polish: keep the sidebar readable over the app gradient background. */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.hc-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hc-sider__inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hc-sider__top {
+  padding: 16px 12px 10px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-sider__brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.hc-sider__brand {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.hc-sider__primary.ant-btn {
+  justify-content: flex-start;
+  border-radius: 10px;
+  height: 40px;
+  background: var(--hc-accent-soft);
+  border: 1px solid var(--hc-accent-border);
+  color: var(--text);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.hc-sider__primary.ant-btn:hover {
+  background: var(--hc-accent-soft-hover) !important;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--hc-border)) !important;
+}
+
+.hc-sider__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 8px 14px;
+}
+
+.hc-sider-nav {
+  padding: 0 6px 10px;
+}
+
+.hc-sider-nav__item.ant-btn {
+  width: 100%;
+  justify-content: flex-start;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text);
+}
+
+.hc-sider-nav__item.ant-btn:hover {
+  background: var(--hc-hover) !important;
+}
+
+.hc-sider-nav__item--active.ant-btn {
+  /* UX: active nav should be visible even with custom accent presets. */
+  background: var(--hc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
+/* Collapsed sidebar alignment:
+ * - AntD adds `ant-layout-sider-collapsed` on the `<aside>` element.
+ * - Our buttons are full-width blocks; keep icon-only buttons centered when labels are hidden.
+ */
+.hc-sider.ant-layout-sider-collapsed .hc-sider__primary.ant-btn,
+.hc-sider.ant-layout-sider-collapsed .hc-sider-nav__item.ant-btn,
+.hc-sider.ant-layout-sider-collapsed .hc-sider-section__titleBtn.ant-btn {
+  justify-content: center;
+}
+
+.hc-sider.ant-layout-sider-collapsed .hc-sider-section__header {
+  justify-content: center;
+  padding: 0;
+}
+
+.hc-sider__sectionLabel {
+  display: block;
+  padding: 8px 10px 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hc-sider-section {
+  margin-bottom: 6px;
+}
+
+.hc-sider-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 6px;
+}
+
+.hc-sider-section__titleBtn.ant-btn {
+  flex: 1;
+  justify-content: flex-start;
+  color: var(--text);
+}
+
+/* Layout note:
+ * - AntD Button wraps children into a `<span>`; make that wrapper flex-grow so the label/count row can align.
+ */
+.hc-sider-section__titleBtn.ant-btn > span:not(.ant-btn-icon) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-sider-section__titleBtn.ant-btn:hover {
+  background: var(--hc-hover) !important;
+}
+
+.hc-sider-section__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+}
+
+.hc-sider-section__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-sider-section__count {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hc-sider-section__toggle.ant-btn {
+  color: var(--muted);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hc-sider-section__toggle.ant-btn:hover {
+  background: var(--hc-hover) !important;
+  color: var(--text);
+}
+
+.hc-sider-section__items {
+  padding: 4px 6px 6px;
+}
+
+.hc-sider-item.ant-btn {
+  justify-content: flex-start;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--text);
+  /* UX: icon + title layout (task status icon moved from section header to each task row). */
+  gap: 8px;
+}
+
+.hc-sider-item.ant-btn:hover {
+  background: var(--hc-hover) !important;
+}
+
+.hc-sider-item--active.ant-btn {
+  /* UX: keep sidebar selection visible for task detail pages (match nav/task-group selection affordance). */
+  background: var(--hc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
+.hc-sider-item--more.ant-btn {
+  /* UX: treat "View all" as a secondary action inside the preview list. */
+  color: var(--muted);
+}
+
+.hc-sider-item--more.ant-btn:hover {
+  color: var(--text);
+}
+
+.hc-sider-item__icon {
+  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+/* Status hint colors (keep subtle so the title stays the primary focus). */
+.hc-sider-item__icon--processing {
+  color: var(--accent);
+}
+
+.hc-sider-item__icon--success {
+  color: #16a34a;
+}
+
+.hc-sider-item__icon--failed {
+  color: #ef4444;
+}
+
+.hc-sider-item__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.hc-sider-empty {
+  display: block;
+  /* UX: align the empty hint text with task titles (after the status icon column). */
+  padding: 8px 10px 8px 34px;
+  font-size: 12px;
+}
+
+.hc-sider-menu.ant-menu {
+  background: transparent;
+  border-inline-end: none;
+  color: var(--text);
+}
+
+.hc-sider-menu .ant-menu-item {
+  border-radius: 10px;
+  margin-inline: 6px;
+  margin-block: 2px;
+}
+
+.hc-sider-menu .ant-menu-item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-sider-menu .ant-menu-item-selected {
+  background: var(--hc-accent-soft) !important;
+}
+
+.hc-sider-menu .ant-menu-item-selected .ant-menu-item-icon {
+  color: var(--accent);
+}
+
+.hc-sider-menu .ant-menu-item-selected::after {
+  /* Visual polish: AntD adds an "active bar" by default; hide it to match our card-like selection. */
+  display: none;
+}
+
+.hc-sider-menu .ant-menu-item-icon {
+  color: var(--muted);
+}
+
+.hc-content {
+  background: var(--hc-content-bg);
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* =============================================================================
+ * Page layout blocks
+ * ========================================================================== */
+
+.hc-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.hc-page__header {
+  /* Layout note: keep the header as a single-row nav bar (title/meta shrink + clip instead of wrapping). */
+  padding: 14px 18px;
+  /* Visual refresh (2026-01-12):
+   * - Remove the solid header surface so the header blends with the app background.
+   * - Keep a softened divider + blur so content remains readable over the accent-tinted gradient.
+   */
+  /* border-bottom: 1px solid color-mix(in srgb, var(--hc-border) 82%, var(--hc-accent-soft)); */
+  background: transparent;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.hc-page__title {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+/* =============================================================================
+ * Shared PageNav (1-row header bar)
+ * ========================================================================== */
+
+.hc-nav__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.hc-nav__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.hc-nav__meta .ant-typography {
+  white-space: nowrap;
+}
+
+.hc-nav__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.hc-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.hc-nav__user {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* =============================================================================
+ * PageNav buttons (transparent header)
+ *
+ * Business context:
+ * - Module: Frontend Chat / Navigation / PageNav.
+ * - Purpose: make header actions blend with the app gradient once the header background is removed.
+ *
+ * Change record:
+ * - 2026-01-12: Remove the header surface background; redesign action/user trigger buttons as "soft pills".
+ * ========================================================================== */
+
+.hc-nav__actions .ant-btn,
+.hc-user-trigger .ant-btn {
+  border-radius: 999px;
+  height: 32px;
+  padding-inline: 12px;
+}
+
+.hc-nav__actions .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous),
+.hc-user-trigger .ant-btn {
+  background: color-mix(in srgb, var(--hc-hover) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hc-border) 72%, transparent);
+  color: var(--text);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-nav__actions .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):hover,
+.hc-user-trigger .ant-btn:hover {
+  background: color-mix(in srgb, var(--hc-hover) 55%, var(--hc-accent-soft));
+  border-color: var(--hc-accent-border);
+}
+
+.hc-nav__actions .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):focus-visible,
+.hc-user-trigger .ant-btn:focus-visible {
+  box-shadow: var(--hc-focus-ring);
+}
+
+/* Primary action: keep it "accent first" but add subtle elevation so it reads on a transparent header. */
+.hc-nav__actions .ant-btn-primary {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-hover) 26%, var(--accent)) 0%,
+    var(--accent) 100%
+  );
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--hc-border));
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-nav__actions .ant-btn-primary:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 24%, var(--accent-hover)) 0%,
+    var(--accent-hover) 100%
+  );
+  border-color: color-mix(in srgb, var(--accent-hover) 68%, var(--hc-border));
+}
+
+.hc-nav__actions .ant-btn-primary:active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 20%, var(--accent-active)) 0%,
+    var(--accent-active) 100%
+  );
+  border-color: color-mix(in srgb, var(--accent-active) 70%, var(--hc-border));
+}
+
+/* Danger action: use a soft red surface (instead of a harsh solid fill) to match the glassy layout. */
+.hc-nav__actions .ant-btn-dangerous {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 38%, var(--hc-border));
+  color: color-mix(in srgb, #ef4444 86%, var(--text));
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-nav__actions .ant-btn-dangerous:hover {
+  background: color-mix(in srgb, #ef4444 16%, transparent);
+  border-color: color-mix(in srgb, #ef4444 54%, var(--hc-border));
+  color: color-mix(in srgb, #ef4444 92%, var(--text));
+}
+
+.hc-nav__actions .ant-btn-dangerous:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in srgb, #ef4444 26%, transparent);
+}
+
+@media (max-width: 768px) {
+  /* Mobile UX: keep the nav strictly 1-row by hiding the optional meta. */
+  .hc-nav__meta {
+    display: none;
+  }
+
+  /* Mobile UX: render nav action buttons as icon-only without losing a11y labels. */
+  .hc-nav__actions .ant-btn {
+    position: relative;
+    padding-inline: 10px;
+  }
+
+  .hc-nav__actions .ant-btn .ant-btn-icon + span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+.hc-page__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px;
+}
+
+.hc-page__body > * {
+  /* Layout intent: keep page content comfortably readable on wide screens without changing page markup. */
+  width: 100%;
+  max-width: var(--hc-page-max);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hc-toolbar {
+  margin-bottom: 12px;
+}
+
+.hc-card-list {
+  max-width: var(--hc-page-max);
+  margin: 0 auto;
+}
+
+.hc-task-card {
+  background: var(--hc-surface) !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 12px;
+}
+
+.hc-repo-card {
+  background: var(--hc-surface) !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 12px;
+}
+
+.hc-card {
+  background: var(--hc-surface) !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 12px;
+}
+
+/* Elevation: apply consistent shadows to the cards we control via custom classes. */
+.hc-task-card.ant-card,
+.hc-repo-card.ant-card,
+.hc-card.ant-card {
+  box-shadow: var(--hc-shadow-sm);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.hc-task-card.ant-card.ant-card-hoverable:hover,
+.hc-repo-card.ant-card.ant-card-hoverable:hover,
+.hc-card.ant-card.ant-card-hoverable:hover {
+  box-shadow: var(--hc-shadow-md);
+  border-color: var(--hc-accent-border) !important;
+}
+
+/* =============================================================================
+ * Task detail meta cards
+ * - Business context: Frontend Chat / Tasks / Task detail.
+ * - Purpose: show Repository / Robot / Author at the top for quick scanning (legacy parity).
+ * - Change record: 2026-01-12 - Added during frontend -> frontend-chat migration.
+ * ========================================================================== */
+
+.hc-task-meta {
+  margin-bottom: 12px;
+}
+
+.hc-task-meta__card {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  height: 100%;
+}
+
+.hc-task-meta__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--hc-surface);
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.hc-task-meta__label {
+  font-size: 12px;
+}
+
+.hc-task-meta__value {
+  margin-top: 4px;
+}
+
+.hc-inner-card {
+  background: transparent !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 10px;
+}
+
+.hc-list {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+}
+
+.hc-list__item {
+  cursor: pointer;
+}
+
+.hc-list__item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-empty {
+  padding: 48px 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* =============================================================================
+ * Shared helpers (tables)
+ * ========================================================================== */
+
+.table-wrapper {
+  width: 100%;
+  min-width: 0;
+}
+
+.table-wrapper .ant-table-container {
+  /* Enable horizontal swipe on small screens (especially iOS). */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-cell-ellipsis {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* =============================================================================
+ * Chat view (task group)
+ * ========================================================================== */
+
+.hc-chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 18px;
+}
+
+.hc-chat-welcome {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.hc-chat-welcome__card {
+  width: min(720px, 94vw);
+  background: var(--hc-surface);
+  border-color: var(--hc-border);
+  border-radius: 12px;
+}
+
+.hc-chat-timeline {
+  padding: 18px 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: var(--hc-page-max);
+  margin: 0 auto;
+}
+
+.hc-chat-composer {
+  border-top: 1px solid var(--hc-border);
+  background: transparent;
+  padding: 14px 18px 18px;
+}
+
+.hc-chat-composer__inner {
+  max-width: var(--hc-page-max);
+  margin: 0 auto;
+}
+
+.hc-chat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hc-chat-item__user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.hc-chat-item__assistant {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.hc-chat-bubble {
+  max-width: min(820px, 86vw);
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-bubble-assistant-bg);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-chat-bubble--user {
+  background: var(--hc-bubble-user-bg);
+}
+
+.hc-chat-task-card,
+.hc-chat-logs-card {
+  width: min(820px, 86vw);
+  background: var(--hc-surface);
+  border-color: var(--hc-border);
+  border-radius: 12px;
+}
+
+.hc-chat-logs-toggle {
+  width: min(820px, 86vw);
+}
+
+/* =============================================================================
+ * Log viewer
+ * ========================================================================== */
+
+.log-viewer {
+  border-radius: 10px;
+}
+
+.log-viewer__header {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.log-viewer__title {
+  font-weight: 700;
+}
+
+.log-viewer__body {
+  overflow: auto;
+  padding: 10px 12px;
+}
+
+.log-viewer__pre {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.log-viewer__empty {
+  padding: 16px 0;
+  text-align: center;
+}
+
+/* =============================================================================
+ * Markdown output
+ * ========================================================================== */
+
+.markdown-result {
+  width: 100%;
+  color: var(--text);
+}
+
+.markdown-result code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--hc-code-bg);
+}
+
+.markdown-result pre code {
+  display: block;
+  padding: 10px 12px;
+  overflow: auto;
+}
+
+.markdown-result--expanded {
+  padding-top: 6px;
+}
+
+/* =============================================================================
+ * Login
+ * ========================================================================== */
+
+.hc-login {
+  height: 100vh;
+  background: var(--hc-content-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.hc-login__card {
+  width: min(420px, 94vw);
+  border-radius: 12px;
+  background: var(--hc-surface);
+  border-color: var(--hc-border);
+}
+
+/* =============================================================================
+ * Top-right user panel (modal)
+ *
+ * Design goals:
+ * - Keep the modal size consistent across tabs (scroll inside tab panes).
+ * - Use a modern "soft glass" surface with clear borders and accent-aware active states.
+ *
+ * Change record:
+ * - 2026-01-12: Redesign modal layout to be fixed-size and tab-consistent.
+ * - 2026-01-12: Add responsive layout + accessible nav button styling for mobile and keyboard users.
+ * ========================================================================== */
+
+.hc-user-trigger {
+  /* Layout note: the trigger is rendered inside PageNav (rightmost). */
+  display: flex;
+  align-items: center;
+}
+
+.hc-user-trigger .ant-btn {
+  /* Visual parity (2026-01-12): reuse the PageNav "soft pill" action styling on the transparent header. */
+  min-width: 44px;
+}
+
+.hc-user-trigger__label {
+  margin-left: 6px;
+}
+
+@media (max-width: 768px) {
+  .hc-user-trigger__label {
+    display: none;
+  }
+}
+
+.hc-user-modal .ant-modal-content {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  box-shadow: var(--hc-shadow-lg);
+}
+
+.hc-user-modal .ant-modal-header {
+  background: transparent;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-user-modal .ant-modal-title {
+  color: var(--text);
+}
+
+.hc-user-modal .ant-modal-close {
+  color: var(--text);
+}
+
+
+.hc-user-modal .ant-modal-content {
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  /* Visual polish (2026-01-13): keep the whole user panel on a neutral gray surface in dark mode. */
+  background: var(--hc-panel-bg);
+}
+
+.hc-user-modal .ant-modal-body {
+  padding: 0;
+  display: flex;
+  /* UX: keep a fixed-ish "window" size on desktop but avoid viewport overflow on smaller screens. */
+  height: min(680px, calc(100vh - 140px));
+}
+
+.hc-user-panel {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+/* Density tweak (2026-01-13):
+ * - Business context: Frontend Chat / User panel modal.
+ * - Purpose: show more settings/credentials without excessive scrolling (especially on laptops).
+ * - Change record: reduce paddings/margins and tighten Ant Design component spacing in compact mode.
+ */
+.hc-user-panel[data-density='compact'] .ant-form-vertical .ant-form-item {
+  margin-bottom: 12px;
+}
+
+.hc-user-panel[data-density='compact'] .ant-tag {
+  margin-inline-end: 0;
+  padding: 0 6px;
+  line-height: 18px;
+  font-size: 11px;
+}
+
+/* Sidebar */
+.hc-user-panel__sidebar {
+  width: 240px;
+  /* UX: avoid a darker "black strip" on the left; keep it consistent with the panel surface. */
+  background: var(--hc-panel-bg);
+  border-right: 1px solid var(--hc-border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 10px;
+  flex-shrink: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.hc-user-panel__sidebar-header {
+  padding: 0 6px 10px;
+}
+
+.hc-user-panel__user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-hover) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hc-border) 70%, transparent);
+}
+
+.hc-user-panel__user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Visual parity: keep the avatar chip on the same neutral surface (dark mode was too black). */
+  background: var(--hc-panel-bg);
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  flex: 0 0 auto;
+}
+
+.hc-user-panel__user-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hc-user-panel__user-primary {
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-user-panel__user-secondary {
+  margin-top: 1px;
+  line-height: 1.2;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-user-panel__user-roles {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hc-user-panel__nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-top: 10px;
+}
+
+.hc-user-panel__sidebar-title {
+  padding: 0 12px;
+  margin-bottom: 24px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.hc-user-panel__nav-group {
+  margin-bottom: 16px;
+}
+
+.hc-user-panel__nav-header {
+  padding: 0 12px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hc-settings-nav-item {
+  /* UX/a11y: render navigation entries as real buttons for keyboard access (2026-01-12). */
+  appearance: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin-bottom: 2px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.hc-settings-nav-item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-settings-nav-item:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-settings-nav-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hc-settings-nav-item__icon {
+  width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hc-settings-nav-item__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.hc-settings-nav-item--active {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.hc-user-panel__sidebar-footer {
+  padding: 10px 6px 0;
+  border-top: 1px solid var(--hc-border);
+  margin-top: 10px;
+}
+
+.hc-user-panel__sidebar-footer .ant-btn {
+  width: 100%;
+}
+
+/* Main Content */
+.hc-user-panel__content {
+  flex: 1;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-user-panel__content-header {
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--hc-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  /* UX: keep the sticky header visually aligned with the rest of the modal surface. */
+  background: var(--hc-panel-bg); /* Ensure header covers scrolled content */
+}
+
+.hc-user-panel__content-titleArea {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hc-user-panel__content-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.hc-user-panel__content-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-user-panel__content-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-user-panel__header-action {
+  color: var(--muted);
+}
+
+.hc-user-panel__header-action:hover {
+  color: var(--text);
+}
+
+.hc-user-panel__content-body {
+  padding: 18px 24px;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  /* Mobile UX: use a full-screen panel layout (single column) and make the nav horizontally scrollable. */
+  .hc-user-modal--mobile .ant-modal-content {
+    border-radius: 0 !important;
+  }
+
+  .hc-user-modal--mobile .ant-modal-body {
+    height: 100vh;
+  }
+
+  .hc-user-panel {
+    flex-direction: column;
+  }
+
+  .hc-user-panel__sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--hc-border);
+    padding: 10px;
+  }
+
+  .hc-user-panel__sidebar-header {
+    padding: 0;
+  }
+
+  .hc-user-panel__nav {
+    padding-top: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hc-user-panel__nav-group {
+    margin-bottom: 0;
+    display: flex;
+    gap: 6px;
+  }
+
+  .hc-user-panel__nav-header {
+    display: none;
+  }
+
+  .hc-settings-nav-item {
+    width: auto;
+    white-space: nowrap;
+    border-radius: 999px;
+    margin-bottom: 0;
+    padding: 5px 10px;
+  }
+
+  .hc-user-panel__sidebar-footer {
+    border-top: none;
+    padding: 10px 0 0;
+    margin-top: 0;
+  }
+
+  .hc-user-panel__content-header {
+    padding: 12px 14px;
+  }
+
+  .hc-user-panel__content-body {
+    padding: 14px;
+    max-width: none;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Sections */
+.hc-settings-section {
+  margin-bottom: 24px;
+}
+
+.hc-settings-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--muted);
+}
+
+/* Cards for Theme Selection */
+.hc-theme-cards {
+  display: flex;
+  gap: 12px;
+}
+
+.hc-theme-card {
+  flex: 1;
+  cursor: pointer;
+}
+
+.hc-theme-card-preview {
+  aspect-ratio: 16/10;
+  background: var(--bg);
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+/* Simplified representations of UI in preview */
+.hc-theme-card-preview::before {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: 10%;
+  right: 10%;
+  height: 12%;
+  background: var(--border);
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+.hc-theme-card-preview::after {
+  content: '';
+  position: absolute;
+  top: 30%;
+  left: 10%;
+  width: 25%;
+  bottom: 10%;
+  background: var(--border);
+  border-radius: 4px;
+  opacity: 0.3;
+}
+
+.hc-theme-card--active .hc-theme-card-preview {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--hc-accent-soft-hover);
+}
+
+.hc-theme-card--light .hc-theme-card-preview {
+  background: #f8fafc;
+}
+.hc-theme-card--light .hc-theme-card-preview::before,
+.hc-theme-card--light .hc-theme-card-preview::after {
+  background: #cbd5e1;
+}
+
+.hc-theme-card--dark .hc-theme-card-preview {
+  /* Visual parity: keep the preview in sync with the actual dark theme base background. */
+  background: #09090b;
+}
+.hc-theme-card--dark .hc-theme-card-preview::before,
+.hc-theme-card--dark .hc-theme-card-preview::after {
+  background: #27272a;
+}
+
+.hc-theme-card--system .hc-theme-card-preview {
+  background: linear-gradient(90deg, #f8fafc 50%, #09090b 50%);
+}
+
+.hc-theme-card-label {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.hc-user-panel__close {
+  /* UX/a11y: close button lives in the panel header; keep it keyboard focusable and visually consistent. */
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.2s, background-color 0.2s;
+}
+.hc-user-panel__close:hover {
+  color: var(--text);
+  background: var(--hc-hover);
+}
+.hc-user-panel__close:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+
+/* =============================================================================
+ * Modern Chat Composer (Refactored)
+ * ========================================================================== */
+
+.hc-chat-centered-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 24px;
+  width: 100%;
+}
+
+.hc-chat-hero {
+  text-align: center;
+  margin-bottom: 40px;
+  max-width: 600px;
+}
+
+.hc-chat-footer-composer {
+  /* border-top: 1px solid var(--hc-border); */
+  /* background: var(--hc-surface); */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 16px 24px 24px;
+  flex: 0 0 auto;
+}
+
+.hc-composer-container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.hc-composer-box {
+  /* Change record (2026-01-12): use the shared surface token; `--hc-card-bg` was never defined. */
+  background: var(--hc-surface-elevated);
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: var(--hc-shadow-sm);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hc-composer-box--inline {
+  /* UX (Chat / Task group): keep the footer composer compact like modern messengers. */
+  padding: 10px 12px;
+  gap: 8px;
+  /* Visual style: avoid a heavy "filled card" in the timeline footer; let the footer surface be the backdrop. */
+  background: transparent;
+  box-shadow: none;
+}
+
+.hc-composer-box:focus-within {
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-md), var(--hc-focus-ring);
+}
+
+.hc-composer-box--inline:focus-within {
+  /* Visual style: keep the inline composer focus ring light-weight to avoid overpowering the chat content. */
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-composer-box--focused {
+  /* UX note: `:focus-within` is not reliable on some mobile keyboards; keep a class hook for parity. */
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-md), var(--hc-focus-ring);
+}
+
+.hc-composer-box--inline.hc-composer-box--focused {
+  box-shadow: var(--hc-focus-ring);
+}
+
+/* Chat composer input (AntD):
+ * - Business context: Frontend Chat / Task groups / New group + Task group composer.
+ *
+ * Problem:
+ * - The composer container (`.hc-composer-box`) already draws the border + focus ring.
+ * - AntD Input/TextArea may also draw its own border/background/focus ring, creating a double-border look.
+ *
+ * Fix:
+ * - Keep the inner input borderless/transparent and let `.hc-composer-box:focus-within` be the only focus affordance.
+ *
+ * Change record:
+ * - 2026-01-12: Remove inner input borders/rings in the chat composer to avoid double borders.
+ */
+.hc-composer-box .hc-composer-input,
+.hc-composer-box .hc-composer-input:hover,
+.hc-composer-box .hc-composer-input:focus,
+.hc-composer-box textarea.ant-input,
+.hc-composer-box textarea.ant-input:hover,
+.hc-composer-box textarea.ant-input:focus,
+.hc-composer-box .ant-input-textarea-affix-wrapper.ant-input-affix-wrapper,
+.hc-composer-box .ant-input-textarea-affix-wrapper.ant-input-affix-wrapper:hover,
+.hc-composer-box .ant-input-textarea-affix-wrapper.ant-input-affix-wrapper-focused {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+.hc-composer-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-composer-input-wrapper {
+  width: 100%;
+}
+
+.hc-composer-input.ant-input {
+  resize: none;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  /* UX: keep comfortable padding so the first character never hugs the container edge. */
+  padding: 6px 8px;
+  font-size: 15px; 
+  line-height: 1.5;
+}
+
+.hc-composer-box--inline .hc-composer-input.ant-input,
+.hc-composer-box--inline textarea.ant-input {
+  /* UX: tighter padding for the single-line default composer in task-group view. */
+  padding: 4px 6px;
+}
+
+/* Focus handling:
+ * - The composer container (`.hc-composer-box`) owns the focus ring via `:focus-within`.
+ * - Prevent AntD global input focus styles from adding an inner ring (double border).
+ *
+ * Change record:
+ * - 2026-01-12: Ensure only one focus ring is visible in the new task-group composer.
+ */
+.hc-shell .hc-composer-box .hc-composer-input.ant-input:focus {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.hc-composer-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* =============================================================================
+ * Ant Design integration (minimal overrides)
+ *
+ * Business context:
+ * - Module: Frontend Chat / Styles / AntD.
+ * - Purpose: keep AntD surfaces aligned with our CSS-variable theme (light/dark + accent).
+ *
+ * Change record:
+ * - 2026-01-12: Add subtle surface + focus styling for inputs/selects so the UI feels consistent.
+ * ========================================================================== */
+
+.hc-shell .ant-card,
+.hc-shell .ant-modal-content,
+.hc-shell .ant-popover-inner {
+  background: var(--hc-surface-elevated);
+  border-color: var(--hc-border);
+}
+
+.hc-shell .ant-popover-inner {
+  box-shadow: var(--hc-shadow-md);
+}
+
+/* Form controls: make inputs/selects feel consistent with the "soft surface" theme. */
+.hc-shell .ant-input:not(.ant-input-borderless),
+.hc-shell .ant-input-affix-wrapper:not(.ant-input-borderless),
+.hc-shell .ant-input-textarea-affix-wrapper:not(.ant-input-borderless),
+.hc-shell .ant-input-number,
+.hc-shell .ant-picker {
+  /* Visual goal: a single, consistent control surface for all input-like components across pages/modals. */
+  background: var(--hc-control-bg);
+  border-color: var(--hc-border);
+  border-radius: 12px;
+  /* Visual fix: avoid "double border" caused by default inset shadows on some AntD controls. */
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-shell .ant-input:not(.ant-input-borderless):hover,
+.hc-shell .ant-input-affix-wrapper:not(.ant-input-borderless):hover,
+.hc-shell .ant-input-textarea-affix-wrapper:not(.ant-input-borderless):hover,
+.hc-shell .ant-input-number:hover,
+.hc-shell .ant-picker:hover {
+  background: var(--hc-control-bg-hover);
+  border-color: var(--hc-accent-border);
+}
+
+.hc-shell .ant-input:not(.ant-input-borderless):focus,
+.hc-shell .ant-input-affix-wrapper-focused:not(.ant-input-borderless),
+.hc-shell .ant-input-number-focused,
+.hc-shell .ant-picker-focused {
+  border-color: var(--hc-accent-border) !important;
+  box-shadow: var(--hc-focus-ring) !important;
+}
+
+/* Inputs with prefix/suffix/allowClear (AntD affix wrapper):
+ * - Problem: AntD wraps inputs with an affix wrapper, and the nested `.ant-input` can still receive our global focus ring,
+ *   causing a visible "double ring/border" (wrapper ring + inner ring).
+ *
+ * Fix:
+ * - Keep border + focus ring on `.ant-input-affix-wrapper` only; force the nested input to stay fully borderless/no-shadow.
+ *
+ * Reference:
+ * - Same approach as the new task-group composer (`.hc-composer-box`) which draws the border on the container and keeps the inner input clean.
+ *
+ * Change record:
+ * - 2026-01-13: Ensure toolbar search inputs render as a single-border control (no inner ring) across themes.
+ */
+.hc-shell .ant-input-affix-wrapper:not(.ant-input-borderless) .ant-input {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+.hc-shell .ant-input-textarea-affix-wrapper:not(.ant-input-borderless) textarea.ant-input {
+  /* See the note above: textarea affix wrappers can also render a nested ring (double border) on focus. */
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+.hc-shell .ant-input::placeholder,
+.hc-shell textarea.ant-input::placeholder,
+.hc-shell .ant-input-number-input::placeholder,
+.hc-shell .ant-picker-input > input::placeholder {
+  /* UX: keep placeholder readable and consistent across light/dark themes. */
+  color: var(--hc-control-placeholder);
+  opacity: 1;
+}
+
+.hc-shell .ant-input-prefix,
+.hc-shell .ant-input-suffix,
+.hc-shell .ant-input-clear-icon,
+.hc-shell .ant-input-password-icon {
+  color: var(--hc-control-icon);
+}
+
+.hc-shell .ant-input-clear-icon:hover,
+.hc-shell .ant-input-password-icon:hover {
+  color: var(--text);
+}
+
+.hc-shell .ant-input-affix-wrapper-disabled,
+.hc-shell .ant-input-textarea-affix-wrapper-disabled,
+.hc-shell .ant-input[disabled],
+.hc-shell textarea.ant-input[disabled],
+.hc-shell .ant-input-disabled,
+.hc-shell .ant-input-number-disabled,
+.hc-shell .ant-picker-disabled {
+  /* UX: disabled controls should remain obviously non-interactive while keeping the theme surface. */
+  background: var(--hc-control-bg-disabled) !important;
+  border-color: var(--hc-border) !important;
+  box-shadow: none !important;
+}
+
+.hc-shell .ant-select:not(.ant-select-borderless) .ant-select-selector {
+  background: var(--hc-control-bg) !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 12px !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-shell .ant-select:not(.ant-select-borderless):hover .ant-select-selector {
+  background: var(--hc-control-bg-hover) !important;
+  border-color: var(--hc-accent-border) !important;
+}
+
+.hc-shell .ant-select:not(.ant-select-borderless).ant-select-focused .ant-select-selector {
+  border-color: var(--hc-accent-border) !important;
+  box-shadow: var(--hc-focus-ring) !important;
+}
+
+.hc-shell .ant-select .ant-select-selection-placeholder {
+  color: var(--hc-control-placeholder) !important;
+}
+
+.hc-shell .ant-select .ant-select-arrow,
+.hc-shell .ant-select .ant-select-clear {
+  color: var(--hc-control-icon) !important;
+}
+
+.hc-shell .ant-select .ant-select-arrow:hover,
+.hc-shell .ant-select .ant-select-clear:hover {
+  color: var(--text) !important;
+}
+
+.hc-shell .ant-select-disabled .ant-select-selector {
+  background: var(--hc-control-bg-disabled) !important;
+  border-color: var(--hc-border) !important;
+  box-shadow: none !important;
+}
+
+/* Subtle selects for the chat composer (repo/robot pickers). */
+.hc-select-subtle.ant-select .ant-select-selector {
+  background: var(--hc-hover) !important;
+  border: 1px solid var(--hc-border) !important;
+  border-radius: 999px !important;
+  padding-inline: 10px !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.hc-select-subtle.ant-select:hover .ant-select-selector {
+  background: color-mix(in srgb, var(--hc-hover) 70%, var(--hc-accent-soft)) !important;
+  border-color: var(--hc-accent-border) !important;
+}
+
+.hc-select-subtle.ant-select-focused .ant-select-selector,
+.hc-select-subtle.ant-select-open .ant-select-selector {
+  border-color: var(--hc-accent-border) !important;
+  box-shadow: var(--hc-focus-ring) !important;
+}
+
+/* Header back icon: match the modern "pill icon" style used across the app. */
+.hc-nav__back.ant-btn {
+  border-radius: 999px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.hc-nav__back.ant-btn:hover {
+  background: var(--hc-hover) !important;
+  color: var(--text) !important;
+}

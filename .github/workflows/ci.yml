@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Environment variables aligned with GitLab CI configuration
+env:
+  CHECKPOINT_DISABLE: "1"
+  PRISMA_HIDE_UPDATE_MESSAGE: "1"
+  NO_UPDATE_NOTIFIER: "1"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Use fetch strategy to match GitLab CI behavior
+          clean: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: .cache/ci/pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Run unit tests
+        run: |
+          mkdir -p .cache/ci/pnpm-store
+          echo "PNPM_STORE_DIR=${PWD}/.cache/ci/pnpm-store" >> "$GITHUB_ENV"
+          corepack enable
+          corepack prepare pnpm@9.6.0 --activate
+          pnpm install --frozen-lockfile --store-dir "$PNPM_STORE_DIR"
+          pnpm --filter hookcode-backend test
+          pnpm --filter hookcode-frontend test
+
+  docker-build:
+    runs-on: ubuntu-latest
+    # Matches GitLab CI rules: run on main branch pushes and tags, skip on pull requests
+    if: github.event_name != 'pull_request'
+    needs:
+      - test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Use docker compose to match GitLab CI build approach
+      - name: Build Docker images with docker compose
+        env:
+          DOCKER_TLS_CERTDIR: ""
+          BACKEND_IMAGE: hookcode-backend:ci
+          FRONTEND_IMAGE: hookcode-frontend:ci
+        run: |
+          docker compose -f docker-compose.yml down --remove-orphans
+          docker compose -f docker-compose.yml up -d --build

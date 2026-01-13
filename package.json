@@ -1,0 +1,34 @@
+{
+  "name": "hookcode",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.6.0",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"pnpm dev:backend\" \"pnpm dev:tools\" \"pnpm dev:frontend\"",
+    "dev:backend": "ADMIN_TOOLS_EMBEDDED=false pnpm --filter hookcode-backend dev",
+    "dev:tools": "pnpm --filter hookcode-backend dev:tools",
+    "dev:worker": "pnpm --filter hookcode-backend dev:worker",
+    "dev:frontend": "pnpm --filter hookcode-frontend dev",
+    "dev:db": "docker compose up db -d",
+    "db:migrate": "pnpm --filter hookcode-backend db:migrate",
+    "db:migrate:dev": "pnpm --filter hookcode-backend db:migrate:dev",
+    "db:reset": "pnpm --filter hookcode-backend db:reset",
+    "db:push": "pnpm --filter hookcode-backend db:push",
+    "db:pull": "pnpm --filter hookcode-backend db:pull",
+    "db:studio": "pnpm --filter hookcode-backend db:studio",
+    "db:status": "pnpm --filter hookcode-backend db:status",
+    "build:backend": "pnpm --filter hookcode-backend build",
+    "build:frontend": "pnpm --filter hookcode-frontend build",
+    "lint": "echo \"add lint in packages\""
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

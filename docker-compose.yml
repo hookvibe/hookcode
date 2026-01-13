@@ -1,0 +1,77 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR}
+    env_file:
+      - ./backend/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - HOST=0.0.0.0
+      - DATABASE_URL=postgresql://${HOOKCODE_DB_USER:-hookcode}:${HOOKCODE_DB_PASSWORD:-hookcode}@db:5432/${HOOKCODE_DB_NAME:-hookcode}?schema=public
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${HOOKCODE_DB_USER:-hookcode}
+      - DB_PASSWORD=${HOOKCODE_DB_PASSWORD:-hookcode}
+      - DB_NAME=${HOOKCODE_DB_NAME:-hookcode}
+      - ALLOWED_ORIGIN=*
+      - INLINE_WORKER_ENABLED=false
+    ports:
+      - "${HOOKCODE_BACKEND_PORT:-4000}:4000"
+    depends_on:
+      - db
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR}
+    env_file:
+      - ./backend/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - DATABASE_URL=postgresql://${HOOKCODE_DB_USER:-hookcode}:${HOOKCODE_DB_PASSWORD:-hookcode}@db:5432/${HOOKCODE_DB_NAME:-hookcode}?schema=public
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${HOOKCODE_DB_USER:-hookcode}
+      - DB_PASSWORD=${HOOKCODE_DB_PASSWORD:-hookcode}
+      - DB_NAME=${HOOKCODE_DB_NAME:-hookcode}
+      - WORKER_POLL_INTERVAL_MS=2000
+      - PROCESSING_STALE_MS=1800000
+      - WORKER_BACKOFF_ON_PREFERRED=true
+    command: ["node", "/repo/backend/dist/worker.js"]
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:4000/api}
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:4000/api}
+    ports:
+      - "${HOOKCODE_FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${HOOKCODE_DB_NAME:-hookcode}
+      POSTGRES_USER: ${HOOKCODE_DB_USER:-hookcode}
+      POSTGRES_PASSWORD: ${HOOKCODE_DB_PASSWORD:-hookcode}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "${HOOKCODE_DB_PORT:-5432}:5432"
+
+volumes:
+  db_data: {}

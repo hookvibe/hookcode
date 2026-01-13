@@ -1,0 +1,316 @@
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Button, Space, Tag, Typography, message } from 'antd';
+import { CopyOutlined, DeleteOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { getToken } from '../auth';
+import { clearTaskLogs } from '../api';
+import { useT } from '../i18n';
+
+/**
+ * Live task log viewer (SSE/EventSource).
+ *
+ * Business context:
+ * - Module: Frontend Chat / Tasks / Logs.
+ * - Purpose: show real-time execution logs ("thought chain") for tasks and task groups.
+ *
+ * Backend endpoint:
+ * - `GET /api/tasks/:id/logs/stream` (SSE, supports `?token=` via `AllowQueryToken`).
+ *
+ * Pitfalls:
+ * - Browser `EventSource` cannot set custom headers, so auth is passed via query `token`.
+ * - The backend may disable logs globally; handle 404 / error states gracefully.
+ *
+ * Change record:
+ * - 2026-01-11: Migrated from the legacy frontend to power the new chat-style views.
+ */
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api').replace(/\/$/, '');
+
+const buildApiUrl = (path: string) => {
+  const base = new URL(apiBaseUrl, window.location.origin);
+  const baseWithSlash = base.toString().replace(/\/?$/, '/');
+  return new URL(path.replace(/^\//, ''), baseWithSlash).toString();
+};
+
+interface StreamInitPayload {
+  logs: string[];
+}
+
+interface StreamLogPayload {
+  line: string;
+}
+
+interface Props {
+  taskId: string;
+  height?: number;
+  tail?: number;
+  canManage?: boolean;
+  controls?: {
+    pause?: boolean;
+    reconnect?: boolean;
+  };
+  /**
+   * Controlled paused state (useful when moving the Pause/Resume button to an external UI).
+   * - When provided, the component no longer manages its own paused state.
+   */
+  paused?: boolean;
+  onPausedChange?: (paused: boolean) => void;
+  /**
+   * External reconnect counter: when it changes, the SSE connection is re-established.
+   */
+  reconnectKey?: number;
+  /**
+   * External scroll-to-focus trigger: when `focusKey` changes, the component tries to scroll to the last log line that contains `focusText`.
+   */
+  focusText?: string;
+  focusKey?: number;
+}
+
+const MAX_LINES = 2000;
+
+export const TaskLogViewer: FC<Props> = ({
+  taskId,
+  height = 320,
+  tail = 200,
+  canManage = true,
+  controls,
+  paused: pausedProp,
+  onPausedChange,
+  reconnectKey,
+  focusText,
+  focusKey
+}) => {
+  const t = useT();
+  const [messageApi, messageContextHolder] = message.useMessage();
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const pausedRef = useRef(false);
+  const focusedKeyRef = useRef<number | null>(null);
+
+  const showPauseButton = controls?.pause !== false;
+  const showReconnectButton = controls?.reconnect !== false;
+
+  const [logs, setLogs] = useState<string[]>([]);
+  const [connecting, setConnecting] = useState(true);
+  const [pausedInternal, setPausedInternal] = useState(false);
+  const paused = pausedProp ?? pausedInternal;
+  const [error, setError] = useState<string | null>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [session, setSession] = useState(0);
+  const [clearing, setClearing] = useState(false);
+
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
+  const setPaused = useCallback(
+    (next: boolean) => {
+      if (pausedProp !== undefined) {
+        onPausedChange?.(next);
+        return;
+      }
+      setPausedInternal(next);
+    },
+    [onPausedChange, pausedProp]
+  );
+
+  const lines = useMemo(() => logs.join('\n'), [logs]);
+  const buildLineId = useCallback((idx: number) => `task-log-${taskId}-${idx}`, [taskId]);
+
+  const copyAll = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(lines);
+      messageApi.success(t('logViewer.copySuccess'));
+    } catch {
+      messageApi.error(t('logViewer.copyFailed'));
+    }
+  }, [lines, messageApi, t]);
+
+  const clear = useCallback(async () => {
+    if (!taskId || clearing) return;
+    if (!canManage) {
+      messageApi.warning(t('logViewer.clearNotAllowed'));
+      return;
+    }
+    setClearing(true);
+    try {
+      await clearTaskLogs(taskId);
+      setLogs([]);
+      setSession((v) => v + 1);
+      messageApi.success(t('logViewer.clearSuccess'));
+    } catch {
+      messageApi.error(t('logViewer.clearFailed'));
+    } finally {
+      setClearing(false);
+    }
+  }, [canManage, clearing, messageApi, t, taskId]);
+
+  const onScroll = useCallback(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    setAutoScroll(atBottom);
+  }, []);
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || !autoScroll) return;
+    el.scrollTop = el.scrollHeight;
+  }, [logs.length, autoScroll]);
+
+  useEffect(() => {
+    if (!focusText || focusKey === undefined || focusKey === null) return;
+    if (focusedKeyRef.current === focusKey) return;
+
+    let idx = -1;
+    for (let i = logs.length - 1; i >= 0; i -= 1) {
+      if (logs[i]?.includes(focusText)) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) return;
+
+    focusedKeyRef.current = focusKey;
+    setAutoScroll(false);
+
+    const schedule =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (cb: FrameRequestCallback) => window.setTimeout(cb, 0);
+
+    schedule(() => {
+      const el = document.getElementById(buildLineId(idx));
+      if (!el) return;
+      try {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch {
+        el.scrollIntoView();
+      }
+    });
+  }, [buildLineId, focusKey, focusText, logs]);
+
+  useEffect(() => {
+    if (!taskId) return;
+
+    let alive = true;
+    let eventSource: EventSource | null = null;
+
+    setLogs([]);
+    setConnecting(true);
+    setError(null);
+
+    const connect = () => {
+      const url = new URL(buildApiUrl(`/tasks/${encodeURIComponent(taskId)}/logs/stream`));
+      if (tail > 0) url.searchParams.set('tail', String(tail));
+      const token = getToken();
+      if (token) url.searchParams.set('token', token);
+
+      eventSource = new EventSource(url.toString());
+
+      eventSource.addEventListener('open', () => {
+        if (!alive) return;
+        setConnecting(false);
+        setError(null);
+      });
+
+      eventSource.addEventListener('error', () => {
+        if (!alive) return;
+        setConnecting(false);
+        setError(t('logViewer.error.autoReconnect'));
+      });
+
+      eventSource.addEventListener('init', (ev) => {
+        if (!alive) return;
+        try {
+          const payload = JSON.parse((ev as MessageEvent).data) as StreamInitPayload;
+          const next = Array.isArray(payload.logs) ? payload.logs.filter((v) => typeof v === 'string') : [];
+          setLogs(next.slice(-MAX_LINES));
+        } catch (err) {
+          console.warn('[log] init parse failed', err);
+        }
+      });
+
+      eventSource.addEventListener('log', (ev) => {
+        if (!alive) return;
+        if (pausedRef.current) return;
+        try {
+          const payload = JSON.parse((ev as MessageEvent).data) as StreamLogPayload;
+          if (!payload?.line) return;
+          setLogs((prev) => [...prev, payload.line].slice(-MAX_LINES));
+        } catch (err) {
+          console.warn('[log] parse failed', err);
+        }
+      });
+    };
+
+    connect();
+
+    return () => {
+      alive = false;
+      eventSource?.close();
+      eventSource = null;
+    };
+  }, [taskId, tail, session, reconnectKey, t]);
+
+  return (
+    <div className="log-viewer">
+      {messageContextHolder}
+      <div className="log-viewer__header">
+        <Space size={8} wrap>
+          <Typography.Text className="log-viewer__title">{t('logViewer.title')}</Typography.Text>
+          <Tag color={connecting ? 'processing' : error ? 'red' : 'green'} style={{ marginRight: 0 }}>
+            {connecting ? t('logViewer.state.connecting') : error ? t('logViewer.state.error') : t('logViewer.state.live')}
+          </Tag>
+          <Typography.Text type="secondary">{t('logViewer.lines', { count: logs.length })}</Typography.Text>
+        </Space>
+        <Space size={8} wrap>
+          {showPauseButton ? (
+            <Button
+              size="small"
+              icon={paused ? <PlayCircleOutlined /> : <PauseOutlined />}
+              onClick={() => setPaused(!paused)}
+            >
+              {paused ? t('logViewer.actions.resume') : t('logViewer.actions.pause')}
+            </Button>
+          ) : null}
+          {showReconnectButton ? (
+            <Button size="small" icon={<ReloadOutlined />} onClick={() => setSession((v) => v + 1)}>
+              {t('logViewer.actions.reconnect')}
+            </Button>
+          ) : null}
+          <Button size="small" icon={<CopyOutlined />} onClick={() => void copyAll()}>
+            {t('logViewer.actions.copy')}
+          </Button>
+          <Button
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => void clear()}
+            loading={clearing}
+          >
+            {t('logViewer.actions.clear')}
+          </Button>
+        </Space>
+      </div>
+
+      {error ? (
+        <Alert type="warning" showIcon message={error} style={{ marginBottom: 8 }} />
+      ) : null}
+
+      <div className="log-viewer__body" style={{ height }} onScroll={onScroll} ref={boxRef}>
+        {logs.length ? (
+          <pre className="log-viewer__pre">
+            {logs.map((line, idx) => (
+              <div key={idx} id={buildLineId(idx)}>
+                {line}
+              </div>
+            ))}
+          </pre>
+        ) : (
+          <div className="log-viewer__empty">
+            <Typography.Text type="secondary">{t('logViewer.empty')}</Typography.Text>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
