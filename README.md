@@ -19,8 +19,8 @@ HookCode is an intelligent code review and automation platform that elegantly tr
 
 ### Supported CLI Coding Assistants
 - **Claude Code** - Anthropic's code assistant
-- **Codex** - OpenAi's code generation tool
-- **Gemini** - Google's code generation tool
+- **Codex** - OpenAi's code assistant
+- **Gemini** - Google's code assistant
 
 ### Supported Code Repositories
 - **GitHub** - Full Webhook and API integration
