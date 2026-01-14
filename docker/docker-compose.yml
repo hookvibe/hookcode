@@ -1,3 +1,8 @@
+# Compose project name:
+# - Keep it stable to avoid creating multiple stacks that bind the same host ports.
+# - This is especially important for self-hosted runners that also act as deployment servers.
+name: hookcode
+
 services:
   backend:
     build:
