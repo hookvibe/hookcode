@@ -51,8 +51,8 @@ jobs:
 
   docker-build:
     runs-on: self-hosted
-    # Only run on pull requests to ci-test branch for Docker validation
-    if: github.base_ref == 'ci-test'
+    # Run on: PR to ci-test, or push to ci-test branch
+    if: (github.event_name == 'pull_request' && github.base_ref == 'ci-test') || (github.event_name == 'push' && github.ref == 'refs/heads/ci-test')
     needs:
       - test
     steps:
