@@ -59,6 +59,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Create minimal .env file for CI build (not used in production)
+      - name: Setup CI environment file
+        run: |
+          cat > backend/.env << 'EOF'
+          # Minimal CI environment - actual runtime config comes from docker-compose environment section
+          NODE_ENV=production
+          PORT=4000
+          HOST=0.0.0.0
+          ALLOWED_ORIGIN=*
+          AUTH_ENABLED=false
+          AUTH_TOKEN_SECRET=ci-test-secret-do-not-use-in-production
+          AUTH_BOOTSTRAP_ADMIN=false
+          GITLAB_WEBHOOK_SECRET=ci-test-webhook-secret
+          GITLAB_PERSONAL_ACCESS_TOKEN=dummy-token-for-ci-build
+          GITHUB_WEBHOOK_SECRET=ci-test-webhook-secret
+          GITHUB_PERSONAL_ACCESS_TOKEN=dummy-token-for-ci-build
+          TASK_LOGS_ENABLED=false
+          ADMIN_TOOLS_ENABLED=false
+          EOF
+
       # Use docker compose to match GitLab CI build approach
       - name: Build Docker images with docker compose
         env:
