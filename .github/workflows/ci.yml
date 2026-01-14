@@ -59,6 +59,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Keep behavior consistent with the `test` job (avoid relying on untracked runner workspace files).
+          clean: true
 
       # Create minimal .env file for CI build (not used in production)
       - name: Setup CI environment file
@@ -94,7 +97,10 @@ jobs:
           HOOKCODE_DB_USER: ${{ secrets.HOOKCODE_DB_USER || 'hookcode' }}
           HOOKCODE_DB_PASSWORD: ${{ secrets.HOOKCODE_DB_PASSWORD || 'hookcode' }}
           HOOKCODE_DB_NAME: ${{ secrets.HOOKCODE_DB_NAME || 'hookcode' }}
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'http://localhost:4000/api' }}
+          # VITE_API_BASE_URL is forced to `/api` for deployments behind Cloudflare:
+          # - Business intent: keep frontend + backend reachable via a single public port (80/443).
+          # - Pitfall: `http://DOMAIN:8000/api` will not work when Cloudflare blocks non-allowlisted ports.
+          VITE_API_BASE_URL: "/api"
         run: |
           docker compose -f docker-compose.yml down --remove-orphans
           docker compose -f docker-compose.yml up -d --build

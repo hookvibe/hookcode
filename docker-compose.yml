@@ -20,7 +20,10 @@ services:
       - ALLOWED_ORIGIN=*
       - INLINE_WORKER_ENABLED=false
     ports:
-      - "${HOOKCODE_BACKEND_PORT:-4000}:4000"
+      # Optional host exposure (debugging / local access):
+      # - Cloudflare proxy only forwards 80/443, so public access must go through frontend Nginx (`/api/*`).
+      # - Default binds to 127.0.0.1 to avoid accidental public exposure and host port conflicts.
+      - "${HOOKCODE_BACKEND_BIND:-127.0.0.1}:${HOOKCODE_BACKEND_PORT:-4000}:4000"
     depends_on:
       - db
 
@@ -53,9 +56,10 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:4000/api}
-    environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:4000/api}
+        # VITE_API_BASE_URL now uses relative path to leverage Nginx reverse proxy
+        # This allows API requests to go through the same port (80) as the frontend
+        # Solving the Cloudflare port restriction issue (only port 80/443 allowed)
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
     ports:
       - "${HOOKCODE_FRONTEND_PORT:-5173}:80"
     depends_on:
