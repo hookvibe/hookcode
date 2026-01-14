@@ -1,10 +1,16 @@
 name: CI
 
 on:
-  pull_request:
+  # pull_request:
+  #   branches:
+  #     - ci-test
   push:
     branches:
       - main
+      - ci-test
+    # Exclude release branch from CI
+    branches-ignore:
+      - release
   workflow_dispatch:
 
 # Environment variables aligned with GitLab CI configuration
@@ -15,7 +21,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,9 +53,9 @@ jobs:
           pnpm --filter hookcode-frontend test
 
   docker-build:
-    runs-on: ubuntu-latest
-    # Matches GitLab CI rules: run on main branch pushes and tags, skip on pull requests
-    if: github.event_name != 'pull_request'
+    runs-on: self-hosted
+    # Only run on pull requests to ci-test branch for Docker validation
+    if: github.base_ref == 'ci-test'
     needs:
       - test
     steps:
