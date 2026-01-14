@@ -55,6 +55,7 @@ jobs:
     if: (github.event_name == 'pull_request' && github.base_ref == 'ci-test') || (github.event_name == 'push' && github.ref == 'refs/heads/ci-test')
     needs:
       - test
+    environment: hookcode
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -87,13 +88,13 @@ jobs:
           FRONTEND_IMAGE: hookcode-frontend:ci
           # All docker-compose environment variables from GitHub Actions
           PRISMA_ENGINES_MIRROR: ${{ vars.PRISMA_ENGINES_MIRROR || '' }}
-          HOOKCODE_BACKEND_PORT: ${{ vars.HOOKCODE_BACKEND_PORT || '4000' }}
-          HOOKCODE_FRONTEND_PORT: ${{ vars.HOOKCODE_FRONTEND_PORT || '5173' }}
-          HOOKCODE_DB_PORT: ${{ vars.HOOKCODE_DB_PORT || '5432' }}
-          HOOKCODE_DB_USER: ${{ vars.HOOKCODE_DB_USER || 'hookcode' }}
+          HOOKCODE_BACKEND_PORT: ${{ secrets.HOOKCODE_BACKEND_PORT || '4000' }}
+          HOOKCODE_FRONTEND_PORT: ${{ secrets.HOOKCODE_FRONTEND_PORT || '5173' }}
+          HOOKCODE_DB_PORT: ${{ secrets.HOOKCODE_DB_PORT || '5432' }}
+          HOOKCODE_DB_USER: ${{ secrets.HOOKCODE_DB_USER || 'hookcode' }}
           HOOKCODE_DB_PASSWORD: ${{ secrets.HOOKCODE_DB_PASSWORD || 'hookcode' }}
-          HOOKCODE_DB_NAME: ${{ vars.HOOKCODE_DB_NAME || 'hookcode' }}
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'http://localhost:4000/api' }}
+          HOOKCODE_DB_NAME: ${{ secrets.HOOKCODE_DB_NAME || 'hookcode' }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'http://localhost:4000/api' }}
         run: |
-          sudo docker compose -f docker-compose.yml down --remove-orphans
-          sudo docker compose -f docker-compose.yml up -d --build
+          docker compose -f docker-compose.yml down --remove-orphans
+          docker compose -f docker-compose.yml up -d --build
