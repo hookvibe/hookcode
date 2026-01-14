@@ -1,24 +1,18 @@
 services:
   backend:
     build:
-      context: .
+      # Build context is the repo root so both `backend/` and `frontend/` workspace packages are available.
+      # Change record:
+      # - 2026-01-14: Move Compose file under `docker/` and switch context to `..`.
+      context: ..
       dockerfile: backend/Dockerfile
       args:
         PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR}
     env_file:
-      - ./backend/.env
+      # Single Docker deployment env file shared by frontend(build) + backend/worker(runtime).
+      - ./.env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    environment:
-      - HOST=0.0.0.0
-      - DATABASE_URL=postgresql://${HOOKCODE_DB_USER:-hookcode}:${HOOKCODE_DB_PASSWORD:-hookcode}@db:5432/${HOOKCODE_DB_NAME:-hookcode}?schema=public
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=${HOOKCODE_DB_USER:-hookcode}
-      - DB_PASSWORD=${HOOKCODE_DB_PASSWORD:-hookcode}
-      - DB_NAME=${HOOKCODE_DB_NAME:-hookcode}
-      - ALLOWED_ORIGIN=*
-      - INLINE_WORKER_ENABLED=false
     ports:
       # Optional host exposure (debugging / local access):
       # - Cloudflare proxy only forwards 80/443, so public access must go through frontend Nginx (`/api/*`).
@@ -29,31 +23,21 @@ services:
 
   worker:
     build:
-      context: .
+      context: ..
       dockerfile: backend/Dockerfile
       args:
         PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR}
     env_file:
-      - ./backend/.env
+      - ./.env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    environment:
-      - DATABASE_URL=postgresql://${HOOKCODE_DB_USER:-hookcode}:${HOOKCODE_DB_PASSWORD:-hookcode}@db:5432/${HOOKCODE_DB_NAME:-hookcode}?schema=public
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=${HOOKCODE_DB_USER:-hookcode}
-      - DB_PASSWORD=${HOOKCODE_DB_PASSWORD:-hookcode}
-      - DB_NAME=${HOOKCODE_DB_NAME:-hookcode}
-      - WORKER_POLL_INTERVAL_MS=2000
-      - PROCESSING_STALE_MS=1800000
-      - WORKER_BACKOFF_ON_PREFERRED=true
     command: ["node", "/repo/backend/dist/worker.js"]
     depends_on:
       - db
 
   frontend:
     build:
-      context: .
+      context: ..
       dockerfile: frontend/Dockerfile
       args:
         # VITE_API_BASE_URL now uses relative path to leverage Nginx reverse proxy
@@ -69,9 +53,10 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${HOOKCODE_DB_NAME:-hookcode}
-      POSTGRES_USER: ${HOOKCODE_DB_USER:-hookcode}
-      POSTGRES_PASSWORD: ${HOOKCODE_DB_PASSWORD:-hookcode}
+      # DB_* is used by backend/worker; reuse it for the Postgres container to keep a single env file.
+      POSTGRES_DB: ${DB_NAME:-hookcode}
+      POSTGRES_USER: ${DB_USER:-hookcode}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-hookcode}
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:

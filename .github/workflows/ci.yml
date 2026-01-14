@@ -63,33 +63,13 @@ jobs:
           # Keep behavior consistent with the `test` job (avoid relying on untracked runner workspace files).
           clean: true
 
-      # Create minimal .env file for CI build (not used in production)
-      - name: Setup CI environment file
-        run: |
-          cat > backend/.env << 'EOF'
-          # Minimal CI environment - actual runtime config comes from docker-compose environment section
-          NODE_ENV=production
-          PORT=4000
-          HOST=0.0.0.0
-          ALLOWED_ORIGIN=*
-          AUTH_ENABLED=false
-          AUTH_TOKEN_SECRET=ci-test-secret-do-not-use-in-production
-          AUTH_BOOTSTRAP_ADMIN=false
-          GITLAB_WEBHOOK_SECRET=ci-test-webhook-secret
-          GITLAB_PERSONAL_ACCESS_TOKEN=dummy-token-for-ci-build
-          GITHUB_WEBHOOK_SECRET=ci-test-webhook-secret
-          GITHUB_PERSONAL_ACCESS_TOKEN=dummy-token-for-ci-build
-          TASK_LOGS_ENABLED=false
-          ADMIN_TOOLS_ENABLED=false
-          EOF
-
-      # Use docker compose to match GitLab CI build approach
+      # Use docker compose to match GitLab CI build approach.
+      # Change record:
+      # - 2026-01-14: Move Docker/CI logic into `docker/ci/*.sh` to keep this workflow small and consistent.
       - name: Build Docker images with docker compose
         env:
           DOCKER_TLS_CERTDIR: ""
-          BACKEND_IMAGE: hookcode-backend:ci
-          FRONTEND_IMAGE: hookcode-frontend:ci
-          # All docker-compose environment variables from GitHub Actions
+          # Inputs for `docker/.env` generation (see `docker/ci/write-ci-env.sh`).
           PRISMA_ENGINES_MIRROR: ${{ vars.PRISMA_ENGINES_MIRROR || '' }}
           HOOKCODE_BACKEND_PORT: ${{ secrets.HOOKCODE_BACKEND_PORT || '4000' }}
           HOOKCODE_FRONTEND_PORT: ${{ secrets.HOOKCODE_FRONTEND_PORT || '5173' }}
@@ -97,10 +77,9 @@ jobs:
           HOOKCODE_DB_USER: ${{ secrets.HOOKCODE_DB_USER || 'hookcode' }}
           HOOKCODE_DB_PASSWORD: ${{ secrets.HOOKCODE_DB_PASSWORD || 'hookcode' }}
           HOOKCODE_DB_NAME: ${{ secrets.HOOKCODE_DB_NAME || 'hookcode' }}
-          # VITE_API_BASE_URL is forced to `/api` for deployments behind Cloudflare:
-          # - Business intent: keep frontend + backend reachable via a single public port (80/443).
-          # - Pitfall: `http://DOMAIN:8000/api` will not work when Cloudflare blocks non-allowlisted ports.
-          VITE_API_BASE_URL: "/api"
+          # Auth (recommended for internet-facing deployments; written into `docker/.env`).
+          AUTH_TOKEN_SECRET: ${{ secrets.AUTH_TOKEN_SECRET || '' }}
+          AUTH_ADMIN_USERNAME: ${{ secrets.AUTH_ADMIN_USERNAME || '' }}
+          AUTH_ADMIN_PASSWORD: ${{ secrets.AUTH_ADMIN_PASSWORD || '' }}
         run: |
-          docker compose -f docker-compose.yml down --remove-orphans
-          docker compose -f docker-compose.yml up -d --build
+          bash docker/ci/compose-build-up.sh

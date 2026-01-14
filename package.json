@@ -13,7 +13,7 @@
     "dev:tools": "pnpm --filter hookcode-backend dev:tools",
     "dev:worker": "pnpm --filter hookcode-backend dev:worker",
     "dev:frontend": "pnpm --filter hookcode-frontend dev",
-    "dev:db": "docker compose up db -d",
+    "dev:db": "docker compose -f docker/docker-compose.yml up db -d",
     "db:migrate": "pnpm --filter hookcode-backend db:migrate",
     "db:migrate:dev": "pnpm --filter hookcode-backend db:migrate:dev",
     "db:reset": "pnpm --filter hookcode-backend db:reset",

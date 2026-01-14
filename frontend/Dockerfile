@@ -31,8 +31,9 @@ COPY --from=build /repo/frontend/dist /usr/share/nginx/html
 
 # Copy custom Nginx configuration with API reverse proxy support.
 # Change record:
+# - 2026-01-14: Move Nginx config under `docker/nginx/` to keep deployment assets centralized.
 # - 2026-01-14: Use `/etc/nginx/conf.d/default.conf` (not templated) to guarantee the proxy config is always loaded.
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx/frontend.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
