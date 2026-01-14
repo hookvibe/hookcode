@@ -65,6 +65,7 @@ jobs:
           DOCKER_TLS_CERTDIR: ""
           BACKEND_IMAGE: hookcode-backend:ci
           FRONTEND_IMAGE: hookcode-frontend:ci
+          PRISMA_ENGINES_MIRROR: ""
         run: |
-          docker compose -f docker-compose.yml down --remove-orphans
-          docker compose -f docker-compose.yml up -d --build
+          sudo docker compose -f docker-compose.yml down --remove-orphans
+          sudo docker compose -f docker-compose.yml up -d --build
