@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class CodexCredentialsPublicDto {
+export class ModelProviderCredentialProfilePublicDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  remark!: string;
+
   @ApiPropertyOptional({ nullable: true })
   apiBaseUrl?: string | null;
 
@@ -8,14 +14,12 @@ export class CodexCredentialsPublicDto {
   hasApiKey!: boolean;
 }
 
-export class ClaudeCodeCredentialsPublicDto {
-  @ApiProperty()
-  hasApiKey!: boolean;
-}
+export class ModelProviderCredentialsPublicDto {
+  @ApiProperty({ type: ModelProviderCredentialProfilePublicDto, isArray: true })
+  profiles!: ModelProviderCredentialProfilePublicDto[];
 
-export class GeminiCliCredentialsPublicDto {
-  @ApiProperty()
-  hasApiKey!: boolean;
+  @ApiPropertyOptional({ nullable: true })
+  defaultProfileId?: string | null;
 }
 
 export class RepoProviderCredentialProfilePublicDto {
@@ -23,7 +27,7 @@ export class RepoProviderCredentialProfilePublicDto {
   id!: string;
 
   @ApiProperty()
-  name!: string;
+  remark!: string;
 
   @ApiProperty()
   hasToken!: boolean;
@@ -41,14 +45,14 @@ export class RepoProviderCredentialsPublicDto {
 }
 
 export class UserModelCredentialsPublicDto {
-  @ApiProperty({ type: CodexCredentialsPublicDto })
-  codex!: CodexCredentialsPublicDto;
+  @ApiProperty({ type: ModelProviderCredentialsPublicDto })
+  codex!: ModelProviderCredentialsPublicDto;
 
-  @ApiProperty({ type: ClaudeCodeCredentialsPublicDto })
-  claude_code!: ClaudeCodeCredentialsPublicDto;
+  @ApiProperty({ type: ModelProviderCredentialsPublicDto })
+  claude_code!: ModelProviderCredentialsPublicDto;
 
-  @ApiProperty({ type: GeminiCliCredentialsPublicDto })
-  gemini_cli!: GeminiCliCredentialsPublicDto;
+  @ApiProperty({ type: ModelProviderCredentialsPublicDto })
+  gemini_cli!: ModelProviderCredentialsPublicDto;
 
   @ApiProperty({ type: RepoProviderCredentialsPublicDto })
   gitlab!: RepoProviderCredentialsPublicDto;

@@ -1,17 +1,26 @@
 import dotenv from 'dotenv';
-import fs from 'fs';
 import path from 'path';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { isTruthy } from './utils/env';
+import {
+  applySqlMigrations,
+  bootstrapLegacyMigrationRecords,
+  ensureSchemaMigrationsTable,
+  listAppliedSchemaMigrations,
+  loadSqlMigrationsFromDir
+} from './db/schemaMigrations';
 
 dotenv.config();
 
 /**
  * Database connection and schema initialization (Prisma):
  * - Business access: via Prisma Client (`db`)
- * - Init: dev/test can call `ensureSchema()` (runs the init migration on first start/empty DB)
+ * - Init/Upgrade: `ensureSchema()` applies pending SQL migrations on startup (safe-by-default; no forced DB wipe)
+ *
+ * Change record:
+ * - 2026-01-15: Upgrade path no longer requires wiping the DB when schema changes; apply migrations incrementally.
  */
 const buildDatabaseUrl = (): string => {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
@@ -59,284 +68,95 @@ const resolveDirFromEnv = (value: unknown): string | null => {
   return path.isAbsolute(raw) ? raw : path.join(process.cwd(), raw);
 };
 
-const splitSqlStatements = (input: string): string[] => {
-  const sql = input.replace(/\r\n/g, '\n');
-  const out: string[] = [];
-  let buf = '';
-  let inSingle = false;
-  let inDouble = false;
-  let dollarTag: string | null = null;
+type LockRow = { locked: boolean };
 
-  const tryReadDollarTag = (s: string, idx: number): { tag: string; end: number } | null => {
-    if (s[idx] !== '$') return null;
-    const next = s.indexOf('$', idx + 1);
-    if (next <= idx) return null;
-    const tag = s.slice(idx, next + 1); // include both '$'
-    if (!/^\$[A-Za-z0-9_]*\$$/.test(tag)) return null;
-    return { tag, end: next };
+const SCHEMA_MIGRATION_LOCK_KEY_1 = 1212367938; // 'HCDB'
+const SCHEMA_MIGRATION_LOCK_KEY_2 = 1296648018; // 'MIGR'
+
+const withSchemaMigrationLock = async <T>(fn: (client: PoolClient) => Promise<T>): Promise<T> => {
+  // Performance note: Schema migrations are rare and short, so a single global advisory lock is acceptable.
+  const client = await pool.connect();
+  let hadError = false;
+  const onError = (err: unknown) => {
+    hadError = true;
+    console.warn('[db] schema migration lock connection error', err);
   };
+  client.on('error', onError);
 
-  for (let i = 0; i < sql.length; i++) {
-    const ch = sql[i];
-    const prev = i > 0 ? sql[i - 1] : '';
+  try {
+    const { rows } = await client.query<LockRow>('SELECT pg_try_advisory_lock($1, $2) AS locked', [
+      SCHEMA_MIGRATION_LOCK_KEY_1,
+      SCHEMA_MIGRATION_LOCK_KEY_2
+    ]);
+    const locked = Boolean(rows?.[0]?.locked);
+    if (!locked) {
+      console.warn('[db] waiting for schema migration lock (another process is migrating)');
+      await client.query('SELECT pg_advisory_lock($1, $2)', [SCHEMA_MIGRATION_LOCK_KEY_1, SCHEMA_MIGRATION_LOCK_KEY_2]);
+    }
 
-    if (!inSingle && !inDouble) {
-      const tag = tryReadDollarTag(sql, i);
-      if (tag) {
-        if (dollarTag === null) {
-          dollarTag = tag.tag;
-          buf += tag.tag;
-          i = tag.end;
-          continue;
-        }
-        if (dollarTag === tag.tag) {
-          dollarTag = null;
-          buf += tag.tag;
-          i = tag.end;
-          continue;
-        }
+    try {
+      return await fn(client);
+    } finally {
+      await client.query('SELECT pg_advisory_unlock($1, $2)', [SCHEMA_MIGRATION_LOCK_KEY_1, SCHEMA_MIGRATION_LOCK_KEY_2]);
+    }
+  } finally {
+    try {
+      client.release(hadError ? true : undefined);
+    } finally {
+      try {
+        client.removeListener('error', onError);
+      } catch (_) {
+        // ignore
       }
     }
-
-    if (dollarTag === null) {
-      if (!inDouble && ch === "'" && prev !== '\\') {
-        inSingle = !inSingle;
-      } else if (!inSingle && ch === '"' && prev !== '\\') {
-        inDouble = !inDouble;
-      }
-    }
-
-    if (!inSingle && !inDouble && dollarTag === null && ch === ';') {
-      const stmt = buf.trim();
-      if (stmt) out.push(stmt);
-      buf = '';
-      continue;
-    }
-
-    buf += ch;
   }
-
-  const last = buf.trim();
-  if (last) out.push(last);
-  return out;
-};
-
-const loadMigrationSqlFiles = (): string[] => {
-  const migrationsDir = resolveDirFromEnv(process.env.HOOKCODE_MIGRATIONS_DIR) ?? path.join(__dirname, '../prisma/migrations');
-  const dirs = fs
-    .readdirSync(migrationsDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name)
-    .sort((a, b) => a.localeCompare(b));
-
-  const files: string[] = [];
-  for (const dir of dirs) {
-    const filePath = path.join(migrationsDir, dir, 'migration.sql');
-    if (!fs.existsSync(filePath)) continue;
-    files.push(filePath);
-  }
-  return files;
-};
-
-const schemaExists = async (): Promise<boolean> => {
-  const { rows } = await pool.query<{ exists: boolean }>(
-    `
-      SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.tables
-        WHERE table_schema = 'public'
-          AND table_name = 'users'
-      ) AS exists
-    `
-  );
-  return Boolean(rows?.[0]?.exists);
-};
-
-const schemaIsLatest = async (): Promise<boolean> => {
-  const { rows } = await pool.query<{
-    has_repo_webhook_verified_at: boolean;
-    has_repo_webhook_deliveries: boolean;
-    has_repo_repo_provider_credentials: boolean;
-    has_repo_model_provider_credentials: boolean;
-    has_repo_robot_repo_credential_profile_id: boolean;
-    has_repo_robot_token_introspection: boolean;
-    has_task_groups: boolean;
-    has_task_group_id: boolean;
-    has_repo_created_by: boolean;
-    has_user_roles: boolean;
-    has_user_email_verified: boolean;
-    has_email_verification_tokens: boolean;
-    has_repo_members: boolean;
-    has_repo_access_requests: boolean;
-    has_repo_admin_applications: boolean;
-  }>(
-    `
-      SELECT
-        EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'repositories'
-            AND column_name = 'created_by'
-        ) AS has_repo_created_by,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'repositories'
-            AND column_name = 'webhook_verified_at'
-        ) AS has_repo_webhook_verified_at,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public'
-            AND table_name = 'repo_webhook_deliveries'
-        ) AS has_repo_webhook_deliveries,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'repositories'
-            AND column_name = 'repo_provider_credentials_json'
-        ) AS has_repo_repo_provider_credentials,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'repositories'
-            AND column_name = 'model_provider_credentials_json'
-        ) AS has_repo_model_provider_credentials,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'repo_robots'
-            AND column_name = 'repo_credential_profile_id'
-          ) AS has_repo_robot_repo_credential_profile_id,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'repo_robots'
-            AND column_name = 'repo_token_user_id'
-        ) AS has_repo_robot_token_introspection
-        ,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public'
-            AND table_name = 'task_groups'
-        ) AS has_task_groups,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'tasks'
-            AND column_name = 'group_id'
-        ) AS has_task_group_id
-        ,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'users'
-            AND column_name = 'roles'
-        ) AS has_user_roles,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.columns
-          WHERE table_schema = 'public'
-            AND table_name = 'users'
-            AND column_name = 'email_verified'
-        ) AS has_user_email_verified,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public'
-            AND table_name = 'email_verification_tokens'
-        ) AS has_email_verification_tokens,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public'
-            AND table_name = 'repo_members'
-        ) AS has_repo_members,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public'
-            AND table_name = 'repo_access_requests'
-        ) AS has_repo_access_requests,
-        EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public'
-            AND table_name = 'repo_admin_applications'
-        ) AS has_repo_admin_applications
-    `
-  );
-  const required = Boolean(
-    rows?.[0]?.has_repo_webhook_verified_at &&
-      rows?.[0]?.has_repo_webhook_deliveries &&
-      rows?.[0]?.has_repo_repo_provider_credentials &&
-      rows?.[0]?.has_repo_model_provider_credentials &&
-      rows?.[0]?.has_repo_robot_repo_credential_profile_id &&
-      rows?.[0]?.has_repo_robot_token_introspection &&
-      rows?.[0]?.has_task_groups &&
-      rows?.[0]?.has_task_group_id
-  );
-  if (!required) return false;
-
-  const strict = isTruthy(process.env.HOOKCODE_SCHEMA_STRICT, true);
-  if (!strict) return true;
-
-  return Boolean(
-    // Removed legacy multi-user/schema fields.
-    !rows?.[0]?.has_repo_created_by &&
-      !rows?.[0]?.has_user_roles &&
-      !rows?.[0]?.has_user_email_verified &&
-      !rows?.[0]?.has_email_verification_tokens &&
-      !rows?.[0]?.has_repo_members &&
-      !rows?.[0]?.has_repo_access_requests &&
-      !rows?.[0]?.has_repo_admin_applications
-  );
 };
 
 export const ensureSchema = async (): Promise<void> => {
-  const exists = await schemaExists();
-  if (exists) {
-    const latest = await schemaIsLatest();
-    if (!latest) {
+  // Business context: HookCode runs in user-owned environments; a git upgrade should not require data loss.
+  // This function ensures the DB schema is upgraded (or blocks safely) before any business query runs.
+  const migrationsDir =
+    resolveDirFromEnv(process.env.HOOKCODE_MIGRATIONS_DIR) ?? path.join(__dirname, '../prisma/migrations');
+  const migrations = loadSqlMigrationsFromDir(migrationsDir);
+  if (migrations.length === 0) return;
+
+  const autoMigrate = isTruthy(process.env.HOOKCODE_DB_AUTO_MIGRATE, true);
+  const acceptDataLoss = isTruthy(process.env.HOOKCODE_DB_ACCEPT_DATA_LOSS, false);
+
+  await withSchemaMigrationLock(async (client) => {
+    await ensureSchemaMigrationsTable(client);
+
+    // Legacy upgrade path: old versions initialized schema without a migrations table; baseline what is already present.
+    const baselined = await bootstrapLegacyMigrationRecords(client, migrations);
+    if (baselined.length > 0) {
+      console.warn(`[db] baselined ${baselined.length} migration(s) from existing schema: ${baselined.join(', ')}`);
+    }
+
+    const applied = await listAppliedSchemaMigrations(client);
+    for (const migration of migrations) {
+      const row = applied.get(migration.id);
+      if (!row) continue;
+      if (row.checksum_sha256 !== migration.checksumSha256) {
+        throw new Error(
+          `[db] Migration checksum mismatch for "${migration.id}". Do not edit old migration.sql files after release; create a new migration instead.`
+        );
+      }
+    }
+
+    const pending = migrations.filter((m) => !applied.has(m.id));
+    if (pending.length === 0) return;
+
+    if (!autoMigrate) {
       throw new Error(
-        'Database schema has been updated: please wipe the old database (e.g. remove docker volume db_data, or DROP TABLE) and restart the service'
+        `[db] Database schema is out of date (pending migrations: ${pending.map((m) => m.id).join(', ')}). ` +
+          `Set HOOKCODE_DB_AUTO_MIGRATE=true to apply automatically and restart.`
       );
     }
-    return;
-  }
 
-  const migrationFiles = loadMigrationSqlFiles();
-  if (migrationFiles.length === 0) return;
-
-  const statements: string[] = [];
-  for (const filePath of migrationFiles) {
-    const sql = fs.readFileSync(filePath, 'utf8');
-    const parts = splitSqlStatements(sql);
-    for (const stmt of parts) statements.push(stmt);
-  }
-  if (statements.length === 0) return;
-
-  console.warn('[db] schema not found; initializing (first start with empty DB)');
-  await pool.query('BEGIN');
-  try {
-    for (const stmt of statements) {
-      await pool.query(stmt);
-    }
-    await pool.query('COMMIT');
-  } catch (err) {
-    await pool.query('ROLLBACK');
-    console.error('[db] schema init failed', err);
-    throw err;
-  }
+    console.warn(`[db] applying ${pending.length} migration(s): ${pending.map((m) => m.id).join(', ')}`);
+    await applySqlMigrations(client, pending, { acceptDataLoss });
+    console.warn('[db] database schema is up to date');
+  });
 };
 
 export const pingDb = async () => {

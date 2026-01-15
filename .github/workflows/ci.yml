@@ -1,9 +1,9 @@
 name: CI
 
 on:
-  # pull_request:
-  #   branches:
-  #     - ci-test
+  pull_request:
+    branches:
+      - ci-test
   push:
     branches:
       - main
@@ -15,6 +15,8 @@ env:
   CHECKPOINT_DISABLE: "1"
   PRISMA_HIDE_UPDATE_MESSAGE: "1"
   NO_UPDATE_NOTIFIER: "1"
+  # Feature toggle: keep CI builds/tests from exposing account editing UI (default enabled in local/dev).
+  VITE_DISABLE_ACCOUNT_EDIT: "1"
 
 jobs:
   test:
@@ -51,20 +53,35 @@ jobs:
 
   docker-build:
     runs-on: self-hosted
-    # Only run on pull requests to ci-test branch for Docker validation
-    if: github.base_ref == 'ci-test'
+    # Run on: PR to ci-test, or push to ci-test branch
+    if: (github.event_name == 'pull_request' && github.base_ref == 'ci-test') || (github.event_name == 'push' && github.ref == 'refs/heads/ci-test')
     needs:
       - test
+    environment: hookcode
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Keep behavior consistent with the `test` job (avoid relying on untracked runner workspace files).
+          clean: true
 
-      # Use docker compose to match GitLab CI build approach
+      # Use docker compose to match GitLab CI build approach.
+      # Change record:
+      # - 2026-01-14: Move Docker/CI logic into `docker/ci/*.sh` to keep this workflow small and consistent.
       - name: Build Docker images with docker compose
         env:
           DOCKER_TLS_CERTDIR: ""
-          BACKEND_IMAGE: hookcode-backend:ci
-          FRONTEND_IMAGE: hookcode-frontend:ci
+          # Inputs for `docker/.env` generation (see `docker/ci/write-ci-env.sh`).
+          PRISMA_ENGINES_MIRROR: ${{ vars.PRISMA_ENGINES_MIRROR || '' }}
+          HOOKCODE_BACKEND_PORT: ${{ secrets.HOOKCODE_BACKEND_PORT || '4000' }}
+          HOOKCODE_FRONTEND_PORT: ${{ secrets.HOOKCODE_FRONTEND_PORT || '5173' }}
+          HOOKCODE_DB_PORT: ${{ secrets.HOOKCODE_DB_PORT || '5432' }}
+          HOOKCODE_DB_USER: ${{ secrets.HOOKCODE_DB_USER || 'hookcode' }}
+          HOOKCODE_DB_PASSWORD: ${{ secrets.HOOKCODE_DB_PASSWORD || 'hookcode' }}
+          HOOKCODE_DB_NAME: ${{ secrets.HOOKCODE_DB_NAME || 'hookcode' }}
+          # Auth (recommended for internet-facing deployments; written into `docker/.env`).
+          AUTH_TOKEN_SECRET: ${{ secrets.AUTH_TOKEN_SECRET || '' }}
+          AUTH_ADMIN_USERNAME: ${{ secrets.AUTH_ADMIN_USERNAME || '' }}
+          AUTH_ADMIN_PASSWORD: ${{ secrets.AUTH_ADMIN_PASSWORD || '' }}
         run: |
-          docker compose -f docker-compose.yml down --remove-orphans
-          docker compose -f docker-compose.yml up -d --build
+          bash docker/ci/compose-build-up.sh

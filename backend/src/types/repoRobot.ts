@@ -20,7 +20,33 @@ export interface RepoRobot {
    */
   hasToken: boolean;
   /**
-   * Selected account-level repo credential profile id (when the robot does not store a per-robot token).
+   * Repo provider credential source for this robot:
+   * - robot: use `repo_robots.token` (per-robot secret stored in DB)
+   * - user: use the account-level credential profile selected by `repoCredentialProfileId`
+   * - repo: use the repo-scoped credential profile selected by `repoCredentialProfileId`
+   *
+   * Change record:
+   * - 2026-01-14: Added `repoCredentialSource` to disambiguate profile ids now that both user/repo credentials can be multi-profile.
+   */
+  repoCredentialSource?: 'robot' | 'user' | 'repo';
+  /**
+   * User-defined note for the repo provider credential used by this robot.
+   *
+   * Notes:
+   * - Only applies to per-robot tokens (`repoCredentialSource=robot`).
+   * - Stored in `repo_robots.repo_credential_remark`.
+   *
+   * Change record:
+   * - 2026-01-14: Added `repoCredentialRemark` so users can label per-robot repo tokens in UI.
+   */
+  repoCredentialRemark?: string;
+  /**
+   * Selected repo credential profile id.
+   *
+   * Notes:
+   * - When `repoCredentialSource=user`, this refers to the user's account-level repo credential profile.
+   * - When `repoCredentialSource=repo`, this refers to the repo-scoped repo provider credential profile.
+   * - When `repoCredentialSource=robot`, this field is ignored (the robot uses its embedded token).
    *
    * Stored in `repo_robots.repo_credential_profile_id`.
    */

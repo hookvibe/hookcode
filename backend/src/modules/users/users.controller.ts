@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpException,
   InternalServerErrorException,
@@ -13,6 +14,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -20,6 +22,7 @@ import {
   ApiUnauthorizedResponse
 } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { isAccountEditDisabled } from '../../config/features';
 import { UserService } from './user.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -42,11 +45,16 @@ export class UsersController {
     operationId: 'users_patch_me'
   })
   @ApiOkResponse({ description: 'OK', type: PatchMeResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async patchMe(@Req() req: Request, @Body() body: UpdateUserDto) {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      if (isAccountEditDisabled()) {
+        // Security boundary (2026-01-15): client-side UI disabling is not sufficient; block self-service edits on the server.
+        throw new ForbiddenException({ error: 'Account editing is disabled', code: 'ACCOUNT_EDIT_DISABLED' });
+      }
 
       const updated = await this.userService.updateUser(req.user.id, { displayName: body.displayName });
       if (!updated) throw new NotFoundException({ error: 'User not found' });
@@ -65,11 +73,16 @@ export class UsersController {
     operationId: 'users_change_password'
   })
   @ApiOkResponse({ description: 'OK', type: SuccessResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   async patchPassword(@Req() req: Request, @Body() body: ChangePasswordDto) {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      if (isAccountEditDisabled()) {
+        // Security boundary (2026-01-15): always enforce sensitive feature toggles on the backend.
+        throw new ForbiddenException({ error: 'Account editing is disabled', code: 'ACCOUNT_EDIT_DISABLED' });
+      }
 
       const currentPassword = typeof body?.currentPassword === 'string' ? body.currentPassword : '';
       const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : '';
@@ -131,21 +144,19 @@ export class UsersController {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
 
-      const codex = body.codex && typeof body.codex === 'object' ? body.codex : undefined;
-      const gitlab = body.gitlab && typeof body.gitlab === 'object' ? body.gitlab : undefined;
-      const github = body.github && typeof body.github === 'object' ? body.github : undefined;
-
       const credentials = await this.userService.updateModelCredentials(req.user.id, {
-        ...(codex ? { codex } : {}),
-        ...(gitlab ? { gitlab } : {}),
-        ...(github ? { github } : {})
+        ...(body.codex !== undefined ? { codex: body.codex as any } : {}),
+        ...(body.claude_code !== undefined ? { claude_code: body.claude_code as any } : {}),
+        ...(body.gemini_cli !== undefined ? { gemini_cli: body.gemini_cli as any } : {}),
+        ...(body.gitlab !== undefined ? { gitlab: body.gitlab as any } : {}),
+        ...(body.github !== undefined ? { github: body.github as any } : {})
       });
       if (!credentials) throw new NotFoundException({ error: 'User not found' });
       return { credentials };
     } catch (err: any) {
       if (err instanceof HttpException) throw err;
       const message = err?.message ? String(err.message) : '';
-      if (message.includes('repo provider credential profile name is required')) {
+      if (message.includes('repo provider credential profile remark is required') || message.includes('model provider credential profile remark is required')) {
         throw new BadRequestException({ error: message });
       }
       console.error('[users] update model credentials failed', err);

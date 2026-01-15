@@ -24,7 +24,15 @@ vi.mock('../api', () => {
       automationConfig: null,
       webhookSecret: null,
       webhookPath: null,
-      repoScopedCredentials: { repoProvider: { hasToken: false }, modelProvider: { codex: { hasApiKey: false }, claude_code: { hasApiKey: false } } }
+      // Change record: repo-scoped credentials now expose multiple profiles per provider.
+      repoScopedCredentials: {
+        repoProvider: { profiles: [], defaultProfileId: null },
+        modelProvider: {
+          codex: { profiles: [], defaultProfileId: null },
+          claude_code: { profiles: [], defaultProfileId: null },
+          gemini_cli: { profiles: [], defaultProfileId: null }
+        }
+      }
     })),
     updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null }))
   };
@@ -82,7 +90,14 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
       automationConfig: null,
       webhookSecret: null,
       webhookPath: null,
-      repoScopedCredentials: { repoProvider: { hasToken: false }, modelProvider: { codex: { hasApiKey: false }, claude_code: { hasApiKey: false } } }
+      repoScopedCredentials: {
+        repoProvider: { profiles: [], defaultProfileId: null },
+        modelProvider: {
+          codex: { profiles: [], defaultProfileId: null },
+          claude_code: { profiles: [], defaultProfileId: null },
+          gemini_cli: { profiles: [], defaultProfileId: null }
+        }
+      }
     } as any);
 
     renderPage({ repoId: 'r1' });

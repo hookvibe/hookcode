@@ -301,8 +301,8 @@ body {
   justify-content: flex-start;
   border-radius: 10px;
   height: 40px;
-  background: var(--hc-accent-soft);
-  border: 1px solid var(--hc-accent-border);
+  /* background: var(--hc-accent-soft); */
+  /* border: 1px solid var(--hc-accent-border); */
   color: var(--text);
   box-shadow: none;
   transition: background-color 0.2s ease, border-color 0.2s ease;
@@ -1068,6 +1068,7 @@ body {
  * Change record:
  * - 2026-01-12: Redesign modal layout to be fixed-size and tab-consistent.
  * - 2026-01-12: Add responsive layout + accessible nav button styling for mobile and keyboard users.
+ * - 2026-01-15: Tighten paddings and unify dark-mode surfaces (avoid "black/gray blocks") in the panel and its dialogs.
  * ========================================================================== */
 
 .hc-user-trigger {
@@ -1127,6 +1128,17 @@ body {
   height: min(680px, calc(100vh - 140px));
 }
 
+/* Surface unification (2026-01-15):
+ * - Business context: Frontend / User panel modal.
+ * - Purpose: keep embedded AntD cards on the same neutral panel surface in dark mode
+ *   so the modal doesn't look like alternating "black blocks" and "gray blocks".
+ * - Usage: applied to cards rendered inside `UserPanelPopover.tsx`.
+ */
+.hc-user-modal .ant-card {
+  background: var(--hc-panel-bg);
+  border-color: var(--hc-border);
+}
+
 .hc-user-panel {
   display: flex;
   width: 100%;
@@ -1157,7 +1169,8 @@ body {
   border-right: 1px solid var(--hc-border);
   display: flex;
   flex-direction: column;
-  padding: 16px 10px;
+  /* Layout (2026-01-15): reduce outer padding so the modal feels less "padded". */
+  padding: 12px 8px;
   flex-shrink: 0;
   min-height: 0;
   overflow: hidden;
@@ -1325,7 +1338,8 @@ body {
 }
 
 .hc-user-panel__content-header {
-  padding: 16px 24px;
+  /* Layout (2026-01-15): reduce outer padding to match the tighter modal surface. */
+  padding: 12px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1370,7 +1384,8 @@ body {
 }
 
 .hc-user-panel__content-body {
-  padding: 18px 24px;
+  /* Layout (2026-01-15): reduce outer padding so content matches the main pages' density. */
+  padding: 14px 16px;
   max-width: 800px;
   width: 100%;
   margin: 0 auto;
@@ -1732,6 +1747,46 @@ body {
 
 .hc-shell .ant-popover-inner {
   box-shadow: var(--hc-shadow-md);
+}
+
+/* Compact dialog skin (2026-01-15):
+ * - Business context: Frontend / Dialogs / Credential profile editors.
+ * - Purpose:
+ *   1) Reduce modal padding so dialogs feel closer to the main content density.
+ *   2) Keep header/body/footer on a single surface in dark mode (avoid mixed blacks/greys).
+ *
+ * Usage:
+ * - Add `className="hc-dialog--compact"` to AntD `Modal` / `ResponsiveDialog` (compact variant).
+ *
+ * Notes:
+ * - We intentionally keep the control surface (`--hc-control-bg`) the same across pages/modals; this class only
+ *   adjusts container padding + dialog surface to match the user panel's neutral background.
+ */
+.hc-shell .hc-dialog--compact .ant-modal-content {
+  background: var(--hc-panel-bg);
+  border: 1px solid var(--hc-border);
+  box-shadow: var(--hc-shadow-lg);
+}
+
+.hc-shell .hc-dialog--compact .ant-modal-header,
+.hc-shell .hc-dialog--compact .ant-modal-body,
+.hc-shell .hc-dialog--compact .ant-modal-footer {
+  background: transparent;
+}
+
+.hc-shell .hc-dialog--compact .ant-modal-header {
+  padding: 12px 16px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-shell .hc-dialog--compact .ant-modal-body {
+  padding: 14px 16px;
+}
+
+.hc-shell .hc-dialog--compact .ant-modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--hc-border);
 }
 
 /* Form controls: make inputs/selects feel consistent with the "soft surface" theme. */

@@ -6,6 +6,7 @@ import type {
   ModelReasoningEffort as CodexSdkModelReasoningEffort
 } from '@openai/codex-sdk';
 import { buildMergedProcessEnv, createAsyncLineLogger } from '../utils/providerRuntime';
+import { normalizeHttpBaseUrl } from '../utils/url';
 
 export const CODEX_PROVIDER_KEY = 'codex' as const;
 export type ModelProviderKey = typeof CODEX_PROVIDER_KEY | (string & {});
@@ -19,10 +20,24 @@ export type CodexCredentialSource = 'user' | 'repo' | 'robot';
 export interface CodexCredential {
   apiBaseUrl?: string;
   apiKey?: string;
+  /**
+   * User-defined note for distinguishing credentials in UI.
+   *
+   * Change record:
+   * - 2026-01-14: Added `remark` so users can label per-robot credentials.
+   */
+  remark?: string;
 }
 
 export interface CodexRobotProviderConfig {
   credentialSource: CodexCredentialSource;
+  /**
+   * Selected credential profile id (when `credentialSource` is `user` or `repo`).
+   *
+   * Change record:
+   * - 2026-01-14: Allow selecting one credential from multiple user/repo-scoped credentials.
+   */
+  credentialProfileId?: string;
   credential?: CodexCredential;
   model: CodexModel;
   sandbox: 'workspace-write' | 'read-only';
@@ -33,6 +48,7 @@ export interface CodexRobotProviderConfig {
 export interface CodexCredentialPublic {
   apiBaseUrl?: string;
   hasApiKey: boolean;
+  remark?: string;
 }
 
 export type CodexRobotProviderConfigPublic = Omit<CodexRobotProviderConfig, 'credential'> & {
@@ -46,6 +62,11 @@ const asString = (value: unknown): string => (typeof value === 'string' ? value 
 
 const asBoolean = (value: unknown, fallback: boolean): boolean =>
   typeof value === 'boolean' ? value : fallback;
+
+const normalizeCredentialProfileId = (value: unknown): string | undefined => {
+  const raw = asString(value).trim();
+  return raw ? raw : undefined;
+};
 
 const normalizeCredentialSource = (value: unknown): CodexCredentialSource => {
   const raw = asString(value).trim().toLowerCase();
@@ -86,19 +107,23 @@ export const normalizeCodexRobotProviderConfig = (raw: unknown): CodexRobotProvi
   if (!isRecord(raw)) return base;
 
   const credentialSource = normalizeCredentialSource(raw.credentialSource);
+  const credentialProfileId = credentialSource === 'robot' ? undefined : normalizeCredentialProfileId(raw.credentialProfileId);
   const credentialRaw = isRecord(raw.credential) ? raw.credential : null;
   const apiBaseUrl = credentialRaw ? asString(credentialRaw.apiBaseUrl).trim() : '';
   const apiKey = credentialRaw ? asString(credentialRaw.apiKey).trim() : '';
+  const remark = credentialRaw ? asString(credentialRaw.remark).trim() : '';
 
   const sandboxWorkspaceWriteRaw = isRecord(raw.sandbox_workspace_write) ? raw.sandbox_workspace_write : null;
 
   const next: CodexRobotProviderConfig = {
     credentialSource,
+    credentialProfileId,
     credential:
       credentialSource === 'robot'
         ? {
           apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined,
-          apiKey: apiKey ? apiKey : undefined
+          apiKey: apiKey ? apiKey : undefined,
+          remark: remark ? remark : undefined
         }
         : undefined,
     model: normalizeCodexModel(raw.model),
@@ -127,15 +152,18 @@ export const mergeCodexRobotProviderConfig = (params: {
   const existingApiKey = existingNormalized.credential?.apiKey;
   const mergedCredential: CodexCredential = {
     apiBaseUrl: nextNormalized.credential?.apiBaseUrl,
-    apiKey: hasNextApiKey ? nextNormalized.credential?.apiKey : existingApiKey
+    apiKey: hasNextApiKey ? nextNormalized.credential?.apiKey : existingApiKey,
+    remark: nextNormalized.credential?.remark
   };
   const apiKey = (mergedCredential.apiKey ?? '').trim();
+  const remark = (mergedCredential.remark ?? '').trim();
 
   return {
     ...nextNormalized,
     credential: {
       apiBaseUrl: mergedCredential.apiBaseUrl,
-      apiKey: apiKey ? apiKey : undefined
+      apiKey: apiKey ? apiKey : undefined,
+      remark: remark ? remark : undefined
     }
   };
 };
@@ -145,10 +173,15 @@ export const toPublicCodexRobotProviderConfig = (raw: unknown): CodexRobotProvid
   const apiKey = (normalized.credential?.apiKey ?? '').trim();
   const hasApiKey = Boolean(apiKey);
   const apiBaseUrl = (normalized.credential?.apiBaseUrl ?? '').trim();
+  const remark = (normalized.credential?.remark ?? '').trim();
 
   return {
     credentialSource: normalized.credentialSource,
-    credential: normalized.credentialSource === 'robot' ? { apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined, hasApiKey } : undefined,
+    credentialProfileId: normalized.credentialProfileId,
+    credential:
+      normalized.credentialSource === 'robot'
+        ? { apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined, hasApiKey, remark: remark ? remark : undefined }
+        : undefined,
     model: normalized.model,
     sandbox: normalized.sandbox,
     model_reasoning_effort: normalized.model_reasoning_effort,
@@ -163,18 +196,8 @@ const dynamicImport = new Function('specifier', 'return import(specifier)') as (
 const importCodexSdk = async (): Promise<CodexSdkModule> => (await dynamicImport('@openai/codex-sdk')) as CodexSdkModule;
 
 export const normalizeCodexApiBaseUrl = (raw: string): string | undefined => {
-  const trimmed = String(raw ?? '').trim();
-  if (!trimmed) return undefined;
-  if (/\s/.test(trimmed)) return undefined;
-  try {
-    const url = new URL(trimmed);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
-    // Avoid embedding credentials in URLs (they may get logged or leaked through model context).
-    if (url.username || url.password) return undefined;
-    return url.toString();
-  } catch {
-    return undefined;
-  }
+  // Change record: reuse shared URL normalization to keep Codex/Claude/Gemini base URL validation consistent.
+  return normalizeHttpBaseUrl(raw);
 };
 
 export const buildCodexSdkThreadOptions = (params: {

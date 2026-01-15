@@ -12,6 +12,14 @@ export class UpdateRepoRobotDto {
   @IsString()
   token?: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Repo provider credential source (robot/user/repo). Set null to let backend infer.'
+  })
+  @IsOptional()
+  @IsString()
+  repoCredentialSource?: string | null;
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
@@ -21,6 +29,11 @@ export class UpdateRepoRobotDto {
   @IsOptional()
   @IsString()
   repoCredentialProfileId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'User-defined note for per-robot repo tokens.' })
+  @IsOptional()
+  @IsString()
+  repoCredentialRemark?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()

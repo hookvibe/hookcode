@@ -47,34 +47,40 @@ HookCode 是一个通过对话和 Webhook 优雅触发 CLI 编码助手的智能
 
 # 快速开始
 
+> 需要有一个公网能够访问的服务器才能够接收仓库的 webhook
+
 ## Docker 部署（推荐）
 
 **推荐使用 Docker Compose 一键启动所有服务（数据库 + 后端 + 前端）**
 
-1. 配置环境变量：复制 `backend/.env.example` 为 `backend/.env`，根据需要修改配置（至少修改 `AUTH_TOKEN_SECRET` 和管理员账号密码）
-2. 构建并启动服务（默认映射端口：前端 5173、后端 4000、数据库 5432）：
+Docker 部署相关资源集中在 `docker/` 目录下：
+- Compose 文件：`docker/docker-compose.yml`
+- Nginx 反向代理配置：`docker/nginx/frontend.conf`
+- 单一 env 文件（前端构建 + 后端运行共用）：`docker/.env`
+
+1. 配置环境变量：复制 `docker/.env.example` 为 `docker/.env`，根据需要修改配置（至少修改 `AUTH_TOKEN_SECRET` 和管理员账号密码）
+2. 构建并启动服务：
    ```bash
-   docker-compose up --build
+   docker compose -f docker/docker-compose.yml up -d --build
    ```
-3. 访问前端控制台：http://localhost:5173
-   - 默认管理员账号见 `backend/.env` 的 `AUTH_ADMIN_USERNAME/AUTH_ADMIN_PASSWORD`（示例为 `admin/admin`，生产环境务必修改）
+3. 访问前端控制台：`http://localhost`（或 `http://localhost:<HOOKCODE_FRONTEND_PORT>`）
+   - 默认管理员账号见 `docker/.env` 的 `AUTH_ADMIN_USERNAME/AUTH_ADMIN_PASSWORD`（示例为 `admin/admin`，生产环境务必修改）
    - 登录后默认进入：
      - 普通用户：`#/account`
      - 管理员：`#/admin/users`
      - 任务列表：`#/tasks`
 
 **自定义配置：**
-- **端口自定义**：通过环境变量覆盖默认端口
-  ```bash
-  HOOKCODE_FRONTEND_PORT=8080 HOOKCODE_BACKEND_PORT=3000 docker-compose up --build
-  ```
-- **数据库账号**：通过 `HOOKCODE_DB_USER`、`HOOKCODE_DB_PASSWORD`、`HOOKCODE_DB_NAME` 覆盖（默认均为 `hookcode`）
-- **CORS 配置**：如需自定义端口，还需同步设置 `VITE_API_BASE_URL`（前端构建时注入）与 `ALLOWED_ORIGIN`（后端 CORS）以匹配你的部署方式
+- **端口配置**：在 `docker/.env` 中修改 `HOOKCODE_FRONTEND_PORT/HOOKCODE_BACKEND_PORT/HOOKCODE_DB_PORT`
+- **数据库账号**：在 `docker/.env` 中修改 `DB_USER/DB_PASSWORD/DB_NAME`
+- **Cloudflare（单端口）**：
+  - 在 `docker/.env` 中保持 `VITE_API_BASE_URL=/api`
+  - 通过 `https://<你的域名>/api/...` 访问后端（不要再用 `:8000`）
 - **CI/CD**：在 GitHub Actions 或 GitLab CI 中请使用 secrets 或 variables 管理敏感信息
 
 **技术说明：**
 - backend/frontend 均有独立 Dockerfile
-- Docker Compose 通过 `docker-compose.yml` 的 `env_file` 注入 `backend/.env`（不提交到版本控制）
+- Docker Compose 通过 `env_file` 注入 `docker/.env`（不提交到版本控制）
 
 ## 本地开发
 

@@ -37,10 +37,12 @@ import {
   updateMe,
   updateMyModelCredentials,
   type UserModelCredentialsPublic,
+  type UserModelProviderCredentialProfilePublic,
   type UserRepoProviderCredentialProfilePublic
 } from '../api';
 import { clearAuth, getStoredUser, getToken, setStoredUser, type AuthUser } from '../auth';
 import { setLocale, useLocale, useT } from '../i18n';
+import { getBooleanEnv } from '../utils/env';
 
 /**
  * UserPanelPopover:
@@ -58,10 +60,12 @@ import { setLocale, useLocale, useT } from '../i18n';
  * - 2026-01-13: Tightened the panel spacing/typography to increase information density and reduce scrolling.
  * - 2026-01-13: Added Claude Code credential (Anthropic API key) entry to support `claude_code` robots.
  * - 2026-01-13: Added Gemini CLI credential (Gemini API key) entry to support `gemini_cli` robots.
+ * - 2026-01-15: Add env feature flag to disable account name/password editing (default enabled; CI can disable it).
  */
 
 type ThemePreference = 'system' | 'light' | 'dark';
 type ProviderKey = 'gitlab' | 'github';
+type ModelProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
 type PanelTab = 'account' | 'credentials' | 'tools' | 'settings';
 
 const DEFAULT_PORTS = { prisma: 7215, swagger: 7216 } as const;
@@ -79,7 +83,10 @@ const buildToolUrl = (params: { port: number; token: string }): string => {
   return url.toString();
 };
 
-const normalizeProfiles = (value: unknown): UserRepoProviderCredentialProfilePublic[] =>
+const normalizeRepoProfiles = (value: unknown): UserRepoProviderCredentialProfilePublic[] =>
+  Array.isArray(value) ? (value.filter(Boolean) as any) : [];
+
+const normalizeModelProfiles = (value: unknown): UserModelProviderCredentialProfilePublic[] =>
   Array.isArray(value) ? (value.filter(Boolean) as any) : [];
 
 export interface UserPanelPopoverProps {
@@ -109,23 +116,26 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
   const [credLoading, setCredLoading] = useState(false);
   const [credentials, setCredentials] = useState<UserModelCredentialsPublic | null>(null);
-  const [changingCodexApiKey, setChangingCodexApiKey] = useState(false);
-  const [changingClaudeCodeApiKey, setChangingClaudeCodeApiKey] = useState(false);
-  const [changingGeminiCliApiKey, setChangingGeminiCliApiKey] = useState(false);
   const [savingCred, setSavingCred] = useState(false);
 
   const [toolsPorts, setToolsPorts] = useState(DEFAULT_PORTS);
   const [toolsLoading, setToolsLoading] = useState(false);
 
-  const [profileFormOpen, setProfileFormOpen] = useState(false);
-  const [profileProvider, setProfileProvider] = useState<ProviderKey>('gitlab');
-  const [profileEditing, setProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
-  const [profileSubmitting, setProfileSubmitting] = useState(false);
-  const [profileForm] = Form.useForm<{ name: string; token?: string; cloneUsername?: string }>();
+  const [repoProfileFormOpen, setRepoProfileFormOpen] = useState(false);
+  const [repoProfileProvider, setRepoProfileProvider] = useState<ProviderKey>('gitlab');
+  const [repoProfileEditing, setRepoProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
+  const [repoProfileSubmitting, setRepoProfileSubmitting] = useState(false);
+  const [repoProfileForm] = Form.useForm<{ remark: string; token?: string; cloneUsername?: string }>();
+  const [repoProfileTokenMode, setRepoProfileTokenMode] = useState<'keep' | 'set'>('keep');
+  const [repoProfileProviderDefault, setRepoProfileProviderDefault] = useState<string | null>(null);
 
-  const [profileFormTokenMode, setProfileFormTokenMode] = useState<'keep' | 'set'>('keep');
-
-  const [profileFormProviderDefault, setProfileFormProviderDefault] = useState<string | null>(null);
+  const [modelProfileFormOpen, setModelProfileFormOpen] = useState(false);
+  const [modelProfileProvider, setModelProfileProvider] = useState<ModelProviderKey>('codex');
+  const [modelProfileEditing, setModelProfileEditing] = useState<UserModelProviderCredentialProfilePublic | null>(null);
+  const [modelProfileSubmitting, setModelProfileSubmitting] = useState(false);
+  const [modelProfileForm] = Form.useForm<{ remark: string; apiKey?: string; apiBaseUrl?: string }>();
+  const [modelProfileApiKeyMode, setModelProfileApiKeyMode] = useState<'keep' | 'set'>('keep');
+  const [modelProfileProviderDefault, setModelProfileProviderDefault] = useState<string | null>(null);
 
   const [displayNameForm] = Form.useForm<{ displayName: string }>();
   const [passwordForm] = Form.useForm<{ currentPassword: string; newPassword: string; confirm: string }>();
@@ -134,6 +144,12 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
   const token = getToken();
   const canUseAccountApis = Boolean(token);
+
+  // Feature toggle (2026-01-15):
+  // - Business context: Frontend / User panel / Account.
+  // - Purpose: allow CI/staging deployments to disable display-name/password editing without removing other tabs.
+  // - Default: enabled (flag unset/false) to keep local development behavior unchanged.
+  const accountEditDisabled = getBooleanEnv('VITE_DISABLE_ACCOUNT_EDIT', false);
 
   const tabTitleKey = useMemo(
     () =>
@@ -205,8 +221,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     try {
       const data = await fetchMyModelCredentials();
       setCredentials(data);
-      setChangingCodexApiKey(false);
-      setChangingClaudeCodeApiKey(false);
     } catch (err) {
       console.error(err);
       message.error(t('toast.credentials.fetchFailed'));
@@ -300,117 +314,59 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     [message, t]
   );
 
-  const codex = credentials?.codex ?? { hasApiKey: false };
-  const codexHasApiKey = Boolean(codex.hasApiKey);
-  const claudeCode = credentials?.claude_code ?? { hasApiKey: false };
-  const claudeCodeHasApiKey = Boolean(claudeCode.hasApiKey);
-  const geminiCli = credentials?.gemini_cli ?? { hasApiKey: false };
-  const geminiCliHasApiKey = Boolean(geminiCli.hasApiKey);
-
-  const saveCodex = useCallback(
-    async (values: { apiBaseUrl?: string; apiKey?: string }) => {
-      if (savingCred) return;
-      setSavingCred(true);
-      try {
-        const apiBaseUrl = (values.apiBaseUrl ?? '').trim();
-        const apiKey = (values.apiKey ?? '').trim();
-        const shouldSendApiKey = !codexHasApiKey || changingCodexApiKey;
-        const next = await updateMyModelCredentials({
-          codex: {
-            apiBaseUrl: apiBaseUrl ? apiBaseUrl : null,
-            ...(shouldSendApiKey ? { apiKey: apiKey ? apiKey : null } : {})
-          }
-        });
-        setCredentials(next);
-        setChangingCodexApiKey(false);
-        message.success(t('toast.credentials.saved'));
-      } catch (err: any) {
-        console.error(err);
-        message.error(err?.response?.data?.error || t('toast.credentials.saveFailed'));
-      } finally {
-        setSavingCred(false);
-      }
-    },
-    [changingCodexApiKey, codexHasApiKey, message, savingCred, t]
-  );
-
-  const saveClaudeCode = useCallback(
-    async (values: { apiKey?: string }) => {
-      if (savingCred) return;
-      setSavingCred(true);
-      try {
-        const apiKey = (values.apiKey ?? '').trim();
-        const shouldSendApiKey = !claudeCodeHasApiKey || changingClaudeCodeApiKey;
-        const next = await updateMyModelCredentials({
-          claude_code: {
-            ...(shouldSendApiKey ? { apiKey: apiKey ? apiKey : null } : {})
-          }
-        });
-        setCredentials(next);
-        setChangingClaudeCodeApiKey(false);
-        message.success(t('toast.credentials.saved'));
-      } catch (err: any) {
-        console.error(err);
-        message.error(err?.response?.data?.error || t('toast.credentials.saveFailed'));
-      } finally {
-        setSavingCred(false);
-      }
-    },
-    [changingClaudeCodeApiKey, claudeCodeHasApiKey, message, savingCred, t]
-  );
-
-  const saveGeminiCli = useCallback(
-    async (values: { apiKey?: string }) => {
-      if (savingCred) return;
-      setSavingCred(true);
-      try {
-        const apiKey = (values.apiKey ?? '').trim();
-        const shouldSendApiKey = !geminiCliHasApiKey || changingGeminiCliApiKey;
-        const next = await updateMyModelCredentials({
-          gemini_cli: {
-            ...(shouldSendApiKey ? { apiKey: apiKey ? apiKey : null } : {})
-          }
-        });
-        setCredentials(next);
-        setChangingGeminiCliApiKey(false);
-        message.success(t('toast.credentials.saved'));
-      } catch (err: any) {
-        console.error(err);
-        message.error(err?.response?.data?.error || t('toast.credentials.saveFailed'));
-      } finally {
-        setSavingCred(false);
-      }
-    },
-    [changingGeminiCliApiKey, geminiCliHasApiKey, message, savingCred, t]
-  );
-
-  const startEditProfile = useCallback(
-    (provider: ProviderKey, profile?: UserRepoProviderCredentialProfilePublic | null) => {
-      setProfileProvider(provider);
-      setProfileEditing(profile ?? null);
-      setProfileFormOpen(true);
-
-      const initialName = profile?.name ?? '';
-      const initialCloneUsername = profile?.cloneUsername ?? '';
-
-      // UX: keep existing tokens by default (backend never returns raw tokens).
-      setProfileFormTokenMode(profile?.hasToken ? 'keep' : 'set');
-      profileForm.setFieldsValue({ name: initialName, cloneUsername: initialCloneUsername, token: '' });
-
-      const providerCred = (credentials as any)?.[provider] ?? null;
-      setProfileFormProviderDefault(providerCred?.defaultProfileId ?? null);
-    },
-    [credentials, profileForm]
-  );
-
-  const providerProfiles = useMemo(() => {
-    const gitlabProfiles = normalizeProfiles(credentials?.gitlab?.profiles);
-    const githubProfiles = normalizeProfiles(credentials?.github?.profiles);
+  const repoProviderProfiles = useMemo(() => {
+    const gitlabProfiles = normalizeRepoProfiles(credentials?.gitlab?.profiles);
+    const githubProfiles = normalizeRepoProfiles(credentials?.github?.profiles);
     return { gitlab: gitlabProfiles, github: githubProfiles };
   }, [credentials?.github?.profiles, credentials?.gitlab?.profiles]);
 
+  const modelProviderProfiles = useMemo(() => {
+    const codexProfiles = normalizeModelProfiles(credentials?.codex?.profiles);
+    const claudeProfiles = normalizeModelProfiles(credentials?.claude_code?.profiles);
+    const geminiProfiles = normalizeModelProfiles(credentials?.gemini_cli?.profiles);
+    return { codex: codexProfiles, claude_code: claudeProfiles, gemini_cli: geminiProfiles };
+  }, [credentials?.claude_code?.profiles, credentials?.codex?.profiles, credentials?.gemini_cli?.profiles]);
+
+  const startEditRepoProfile = useCallback(
+    (provider: ProviderKey, profile?: UserRepoProviderCredentialProfilePublic | null) => {
+      setRepoProfileProvider(provider);
+      setRepoProfileEditing(profile ?? null);
+      setRepoProfileFormOpen(true);
+
+      const initialRemark = profile?.remark ?? '';
+      const initialCloneUsername = profile?.cloneUsername ?? '';
+
+      // UX: keep existing tokens by default (backend never returns raw tokens).
+      setRepoProfileTokenMode(profile?.hasToken ? 'keep' : 'set');
+      repoProfileForm.setFieldsValue({ remark: initialRemark, cloneUsername: initialCloneUsername, token: '' });
+
+      const providerCred = (credentials as any)?.[provider] ?? null;
+      setRepoProfileProviderDefault(providerCred?.defaultProfileId ?? null);
+    },
+    [credentials, repoProfileForm]
+  );
+
+  const startEditModelProfile = useCallback(
+    (provider: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
+      setModelProfileProvider(provider);
+      setModelProfileEditing(profile ?? null);
+      setModelProfileFormOpen(true);
+
+      const initialRemark = profile?.remark ?? '';
+      const initialApiBaseUrl = profile?.apiBaseUrl ?? '';
+
+      // UX: keep existing keys by default (backend never returns raw apiKey).
+      setModelProfileApiKeyMode(profile?.hasApiKey ? 'keep' : 'set');
+      modelProfileForm.setFieldsValue({ remark: initialRemark, apiBaseUrl: initialApiBaseUrl, apiKey: '' });
+
+      const providerCred = (credentials as any)?.[provider] ?? null;
+      setModelProfileProviderDefault(providerCred?.defaultProfileId ?? null);
+    },
+    [credentials, modelProfileForm]
+  );
+
   const setProviderDefault = useCallback(
-    async (provider: ProviderKey, nextDefaultId: string | null) => {
+    async (provider: ProviderKey | ModelProviderKey, nextDefaultId: string | null) => {
       if (savingCred) return;
       setSavingCred(true);
       try {
@@ -430,7 +386,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   );
 
   const removeProfile = useCallback(
-    async (provider: ProviderKey, id: string) => {
+    async (provider: ProviderKey | ModelProviderKey, id: string) => {
       Modal.confirm({
         title: t('panel.credentials.profile.removeTitle'),
         content: t('panel.credentials.profile.removeDesc'),
@@ -458,33 +414,33 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     [message, savingCred, t]
   );
 
-  const submitProfileForm = useCallback(async () => {
-    if (profileSubmitting) return;
-    const values = await profileForm.validateFields();
-    setProfileSubmitting(true);
+  const submitRepoProfileForm = useCallback(async () => {
+    if (repoProfileSubmitting) return;
+    const values = await repoProfileForm.validateFields();
+    setRepoProfileSubmitting(true);
     try {
-      const name = String(values.name ?? '').trim();
+      const remark = String(values.remark ?? '').trim();
       const cloneUsername = String(values.cloneUsername ?? '').trim();
       const tokenValue = String(values.token ?? '').trim();
-      const shouldSendToken = profileFormTokenMode === 'set';
+      const shouldSendToken = repoProfileTokenMode === 'set';
 
       const payload = {
-        id: profileEditing?.id,
-        name: name || null,
+        id: repoProfileEditing?.id,
+        remark: remark || null,
         cloneUsername: cloneUsername || null,
         ...(shouldSendToken ? { token: tokenValue ? tokenValue : null } : {})
       };
 
       const next = await updateMyModelCredentials({
-        [profileProvider]: {
+        [repoProfileProvider]: {
           profiles: [payload],
-          defaultProfileId: profileFormProviderDefault || null
+          defaultProfileId: repoProfileProviderDefault || null
         }
       } as any);
 
       setCredentials(next);
-      setProfileFormOpen(false);
-      setProfileEditing(null);
+      setRepoProfileFormOpen(false);
+      setRepoProfileEditing(null);
       message.success(t('toast.credentials.saved'));
     } catch (err: any) {
       if (err?.errorFields) {
@@ -494,20 +450,71 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         message.error(err?.response?.data?.error || t('toast.credentials.saveFailed'));
       }
     } finally {
-      setProfileSubmitting(false);
+      setRepoProfileSubmitting(false);
     }
   }, [
     message,
-    profileEditing?.id,
-    profileForm,
-    profileFormProviderDefault,
-    profileFormTokenMode,
-    profileProvider,
-    profileSubmitting,
+    repoProfileEditing?.id,
+    repoProfileForm,
+    repoProfileProvider,
+    repoProfileProviderDefault,
+    repoProfileSubmitting,
+    repoProfileTokenMode,
+    t
+  ]);
+
+  const submitModelProfileForm = useCallback(async () => {
+    if (modelProfileSubmitting) return;
+    const values = await modelProfileForm.validateFields();
+    setModelProfileSubmitting(true);
+    try {
+      const remark = String(values.remark ?? '').trim();
+      const apiBaseUrl = String(values.apiBaseUrl ?? '').trim();
+      const apiKey = String(values.apiKey ?? '').trim();
+      const shouldSendApiKey = modelProfileApiKeyMode === 'set';
+
+      const payload = {
+        id: modelProfileEditing?.id,
+        remark: remark || null,
+        apiBaseUrl: apiBaseUrl || null,
+        ...(shouldSendApiKey ? { apiKey: apiKey ? apiKey : null } : {})
+      };
+
+      const next = await updateMyModelCredentials({
+        [modelProfileProvider]: {
+          profiles: [payload],
+          defaultProfileId: modelProfileProviderDefault || null
+        }
+      } as any);
+
+      setCredentials(next);
+      setModelProfileFormOpen(false);
+      setModelProfileEditing(null);
+      message.success(t('toast.credentials.saved'));
+    } catch (err: any) {
+      if (err?.errorFields) {
+        // Form validation error; no toast.
+      } else {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.credentials.saveFailed'));
+      }
+    } finally {
+      setModelProfileSubmitting(false);
+    }
+  }, [
+    message,
+    modelProfileApiKeyMode,
+    modelProfileEditing?.id,
+    modelProfileForm,
+    modelProfileProvider,
+    modelProfileProviderDefault,
+    modelProfileSubmitting,
     t
   ]);
 
   const saveDisplayName = useCallback(async () => {
+    if (accountEditDisabled) return;
+    if (!canUseAccountApis) return;
     if (savingProfile) return;
     const values = await displayNameForm.validateFields();
     setSavingProfile(true);
@@ -526,9 +533,11 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     } finally {
       setSavingProfile(false);
     }
-  }, [displayNameForm, message, savingProfile, t, user]);
+  }, [accountEditDisabled, canUseAccountApis, displayNameForm, message, savingProfile, t, user]);
 
   const savePassword = useCallback(async () => {
+    if (accountEditDisabled) return;
+    if (!canUseAccountApis) return;
     if (savingPassword) return;
     const values = await passwordForm.validateFields();
     setSavingPassword(true);
@@ -547,7 +556,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     } finally {
       setSavingPassword(false);
     }
-  }, [message, passwordForm, savingPassword, t]);
+  }, [accountEditDisabled, canUseAccountApis, message, passwordForm, savingPassword, t]);
 
   const accentOptions = useMemo(
     () =>
@@ -606,17 +615,17 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
           <>
             <div className="hc-settings-section">
               <div className="hc-settings-section-title">{t('panel.account.profileTitle')}</div>
-              <Form form={displayNameForm} layout="vertical" requiredMark={false} size="small">
+              {/* UX (2026-01-15): Use the default (middle) control size + placeholders to avoid "thin" inputs and improve scanability. */}
+              <Form form={displayNameForm} layout="vertical" requiredMark={false} size="middle">
                 <Form.Item label={t('panel.account.displayName')} name="displayName">
-                  <Input placeholder={t('panel.account.displayNamePlaceholder')} />
+                  <Input placeholder={t('panel.account.displayNamePlaceholder')} disabled={accountEditDisabled} />
                 </Form.Item>
                 <Button
                   type="primary"
-                  size="small"
                   icon={<SettingOutlined />}
                   onClick={() => void saveDisplayName()}
                   loading={savingProfile}
-                  disabled={!canUseAccountApis}
+                  disabled={!canUseAccountApis || accountEditDisabled}
                 >
                   {t('common.save')}
                 </Button>
@@ -625,20 +634,31 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
             <div className="hc-settings-section">
               <div className="hc-settings-section-title">{t('panel.account.passwordTitle')}</div>
-              <Form form={passwordForm} layout="vertical" requiredMark={false} size="small">
+              {/* UX (2026-01-15): Use the default (middle) control size + placeholders to keep password forms consistent with other panels. */}
+              <Form form={passwordForm} layout="vertical" requiredMark={false} size="middle">
                 <Form.Item
                   label={t('panel.account.currentPassword')}
                   name="currentPassword"
                   rules={[{ required: true, message: t('panel.validation.required') }]}
                 >
-                  <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
+                  <Input.Password
+                    prefix={<LockOutlined />}
+                    placeholder={t('panel.account.currentPasswordPlaceholder')}
+                    autoComplete="current-password"
+                    disabled={accountEditDisabled}
+                  />
                 </Form.Item>
                 <Form.Item
                   label={t('panel.account.newPassword')}
                   name="newPassword"
                   rules={[{ required: true, message: t('panel.validation.required') }, { min: 6, message: t('panel.validation.passwordTooShort') }]}
                 >
-                  <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
+                  <Input.Password
+                    prefix={<LockOutlined />}
+                    placeholder={t('panel.account.newPasswordPlaceholder')}
+                    autoComplete="new-password"
+                    disabled={accountEditDisabled}
+                  />
                 </Form.Item>
                 <Form.Item
                   label={t('panel.account.confirmPassword')}
@@ -654,15 +674,19 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                     })
                   ]}
                 >
-                  <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
+                  <Input.Password
+                    prefix={<LockOutlined />}
+                    placeholder={t('panel.account.confirmPasswordPlaceholder')}
+                    autoComplete="new-password"
+                    disabled={accountEditDisabled}
+                  />
                 </Form.Item>
                 <Button
                   type="primary"
-                  size="small"
                   icon={<KeyOutlined />}
                   onClick={() => void savePassword()}
                   loading={savingPassword}
-                  disabled={!canUseAccountApis}
+                  disabled={!canUseAccountApis || accountEditDisabled}
                 >
                   {t('panel.account.updatePassword')}
                 </Button>
@@ -676,190 +700,95 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         return (
           <>
             <div className="hc-settings-section">
-              <div className="hc-settings-section-title">{t('panel.credentials.codexTitle')}</div>
+              <div className="hc-settings-section-title">{t('panel.credentials.modelProviderTitle')}</div>
               <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
-                {t('panel.credentials.codexTip')}
+                {t('panel.credentials.modelProviderTip')}
               </Typography.Paragraph>
-              <Form
-                layout="vertical"
-                requiredMark={false}
-                size="small"
-                initialValues={{ apiBaseUrl: codex.apiBaseUrl ?? '', apiKey: '' }}
-                onFinish={(values) => void saveCodex(values as any)}
-              >
-                <Form.Item label={t('panel.credentials.codexApiBaseUrl')} name="apiBaseUrl">
-                  <Input placeholder={t('panel.credentials.codexApiBaseUrlPlaceholder')} />
-                </Form.Item>
-                <Form.Item
-                  label={t('panel.credentials.codexApiKey')}
-                  name="apiKey"
-                  rules={[
-                    { required: !codexHasApiKey || changingCodexApiKey, whitespace: true, message: t('panel.validation.required') }
-                  ]}
-                  extra={
-                    codexHasApiKey ? (
-                      <Button type="link" size="small" style={{ padding: 0 }} onClick={() => setChangingCodexApiKey((v) => !v)}>
-                        {changingCodexApiKey ? t('common.cancel') : t('panel.credentials.changeSecret')}
-                      </Button>
-                    ) : undefined
-                  }
-                >
-                  <Input.Password
-                    placeholder={
-                      codexHasApiKey && !changingCodexApiKey
-                        ? t('panel.credentials.secretConfiguredPlaceholder')
-                        : t('panel.credentials.secretInputPlaceholder')
-                    }
-                    disabled={codexHasApiKey && !changingCodexApiKey}
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
-                <Space size={8} wrap>
-                  <Tag color={codexHasApiKey ? 'green' : 'default'}>
-                    {codexHasApiKey ? t('common.configured') : t('common.notConfigured')}
-                  </Tag>
-                  <Button
-                    type="primary"
-                    size="small"
-                    htmlType="submit"
-                    loading={savingCred}
-                    icon={<SettingOutlined />}
-                    disabled={!canUseAccountApis}
-                  >
-                    {t('common.save')}
-                  </Button>
-                </Space>
-              </Form>
-            </div>
 
-            <Divider style={{ margin: '14px 0' }} />
+              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
+                {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
+                  const profiles = modelProviderProfiles[provider];
+                  const defaultId = (credentials as any)?.[provider]?.defaultProfileId ?? null;
+                  const sectionTitleKey =
+                    provider === 'codex'
+                      ? 'panel.credentials.codexTitle'
+                      : provider === 'claude_code'
+                        ? 'panel.credentials.claudeCodeTitle'
+                        : 'panel.credentials.geminiCliTitle';
+                  const sectionTipKey =
+                    provider === 'codex'
+                      ? 'panel.credentials.codexTip'
+                      : provider === 'claude_code'
+                        ? 'panel.credentials.claudeCodeTip'
+                        : 'panel.credentials.geminiCliTip';
 
-            <div className="hc-settings-section">
-              <div className="hc-settings-section-title">{t('panel.credentials.claudeCodeTitle')}</div>
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
-                {t('panel.credentials.claudeCodeTip')}
-              </Typography.Paragraph>
-              <Form
-                layout="vertical"
-                requiredMark={false}
-                size="small"
-                initialValues={{ apiKey: '' }}
-                onFinish={(values) => void saveClaudeCode(values as any)}
-              >
-                <Form.Item
-                  label={t('panel.credentials.claudeCodeApiKey')}
-                  name="apiKey"
-                  rules={[
-                    {
-                      required: !claudeCodeHasApiKey || changingClaudeCodeApiKey,
-                      whitespace: true,
-                      message: t('panel.validation.required')
-                    }
-                  ]}
-                  extra={
-                    claudeCodeHasApiKey ? (
-                      <Button
-                        type="link"
-                        size="small"
-                        style={{ padding: 0 }}
-                        onClick={() => setChangingClaudeCodeApiKey((v) => !v)}
-                      >
-                        {changingClaudeCodeApiKey ? t('common.cancel') : t('panel.credentials.changeSecret')}
-                      </Button>
-                    ) : undefined
-                  }
-                >
-                  <Input.Password
-                    placeholder={
-                      claudeCodeHasApiKey && !changingClaudeCodeApiKey
-                        ? t('panel.credentials.secretConfiguredPlaceholder')
-                        : t('panel.credentials.secretInputPlaceholder')
-                    }
-                    disabled={claudeCodeHasApiKey && !changingClaudeCodeApiKey}
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
-                <Space size={8} wrap>
-                  <Tag color={claudeCodeHasApiKey ? 'green' : 'default'}>
-                    {claudeCodeHasApiKey ? t('common.configured') : t('common.notConfigured')}
-                  </Tag>
-                  <Button
-                    type="primary"
-                    size="small"
-                    htmlType="submit"
-                    loading={savingCred}
-                    icon={<SettingOutlined />}
-                    disabled={!canUseAccountApis}
-                  >
-                    {t('common.save')}
-                  </Button>
-                </Space>
-              </Form>
-            </div>
+                  return (
+                    <Card
+                      key={provider}
+                      size="small"
+                      title={
+                        <Space size={8}>
+                          <KeyOutlined />
+                          <span>{t(sectionTitleKey)}</span>
+                        </Space>
+                      }
+                      extra={
+                        <Button size="small" onClick={() => startEditModelProfile(provider, null)} disabled={savingCred || !canUseAccountApis}>
+                          {t('panel.credentials.profile.add')}
+                        </Button>
+                      }
+                    >
+                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                        <Typography.Text type="secondary">{t(sectionTipKey)}</Typography.Text>
 
-            <Divider style={{ margin: '14px 0' }} />
+                        <div>
+                          <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
+                          <div style={{ marginTop: 6 }}>
+                            <Select
+                              value={defaultId || undefined}
+                              style={{ width: '100%' }}
+                              placeholder={t('panel.credentials.profile.defaultPlaceholder')}
+                              onChange={(value) => void setProviderDefault(provider, value ? String(value) : null)}
+                              options={profiles.map((p) => ({ value: p.id, label: p.remark || p.id }))}
+                              allowClear
+                              disabled={savingCred || !canUseAccountApis}
+                            />
+                          </div>
+                        </div>
 
-            <div className="hc-settings-section">
-              <div className="hc-settings-section-title">{t('panel.credentials.geminiCliTitle')}</div>
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
-                {t('panel.credentials.geminiCliTip')}
-              </Typography.Paragraph>
-              <Form
-                layout="vertical"
-                requiredMark={false}
-                size="small"
-                initialValues={{ apiKey: '' }}
-                onFinish={(values) => void saveGeminiCli(values as any)}
-              >
-                <Form.Item
-                  label={t('panel.credentials.geminiCliApiKey')}
-                  name="apiKey"
-                  rules={[
-                    {
-                      required: !geminiCliHasApiKey || changingGeminiCliApiKey,
-                      whitespace: true,
-                      message: t('panel.validation.required')
-                    }
-                  ]}
-                  extra={
-                    geminiCliHasApiKey ? (
-                      <Button
-                        type="link"
-                        size="small"
-                        style={{ padding: 0 }}
-                        onClick={() => setChangingGeminiCliApiKey((v) => !v)}
-                      >
-                        {changingGeminiCliApiKey ? t('common.cancel') : t('panel.credentials.changeSecret')}
-                      </Button>
-                    ) : undefined
-                  }
-                >
-                  <Input.Password
-                    placeholder={
-                      geminiCliHasApiKey && !changingGeminiCliApiKey
-                        ? t('panel.credentials.secretConfiguredPlaceholder')
-                        : t('panel.credentials.secretInputPlaceholder')
-                    }
-                    disabled={geminiCliHasApiKey && !changingGeminiCliApiKey}
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
-                <Space size={8} wrap>
-                  <Tag color={geminiCliHasApiKey ? 'green' : 'default'}>
-                    {geminiCliHasApiKey ? t('common.configured') : t('common.notConfigured')}
-                  </Tag>
-                  <Button
-                    type="primary"
-                    size="small"
-                    htmlType="submit"
-                    loading={savingCred}
-                    icon={<SettingOutlined />}
-                    disabled={!canUseAccountApis}
-                  >
-                    {t('common.save')}
-                  </Button>
-                </Space>
-              </Form>
+                        {profiles.length ? (
+                          <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                            {profiles.map((p) => (
+                              <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                  <Space size={8} wrap>
+                                    <Typography.Text strong>{p.remark || p.id}</Typography.Text>
+                                    {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                                    <Tag color={p.hasApiKey ? 'green' : 'default'}>
+                                      {p.hasApiKey ? t('common.configured') : t('common.notConfigured')}
+                                    </Tag>
+                                  </Space>
+                                  <Typography.Text type="secondary">{p.apiBaseUrl || '-'}</Typography.Text>
+                                </Space>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                                  <Button size="small" onClick={() => startEditModelProfile(provider, p)}>
+                                    {t('common.manage')}
+                                  </Button>
+                                  <Button size="small" danger onClick={() => void removeProfile(provider, p.id)} disabled={!canUseAccountApis}>
+                                    {t('panel.credentials.profile.remove')}
+                                  </Button>
+                                </div>
+                              </Card>
+                            ))}
+                          </Space>
+                        ) : (
+                          <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
+                        )}
+                      </Space>
+                    </Card>
+                  );
+                })}
+              </Space>
             </div>
 
             <Divider style={{ margin: '14px 0' }} />
@@ -868,7 +797,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               <div className="hc-settings-section-title">{t('panel.credentials.repoTitle')}</div>
               <Space orientation="vertical" size={14} style={{ width: '100%' }}>
                 {(['gitlab', 'github'] as ProviderKey[]).map((provider) => {
-                  const profiles = providerProfiles[provider];
+                  const profiles = repoProviderProfiles[provider];
                   const defaultId = (credentials as any)?.[provider]?.defaultProfileId ?? null;
                   return (
                     <Card
@@ -881,7 +810,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                         </Space>
                       }
                       extra={
-                        <Button size="small" onClick={() => startEditProfile(provider, null)}>
+                        <Button size="small" onClick={() => startEditRepoProfile(provider, null)} disabled={savingCred || !canUseAccountApis}>
                           {t('panel.credentials.profile.add')}
                         </Button>
                       }
@@ -895,7 +824,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                               style={{ width: '100%' }}
                               placeholder={t('panel.credentials.profile.defaultPlaceholder')}
                               onChange={(value) => void setProviderDefault(provider, value ? String(value) : null)}
-                              options={profiles.map((p) => ({ value: p.id, label: p.name || p.id }))}
+                              options={profiles.map((p) => ({ value: p.id, label: p.remark || p.id }))}
                               allowClear
                               disabled={savingCred || !canUseAccountApis}
                             />
@@ -908,7 +837,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                               <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
                                 <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
                                   <Space size={8} wrap>
-                                    <Typography.Text strong>{p.name || p.id}</Typography.Text>
+                                    <Typography.Text strong>{p.remark || p.id}</Typography.Text>
                                     {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
                                     <Tag color={p.hasToken ? 'green' : 'default'}>
                                       {p.hasToken ? t('common.configured') : t('common.notConfigured')}
@@ -917,7 +846,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                                   <Typography.Text type="secondary">{p.cloneUsername || '-'}</Typography.Text>
                                 </Space>
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                  <Button size="small" onClick={() => startEditProfile(provider, p)}>
+                                  <Button size="small" onClick={() => startEditRepoProfile(provider, p)}>
                                     {t('common.manage')}
                                   </Button>
                                   <Button size="small" danger onClick={() => void removeProfile(provider, p.id)} disabled={!canUseAccountApis}>
@@ -984,9 +913,10 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                 <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                   {t('panel.settings.languageTitle')}
                 </Typography.Text>
+                {/* UX (2026-01-15): Keep settings controls full-width to match other modal content (avoid narrow selects). */}
                 <Select
                   value={locale}
-                  style={{ width: 240 }}
+                  style={{ width: '100%' }}
                   onChange={(value) => setLocale(value)}
                   options={[
                     { value: 'zh-CN', label: t('panel.settings.lang.zhCN') },
@@ -1018,9 +948,10 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
             <div className="hc-settings-section">
                 <div className="hc-settings-section-title">{t('panel.settings.accentTitle')}</div>
+                {/* UX (2026-01-15): Keep settings controls full-width to match other modal content (avoid narrow selects). */}
                 <Select
                     value={accentPreset}
-                    style={{ width: '100%', maxWidth: 320 }}
+                    style={{ width: '100%' }}
                     onChange={(value) => onAccentPresetChange(value as any)}
                     options={accentOptions as any}
                 />
@@ -1135,23 +1066,25 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
       {/* Re-use existing profile modal inside */}
       <Modal
-        title={profileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
-        open={profileFormOpen}
+        title={repoProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
+        open={repoProfileFormOpen}
+        className="hc-dialog--compact" /* UX (2026-01-15): tighter padding + unified surface in dark mode for profile editors. */
         onCancel={() => {
-            setProfileFormOpen(false);
-            setProfileEditing(null);
+            setRepoProfileFormOpen(false);
+            setRepoProfileEditing(null);
         }}
         okText={t('common.save')}
         cancelText={t('common.cancel')}
-        confirmLoading={profileSubmitting}
-        onOk={() => void submitProfileForm()}
+        confirmLoading={repoProfileSubmitting}
+        onOk={() => void submitRepoProfileForm()}
         destroyOnHidden
       >
         <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-            <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: providerLabel(profileProvider) })}</Typography.Text>
-            <Form form={profileForm} layout="vertical" requiredMark={false} size="small">
-            <Form.Item label={t('panel.credentials.profile.name')} name="name" rules={[{ required: true, message: t('panel.validation.required') }]}>
-                <Input />
+            <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: providerLabel(repoProfileProvider) })}</Typography.Text>
+            {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
+            <Form form={repoProfileForm} layout="vertical" requiredMark={false} size="middle">
+            <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
+                <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
             </Form.Item>
             <Form.Item label={t('panel.credentials.profile.cloneUsername')} name="cloneUsername">
                 <Input placeholder={t('panel.credentials.profile.cloneUsernamePlaceholder')} />
@@ -1159,8 +1092,8 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
             <Form.Item label={t('panel.credentials.profile.token')}>
                 <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                {profileEditing?.hasToken ? (
-                    <Radio.Group value={profileFormTokenMode} onChange={(e) => setProfileFormTokenMode(e.target.value)}>
+                {repoProfileEditing?.hasToken ? (
+                    <Radio.Group value={repoProfileTokenMode} onChange={(e) => setRepoProfileTokenMode(e.target.value)}>
                     <Radio value="keep">{t('panel.credentials.profile.tokenKeep')}</Radio>
                     <Radio value="set">{t('panel.credentials.profile.tokenSet')}</Radio>
                     </Radio.Group>
@@ -1173,28 +1106,112 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                     style={{ marginBottom: 0 }}
                     rules={[
                     {
-                        required: profileFormTokenMode === 'set',
+                        required: repoProfileTokenMode === 'set',
                         whitespace: true,
                         message: t('panel.validation.required')
                     }
                     ]}
                 >
-                    <Input.Password disabled={profileFormTokenMode !== 'set'} autoComplete="new-password" />
+                    <Input.Password
+                      placeholder={t('panel.credentials.secretInputPlaceholder')}
+                      disabled={repoProfileTokenMode !== 'set'}
+                      autoComplete="new-password"
+                    />
                 </Form.Item>
                 </Space>
             </Form.Item>
 
             <Form.Item label={t('panel.credentials.profile.default')} style={{ marginBottom: 0 }}>
                 <Select
-                    value={profileFormProviderDefault || undefined}
+                    value={repoProfileProviderDefault || undefined}
                     style={{ width: '100%' }}
                     placeholder={t('panel.credentials.profile.defaultPlaceholder')}
                     allowClear
-                    onChange={(value) => setProfileFormProviderDefault(value ? String(value) : null)}
-                    options={providerProfiles[profileProvider].map((p) => ({ value: p.id, label: p.name || p.id }))}
+                    onChange={(value) => setRepoProfileProviderDefault(value ? String(value) : null)}
+                    options={repoProviderProfiles[repoProfileProvider].map((p) => ({ value: p.id, label: p.remark || p.id }))}
                 />
             </Form.Item>
             </Form>
+        </Space>
+      </Modal>
+
+      <Modal
+        title={modelProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
+        open={modelProfileFormOpen}
+        className="hc-dialog--compact" /* UX (2026-01-15): tighter padding + unified surface in dark mode for profile editors. */
+        onCancel={() => {
+          setModelProfileFormOpen(false);
+          setModelProfileEditing(null);
+        }}
+        okText={t('common.save')}
+        cancelText={t('common.cancel')}
+        confirmLoading={modelProfileSubmitting}
+        onOk={() => void submitModelProfileForm()}
+        destroyOnHidden
+      >
+        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: modelProfileProvider })}</Typography.Text>
+          {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
+          <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="middle">
+            <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
+              <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
+            </Form.Item>
+
+            <Form.Item
+              label={
+                modelProfileProvider === 'codex'
+                  ? t('panel.credentials.codexApiKey')
+                  : modelProfileProvider === 'claude_code'
+                    ? t('panel.credentials.claudeCodeApiKey')
+                    : t('panel.credentials.geminiCliApiKey')
+              }
+            >
+              <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                {modelProfileEditing?.hasApiKey ? (
+                  <Radio.Group value={modelProfileApiKeyMode} onChange={(e) => setModelProfileApiKeyMode(e.target.value)}>
+                    <Radio value="keep">{t('panel.credentials.profile.tokenKeep')}</Radio>
+                    <Radio value="set">{t('panel.credentials.profile.tokenSet')}</Radio>
+                  </Radio.Group>
+                ) : (
+                  <Typography.Text type="secondary">{t('panel.credentials.profile.tokenSetTip')}</Typography.Text>
+                )}
+
+                <Form.Item
+                  name="apiKey"
+                  style={{ marginBottom: 0 }}
+                  rules={[
+                    {
+                      required: modelProfileApiKeyMode === 'set',
+                      whitespace: true,
+                      message: t('panel.validation.required')
+                    }
+                  ]}
+                >
+                  <Input.Password
+                    placeholder={t('panel.credentials.secretInputPlaceholder')}
+                    disabled={modelProfileApiKeyMode !== 'set'}
+                    autoComplete="new-password"
+                  />
+                </Form.Item>
+              </Space>
+            </Form.Item>
+
+            {/* UX: keep "API Base URL" below the secret input to match user expectations for proxy settings. */}
+            <Form.Item label={t('panel.credentials.codexApiBaseUrl')} name="apiBaseUrl">
+              <Input placeholder={t('panel.credentials.codexApiBaseUrlPlaceholder')} />
+            </Form.Item>
+
+            <Form.Item label={t('panel.credentials.profile.default')} style={{ marginBottom: 0 }}>
+              <Select
+                value={modelProfileProviderDefault || undefined}
+                style={{ width: '100%' }}
+                placeholder={t('panel.credentials.profile.defaultPlaceholder')}
+                allowClear
+                onChange={(value) => setModelProfileProviderDefault(value ? String(value) : null)}
+                options={modelProviderProfiles[modelProfileProvider].map((p) => ({ value: p.id, label: p.remark || p.id }))}
+              />
+            </Form.Item>
+          </Form>
         </Space>
       </Modal>
     </div>

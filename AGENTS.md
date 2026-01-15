@@ -70,3 +70,11 @@ Required content checklist (as applicable):
 - New features must include tests.
 - The system is still in active development with little/no data; backward compatibility for old data is not required. If the DB schema is wrong, it is acceptable to delete and recreate it; optimize for the best design.
 - Edited code comments, console output all need to be in English.
+
+## Security requirements
+
+- Never treat frontend-only changes (UI hiding/disable, client-side checks) as a security boundary; all sensitive actions must be enforced on the backend (authz/feature flags/rate limits).
+- For any new feature toggle that affects permissions or access control, implement a backend guard and return an explicit error (e.g. 403 + stable error code); the frontend may additionally hide/disable the UI for UX.
+- Do not log secrets (tokens, API keys, passwords) or sensitive payloads; redact before logging and avoid returning secrets in API responses.
+- Validate and sanitize all user input on the backend; never rely on frontend validation.
+- Prefer least-privilege defaults for new endpoints/features; if a feature must be disabled in CI/staging, ensure the backend is also disabled there.

@@ -257,17 +257,29 @@ export const changeMyPassword = async (params: { currentPassword: string; newPas
 };
 
 export interface UserModelCredentialsPublic {
-  codex?: { apiBaseUrl?: string; hasApiKey: boolean };
-  claude_code?: { hasApiKey: boolean };
-  gemini_cli?: { hasApiKey: boolean };
-  gitlab?: UserRepoProviderCredentialsPublic;
-  github?: UserRepoProviderCredentialsPublic;
+  codex: UserModelProviderCredentialsPublic;
+  claude_code: UserModelProviderCredentialsPublic;
+  gemini_cli: UserModelProviderCredentialsPublic;
+  gitlab: UserRepoProviderCredentialsPublic;
+  github: UserRepoProviderCredentialsPublic;
   [key: string]: any;
+}
+
+export interface UserModelProviderCredentialProfilePublic {
+  id: string;
+  remark: string;
+  apiBaseUrl?: string;
+  hasApiKey: boolean;
+}
+
+export interface UserModelProviderCredentialsPublic {
+  profiles: UserModelProviderCredentialProfilePublic[];
+  defaultProfileId?: string;
 }
 
 export interface UserRepoProviderCredentialProfilePublic {
   id: string;
-  name: string;
+  remark: string;
   hasToken: boolean;
   cloneUsername?: string;
 }
@@ -283,29 +295,56 @@ export const fetchMyModelCredentials = async (): Promise<UserModelCredentialsPub
 };
 
 export const updateMyModelCredentials = async (params: {
-  codex?: { apiBaseUrl?: string | null; apiKey?: string | null };
-  claude_code?: { apiKey?: string | null };
-  gemini_cli?: { apiKey?: string | null };
+  codex?: {
+    profiles?: Array<{
+      id?: string | null;
+      remark?: string | null;
+      apiBaseUrl?: string | null;
+      apiKey?: string | null;
+    }> | null;
+    removeProfileIds?: string[] | null;
+    defaultProfileId?: string | null;
+  } | null;
+  claude_code?: {
+    profiles?: Array<{
+      id?: string | null;
+      remark?: string | null;
+      apiBaseUrl?: string | null;
+      apiKey?: string | null;
+    }> | null;
+    removeProfileIds?: string[] | null;
+    defaultProfileId?: string | null;
+  } | null;
+  gemini_cli?: {
+    profiles?: Array<{
+      id?: string | null;
+      remark?: string | null;
+      apiBaseUrl?: string | null;
+      apiKey?: string | null;
+    }> | null;
+    removeProfileIds?: string[] | null;
+    defaultProfileId?: string | null;
+  } | null;
   gitlab?: {
     profiles?: Array<{
-      id?: string;
-      name?: string | null;
+      id?: string | null;
+      remark?: string | null;
       token?: string | null;
       cloneUsername?: string | null;
     }> | null;
     removeProfileIds?: string[] | null;
     defaultProfileId?: string | null;
-  };
+  } | null;
   github?: {
     profiles?: Array<{
-      id?: string;
-      name?: string | null;
+      id?: string | null;
+      remark?: string | null;
       token?: string | null;
       cloneUsername?: string | null;
     }> | null;
     removeProfileIds?: string[] | null;
     defaultProfileId?: string | null;
-  };
+  } | null;
 }): Promise<UserModelCredentialsPublic> => {
   const { data } = await api.patch<{ credentials: UserModelCredentialsPublic }>('/users/me/model-credentials', params);
   return data.credentials;
@@ -355,7 +394,20 @@ export type CodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 
 export interface CodexRobotProviderConfigPublic {
   credentialSource: 'user' | 'repo' | 'robot';
-  credential?: { apiBaseUrl?: string; hasApiKey: boolean };
+  /**
+   * Selected credential profile id when `credentialSource` is `user` or `repo`.
+   *
+   * Notes:
+   * - Backend validates the existence and `hasApiKey` state for the chosen profile.
+   */
+  credentialProfileId?: string;
+  /**
+   * Inline robot credential (write-only for `apiKey`, safe for display for other fields).
+   *
+   * Notes:
+   * - Only present when `credentialSource` is `robot`.
+   */
+  credential?: { apiBaseUrl?: string; hasApiKey: boolean; remark?: string };
   model: CodexModel;
   sandbox: CodexSandbox;
   model_reasoning_effort: CodexReasoningEffort;
@@ -366,7 +418,8 @@ export type ClaudeCodeSandbox = 'workspace-write' | 'read-only';
 
 export interface ClaudeCodeRobotProviderConfigPublic {
   credentialSource: 'user' | 'repo' | 'robot';
-  credential?: { hasApiKey: boolean };
+  credentialProfileId?: string;
+  credential?: { apiBaseUrl?: string; hasApiKey: boolean; remark?: string };
   model: string;
   sandbox: ClaudeCodeSandbox;
   sandbox_workspace_write: { network_access: boolean };
@@ -376,18 +429,21 @@ export type GeminiCliSandbox = 'workspace-write' | 'read-only';
 
 export interface GeminiCliRobotProviderConfigPublic {
   credentialSource: 'user' | 'repo' | 'robot';
-  credential?: { hasApiKey: boolean };
+  credentialProfileId?: string;
+  credential?: { apiBaseUrl?: string; hasApiKey: boolean; remark?: string };
   model: string;
   sandbox: GeminiCliSandbox;
   sandbox_workspace_write: { network_access: boolean };
 }
 
 export interface RepoScopedCredentialsPublic {
-  repoProvider: { hasToken: boolean; cloneUsername?: string };
+  // Business intent: repo-scoped credentials use the same "profile" shape as account credentials,
+  // so the UI can reuse the same components for listing/editing defaults.
+  repoProvider: UserRepoProviderCredentialsPublic;
   modelProvider: {
-    codex: { apiBaseUrl?: string; hasApiKey: boolean };
-    claude_code: { hasApiKey: boolean };
-    gemini_cli: { hasApiKey: boolean };
+    codex: UserModelProviderCredentialsPublic;
+    claude_code: UserModelProviderCredentialsPublic;
+    gemini_cli: UserModelProviderCredentialsPublic;
   };
 }
 
@@ -397,7 +453,9 @@ export interface RepoRobot {
   name: string;
   permission: RobotPermission;
   hasToken: boolean;
+  repoCredentialSource?: 'robot' | 'user' | 'repo';
   repoCredentialProfileId?: string;
+  repoCredentialRemark?: string;
   cloneUsername?: string;
   repoTokenUserId?: string;
   repoTokenUsername?: string;
@@ -563,26 +621,52 @@ export const updateRepo = async (
     enabled: boolean;
     repoProviderCredential:
       | {
-          token?: string | null;
-          cloneUsername?: string | null;
+          profiles?: Array<{
+            id?: string | null;
+            remark?: string | null;
+            token?: string | null;
+            cloneUsername?: string | null;
+          }> | null;
+          removeProfileIds?: string[] | null;
+          defaultProfileId?: string | null;
         }
       | null;
     modelProviderCredential:
       | {
           codex?:
             | {
-                apiBaseUrl?: string | null;
-                apiKey?: string | null;
+                profiles?: Array<{
+                  id?: string | null;
+                  remark?: string | null;
+                  apiBaseUrl?: string | null;
+                  apiKey?: string | null;
+                }> | null;
+                removeProfileIds?: string[] | null;
+                defaultProfileId?: string | null;
               }
             | null;
           claude_code?:
             | {
-                apiKey?: string | null;
+                profiles?: Array<{
+                  id?: string | null;
+                  remark?: string | null;
+                  apiBaseUrl?: string | null;
+                  apiKey?: string | null;
+                }> | null;
+                removeProfileIds?: string[] | null;
+                defaultProfileId?: string | null;
               }
             | null;
           gemini_cli?:
             | {
-                apiKey?: string | null;
+                profiles?: Array<{
+                  id?: string | null;
+                  remark?: string | null;
+                  apiBaseUrl?: string | null;
+                  apiKey?: string | null;
+                }> | null;
+                removeProfileIds?: string[] | null;
+                defaultProfileId?: string | null;
               }
             | null;
         }
@@ -601,8 +685,10 @@ export const createRepoRobot = async (
   params: {
     name: string;
     token?: string | null;
+    repoCredentialSource?: 'robot' | 'user' | 'repo' | null;
     cloneUsername?: string | null;
     repoCredentialProfileId?: string | null;
+    repoCredentialRemark?: string | null;
     promptDefault?: string | null;
     language?: string | null;
     modelProvider?: ModelProvider | null;
@@ -624,8 +710,10 @@ export const updateRepoRobot = async (
   params: Partial<{
     name: string;
     token: string | null;
+    repoCredentialSource: 'robot' | 'user' | 'repo' | null;
     cloneUsername: string | null;
     repoCredentialProfileId: string | null;
+    repoCredentialRemark: string | null;
     promptDefault: string | null;
     language: string | null;
     modelProvider: ModelProvider | null;

@@ -1,8 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ClaudeCodeCredentialsPublicDto,
-  CodexCredentialsPublicDto,
-  GeminiCliCredentialsPublicDto
+  ModelProviderCredentialsPublicDto,
+  RepoProviderCredentialsPublicDto
 } from '../../users/dto/model-credentials.dto';
 import { OkResponseDto } from '../../common/dto/basic-response.dto';
 
@@ -49,28 +48,20 @@ export class RepositorySwaggerDto {
   updatedAt!: string;
 }
 
-export class RepoScopedRepoProviderCredentialPublicSwaggerDto {
-  @ApiProperty()
-  hasToken!: boolean;
-
-  @ApiPropertyOptional({ nullable: true })
-  cloneUsername?: string | null;
-}
-
 export class RepoScopedModelProviderCredentialsPublicSwaggerDto {
-  @ApiProperty({ type: CodexCredentialsPublicDto })
-  codex!: CodexCredentialsPublicDto;
+  @ApiProperty({ type: ModelProviderCredentialsPublicDto })
+  codex!: ModelProviderCredentialsPublicDto;
 
-  @ApiProperty({ type: ClaudeCodeCredentialsPublicDto })
-  claude_code!: ClaudeCodeCredentialsPublicDto;
+  @ApiProperty({ type: ModelProviderCredentialsPublicDto })
+  claude_code!: ModelProviderCredentialsPublicDto;
 
-  @ApiProperty({ type: GeminiCliCredentialsPublicDto })
-  gemini_cli!: GeminiCliCredentialsPublicDto;
+  @ApiProperty({ type: ModelProviderCredentialsPublicDto })
+  gemini_cli!: ModelProviderCredentialsPublicDto;
 }
 
 export class RepoScopedCredentialsPublicSwaggerDto {
-  @ApiProperty({ type: RepoScopedRepoProviderCredentialPublicSwaggerDto })
-  repoProvider!: RepoScopedRepoProviderCredentialPublicSwaggerDto;
+  @ApiProperty({ type: RepoProviderCredentialsPublicDto })
+  repoProvider!: RepoProviderCredentialsPublicDto;
 
   @ApiProperty({ type: RepoScopedModelProviderCredentialsPublicSwaggerDto })
   modelProvider!: RepoScopedModelProviderCredentialsPublicSwaggerDto;
@@ -92,8 +83,14 @@ export class RepoRobotSwaggerDto {
   @ApiProperty()
   hasToken!: boolean;
 
+  @ApiPropertyOptional({ nullable: true, enum: ['robot', 'user', 'repo'] })
+  repoCredentialSource?: 'robot' | 'user' | 'repo' | null;
+
   @ApiPropertyOptional({ nullable: true })
   repoCredentialProfileId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  repoCredentialRemark?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   cloneUsername?: string | null;

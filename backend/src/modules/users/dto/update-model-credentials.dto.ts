@@ -2,7 +2,17 @@ import { Type } from 'class-transformer';
 import { IsArray, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-class CodexCredentialsDto {
+class ModelProviderCredentialProfileDto {
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  id?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  remark?: string | null;
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
@@ -14,18 +24,24 @@ class CodexCredentialsDto {
   apiKey?: string | null;
 }
 
-class ClaudeCodeCredentialsDto {
-  @ApiPropertyOptional({ nullable: true })
+class ModelProviderCredentialsUpdateDto {
+  @ApiPropertyOptional({ type: ModelProviderCredentialProfileDto, isArray: true })
   @IsOptional()
-  @IsString()
-  apiKey?: string | null;
-}
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ModelProviderCredentialProfileDto)
+  profiles?: ModelProviderCredentialProfileDto[];
 
-class GeminiCliCredentialsDto {
+  @ApiPropertyOptional({ type: String, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  removeProfileIds?: string[];
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
-  apiKey?: string | null;
+  defaultProfileId?: string | null;
 }
 
 class RepoProviderCredentialProfileDto {
@@ -37,7 +53,7 @@ class RepoProviderCredentialProfileDto {
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
-  name?: string | null;
+  remark?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
@@ -71,23 +87,23 @@ class RepoProviderCredentialsUpdateDto {
 }
 
 export class UpdateModelCredentialsDto {
-  @ApiPropertyOptional({ type: CodexCredentialsDto, nullable: true })
+  @ApiPropertyOptional({ type: ModelProviderCredentialsUpdateDto, nullable: true })
   @IsOptional()
   @ValidateNested()
-  @Type(() => CodexCredentialsDto)
-  codex?: CodexCredentialsDto | null;
+  @Type(() => ModelProviderCredentialsUpdateDto)
+  codex?: ModelProviderCredentialsUpdateDto | null;
 
-  @ApiPropertyOptional({ type: ClaudeCodeCredentialsDto, nullable: true })
+  @ApiPropertyOptional({ type: ModelProviderCredentialsUpdateDto, nullable: true })
   @IsOptional()
   @ValidateNested()
-  @Type(() => ClaudeCodeCredentialsDto)
-  claude_code?: ClaudeCodeCredentialsDto | null;
+  @Type(() => ModelProviderCredentialsUpdateDto)
+  claude_code?: ModelProviderCredentialsUpdateDto | null;
 
-  @ApiPropertyOptional({ type: GeminiCliCredentialsDto, nullable: true })
+  @ApiPropertyOptional({ type: ModelProviderCredentialsUpdateDto, nullable: true })
   @IsOptional()
   @ValidateNested()
-  @Type(() => GeminiCliCredentialsDto)
-  gemini_cli?: GeminiCliCredentialsDto | null;
+  @Type(() => ModelProviderCredentialsUpdateDto)
+  gemini_cli?: ModelProviderCredentialsUpdateDto | null;
 
   @ApiPropertyOptional({ type: RepoProviderCredentialsUpdateDto, nullable: true })
   @IsOptional()

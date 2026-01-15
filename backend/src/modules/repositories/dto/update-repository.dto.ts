@@ -2,6 +2,15 @@ import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
+/**
+ * UpdateRepositoryDto (repos PATCH):
+ * - Business context: update repo metadata + repo-scoped credentials in a single API.
+ * - Security: tokens/apiKeys are write-only; UI must never display raw secrets.
+ *
+ * Change record:
+ * - 2026-01-14: Refactor repo-scoped credentials to support multiple credential profiles + `remark`.
+ */
+
 class RepositoryBranchDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -19,7 +28,17 @@ class RepositoryBranchDto {
   isDefault?: boolean;
 }
 
-class RepoProviderCredentialPatchDto {
+class RepoProviderCredentialProfilePatchDto {
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  id?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'User-defined note for distinguishing credentials in UI.' })
+  @IsOptional()
+  @IsString()
+  remark?: string | null;
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
@@ -31,8 +50,38 @@ class RepoProviderCredentialPatchDto {
   cloneUsername?: string | null;
 }
 
-class CodexModelCredentialPatchDto {
+class RepoProviderCredentialsPatchDto {
+  @ApiPropertyOptional({ type: RepoProviderCredentialProfilePatchDto, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RepoProviderCredentialProfilePatchDto)
+  profiles?: RepoProviderCredentialProfilePatchDto[];
+
+  @ApiPropertyOptional({ type: String, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  removeProfileIds?: string[];
+
   @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  defaultProfileId?: string | null;
+}
+
+class ModelProviderCredentialProfilePatchDto {
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  id?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'User-defined note for distinguishing credentials in UI.' })
+  @IsOptional()
+  @IsString()
+  remark?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Provider API Base URL (proxy).' })
   @IsOptional()
   @IsString()
   apiBaseUrl?: string | null;
@@ -43,38 +92,44 @@ class CodexModelCredentialPatchDto {
   apiKey?: string | null;
 }
 
-class ClaudeCodeModelCredentialPatchDto {
-  @ApiPropertyOptional({ nullable: true })
+class ModelProviderCredentialsPatchDto {
+  @ApiPropertyOptional({ type: ModelProviderCredentialProfilePatchDto, isArray: true })
   @IsOptional()
-  @IsString()
-  apiKey?: string | null;
-}
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ModelProviderCredentialProfilePatchDto)
+  profiles?: ModelProviderCredentialProfilePatchDto[];
 
-class GeminiCliModelCredentialPatchDto {
+  @ApiPropertyOptional({ type: String, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  removeProfileIds?: string[];
+
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
-  apiKey?: string | null;
+  defaultProfileId?: string | null;
 }
 
 class ModelProviderCredentialPatchDto {
-  @ApiPropertyOptional({ type: CodexModelCredentialPatchDto, nullable: true })
+  @ApiPropertyOptional({ type: ModelProviderCredentialsPatchDto, nullable: true })
   @IsOptional()
   @ValidateNested()
-  @Type(() => CodexModelCredentialPatchDto)
-  codex?: CodexModelCredentialPatchDto | null;
+  @Type(() => ModelProviderCredentialsPatchDto)
+  codex?: ModelProviderCredentialsPatchDto | null;
 
-  @ApiPropertyOptional({ type: ClaudeCodeModelCredentialPatchDto, nullable: true })
+  @ApiPropertyOptional({ type: ModelProviderCredentialsPatchDto, nullable: true })
   @IsOptional()
   @ValidateNested()
-  @Type(() => ClaudeCodeModelCredentialPatchDto)
-  claude_code?: ClaudeCodeModelCredentialPatchDto | null;
+  @Type(() => ModelProviderCredentialsPatchDto)
+  claude_code?: ModelProviderCredentialsPatchDto | null;
 
-  @ApiPropertyOptional({ type: GeminiCliModelCredentialPatchDto, nullable: true })
+  @ApiPropertyOptional({ type: ModelProviderCredentialsPatchDto, nullable: true })
   @IsOptional()
   @ValidateNested()
-  @Type(() => GeminiCliModelCredentialPatchDto)
-  gemini_cli?: GeminiCliModelCredentialPatchDto | null;
+  @Type(() => ModelProviderCredentialsPatchDto)
+  gemini_cli?: ModelProviderCredentialsPatchDto | null;
 }
 
 export class UpdateRepositoryDto {
@@ -110,11 +165,11 @@ export class UpdateRepositoryDto {
   @IsString()
   webhookSecret?: string | null;
 
-  @ApiPropertyOptional({ type: RepoProviderCredentialPatchDto, nullable: true })
+  @ApiPropertyOptional({ type: RepoProviderCredentialsPatchDto, nullable: true })
   @IsOptional()
   @ValidateNested()
-  @Type(() => RepoProviderCredentialPatchDto)
-  repoProviderCredential?: RepoProviderCredentialPatchDto | null;
+  @Type(() => RepoProviderCredentialsPatchDto)
+  repoProviderCredential?: RepoProviderCredentialsPatchDto | null;
 
   @ApiPropertyOptional({ type: ModelProviderCredentialPatchDto, nullable: true })
   @IsOptional()
@@ -122,3 +177,4 @@ export class UpdateRepositoryDto {
   @Type(() => ModelProviderCredentialPatchDto)
   modelProviderCredential?: ModelProviderCredentialPatchDto | null;
 }
+

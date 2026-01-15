@@ -1,17 +1,37 @@
 import { readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import { buildMergedProcessEnv, createAsyncLineLogger } from '../utils/providerRuntime';
+import { normalizeHttpBaseUrl } from '../utils/url';
 
 export const CLAUDE_CODE_PROVIDER_KEY = 'claude_code' as const;
 
 export type ClaudeCodeCredentialSource = 'user' | 'repo' | 'robot';
 
 export interface ClaudeCodeCredential {
+  /**
+   * Claude API Base URL (proxy).
+   *
+   * Notes:
+   * - Stored at credential-level so different keys can route to different proxies.
+   * - Only `http/https` URLs are accepted (see `normalizeHttpBaseUrl`).
+   */
+  apiBaseUrl?: string;
   apiKey?: string;
+  /**
+   * User-defined note for distinguishing credentials in UI.
+   */
+  remark?: string;
 }
 
 export interface ClaudeCodeRobotProviderConfig {
   credentialSource: ClaudeCodeCredentialSource;
+  /**
+   * Selected credential profile id (when `credentialSource` is `user` or `repo`).
+   *
+   * Change record:
+   * - 2026-01-14: Allow selecting one credential from multiple user/repo-scoped credentials.
+   */
+  credentialProfileId?: string;
   credential?: ClaudeCodeCredential;
   /**
    * Claude model name (passed through to Claude Code CLI).
@@ -31,7 +51,9 @@ export interface ClaudeCodeRobotProviderConfig {
 }
 
 export interface ClaudeCodeCredentialPublic {
+  apiBaseUrl?: string;
   hasApiKey: boolean;
+  remark?: string;
 }
 
 export type ClaudeCodeRobotProviderConfigPublic = Omit<ClaudeCodeRobotProviderConfig, 'credential'> & {
@@ -45,6 +67,11 @@ const asString = (value: unknown): string => (typeof value === 'string' ? value 
 
 const asBoolean = (value: unknown, fallback: boolean): boolean =>
   typeof value === 'boolean' ? value : fallback;
+
+const normalizeCredentialProfileId = (value: unknown): string | undefined => {
+  const raw = asString(value).trim();
+  return raw ? raw : undefined;
+};
 
 const normalizeCredentialSource = (value: unknown): ClaudeCodeCredentialSource => {
   const raw = asString(value).trim().toLowerCase();
@@ -78,17 +105,24 @@ export const normalizeClaudeCodeRobotProviderConfig = (raw: unknown): ClaudeCode
   if (!isRecord(raw)) return base;
 
   const credentialSource = normalizeCredentialSource(raw.credentialSource);
+  const credentialProfileId = credentialSource === 'robot' ? undefined : normalizeCredentialProfileId(raw.credentialProfileId);
   const credentialRaw = isRecord(raw.credential) ? raw.credential : null;
+  const apiBaseUrl = credentialRaw ? normalizeHttpBaseUrl(asString(credentialRaw.apiBaseUrl)) : undefined;
   const apiKey = credentialRaw ? asString(credentialRaw.apiKey).trim() : '';
+  const remark = credentialRaw ? asString(credentialRaw.remark).trim() : '';
 
   const sandboxWorkspaceWriteRaw = isRecord(raw.sandbox_workspace_write) ? raw.sandbox_workspace_write : null;
 
   const next: ClaudeCodeRobotProviderConfig = {
     credentialSource,
+    credentialProfileId,
     credential:
       credentialSource === 'robot'
         ? {
+            apiBaseUrl,
             apiKey: apiKey ? apiKey : undefined
+            ,
+            remark: remark ? remark : undefined
           }
         : undefined,
     model: normalizeClaudeModel(raw.model),
@@ -116,14 +150,21 @@ export const mergeClaudeCodeRobotProviderConfig = (params: {
   const hasNextApiKey = Boolean((nextNormalized.credential?.apiKey ?? '').trim());
   const existingApiKey = (existingNormalized.credential?.apiKey ?? '').trim();
   const mergedCredential: ClaudeCodeCredential = {
+    apiBaseUrl: nextNormalized.credential?.apiBaseUrl,
     apiKey: hasNextApiKey ? nextNormalized.credential?.apiKey : existingApiKey
+    ,
+    remark: nextNormalized.credential?.remark
   };
   const apiKey = (mergedCredential.apiKey ?? '').trim();
+  const remark = (mergedCredential.remark ?? '').trim();
 
   return {
     ...nextNormalized,
     credential: {
+      apiBaseUrl: mergedCredential.apiBaseUrl,
       apiKey: apiKey ? apiKey : undefined
+      ,
+      remark: remark ? remark : undefined
     }
   };
 };
@@ -132,10 +173,16 @@ export const toPublicClaudeCodeRobotProviderConfig = (raw: unknown): ClaudeCodeR
   const normalized = normalizeClaudeCodeRobotProviderConfig(raw);
   const apiKey = (normalized.credential?.apiKey ?? '').trim();
   const hasApiKey = Boolean(apiKey);
+  const apiBaseUrl = (normalized.credential?.apiBaseUrl ?? '').trim();
+  const remark = (normalized.credential?.remark ?? '').trim();
 
   return {
     credentialSource: normalized.credentialSource,
-    credential: normalized.credentialSource === 'robot' ? { hasApiKey } : undefined,
+    credentialProfileId: normalized.credentialProfileId,
+    credential:
+      normalized.credentialSource === 'robot'
+        ? { hasApiKey, apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined, remark: remark ? remark : undefined }
+        : undefined,
     model: normalized.model,
     sandbox: normalized.sandbox,
     sandbox_workspace_write: normalized.sandbox_workspace_write
@@ -172,6 +219,7 @@ export const runClaudeCodeExecWithSdk = async (params: {
   networkAccess: boolean;
   resumeSessionId?: string;
   apiKey: string;
+  apiBaseUrl?: string;
   outputLastMessageFile: string;
   env?: Record<string, string | undefined>;
   signal?: AbortSignal;
@@ -196,10 +244,22 @@ export const runClaudeCodeExecWithSdk = async (params: {
   if (params.sandbox === 'workspace-write') baseTools.push('Edit', 'Write', 'Bash');
   if (params.networkAccess) baseTools.push('WebFetch', 'WebSearch');
 
+  const apiBaseUrl = normalizeHttpBaseUrl(params.apiBaseUrl);
   const mergedEnv = buildMergedProcessEnv({
     ...params.env,
     // Business intent: allow selecting Claude credentials at runtime without mutating process.env.
-    ANTHROPIC_API_KEY: params.apiKey
+    ANTHROPIC_API_KEY: params.apiKey,
+    ...(apiBaseUrl
+      ? {
+          // Business intent: allow routing Claude requests through a proxy by overriding the Anthropic API base URL.
+          // Notes:
+          // - Claude Code uses `ANTHROPIC_API_KEY` for auth; the base URL override is best-effort and depends on the
+          //   underlying SDK honoring these environment variables.
+          // - We set both vars to maximize compatibility across SDK versions.
+          ANTHROPIC_BASE_URL: apiBaseUrl,
+          ANTHROPIC_API_URL: apiBaseUrl
+        }
+      : {})
   });
 
   const runOnce = async (resumeSessionId?: string): Promise<{ threadId: string | null; finalResponse: string }> => {

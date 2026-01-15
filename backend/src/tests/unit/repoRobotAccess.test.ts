@@ -20,7 +20,7 @@ describe('repoRobotAccess', () => {
     const token = resolveRobotProviderToken({
       provider: 'github',
       robot: { token: 'robot-1' },
-      userCredentials: { github: { profiles: [{ id: 'gh-1', name: 'main', token: 'user-1' }], defaultProfileId: 'gh-1' } }
+      userCredentials: { github: { profiles: [{ id: 'gh-1', remark: 'main', token: 'user-1' }], defaultProfileId: 'gh-1' } }
     });
     expect(token).toBe('robot-1');
   });
@@ -29,7 +29,7 @@ describe('repoRobotAccess', () => {
     const token = resolveRobotProviderToken({
       provider: 'gitlab',
       robot: { token: '' },
-      userCredentials: { gitlab: { profiles: [{ id: 'gl-1', name: 'main', token: 'user-1' }], defaultProfileId: 'gl-1' } }
+      userCredentials: { gitlab: { profiles: [{ id: 'gl-1', remark: 'main', token: 'user-1' }], defaultProfileId: 'gl-1' } }
     });
     expect(token).toBe('user-1');
   });
@@ -41,8 +41,8 @@ describe('repoRobotAccess', () => {
       userCredentials: {
         github: {
           profiles: [
-            { id: 'gh-1', name: 'org-a', token: 't1' },
-            { id: 'gh-2', name: 'org-b', token: 't2' }
+            { id: 'gh-1', remark: 'org-a', token: 't1' },
+            { id: 'gh-2', remark: 'org-b', token: 't2' }
           ],
           defaultProfileId: 'gh-1'
         }
@@ -66,7 +66,7 @@ describe('repoRobotAccess', () => {
       robot: { cloneUsername: 'robot-user' },
       userCredentials: {
         github: {
-          profiles: [{ id: 'gh-1', name: 'main', token: 't1', cloneUsername: 'user-user' }],
+          profiles: [{ id: 'gh-1', remark: 'main', token: 't1', cloneUsername: 'user-user' }],
           defaultProfileId: 'gh-1'
         }
       }
@@ -80,7 +80,7 @@ describe('repoRobotAccess', () => {
       robot: { cloneUsername: '' },
       userCredentials: {
         github: {
-          profiles: [{ id: 'gh-1', name: 'main', token: 't1', cloneUsername: 'user-user' }],
+          profiles: [{ id: 'gh-1', remark: 'main', token: 't1', cloneUsername: 'user-user' }],
           defaultProfileId: 'gh-1'
         }
       }
@@ -92,7 +92,7 @@ describe('repoRobotAccess', () => {
     const auth = getGitCloneAuth({
       provider: 'github',
       robot: {},
-      userCredentials: { github: { profiles: [{ id: 'gh-1', name: 'main', token: 'ghp_1' }], defaultProfileId: 'gh-1' } }
+      userCredentials: { github: { profiles: [{ id: 'gh-1', remark: 'main', token: 'ghp_1' }], defaultProfileId: 'gh-1' } }
     });
     expect(auth).toEqual({ username: 'x-access-token', password: 'ghp_1' });
   });
@@ -101,8 +101,8 @@ describe('repoRobotAccess', () => {
     const auth = getGitCloneAuth({
       provider: 'gitlab',
       robot: {},
-      userCredentials: { gitlab: { profiles: [{ id: 'gl-1', name: 'main', cloneUsername: 'oauth2' }], defaultProfileId: 'gl-1' } },
-      repoCredentials: { token: 'glpat_1' }
+      userCredentials: { gitlab: { profiles: [{ id: 'gl-1', remark: 'main', cloneUsername: 'oauth2' }], defaultProfileId: 'gl-1' } },
+      repoCredentials: { profiles: [{ id: 'r-1', remark: 'repo', token: 'glpat_1' }], defaultProfileId: 'r-1' }
     });
     expect(auth).toEqual({ username: 'oauth2', password: 'glpat_1' });
   });
@@ -117,7 +117,7 @@ describe('repoRobotAccess', () => {
       provider: 'gitlab',
       robot: {},
       userCredentials: null,
-      repoCredentials: { token: 'repo-1' },
+      repoCredentials: { profiles: [{ id: 'r-1', remark: 'repo', token: 'repo-1' }], defaultProfileId: 'r-1' },
       source: 'repo'
     });
     expect(token).toBe('repo-1');
@@ -129,7 +129,7 @@ describe('repoRobotAccess', () => {
       provider: 'github',
       robot: {},
       userCredentials: null,
-      repoCredentials: { token: '' },
+      repoCredentials: { profiles: [{ id: 'r-1', remark: 'repo', token: '' }], defaultProfileId: 'r-1' },
       source: 'repo'
     });
     expect(token).toBe('');
@@ -140,7 +140,7 @@ describe('repoRobotAccess', () => {
       provider: 'gitlab',
       robot: {},
       userCredentials: null,
-      repoCredentials: { token: 'glpat_1', cloneUsername: 'oauth2' },
+      repoCredentials: { profiles: [{ id: 'r-1', remark: 'repo', token: 'glpat_1', cloneUsername: 'oauth2' }], defaultProfileId: 'r-1' },
       source: 'repo'
     });
     expect(auth).toEqual({ username: 'oauth2', password: 'glpat_1' });

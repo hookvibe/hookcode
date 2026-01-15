@@ -47,34 +47,40 @@ HookCode is an intelligent code review and automation platform that elegantly tr
 
 # Quick Start
 
+> A publicly accessible server is required to receive the repository's webhook.
+
 ## Docker Deployment (Recommended)
 
 **Recommended: Use Docker Compose to start all services with one command (database + backend + frontend)**
 
-1. Configure environment variables: Copy `backend/.env.example` to `backend/.env` and modify as needed (at minimum, change `AUTH_TOKEN_SECRET` and admin credentials)
-2. Build and start services (default ports: frontend 5173, backend 4000, database 5432):
+Docker deployment assets live under `docker/`:
+- Compose file: `docker/docker-compose.yml`
+- Nginx reverse proxy config: `docker/nginx/frontend.conf`
+- Single env file (shared by frontend build + backend runtime): `docker/.env`
+
+1. Configure environment variables: Copy `docker/.env.example` to `docker/.env` and modify as needed (at minimum, change `AUTH_TOKEN_SECRET` and admin credentials)
+2. Build and start services:
    ```bash
-   docker-compose up --build
+   docker compose -f docker/docker-compose.yml up -d --build
    ```
-3. Access the frontend console: http://localhost:5173
-   - Default admin credentials are in `backend/.env` as `AUTH_ADMIN_USERNAME/AUTH_ADMIN_PASSWORD` (example: `admin/admin`, must be changed in production)
+3. Access the frontend console: `http://localhost` (or `http://localhost:<HOOKCODE_FRONTEND_PORT>`)
+   - Default admin credentials are in `docker/.env` as `AUTH_ADMIN_USERNAME/AUTH_ADMIN_PASSWORD` (example: `admin/admin`, must be changed in production)
    - After login, default routes:
      - Regular user: `#/account`
      - Admin: `#/admin/users`
      - Tasks list: `#/tasks`
 
 **Custom Configuration:**
-- **Port Customization**: Override default ports via environment variables
-  ```bash
-  HOOKCODE_FRONTEND_PORT=8080 HOOKCODE_BACKEND_PORT=3000 docker-compose up --build
-  ```
-- **Database Credentials**: Override via `HOOKCODE_DB_USER`, `HOOKCODE_DB_PASSWORD`, `HOOKCODE_DB_NAME` (all default to `hookcode`)
-- **CORS Configuration**: When customizing ports, also set `VITE_API_BASE_URL` (frontend build-time) and `ALLOWED_ORIGIN` (backend CORS) to match your deployment
+- **Ports**: Update `HOOKCODE_FRONTEND_PORT/HOOKCODE_BACKEND_PORT/HOOKCODE_DB_PORT` in `docker/.env`
+- **Database Credentials**: Update `DB_USER/DB_PASSWORD/DB_NAME` in `docker/.env`
+- **Cloudflare (single public port)**:
+  - Keep `VITE_API_BASE_URL=/api` in `docker/.env`
+  - Access APIs via `https://<your-domain>/api/...` (do NOT use `:8000`)
 - **CI/CD**: Use secrets or variables in GitHub Actions or GitLab CI to manage sensitive information
 
 **Technical Notes:**
 - Both backend and frontend have independent Dockerfiles
-- Docker Compose injects `backend/.env` via `env_file` in `docker-compose.yml` (not committed to version control)
+- Docker Compose injects `docker/.env` via `env_file` (not committed to version control)
 
 ## Local Development
 

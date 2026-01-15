@@ -42,7 +42,7 @@ import {
 } from '../services/repoRobotAccess';
 import type {
   RepoScopedModelProviderCredentials,
-  RepoScopedRepoProviderCredential,
+  RepoScopedRepoProviderCredentials,
   RepositoryService
 } from '../modules/repositories/repository.service';
 import type { RepoRobotService } from '../modules/repositories/repo-robot.service';
@@ -93,6 +93,33 @@ const formatRef = (ref?: string) => ref?.replace(/^refs\/heads\//, '');
 const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 const isUuidLike = (value: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+const pickCredentialProfile = (
+  creds: { profiles?: Array<{ id?: string; apiKey?: string; apiBaseUrl?: string }> | null; defaultProfileId?: string } | null | undefined,
+  requestedProfileId?: string | null
+): { apiKey: string; apiBaseUrl: string; profileId: string } | null => {
+  // Business intent: robots can pick one credential profile from user-scope/repo-scope stores.
+  //
+  // Notes:
+  // - Prefer explicit `requestedProfileId`, then provider-level `defaultProfileId`, then the first profile.
+  // - Keep this best-effort: controllers validate ids, but workers should still be resilient to missing data.
+  const profiles = Array.isArray(creds?.profiles) ? creds!.profiles : [];
+  const requestedId = safeTrim(requestedProfileId);
+  const defaultId = safeTrim((creds as any)?.defaultProfileId);
+
+  const selected =
+    (requestedId && profiles.find((p) => safeTrim(p?.id) === requestedId)) ||
+    (defaultId && profiles.find((p) => safeTrim(p?.id) === defaultId)) ||
+    profiles.find((p) => Boolean(p && safeTrim(p?.id)));
+
+  const profileId = safeTrim(selected?.id);
+  if (!profileId) return null;
+  return {
+    profileId,
+    apiKey: safeTrim(selected?.apiKey),
+    apiBaseUrl: safeTrim(selected?.apiBaseUrl)
+  };
+};
 
 const toErrorSummary = (err: unknown): Record<string, unknown> => {
   if (err instanceof PrismaClientKnownRequestError) {
@@ -307,7 +334,7 @@ interface ResolvedExecution {
   repoScopedCredentials?: {
     // Business context: repo-scoped credentials are optional and can provide provider/model secrets for robots.
     // Change record: extended model provider credentials to include `claude_code` in addition to `codex`.
-    repoProvider: RepoScopedRepoProviderCredential;
+    repoProvider: RepoScopedRepoProviderCredentials;
     modelProvider: RepoScopedModelProviderCredentials;
   };
   robotsInRepo: RepoRobot[];
@@ -678,12 +705,19 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
       const robotApiKey = (codexCfg!.credential?.apiKey ?? '').trim();
       const robotApiBaseUrl = (codexCfg!.credential?.apiBaseUrl ?? '').trim();
 
-      const userApiKey = credentialSource === 'user' ? safeTrim(execution.userCredentials?.codex?.apiKey) : '';
-      const userApiBaseUrl = credentialSource === 'user' ? safeTrim(execution.userCredentials?.codex?.apiBaseUrl) : '';
+      const userProfile =
+        credentialSource === 'user' ? pickCredentialProfile(execution.userCredentials?.codex, codexCfg!.credentialProfileId) : null;
+      const repoProfile =
+        credentialSource === 'repo'
+          ? pickCredentialProfile(execution.repoScopedCredentials?.modelProvider?.codex, codexCfg!.credentialProfileId)
+          : null;
+
+      const userApiKey = credentialSource === 'user' ? safeTrim(userProfile?.apiKey) : '';
+      const userApiBaseUrl = credentialSource === 'user' ? safeTrim(userProfile?.apiBaseUrl) : '';
       const repoApiKey =
-        credentialSource === 'repo' ? safeTrim(execution.repoScopedCredentials?.modelProvider?.codex?.apiKey) : '';
+        credentialSource === 'repo' ? safeTrim(repoProfile?.apiKey) : '';
       const repoApiBaseUrl =
-        credentialSource === 'repo' ? safeTrim(execution.repoScopedCredentials?.modelProvider?.codex?.apiBaseUrl) : '';
+        credentialSource === 'repo' ? safeTrim(repoProfile?.apiBaseUrl) : '';
 
       const apiKey = credentialSource === 'robot' ? robotApiKey : credentialSource === 'repo' ? repoApiKey : userApiKey;
       const apiBaseUrl =
@@ -694,15 +728,13 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
           credentialSource === 'robot'
             ? 'codex apiKey is required (robot credential)'
             : credentialSource === 'repo'
-              ? 'codex apiKey is required (repo-scoped credential)'
-              : 'codex apiKey is required (user global credential)';
+              ? 'codex apiKey is required (repo-scoped credential profile)'
+              : 'codex apiKey is required (user credential profile)';
         await appendLog(credentialBack);
         throw new Error(credentialBack);
       }
 
-      console.error('[agent] about to call runCodexExecWithSdk');
-      console.error('[agent] model:', codexCfg!.model);
-
+      // Change record: avoid noisy debug `console.error` logs; rely on structured logs + per-task appendLog instead.
       const res = await runCodexExecWithSdk({
         repoDir,
         promptFile,
@@ -732,26 +764,38 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     } else if (isClaudeCodeProvider) {
       const credentialSource = claudeCfg!.credentialSource;
       const robotApiKey = (claudeCfg!.credential?.apiKey ?? '').trim();
+      const robotApiBaseUrl = (claudeCfg!.credential?.apiBaseUrl ?? '').trim();
 
-      const userApiKey = credentialSource === 'user' ? safeTrim(execution.userCredentials?.claude_code?.apiKey) : '';
+      const userProfile =
+        credentialSource === 'user'
+          ? pickCredentialProfile(execution.userCredentials?.claude_code, claudeCfg!.credentialProfileId)
+          : null;
+      const repoProfile =
+        credentialSource === 'repo'
+          ? pickCredentialProfile(execution.repoScopedCredentials?.modelProvider?.claude_code, claudeCfg!.credentialProfileId)
+          : null;
+
+      const userApiKey = credentialSource === 'user' ? safeTrim(userProfile?.apiKey) : '';
+      const userApiBaseUrl = credentialSource === 'user' ? safeTrim(userProfile?.apiBaseUrl) : '';
       const repoApiKey =
-        credentialSource === 'repo' ? safeTrim(execution.repoScopedCredentials?.modelProvider?.claude_code?.apiKey) : '';
+        credentialSource === 'repo' ? safeTrim(repoProfile?.apiKey) : '';
+      const repoApiBaseUrl =
+        credentialSource === 'repo' ? safeTrim(repoProfile?.apiBaseUrl) : '';
 
       const apiKey = credentialSource === 'robot' ? robotApiKey : credentialSource === 'repo' ? repoApiKey : userApiKey;
+      const apiBaseUrl =
+        credentialSource === 'robot' ? robotApiBaseUrl : credentialSource === 'repo' ? repoApiBaseUrl : userApiBaseUrl;
 
       if (!apiKey) {
         const credentialBack =
           credentialSource === 'robot'
             ? 'claude_code apiKey is required (robot credential)'
             : credentialSource === 'repo'
-              ? 'claude_code apiKey is required (repo-scoped credential)'
-              : 'claude_code apiKey is required (user global credential)';
+              ? 'claude_code apiKey is required (repo-scoped credential profile)'
+              : 'claude_code apiKey is required (user credential profile)';
         await appendLog(credentialBack);
         throw new Error(credentialBack);
       }
-
-      console.error('[agent] about to call runClaudeCodeExecWithSdk');
-      console.error('[agent] model:', claudeCfg!.model);
 
       const res = await runClaudeCodeExecWithSdk({
         repoDir,
@@ -761,6 +805,7 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
         networkAccess,
         resumeSessionId: resumeThreadId || undefined,
         apiKey,
+        apiBaseUrl: apiBaseUrl || undefined,
         outputLastMessageFile,
         env: {
           ...(sandboxMode === 'workspace-write'
@@ -780,20 +825,35 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     } else {
       const credentialSource = geminiCfg!.credentialSource;
       const robotApiKey = (geminiCfg!.credential?.apiKey ?? '').trim();
+      const robotApiBaseUrl = (geminiCfg!.credential?.apiBaseUrl ?? '').trim();
 
-      const userApiKey = credentialSource === 'user' ? safeTrim(execution.userCredentials?.gemini_cli?.apiKey) : '';
+      const userProfile =
+        credentialSource === 'user'
+          ? pickCredentialProfile(execution.userCredentials?.gemini_cli, geminiCfg!.credentialProfileId)
+          : null;
+      const repoProfile =
+        credentialSource === 'repo'
+          ? pickCredentialProfile(execution.repoScopedCredentials?.modelProvider?.gemini_cli, geminiCfg!.credentialProfileId)
+          : null;
+
+      const userApiKey = credentialSource === 'user' ? safeTrim(userProfile?.apiKey) : '';
+      const userApiBaseUrl = credentialSource === 'user' ? safeTrim(userProfile?.apiBaseUrl) : '';
       const repoApiKey =
-        credentialSource === 'repo' ? safeTrim(execution.repoScopedCredentials?.modelProvider?.gemini_cli?.apiKey) : '';
+        credentialSource === 'repo' ? safeTrim(repoProfile?.apiKey) : '';
+      const repoApiBaseUrl =
+        credentialSource === 'repo' ? safeTrim(repoProfile?.apiBaseUrl) : '';
 
       const apiKey = credentialSource === 'robot' ? robotApiKey : credentialSource === 'repo' ? repoApiKey : userApiKey;
+      const apiBaseUrl =
+        credentialSource === 'robot' ? robotApiBaseUrl : credentialSource === 'repo' ? repoApiBaseUrl : userApiBaseUrl;
 
       if (!apiKey) {
         const credentialBack =
           credentialSource === 'robot'
             ? 'gemini_cli apiKey is required (robot credential)'
             : credentialSource === 'repo'
-              ? 'gemini_cli apiKey is required (repo-scoped credential)'
-              : 'gemini_cli apiKey is required (user global credential)';
+              ? 'gemini_cli apiKey is required (repo-scoped credential profile)'
+              : 'gemini_cli apiKey is required (user credential profile)';
         await appendLog(credentialBack);
         throw new Error(credentialBack);
       }
@@ -809,6 +869,7 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
         networkAccess,
         resumeSessionId: resumeThreadId || undefined,
         apiKey,
+        apiBaseUrl: apiBaseUrl || undefined,
         outputLastMessageFile,
         geminiHomeDir,
         env: {
