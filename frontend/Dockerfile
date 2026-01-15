@@ -22,6 +22,13 @@ COPY logo logo
 ARG VITE_API_BASE_URL=/api
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
+# Build-time feature toggles:
+# - Notes: Vite only injects `VITE_*` variables at build time; toggling this requires rebuilding the image.
+# - Change record:
+#   - 2026-01-15: Support disabling account display-name/password editing in CI/staging.
+ARG VITE_DISABLE_ACCOUNT_EDIT=false
+ENV VITE_DISABLE_ACCOUNT_EDIT=${VITE_DISABLE_ACCOUNT_EDIT}
+
 RUN pnpm --filter hookcode-frontend build
 
 FROM nginx:alpine
