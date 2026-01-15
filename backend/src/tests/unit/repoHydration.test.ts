@@ -25,10 +25,11 @@ describe('buildRepoHydrationPatch', () => {
       { name: 'group/project', externalId: null, apiBaseUrl: null, branches: null },
       { project: { id: 123, web_url: 'https://gitlab.example.com/group/project', default_branch: 'main' } }
     );
+    // Change record (2026-01-15): default branch note is now stored in English.
     expect(patch).toEqual({
       externalId: '123',
       apiBaseUrl: 'https://gitlab.example.com',
-      branches: [{ name: 'main', note: '默认分支（自动回填）', isDefault: true }]
+      branches: [{ name: 'main', note: 'Default branch (auto-filled)', isDefault: true }]
     });
   });
 
@@ -57,7 +58,7 @@ describe('buildRepoHydrationPatch', () => {
         name: 'group/project',
         externalId: '999',
         apiBaseUrl: 'https://gitlab.local',
-        branches: [{ name: 'main', note: '主分支', isDefault: true }]
+        branches: [{ name: 'main', note: 'Main branch', isDefault: true }]
       },
       { project: { id: 123, web_url: 'https://gitlab.example.com/group/project' } }
     );

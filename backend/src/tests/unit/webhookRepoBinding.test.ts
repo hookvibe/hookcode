@@ -34,6 +34,81 @@ describe('Webhook repo binding (scope + identity)', () => {
     jest.clearAllMocks();
   });
 
+  // Webhook ingress guard tests (Webhook module -> provider routing):
+  // - Business behavior: wrong-provider headers should return WEBHOOK_PROVIDER_MISMATCH with a corrective hint.
+  // - Change record (2026-01-15): added coverage for GitHub-on-GitLab and GitLab-on-GitHub misroutes.
+  test('rejects GitHub webhook when it is sent to the GitLab endpoint', async () => {
+    const deps = createDeps();
+    deps.repositoryService.getByIdWithSecret.mockResolvedValue({
+      repo: {
+        id: 'r1',
+        provider: 'gitlab',
+        enabled: true,
+        name: 'group/project',
+        externalId: undefined,
+        apiBaseUrl: undefined
+      },
+      webhookSecret: 's3cr3t'
+    });
+
+    const req = {
+      params: { repoId: 'r1' },
+      body: { zen: 'Accessible for all.' },
+      header: (name: string) => {
+        const key = name.toLowerCase();
+        if (key === 'x-github-event') return 'ping';
+        if (key === 'x-hub-signature-256') return 'sha256=abc';
+        if (key === 'user-agent') return 'GitHub-Hookshot/abc';
+        return undefined;
+      }
+    } as any;
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() } as any;
+
+    await handleGitlabWebhook(req, res, deps as any);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'WEBHOOK_PROVIDER_MISMATCH', expectedProvider: 'gitlab', detectedProvider: 'github' })
+    );
+    expect(deps.repositoryService.markWebhookVerified).not.toHaveBeenCalled();
+  });
+
+  test('rejects GitLab webhook when it is sent to the GitHub endpoint', async () => {
+    const deps = createDeps();
+    deps.repositoryService.getByIdWithSecret.mockResolvedValue({
+      repo: {
+        id: 'r1',
+        provider: 'github',
+        enabled: true,
+        name: 'group/project',
+        externalId: undefined,
+        apiBaseUrl: undefined
+      },
+      webhookSecret: 's3cr3t'
+    });
+
+    const req = {
+      params: { repoId: 'r1' },
+      body: { project: { id: 123, path_with_namespace: 'group/project', web_url: 'https://gitlab.example.com/group/project' } },
+      header: (name: string) => {
+        const key = name.toLowerCase();
+        if (key === 'x-gitlab-event') return 'Push Hook';
+        if (key === 'x-gitlab-token') return 's3cr3t';
+        if (key === 'x-gitlab-event-uuid') return 'uuid-1';
+        return undefined;
+      }
+    } as any;
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() } as any;
+
+    await handleGithubWebhook(req, res, deps as any);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'WEBHOOK_PROVIDER_MISMATCH', expectedProvider: 'github', detectedProvider: 'gitlab' })
+    );
+    expect(deps.repositoryService.markWebhookVerified).not.toHaveBeenCalled();
+  });
+
   test('accepts GitLab webhook when repo.name is a slug and payload ends with the same slug', async () => {
     const deps = createDeps();
     deps.repositoryService.getByIdWithSecret.mockResolvedValue({
@@ -294,4 +369,3 @@ describe('Webhook repo binding (scope + identity)', () => {
     expect(res.status).toHaveBeenCalledWith(202);
   });
 });
-

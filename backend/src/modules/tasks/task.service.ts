@@ -403,9 +403,10 @@ export class TaskService {
   async recoverStaleProcessing(staleMs: number): Promise<number> {
     const now = new Date();
     const threshold = new Date(now.getTime() - staleMs);
-    const message = `任务在 processing 状态超过 ${Math.round(
+    // Change record (2026-01-15): stale processing warning message is now English to match UI expectations.
+    const message = `Task has been in processing for ${Math.round(
       staleMs / 1000
-    )}s 未更新，可能因服务重启/崩溃中断，已标记为 failed，请手动重试`;
+    )}s without updates; it may have been interrupted by a restart/crash, so it was marked as failed. Please retry manually.`;
 
     const affected = await db.$executeRaw`
       UPDATE tasks

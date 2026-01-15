@@ -161,7 +161,8 @@ export const buildRepoHydrationPatch = (
         : provider === 'github'
           ? deriveGithubDefaultBranch(payload)
           : null;
-    if (derived) patch.branches = [{ name: derived, note: '默认分支（自动回填）', isDefault: true }];
+    // Change record (2026-01-15): default branch notes are now stored in English for consistent webhook hydration metadata.
+    if (derived) patch.branches = [{ name: derived, note: 'Default branch (auto-filled)', isDefault: true }];
   }
 
   return patch;

@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { App as AntdApp } from 'antd';
+import { App as AntdApp, Modal } from 'antd';
 import { setLocale } from '../i18n';
 import { ReposPage } from '../pages/ReposPage';
 import * as api from '../api';
@@ -11,7 +11,11 @@ vi.mock('../api', () => {
     __esModule: true,
     listRepos: vi.fn(async () => []),
     fetchRepo: vi.fn(async () => ({ repo: null, robots: [], automationConfig: null })),
-    createRepo: vi.fn(async () => ({ repo: { id: 'r_new' }, webhookSecret: 's', webhookPath: '/webhook' }))
+    createRepo: vi.fn(async () => ({
+      repo: { id: 'r_new' },
+      webhookSecret: 's',
+      webhookPath: '/api/webhook/gitlab/r_new'
+    }))
   };
 });
 
@@ -27,6 +31,11 @@ describe('ReposPage (frontend-chat migration)', () => {
     vi.clearAllMocks();
     setLocale('en-US');
     window.location.hash = '#/repos';
+  });
+
+  afterEach(() => {
+    // Test hygiene: Antd global modals render outside the React root and must be cleared manually. (Change record: 2026-01-15)
+    Modal.destroyAll();
   });
 
   test('opens create modal and submits createRepo', async () => {
@@ -48,5 +57,29 @@ describe('ReposPage (frontend-chat migration)', () => {
     await waitFor(() =>
       expect(api.createRepo).toHaveBeenCalledWith({ provider: 'gitlab', name: 'my-org/my-repo' })
     );
+  });
+
+  test('shows webhook URL in the quickstart modal after creation', async () => {
+    const ui = userEvent.setup();
+    renderPage();
+
+    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+
+    await ui.click(screen.getByRole('button', { name: /Create repository/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Create repository')).toBeInTheDocument();
+
+    const nameInput = screen.getByPlaceholderText('e.g. my-org/my-repo');
+    await ui.type(nameInput, 'my-org/my-repo');
+
+    await ui.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(api.createRepo).toHaveBeenCalled());
+
+    await waitFor(() => {
+      expect(screen.getByText(/Webhook quickstart/i)).toBeInTheDocument();
+      expect(screen.getByText(/Webhook URL/i)).toBeInTheDocument();
+      expect(screen.getByText('http://localhost:4000/api/webhook/gitlab/r_new')).toBeInTheDocument();
+    });
   });
 });

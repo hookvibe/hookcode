@@ -6,6 +6,8 @@ import { createRepo, fetchRepo, listRepos } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildRepoHash } from '../router';
 import { PageNav } from '../components/nav/PageNav';
+import { buildWebhookUrl } from '../utils/webhook';
+import { WebhookIntroModal } from '../components/repos/WebhookIntroModal';
 
 /**
  * ReposPage:
@@ -60,6 +62,11 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
   const [createOpen, setCreateOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createForm] = Form.useForm<{ provider: RepoProvider; name: string }>();
+  // Webhook quickstart modal state (create flow). (Change record: 2026-01-15)
+  const [webhookIntroOpen, setWebhookIntroOpen] = useState(false);
+  const [webhookIntroProvider, setWebhookIntroProvider] = useState<RepoProvider>('gitlab');
+  const [webhookIntroUrl, setWebhookIntroUrl] = useState('');
+  const [webhookIntroSecret, setWebhookIntroSecret] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -266,25 +273,14 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
               createForm.resetFields();
               await refresh();
 
-              Modal.info({
-                title: t('repos.createModal.successTitle'),
-                content: (
-                  <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                    <Typography.Text>
-                      {t('repos.createModal.webhookPath')}: <Typography.Text code>{created.webhookPath}</Typography.Text>
-                    </Typography.Text>
-                    <Typography.Text>
-                      {t('repos.createModal.webhookSecret')}: <Typography.Text code>{created.webhookSecret}</Typography.Text>
-                    </Typography.Text>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      {t('repos.createModal.successTip')}
-                    </Typography.Text>
-                    <Button type="link" style={{ padding: 0 }} onClick={() => (window.location.hash = buildRepoHash(created.repo.id))}>
-                      {t('common.manage')}
-                    </Button>
-                  </Space>
-                )
-              });
+              // Business intent: show the full webhook URL so users can tell which API base to use. (Change record: 2026-01-15)
+              const webhookUrl = buildWebhookUrl(created.webhookPath || '');
+
+              // Business intent: reuse the Webhook quickstart dialog instead of a one-off "Created" modal. (Change record: 2026-01-15)
+              setWebhookIntroProvider(created.repo.provider || values.provider);
+              setWebhookIntroUrl(webhookUrl || created.webhookPath || '');
+              setWebhookIntroSecret(created.webhookSecret ?? null);
+              setWebhookIntroOpen(true);
             } catch (err: any) {
               console.error(err);
               message.error(err?.response?.data?.error || t('repos.createModal.failed'));
@@ -304,6 +300,14 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
           </Typography.Paragraph>
         </Form>
       </Modal>
+
+      <WebhookIntroModal
+        open={webhookIntroOpen}
+        provider={webhookIntroProvider}
+        webhookUrl={webhookIntroUrl}
+        webhookSecret={webhookIntroSecret}
+        onClose={() => setWebhookIntroOpen(false)}
+      />
     </div>
   );
 };

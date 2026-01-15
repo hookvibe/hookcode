@@ -341,7 +341,7 @@ const isMergeCommitTitle = (title: string): boolean => {
   const trimmed = title.trim();
   if (!trimmed) return false;
   if (/^merge\b/i.test(trimmed)) return true;
-  if (/^合并/.test(trimmed)) return true;
+  // Change record (2026-01-15): keep merge detection English-only to avoid mixed-language heuristics.
   return false;
 };
 
@@ -356,7 +356,7 @@ const isCherryPickCommit = (commit: any): boolean => {
 
   // Fallback: title/body contains the cherry-pick keyword (allow some false positives to avoid duplicate reviews).
   if (/\bcherry[- ]pick\b/i.test(text)) return true;
-  if (/拣选|挑拣|摘取/.test(text)) return true;
+  // Change record (2026-01-15): keep cherry-pick detection English-only to avoid mixed-language heuristics.
 
   return false;
 };
@@ -675,6 +675,54 @@ const validateRepoWebhookNameBinding = (
 
 const safeString = (value: unknown): string => (typeof value === 'string' ? value : '');
 
+/**
+ * Webhook ingress guard (Webhook module -> provider routing):
+ * - Business behavior: detect provider-mismatch deliveries (e.g., GitHub headers hitting the GitLab endpoint) and return a clear 400.
+ * - Key steps: if the expected provider event header is absent, look for the other provider's signature/event/user-agent hints.
+ * - Change record (2026-01-15): added mismatch detection to avoid misleading "missing x-gitlab-token"/"missing x-hub-signature-256" errors.
+ * - Usage: called before secret verification in each provider handler to short-circuit with a provider hint.
+ * - Notes/pitfalls: detection is heuristic and we intentionally do NOT auto-route requests across providers for security clarity.
+ */
+const detectWebhookProviderMismatch = (
+  expectedProvider: RepoProvider,
+  req: Request,
+  expectedEventName: string
+): { expectedProvider: RepoProvider; detectedProvider: RepoProvider; hint: string; message: string } | null => {
+  const userAgent = safeString(req.header('user-agent') ?? '').trim();
+  const hasGitlabEvent = Boolean(safeString(req.header('x-gitlab-event') ?? '').trim());
+  const hasGitlabToken = Boolean(safeString(req.header('x-gitlab-token') ?? req.header('X-Gitlab-Token') ?? '').trim());
+  const hasGitlabDelivery = Boolean(safeString(req.header('x-gitlab-event-uuid') ?? req.header('X-Gitlab-Event-UUID') ?? '').trim());
+  const hasGithubEvent = Boolean(safeString(req.header('x-github-event') ?? '').trim());
+  const hasGithubDelivery = Boolean(safeString(req.header('x-github-delivery') ?? '').trim());
+  const hasGithubSignature = Boolean(
+    safeString(req.header('x-hub-signature-256') ?? req.header('x-hub-signature') ?? '').trim()
+  );
+  const looksGithub = hasGithubEvent || hasGithubDelivery || hasGithubSignature || /github-hookshot/i.test(userAgent);
+  const looksGitlab = hasGitlabEvent || hasGitlabToken || hasGitlabDelivery;
+
+  if (expectedEventName) return null;
+
+  if (expectedProvider === 'gitlab' && looksGithub) {
+    return {
+      expectedProvider: 'gitlab',
+      detectedProvider: 'github',
+      hint: '/api/webhook/github/:repoId',
+      message: 'github webhook headers detected on gitlab endpoint'
+    };
+  }
+
+  if (expectedProvider === 'github' && looksGitlab) {
+    return {
+      expectedProvider: 'github',
+      detectedProvider: 'gitlab',
+      hint: '/api/webhook/gitlab/:repoId',
+      message: 'gitlab webhook headers detected on github endpoint'
+    };
+  }
+
+  return null;
+};
+
 const recordWebhookDeliveryBestEffort = async (
   repoWebhookDeliveryService: RepoWebhookDeliveryService,
   input: {
@@ -758,6 +806,22 @@ export const handleGitlabWebhook = async (req: Request, res: Response, deps: Web
         400,
         { error: 'System hooks are not supported; please configure a project webhook', code: 'WEBHOOK_SCOPE_NOT_SUPPORTED' },
         { result: 'rejected', code: 'WEBHOOK_SCOPE_NOT_SUPPORTED', message: 'system hook not supported' }
+      );
+    }
+
+    // Webhook ingress guard: block GitHub-delivered requests hitting the GitLab endpoint with a clear provider hint. (Change record: 2026-01-15)
+    const providerMismatch = detectWebhookProviderMismatch('gitlab', req, eventName);
+    if (providerMismatch) {
+      return respond(
+        400,
+        {
+          error: 'Webhook provider mismatch',
+          code: 'WEBHOOK_PROVIDER_MISMATCH',
+          expectedProvider: providerMismatch.expectedProvider,
+          detectedProvider: providerMismatch.detectedProvider,
+          hint: providerMismatch.hint
+        },
+        { result: 'rejected', code: 'WEBHOOK_PROVIDER_MISMATCH', message: providerMismatch.message }
       );
     }
 
@@ -1035,6 +1099,22 @@ export const handleGithubWebhook = async (req: Request, res: Response, deps: Web
     }
     if (repoAuth.repo.provider !== 'github') {
       return respond(400, { error: 'Repo provider mismatch' }, { result: 'rejected', message: 'Repo provider mismatch' });
+    }
+
+    // Webhook ingress guard: block GitLab-delivered requests hitting the GitHub endpoint with a clear provider hint. (Change record: 2026-01-15)
+    const providerMismatch = detectWebhookProviderMismatch('github', req, eventName);
+    if (providerMismatch) {
+      return respond(
+        400,
+        {
+          error: 'Webhook provider mismatch',
+          code: 'WEBHOOK_PROVIDER_MISMATCH',
+          expectedProvider: providerMismatch.expectedProvider,
+          detectedProvider: providerMismatch.detectedProvider,
+          hint: providerMismatch.hint
+        },
+        { result: 'rejected', code: 'WEBHOOK_PROVIDER_MISMATCH', message: providerMismatch.message }
+      );
     }
 
     const verify = verifyGithubSecret(req, repoAuth.webhookSecret);

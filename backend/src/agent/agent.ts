@@ -160,10 +160,11 @@ const resolveBranchByLegacyRole = (repo: Repository | null, role: RepoRobot['def
   if (role === 'main') {
     const fromDefault = resolveRepoDefaultBranch(repo);
     if (fromDefault) return fromDefault;
-    return byNote('主分支')?.name ?? branches.find((b) => safeTrim(b?.name) === 'main')?.name ?? '';
+    // Change record (2026-01-15): legacy branch role notes are now stored in English.
+    return byNote('Main branch')?.name ?? branches.find((b) => safeTrim(b?.name) === 'main')?.name ?? '';
   }
-  if (role === 'dev') return byNote('开发分支')?.name ?? branches.find((b) => safeTrim(b?.name) === 'dev')?.name ?? '';
-  if (role === 'test') return byNote('测试分支')?.name ?? branches.find((b) => safeTrim(b?.name) === 'test')?.name ?? '';
+  if (role === 'dev') return byNote('Dev branch')?.name ?? branches.find((b) => safeTrim(b?.name) === 'dev')?.name ?? '';
+  if (role === 'test') return byNote('Test branch')?.name ?? branches.find((b) => safeTrim(b?.name) === 'test')?.name ?? '';
   return '';
 };
 
@@ -253,7 +254,8 @@ const buildGitlabLogDetails = (logs: string[]): string => {
   if (!enabled) return '';
 
   const open = isTruthy(process.env.GITLAB_LOG_DETAILS_OPEN, false) ? ' open' : '';
-  const summary = (process.env.GITLAB_LOG_DETAILS_SUMMARY || '执行日志').trim() || '执行日志';
+  // Change record (2026-01-15): default log summary label is now English.
+  const summary = (process.env.GITLAB_LOG_DETAILS_SUMMARY || 'Execution log').trim() || 'Execution log';
   const detailsBody = escapeHtml(logs.join('\n'));
   return `<details${open}><summary>${escapeHtml(summary)}</summary>\n\n<pre><code>${detailsBody}</code></pre>\n\n</details>`;
 };
