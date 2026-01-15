@@ -13,6 +13,7 @@ set -euo pipefail
 #
 # Change record:
 # - 2026-01-14: Initial version (moved from `.github/workflows/ci.yml`).
+# - 2026-01-15: Add frontend feature flag to disable account editing UI in CI builds.
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 docker_dir="$(cd "${script_dir}/.." && pwd)"
@@ -54,6 +55,8 @@ write_kv HOOKCODE_DB_PORT "${HOOKCODE_DB_PORT:-5432}"
 # - Force API base to `/api` so the browser never calls a blocked non-allowlisted port (e.g. `:8000`).
 # - The frontend Nginx container proxies `/api/*` to the backend container internally (`backend:4000`).
 write_kv VITE_API_BASE_URL "/api"
+# Feature toggle (2026-01-15): disable account display-name/password editing in CI builds by default.
+write_kv VITE_DISABLE_ACCOUNT_EDIT "${VITE_DISABLE_ACCOUNT_EDIT:-true}"
 
 # ------------------------------------------------------------------------------
 # Build / Tooling

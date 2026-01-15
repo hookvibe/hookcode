@@ -1565,16 +1565,18 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         onOk={() => void submitRepoProviderProfile()}
         variant="compact"
         modalWidth={520}
+        className="hc-dialog--compact" /* UX (2026-01-15): tighter padding + unified surface in dark mode for profile editors. */
       >
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: repo ? providerLabel(repo.provider) : '-' })}</Typography.Text>
-          <Form form={repoProviderProfileForm} layout="vertical" requiredMark={false} size="small">
-            <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item label={t('panel.credentials.profile.cloneUsername')} name="cloneUsername">
-              <Input placeholder={t('panel.credentials.profile.cloneUsernamePlaceholder')} />
-            </Form.Item>
+	          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: repo ? providerLabel(repo.provider) : '-' })}</Typography.Text>
+	          {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
+	          <Form form={repoProviderProfileForm} layout="vertical" requiredMark={false} size="middle">
+	            <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
+	              <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
+	            </Form.Item>
+	            <Form.Item label={t('panel.credentials.profile.cloneUsername')} name="cloneUsername">
+	              <Input placeholder={t('panel.credentials.profile.cloneUsernamePlaceholder')} />
+	            </Form.Item>
 
             <Form.Item label={t('panel.credentials.profile.token')}>
               <Space direction="vertical" size={8} style={{ width: '100%' }}>
@@ -1596,12 +1598,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                       whitespace: true,
                       message: t('panel.validation.required')
                     }
-                  ]}
-                >
-                  <Input.Password disabled={repoProviderTokenMode !== 'set'} autoComplete="new-password" />
-                </Form.Item>
-              </Space>
-            </Form.Item>
+	                  ]}
+	                >
+	                  <Input.Password
+	                    placeholder={t('panel.credentials.secretInputPlaceholder')}
+	                    disabled={repoProviderTokenMode !== 'set'}
+	                    autoComplete="new-password"
+	                  />
+	                </Form.Item>
+	              </Space>
+	            </Form.Item>
 
             <Form.Item label={t('panel.credentials.profile.default')} style={{ marginBottom: 0 }}>
               <Select
@@ -1629,13 +1635,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         onOk={() => void submitModelProfile()}
         variant="compact"
         modalWidth={520}
+        className="hc-dialog--compact" /* UX (2026-01-15): tighter padding + unified surface in dark mode for profile editors. */
       >
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: modelProfileProvider })}</Typography.Text>
-          <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="small">
-            <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
-              <Input />
-            </Form.Item>
+	          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: modelProfileProvider })}</Typography.Text>
+	          {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
+	          <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="middle">
+	            <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
+	              <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
+	            </Form.Item>
 
             <Form.Item
               label={
@@ -1665,12 +1673,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                       whitespace: true,
                       message: t('panel.validation.required')
                     }
-                  ]}
-                >
-                  <Input.Password disabled={modelProfileApiKeyMode !== 'set'} autoComplete="new-password" />
-                </Form.Item>
-              </Space>
-            </Form.Item>
+	                  ]}
+	                >
+	                  <Input.Password
+	                    placeholder={t('panel.credentials.secretInputPlaceholder')}
+	                    disabled={modelProfileApiKeyMode !== 'set'}
+	                    autoComplete="new-password"
+	                  />
+	                </Form.Item>
+	              </Space>
+	            </Form.Item>
 
             {/* UX: keep "API Base URL" below the secret input to match user expectations for proxy settings. */}
             <Form.Item label={t('panel.credentials.codexApiBaseUrl')} name="apiBaseUrl">

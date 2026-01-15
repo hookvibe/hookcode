@@ -47,6 +47,8 @@ HookCode 是一个通过对话和 Webhook 优雅触发 CLI 编码助手的智能
 
 # 快速开始
 
+> 需要有一个公网能够访问的服务器才能够接收仓库的 webhook
+
 ## Docker 部署（推荐）
 
 **推荐使用 Docker Compose 一键启动所有服务（数据库 + 后端 + 前端）**

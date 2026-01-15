@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpException,
   InternalServerErrorException,
@@ -13,6 +14,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -20,6 +22,7 @@ import {
   ApiUnauthorizedResponse
 } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { isAccountEditDisabled } from '../../config/features';
 import { UserService } from './user.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -42,11 +45,16 @@ export class UsersController {
     operationId: 'users_patch_me'
   })
   @ApiOkResponse({ description: 'OK', type: PatchMeResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async patchMe(@Req() req: Request, @Body() body: UpdateUserDto) {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      if (isAccountEditDisabled()) {
+        // Security boundary (2026-01-15): client-side UI disabling is not sufficient; block self-service edits on the server.
+        throw new ForbiddenException({ error: 'Account editing is disabled', code: 'ACCOUNT_EDIT_DISABLED' });
+      }
 
       const updated = await this.userService.updateUser(req.user.id, { displayName: body.displayName });
       if (!updated) throw new NotFoundException({ error: 'User not found' });
@@ -65,11 +73,16 @@ export class UsersController {
     operationId: 'users_change_password'
   })
   @ApiOkResponse({ description: 'OK', type: SuccessResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   async patchPassword(@Req() req: Request, @Body() body: ChangePasswordDto) {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      if (isAccountEditDisabled()) {
+        // Security boundary (2026-01-15): always enforce sensitive feature toggles on the backend.
+        throw new ForbiddenException({ error: 'Account editing is disabled', code: 'ACCOUNT_EDIT_DISABLED' });
+      }
 
       const currentPassword = typeof body?.currentPassword === 'string' ? body.currentPassword : '';
       const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : '';

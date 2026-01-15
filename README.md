@@ -47,6 +47,8 @@ HookCode is an intelligent code review and automation platform that elegantly tr
 
 # Quick Start
 
+> A publicly accessible server is required to receive the repository's webhook.
+
 ## Docker Deployment (Recommended)
 
 **Recommended: Use Docker Compose to start all services with one command (database + backend + frontend)**

@@ -42,6 +42,7 @@ import {
 } from '../api';
 import { clearAuth, getStoredUser, getToken, setStoredUser, type AuthUser } from '../auth';
 import { setLocale, useLocale, useT } from '../i18n';
+import { getBooleanEnv } from '../utils/env';
 
 /**
  * UserPanelPopover:
@@ -59,6 +60,7 @@ import { setLocale, useLocale, useT } from '../i18n';
  * - 2026-01-13: Tightened the panel spacing/typography to increase information density and reduce scrolling.
  * - 2026-01-13: Added Claude Code credential (Anthropic API key) entry to support `claude_code` robots.
  * - 2026-01-13: Added Gemini CLI credential (Gemini API key) entry to support `gemini_cli` robots.
+ * - 2026-01-15: Add env feature flag to disable account name/password editing (default enabled; CI can disable it).
  */
 
 type ThemePreference = 'system' | 'light' | 'dark';
@@ -142,6 +144,12 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
   const token = getToken();
   const canUseAccountApis = Boolean(token);
+
+  // Feature toggle (2026-01-15):
+  // - Business context: Frontend / User panel / Account.
+  // - Purpose: allow CI/staging deployments to disable display-name/password editing without removing other tabs.
+  // - Default: enabled (flag unset/false) to keep local development behavior unchanged.
+  const accountEditDisabled = getBooleanEnv('VITE_DISABLE_ACCOUNT_EDIT', false);
 
   const tabTitleKey = useMemo(
     () =>
@@ -505,6 +513,8 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   ]);
 
   const saveDisplayName = useCallback(async () => {
+    if (accountEditDisabled) return;
+    if (!canUseAccountApis) return;
     if (savingProfile) return;
     const values = await displayNameForm.validateFields();
     setSavingProfile(true);
@@ -523,9 +533,11 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     } finally {
       setSavingProfile(false);
     }
-  }, [displayNameForm, message, savingProfile, t, user]);
+  }, [accountEditDisabled, canUseAccountApis, displayNameForm, message, savingProfile, t, user]);
 
   const savePassword = useCallback(async () => {
+    if (accountEditDisabled) return;
+    if (!canUseAccountApis) return;
     if (savingPassword) return;
     const values = await passwordForm.validateFields();
     setSavingPassword(true);
@@ -544,7 +556,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     } finally {
       setSavingPassword(false);
     }
-  }, [message, passwordForm, savingPassword, t]);
+  }, [accountEditDisabled, canUseAccountApis, message, passwordForm, savingPassword, t]);
 
   const accentOptions = useMemo(
     () =>
@@ -603,17 +615,17 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
           <>
             <div className="hc-settings-section">
               <div className="hc-settings-section-title">{t('panel.account.profileTitle')}</div>
-              <Form form={displayNameForm} layout="vertical" requiredMark={false} size="small">
+              {/* UX (2026-01-15): Use the default (middle) control size + placeholders to avoid "thin" inputs and improve scanability. */}
+              <Form form={displayNameForm} layout="vertical" requiredMark={false} size="middle">
                 <Form.Item label={t('panel.account.displayName')} name="displayName">
-                  <Input placeholder={t('panel.account.displayNamePlaceholder')} />
+                  <Input placeholder={t('panel.account.displayNamePlaceholder')} disabled={accountEditDisabled} />
                 </Form.Item>
                 <Button
                   type="primary"
-                  size="small"
                   icon={<SettingOutlined />}
                   onClick={() => void saveDisplayName()}
                   loading={savingProfile}
-                  disabled={!canUseAccountApis}
+                  disabled={!canUseAccountApis || accountEditDisabled}
                 >
                   {t('common.save')}
                 </Button>
@@ -622,20 +634,31 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
             <div className="hc-settings-section">
               <div className="hc-settings-section-title">{t('panel.account.passwordTitle')}</div>
-              <Form form={passwordForm} layout="vertical" requiredMark={false} size="small">
+              {/* UX (2026-01-15): Use the default (middle) control size + placeholders to keep password forms consistent with other panels. */}
+              <Form form={passwordForm} layout="vertical" requiredMark={false} size="middle">
                 <Form.Item
                   label={t('panel.account.currentPassword')}
                   name="currentPassword"
                   rules={[{ required: true, message: t('panel.validation.required') }]}
                 >
-                  <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
+                  <Input.Password
+                    prefix={<LockOutlined />}
+                    placeholder={t('panel.account.currentPasswordPlaceholder')}
+                    autoComplete="current-password"
+                    disabled={accountEditDisabled}
+                  />
                 </Form.Item>
                 <Form.Item
                   label={t('panel.account.newPassword')}
                   name="newPassword"
                   rules={[{ required: true, message: t('panel.validation.required') }, { min: 6, message: t('panel.validation.passwordTooShort') }]}
                 >
-                  <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
+                  <Input.Password
+                    prefix={<LockOutlined />}
+                    placeholder={t('panel.account.newPasswordPlaceholder')}
+                    autoComplete="new-password"
+                    disabled={accountEditDisabled}
+                  />
                 </Form.Item>
                 <Form.Item
                   label={t('panel.account.confirmPassword')}
@@ -651,15 +674,19 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                     })
                   ]}
                 >
-                  <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
+                  <Input.Password
+                    prefix={<LockOutlined />}
+                    placeholder={t('panel.account.confirmPasswordPlaceholder')}
+                    autoComplete="new-password"
+                    disabled={accountEditDisabled}
+                  />
                 </Form.Item>
                 <Button
                   type="primary"
-                  size="small"
                   icon={<KeyOutlined />}
                   onClick={() => void savePassword()}
                   loading={savingPassword}
-                  disabled={!canUseAccountApis}
+                  disabled={!canUseAccountApis || accountEditDisabled}
                 >
                   {t('panel.account.updatePassword')}
                 </Button>
@@ -886,9 +913,10 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                 <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                   {t('panel.settings.languageTitle')}
                 </Typography.Text>
+                {/* UX (2026-01-15): Keep settings controls full-width to match other modal content (avoid narrow selects). */}
                 <Select
                   value={locale}
-                  style={{ width: 240 }}
+                  style={{ width: '100%' }}
                   onChange={(value) => setLocale(value)}
                   options={[
                     { value: 'zh-CN', label: t('panel.settings.lang.zhCN') },
@@ -920,9 +948,10 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
             <div className="hc-settings-section">
                 <div className="hc-settings-section-title">{t('panel.settings.accentTitle')}</div>
+                {/* UX (2026-01-15): Keep settings controls full-width to match other modal content (avoid narrow selects). */}
                 <Select
                     value={accentPreset}
-                    style={{ width: '100%', maxWidth: 320 }}
+                    style={{ width: '100%' }}
                     onChange={(value) => onAccentPresetChange(value as any)}
                     options={accentOptions as any}
                 />
@@ -1039,6 +1068,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       <Modal
         title={repoProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
         open={repoProfileFormOpen}
+        className="hc-dialog--compact" /* UX (2026-01-15): tighter padding + unified surface in dark mode for profile editors. */
         onCancel={() => {
             setRepoProfileFormOpen(false);
             setRepoProfileEditing(null);
@@ -1051,9 +1081,10 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       >
         <Space orientation="vertical" size={8} style={{ width: '100%' }}>
             <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: providerLabel(repoProfileProvider) })}</Typography.Text>
-            <Form form={repoProfileForm} layout="vertical" requiredMark={false} size="small">
+            {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
+            <Form form={repoProfileForm} layout="vertical" requiredMark={false} size="middle">
             <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
-                <Input />
+                <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
             </Form.Item>
             <Form.Item label={t('panel.credentials.profile.cloneUsername')} name="cloneUsername">
                 <Input placeholder={t('panel.credentials.profile.cloneUsernamePlaceholder')} />
@@ -1081,7 +1112,11 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                     }
                     ]}
                 >
-                    <Input.Password disabled={repoProfileTokenMode !== 'set'} autoComplete="new-password" />
+                    <Input.Password
+                      placeholder={t('panel.credentials.secretInputPlaceholder')}
+                      disabled={repoProfileTokenMode !== 'set'}
+                      autoComplete="new-password"
+                    />
                 </Form.Item>
                 </Space>
             </Form.Item>
@@ -1103,6 +1138,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       <Modal
         title={modelProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
         open={modelProfileFormOpen}
+        className="hc-dialog--compact" /* UX (2026-01-15): tighter padding + unified surface in dark mode for profile editors. */
         onCancel={() => {
           setModelProfileFormOpen(false);
           setModelProfileEditing(null);
@@ -1115,9 +1151,10 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       >
         <Space orientation="vertical" size={8} style={{ width: '100%' }}>
           <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: modelProfileProvider })}</Typography.Text>
-          <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="small">
+          {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
+          <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="middle">
             <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
-              <Input />
+              <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
             </Form.Item>
 
             <Form.Item
@@ -1150,7 +1187,11 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                     }
                   ]}
                 >
-                  <Input.Password disabled={modelProfileApiKeyMode !== 'set'} autoComplete="new-password" />
+                  <Input.Password
+                    placeholder={t('panel.credentials.secretInputPlaceholder')}
+                    disabled={modelProfileApiKeyMode !== 'set'}
+                    autoComplete="new-password"
+                  />
                 </Form.Item>
               </Space>
             </Form.Item>
