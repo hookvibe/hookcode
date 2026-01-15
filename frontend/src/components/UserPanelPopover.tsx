@@ -127,7 +127,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   const [repoProfileSubmitting, setRepoProfileSubmitting] = useState(false);
   const [repoProfileForm] = Form.useForm<{ remark: string; token?: string; cloneUsername?: string }>();
   const [repoProfileTokenMode, setRepoProfileTokenMode] = useState<'keep' | 'set'>('keep');
-  const [repoProfileProviderDefault, setRepoProfileProviderDefault] = useState<string | null>(null);
 
   const [modelProfileFormOpen, setModelProfileFormOpen] = useState(false);
   const [modelProfileProvider, setModelProfileProvider] = useState<ModelProviderKey>('codex');
@@ -135,7 +134,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   const [modelProfileSubmitting, setModelProfileSubmitting] = useState(false);
   const [modelProfileForm] = Form.useForm<{ remark: string; apiKey?: string; apiBaseUrl?: string }>();
   const [modelProfileApiKeyMode, setModelProfileApiKeyMode] = useState<'keep' | 'set'>('keep');
-  const [modelProfileProviderDefault, setModelProfileProviderDefault] = useState<string | null>(null);
 
   const [displayNameForm] = Form.useForm<{ displayName: string }>();
   const [passwordForm] = Form.useForm<{ currentPassword: string; newPassword: string; confirm: string }>();
@@ -339,11 +337,9 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       // UX: keep existing tokens by default (backend never returns raw tokens).
       setRepoProfileTokenMode(profile?.hasToken ? 'keep' : 'set');
       repoProfileForm.setFieldsValue({ remark: initialRemark, cloneUsername: initialCloneUsername, token: '' });
-
-      const providerCred = (credentials as any)?.[provider] ?? null;
-      setRepoProfileProviderDefault(providerCred?.defaultProfileId ?? null);
+      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
     },
-    [credentials, repoProfileForm]
+    [repoProfileForm]
   );
 
   const startEditModelProfile = useCallback(
@@ -358,11 +354,9 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       // UX: keep existing keys by default (backend never returns raw apiKey).
       setModelProfileApiKeyMode(profile?.hasApiKey ? 'keep' : 'set');
       modelProfileForm.setFieldsValue({ remark: initialRemark, apiBaseUrl: initialApiBaseUrl, apiKey: '' });
-
-      const providerCred = (credentials as any)?.[provider] ?? null;
-      setModelProfileProviderDefault(providerCred?.defaultProfileId ?? null);
+      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
     },
-    [credentials, modelProfileForm]
+    [modelProfileForm]
   );
 
   const setProviderDefault = useCallback(
@@ -432,9 +426,9 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       };
 
       const next = await updateMyModelCredentials({
+        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
         [repoProfileProvider]: {
-          profiles: [payload],
-          defaultProfileId: repoProfileProviderDefault || null
+          profiles: [payload]
         }
       } as any);
 
@@ -457,7 +451,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     repoProfileEditing?.id,
     repoProfileForm,
     repoProfileProvider,
-    repoProfileProviderDefault,
     repoProfileSubmitting,
     repoProfileTokenMode,
     t
@@ -481,9 +474,9 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       };
 
       const next = await updateMyModelCredentials({
+        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
         [modelProfileProvider]: {
-          profiles: [payload],
-          defaultProfileId: modelProfileProviderDefault || null
+          profiles: [payload]
         }
       } as any);
 
@@ -507,7 +500,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     modelProfileEditing?.id,
     modelProfileForm,
     modelProfileProvider,
-    modelProfileProviderDefault,
     modelProfileSubmitting,
     t
   ]);
@@ -1102,35 +1094,32 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                 )}
 
                 <Form.Item
-                    name="token"
-                    style={{ marginBottom: 0 }}
-                    rules={[
+                  name="token"
+                  style={{ marginBottom: 0 }}
+                  rules={[
                     {
-                        required: repoProfileTokenMode === 'set',
-                        whitespace: true,
-                        message: t('panel.validation.required')
+                      required: repoProfileTokenMode === 'set',
+                      whitespace: true,
+                      message: t('panel.validation.required')
                     }
-                    ]}
+                  ]}
                 >
-                    <Input.Password
-                      placeholder={t('panel.credentials.secretInputPlaceholder')}
-                      disabled={repoProfileTokenMode !== 'set'}
-                      autoComplete="new-password"
-                    />
+                  <Input.Password
+                    placeholder={t('panel.credentials.secretInputPlaceholder')}
+                    disabled={repoProfileTokenMode !== 'set'}
+                    autoComplete="new-password"
+                  />
                 </Form.Item>
+                {/* Token hint: show provider-specific PAT guidance near the input. (Change record: 2026-01-15) */}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {repoProfileProvider === 'github'
+                    ? t('panel.credentials.profile.tokenHelp.github')
+                    : t('panel.credentials.profile.tokenHelp.gitlab')}
+                </Typography.Text>
                 </Space>
             </Form.Item>
 
-            <Form.Item label={t('panel.credentials.profile.default')} style={{ marginBottom: 0 }}>
-                <Select
-                    value={repoProfileProviderDefault || undefined}
-                    style={{ width: '100%' }}
-                    placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                    allowClear
-                    onChange={(value) => setRepoProfileProviderDefault(value ? String(value) : null)}
-                    options={repoProviderProfiles[repoProfileProvider].map((p) => ({ value: p.id, label: p.remark || p.id }))}
-                />
-            </Form.Item>
+            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
             </Form>
         </Space>
       </Modal>
@@ -1201,16 +1190,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               <Input placeholder={t('panel.credentials.codexApiBaseUrlPlaceholder')} />
             </Form.Item>
 
-            <Form.Item label={t('panel.credentials.profile.default')} style={{ marginBottom: 0 }}>
-              <Select
-                value={modelProfileProviderDefault || undefined}
-                style={{ width: '100%' }}
-                placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                allowClear
-                onChange={(value) => setModelProfileProviderDefault(value ? String(value) : null)}
-                options={modelProviderProfiles[modelProfileProvider].map((p) => ({ value: p.id, label: p.remark || p.id }))}
-              />
-            </Form.Item>
+            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
           </Form>
         </Space>
       </Modal>

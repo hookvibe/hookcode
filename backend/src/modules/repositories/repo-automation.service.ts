@@ -221,7 +221,8 @@ export const findRobotAutomationUsages = (config: RepoAutomationConfig, robotId:
       const hit = actions.some((a) => isRecord(a) && asString(a.robotId).trim() === robotId);
       if (!hit) continue;
       const ruleId = asString(rule.id).trim();
-      const ruleName = asString(rule.name).trim() || '未命名规则';
+      // Change record (2026-01-15): rule name fallback is now English for consistent automation summaries.
+      const ruleName = asString(rule.name).trim() || 'Unnamed rule';
       const key = `${eventKey}:${ruleId || ruleName}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -271,4 +272,3 @@ export class RepoAutomationService {
     return this.upsertConfig(repoId, config);
   }
 }
-

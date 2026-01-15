@@ -137,16 +137,17 @@ const resolveBranchRole = (
   const branches = Array.isArray(repo?.branches) ? repo!.branches! : [];
 
   // Compatibility: legacy "main/dev/test" roles; prefer inferring from branches.isDefault / note.
+  // Change record (2026-01-15): branch role notes use English labels ("Main branch", "Dev branch", "Test branch").
   const defaultBranch = branches.find((b) => b?.isDefault && safeTrim(b?.name))?.name;
   if (defaultBranch && branch === safeTrim(defaultBranch)) return 'main';
 
-  const devBranch = branches.find((b) => safeTrim(b?.note) === '开发分支' && safeTrim(b?.name))?.name;
+  const devBranch = branches.find((b) => safeTrim(b?.note) === 'Dev branch' && safeTrim(b?.name))?.name;
   if (devBranch && branch === safeTrim(devBranch)) return 'dev';
 
-  const testBranch = branches.find((b) => safeTrim(b?.note) === '测试分支' && safeTrim(b?.name))?.name;
+  const testBranch = branches.find((b) => safeTrim(b?.note) === 'Test branch' && safeTrim(b?.name))?.name;
   if (testBranch && branch === safeTrim(testBranch)) return 'test';
 
-  const mainBranch = branches.find((b) => safeTrim(b?.note) === '主分支' && safeTrim(b?.name))?.name;
+  const mainBranch = branches.find((b) => safeTrim(b?.note) === 'Main branch' && safeTrim(b?.name))?.name;
   if (mainBranch && branch === safeTrim(mainBranch)) return 'main';
 
   return 'other';

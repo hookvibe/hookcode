@@ -56,6 +56,7 @@ import { ResponsiveDialog } from '../components/dialogs/ResponsiveDialog';
 import { TemplateEditor } from '../components/TemplateEditor';
 import { ScrollableTable } from '../components/ScrollableTable';
 import { PageNav } from '../components/nav/PageNav';
+import { buildWebhookUrl } from '../utils/webhook';
 
 /**
  * RepoDetailPage:
@@ -171,6 +172,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [repoScopedCredentials, setRepoScopedCredentials] = useState<RepoScopedCredentialsPublic | null>(null);
 
   const [webhookIntroOpen, setWebhookIntroOpen] = useState(false);
+  const [showWebhookSecretInline, setShowWebhookSecretInline] = useState(false);
 
   const [basicSaving, setBasicSaving] = useState(false);
   const [credentialsSaving, setCredentialsSaving] = useState(false);
@@ -179,7 +181,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [repoProviderProfileEditing, setRepoProviderProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
   const [repoProviderProfileSubmitting, setRepoProviderProfileSubmitting] = useState(false);
   const [repoProviderTokenMode, setRepoProviderTokenMode] = useState<'keep' | 'set'>('keep');
-  const [repoProviderProfileDefault, setRepoProviderProfileDefault] = useState<string | null>(null);
   const [repoProviderProfileForm] = Form.useForm<{ remark: string; token?: string; cloneUsername?: string }>();
 
   const [modelProfileModalOpen, setModelProfileModalOpen] = useState(false);
@@ -187,7 +188,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [modelProfileEditing, setModelProfileEditing] = useState<UserModelProviderCredentialProfilePublic | null>(null);
   const [modelProfileSubmitting, setModelProfileSubmitting] = useState(false);
   const [modelProfileApiKeyMode, setModelProfileApiKeyMode] = useState<'keep' | 'set'>('keep');
-  const [modelProfileDefault, setModelProfileDefault] = useState<string | null>(null);
   const [modelProfileForm] = Form.useForm<{ remark: string; apiKey?: string; apiBaseUrl?: string }>();
 
   const [robotModalOpen, setRobotModalOpen] = useState(false);
@@ -226,15 +226,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   }, [repo, webhookPathRaw]);
 
   const webhookFullUrl = useMemo(() => {
-    if (!webhookPath) return '';
-    try {
-      const rawApiBase = (import.meta as any)?.env?.VITE_API_BASE_URL || '/api';
-      const apiBase = typeof rawApiBase === 'string' && rawApiBase.trim() ? rawApiBase.trim() : '/api';
-      const base = apiBase.startsWith('http') ? apiBase : new URL(apiBase, window.location.origin).toString();
-      return new URL(webhookPath, base).toString();
-    } catch {
-      return webhookPath;
-    }
+    // Business intent: reuse the shared webhook URL formatter so RepoDetail and Create modal stay consistent. (Change record: 2026-01-15)
+    return webhookPath ? buildWebhookUrl(webhookPath) : '';
   }, [webhookPath]);
 
   const webhookVerified = Boolean(repo?.webhookVerifiedAt);
@@ -287,6 +280,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    // Business intent: hide the webhook secret after reloads or secret rotations unless the user re-opens it. (Change record: 2026-01-15)
+    setShowWebhookSecretInline(false);
+  }, [webhookSecret]);
 
   const handleSaveBasic = useCallback(async () => {
     if (!repoId || basicSaving) return;
@@ -345,11 +343,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       // UX: keep existing tokens by default (backend never returns raw tokens).
       setRepoProviderTokenMode(profile?.hasToken ? 'keep' : 'set');
       repoProviderProfileForm.setFieldsValue({ remark: initialRemark, cloneUsername: initialCloneUsername, token: '' });
-
-      const defaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
-      setRepoProviderProfileDefault(defaultId || null);
+      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
     },
-    [repoProviderProfileForm, repoScopedCredentials?.repoProvider?.defaultProfileId]
+    [repoProviderProfileForm]
   );
 
   const submitRepoProviderProfile = useCallback(async () => {
@@ -371,9 +367,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       };
 
       const updated = await patchRepoScopedCredentials({
+        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
         repoProviderCredential: {
-          profiles: [payload],
-          defaultProfileId: repoProviderProfileDefault || null
+          profiles: [payload]
         }
       });
       if (!updated) return;
@@ -393,7 +389,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   }, [
     message,
     patchRepoScopedCredentials,
-    repoProviderProfileDefault,
     repoProviderProfileEditing?.id,
     repoProviderProfileForm,
     repoProviderProfileSubmitting,
@@ -440,11 +435,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       // UX: keep existing keys by default (backend never returns raw apiKey).
       setModelProfileApiKeyMode(profile?.hasApiKey ? 'keep' : 'set');
       modelProfileForm.setFieldsValue({ remark: initialRemark, apiBaseUrl: initialApiBaseUrl, apiKey: '' });
-
-      const defaultId = String((repoScopedCredentials as any)?.modelProvider?.[provider]?.defaultProfileId ?? '').trim();
-      setModelProfileDefault(defaultId || null);
+      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
     },
-    [modelProfileForm, repoScopedCredentials]
+    [modelProfileForm]
   );
 
   const submitModelProfile = useCallback(async () => {
@@ -466,10 +459,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       };
 
       const updated = await patchRepoScopedCredentials({
+        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
         modelProviderCredential: {
           [modelProfileProvider]: {
-            profiles: [payload],
-            defaultProfileId: modelProfileDefault || null
+            profiles: [payload]
           }
         } as any
       });
@@ -490,7 +483,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   }, [
     message,
     modelProfileApiKeyMode,
-    modelProfileDefault,
     modelProfileEditing?.id,
     modelProfileForm,
     modelProfileProvider,
@@ -888,7 +880,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
           cloneUsername: repoCredentialSource === 'robot' ? (values.cloneUsername?.trim() ? values.cloneUsername.trim() : null) : null,
           repoCredentialSource,
           repoCredentialProfileId: repoCredentialSource === 'robot' ? null : repoCredentialProfileId,
-          repoCredentialRemark: repoCredentialSource === 'robot' ? (values.repoCredentialRemark?.trim() ? values.repoCredentialRemark.trim() : null) : null,
+          // Change record (2026-01-15): only send repoCredentialRemark when repoCredentialSource=robot to satisfy backend validation.
+          repoCredentialRemark:
+            repoCredentialSource === 'robot' ? (values.repoCredentialRemark?.trim() ? values.repoCredentialRemark.trim() : null) : undefined,
           promptDefault: promptDefaultValue,
           language: values.language?.trim() ? values.language.trim() : null,
           modelProvider: normalizedModelProvider,
@@ -1505,9 +1499,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                           }
                         >
                           <Descriptions column={1} size="small" styles={{ label: { width: 180 } }}>
-                            <Descriptions.Item label={t('repos.detail.webhookPath')}>
-                              {webhookPath ? <Typography.Text code>{webhookPath}</Typography.Text> : <Typography.Text type="secondary">-</Typography.Text>}
-                            </Descriptions.Item>
+                            {/* Webhook path is intentionally omitted here; the full URL is sufficient for provider setup. (Change record: 2026-01-15) */}
                             <Descriptions.Item label={t('repos.webhookIntro.webhookUrl')}>
                               {webhookFullUrl ? (
                                 <Typography.Text code copyable style={{ wordBreak: 'break-all' }}>
@@ -1518,7 +1510,22 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                               )}
                             </Descriptions.Item>
                             <Descriptions.Item label={t('repos.detail.webhookSecret')}>
-                              {webhookSecret ? <Typography.Text code>{webhookSecret}</Typography.Text> : <Typography.Text type="secondary">-</Typography.Text>}
+                              {webhookSecret ? (
+                                <Space size={8}>
+                                  <Typography.Text
+                                    code
+                                    copyable={showWebhookSecretInline ? { text: webhookSecret } : false}
+                                    style={{ wordBreak: 'break-all' }}
+                                  >
+                                    {showWebhookSecretInline ? webhookSecret : '••••••••••••••••'}
+                                  </Typography.Text>
+                                  <Button type="link" size="small" onClick={() => setShowWebhookSecretInline((v) => !v)}>
+                                    {showWebhookSecretInline ? t('repos.webhookIntro.hide') : t('repos.webhookIntro.show')}
+                                  </Button>
+                                </Space>
+                              ) : (
+                                <Typography.Text type="secondary">-</Typography.Text>
+                              )}
                             </Descriptions.Item>
                             <Descriptions.Item label={t('repos.webhookIntro.verified')}>
                               {webhookVerified ? <Tag color="green">{t('repos.webhookIntro.verifiedYes')}</Tag> : <Tag color="gold">{t('repos.webhookIntro.verifiedNo')}</Tag>}
@@ -1598,28 +1605,22 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                       whitespace: true,
                       message: t('panel.validation.required')
                     }
-	                  ]}
-	                >
-	                  <Input.Password
-	                    placeholder={t('panel.credentials.secretInputPlaceholder')}
-	                    disabled={repoProviderTokenMode !== 'set'}
-	                    autoComplete="new-password"
-	                  />
-	                </Form.Item>
-	              </Space>
-	            </Form.Item>
-
-            <Form.Item label={t('panel.credentials.profile.default')} style={{ marginBottom: 0 }}>
-              <Select
-                value={repoProviderProfileDefault || undefined}
-                style={{ width: '100%' }}
-                placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                allowClear
-                onChange={(value) => setRepoProviderProfileDefault(value ? String(value) : null)}
-                options={(repoScopedCredentials?.repoProvider?.profiles ?? []).map((p) => ({ value: p.id, label: p.remark || p.id }))}
-                disabled={credentialsSaving}
-              />
+                  ]}
+                >
+                  <Input.Password
+                    placeholder={t('panel.credentials.secretInputPlaceholder')}
+                    disabled={repoProviderTokenMode !== 'set'}
+                    autoComplete="new-password"
+                  />
+                </Form.Item>
+                {/* Token hint: show provider-specific PAT guidance near the input. (Change record: 2026-01-15) */}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {repo?.provider === 'github' ? t('panel.credentials.profile.tokenHelp.github') : t('panel.credentials.profile.tokenHelp.gitlab')}
+                </Typography.Text>
+              </Space>
             </Form.Item>
+
+            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
           </Form>
         </Space>
       </ResponsiveDialog>
@@ -1689,21 +1690,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               <Input placeholder={t('panel.credentials.codexApiBaseUrlPlaceholder')} />
             </Form.Item>
 
-            <Form.Item label={t('panel.credentials.profile.default')} style={{ marginBottom: 0 }}>
-              <Select
-                value={modelProfileDefault || undefined}
-                style={{ width: '100%' }}
-                placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                allowClear
-                onChange={(value) => setModelProfileDefault(value ? String(value) : null)}
-                options={(() => {
-                  const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[modelProfileProvider] as any;
-                  const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
-                  return profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id }));
-                })()}
-                disabled={credentialsSaving}
-              />
-            </Form.Item>
+            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
           </Form>
         </Space>
       </ResponsiveDialog>
