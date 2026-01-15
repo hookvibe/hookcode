@@ -12,6 +12,7 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Radio,
   Row,
   Select,
   Space,
@@ -20,7 +21,7 @@ import {
   Tag,
   Typography
 } from 'antd';
-import { PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { GlobalOutlined, KeyOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import type {
   CodexRobotProviderConfigPublic,
   ClaudeCodeRobotProviderConfigPublic,
@@ -30,7 +31,9 @@ import type {
   RepoRobot,
   RepoScopedCredentialsPublic,
   Repository,
-  UserModelCredentialsPublic
+  UserModelCredentialsPublic,
+  UserModelProviderCredentialProfilePublic,
+  UserRepoProviderCredentialProfilePublic
 } from '../api';
 import {
   createRepoRobot,
@@ -84,10 +87,13 @@ export interface RepoDetailPageProps {
 
 type RepoTabKey = 'basic' | 'branches' | 'credentials' | 'robots' | 'automation' | 'webhooks';
 
+type ModelProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
+
 type RobotFormValues = {
   name: string;
   repoCredentialSource: 'user' | 'repo' | 'robot';
   repoCredentialProfileId?: string | null;
+  repoCredentialRemark?: string | null;
   token?: string;
   cloneUsername?: string;
   promptDefault?: string;
@@ -97,7 +103,8 @@ type RobotFormValues = {
   modelProvider: ModelProvider;
   modelProviderConfig: Partial<CodexRobotProviderConfigPublic | ClaudeCodeRobotProviderConfigPublic | GeminiCliRobotProviderConfigPublic> & {
     credentialSource?: 'user' | 'repo' | 'robot';
-    credential?: { apiBaseUrl?: string; apiKey?: string; hasApiKey?: boolean };
+    credentialProfileId?: string | null;
+    credential?: { apiBaseUrl?: string; apiKey?: string; hasApiKey?: boolean; remark?: string };
     sandbox_workspace_write?: { network_access?: boolean };
   };
 };
@@ -167,10 +174,21 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
   const [basicSaving, setBasicSaving] = useState(false);
   const [credentialsSaving, setCredentialsSaving] = useState(false);
-  const [repoProviderChangingToken, setRepoProviderChangingToken] = useState(false);
-  const [repoCodexChangingApiKey, setRepoCodexChangingApiKey] = useState(false);
-  const [repoClaudeCodeChangingApiKey, setRepoClaudeCodeChangingApiKey] = useState(false);
-  const [repoGeminiCliChangingApiKey, setRepoGeminiCliChangingApiKey] = useState(false);
+
+  const [repoProviderProfileModalOpen, setRepoProviderProfileModalOpen] = useState(false);
+  const [repoProviderProfileEditing, setRepoProviderProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
+  const [repoProviderProfileSubmitting, setRepoProviderProfileSubmitting] = useState(false);
+  const [repoProviderTokenMode, setRepoProviderTokenMode] = useState<'keep' | 'set'>('keep');
+  const [repoProviderProfileDefault, setRepoProviderProfileDefault] = useState<string | null>(null);
+  const [repoProviderProfileForm] = Form.useForm<{ remark: string; token?: string; cloneUsername?: string }>();
+
+  const [modelProfileModalOpen, setModelProfileModalOpen] = useState(false);
+  const [modelProfileProvider, setModelProfileProvider] = useState<ModelProviderKey>('codex');
+  const [modelProfileEditing, setModelProfileEditing] = useState<UserModelProviderCredentialProfilePublic | null>(null);
+  const [modelProfileSubmitting, setModelProfileSubmitting] = useState(false);
+  const [modelProfileApiKeyMode, setModelProfileApiKeyMode] = useState<'keep' | 'set'>('keep');
+  const [modelProfileDefault, setModelProfileDefault] = useState<string | null>(null);
+  const [modelProfileForm] = Form.useForm<{ remark: string; apiKey?: string; apiBaseUrl?: string }>();
 
   const [robotModalOpen, setRobotModalOpen] = useState(false);
   const [robotSubmitting, setRobotSubmitting] = useState(false);
@@ -186,18 +204,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [userModelCredentialsError, setUserModelCredentialsError] = useState(false);
 
   const [basicForm] = Form.useForm<{ name: string; externalId?: string; apiBaseUrl?: string; enabled: boolean }>();
-  const [credentialsForm] = Form.useForm<{
-    repoToken?: string;
-    cloneUsername?: string;
-    codexApiBaseUrl?: string;
-    codexApiKey?: string;
-    claudeCodeApiKey?: string;
-    geminiCliApiKey?: string;
-  }>();
   const [robotForm] = Form.useForm<RobotFormValues>();
 
   const watchedRepoCredentialSource = Form.useWatch('repoCredentialSource', robotForm);
   const watchedRepoCredentialProfileId = Form.useWatch('repoCredentialProfileId', robotForm);
+  const watchedModelProvider = Form.useWatch('modelProvider', robotForm);
+  const watchedModelCredentialSource = Form.useWatch(['modelProviderConfig', 'credentialSource'], robotForm);
+  const watchedModelCredentialProfileId = Form.useWatch(['modelProviderConfig', 'credentialProfileId'], robotForm);
 
   const robotsSorted = useMemo(() => {
     const list = Array.isArray(robots) ? robots : [];
@@ -257,20 +270,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         apiBaseUrl: data.repo?.apiBaseUrl ?? '',
         enabled: Boolean(data.repo?.enabled)
       });
-
-      // Credentials tab form: never prefill secrets; only show "configured" state from `repoScopedCredentials`.
-      credentialsForm.setFieldsValue({
-        repoToken: '',
-        cloneUsername: data.repoScopedCredentials?.repoProvider?.cloneUsername ?? '',
-        codexApiBaseUrl: data.repoScopedCredentials?.modelProvider?.codex?.apiBaseUrl ?? '',
-        codexApiKey: '',
-        claudeCodeApiKey: '',
-        geminiCliApiKey: ''
-      });
-      setRepoProviderChangingToken(false);
-      setRepoCodexChangingApiKey(false);
-      setRepoClaudeCodeChangingApiKey(false);
-      setRepoGeminiCliChangingApiKey(false);
     } catch (err) {
       console.error(err);
       message.error(t('toast.repos.detailFetchFailed'));
@@ -283,7 +282,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     } finally {
       setLoading(false);
     }
-  }, [basicForm, credentialsForm, message, repoId, t]);
+  }, [basicForm, message, repoId, t]);
 
   useEffect(() => {
     void refresh();
@@ -310,74 +309,222 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     }
   }, [basicForm, basicSaving, message, refresh, repo?.name, repoId, t]);
 
-  const handleSaveCredentials = useCallback(async () => {
-    if (!repoId || credentialsSaving) return;
-    const values = await credentialsForm.validateFields();
-
-    setCredentialsSaving(true);
-    try {
-      const repoTokenTrimmed = String(values.repoToken ?? '').trim();
-      const codexApiKeyTrimmed = String(values.codexApiKey ?? '').trim();
-      const claudeCodeApiKeyTrimmed = String(values.claudeCodeApiKey ?? '').trim();
-      const geminiCliApiKeyTrimmed = String(values.geminiCliApiKey ?? '').trim();
-
-      const repoProviderHasToken = Boolean(repoScopedCredentials?.repoProvider?.hasToken);
-      const codexHasApiKey = Boolean(repoScopedCredentials?.modelProvider?.codex?.hasApiKey);
-      const claudeCodeHasApiKey = Boolean(repoScopedCredentials?.modelProvider?.claude_code?.hasApiKey);
-      const geminiCliHasApiKey = Boolean(repoScopedCredentials?.modelProvider?.gemini_cli?.hasApiKey);
-      const shouldSendRepoToken = !repoProviderHasToken || repoProviderChangingToken;
-      const shouldSendCodexApiKey = !codexHasApiKey || repoCodexChangingApiKey;
-      const shouldSendClaudeCodeApiKey = !claudeCodeHasApiKey || repoClaudeCodeChangingApiKey;
-      const shouldSendGeminiCliApiKey = !geminiCliHasApiKey || repoGeminiCliChangingApiKey;
-
-      const repoProviderCredential = {
-        cloneUsername: String(values.cloneUsername ?? '').trim() ? String(values.cloneUsername ?? '').trim() : null,
-        ...(shouldSendRepoToken ? { token: repoTokenTrimmed || null } : {})
-      };
-
-      const modelProviderCredential = {
-        codex: {
-          apiBaseUrl: String(values.codexApiBaseUrl ?? '').trim() ? String(values.codexApiBaseUrl ?? '').trim() : null,
-          ...(shouldSendCodexApiKey ? { apiKey: codexApiKeyTrimmed || null } : {})
-        },
-        // Change record: support storing multiple model-provider credentials side-by-side (codex + claude_code + gemini_cli).
-        claude_code: {
-          ...(shouldSendClaudeCodeApiKey ? { apiKey: claudeCodeApiKeyTrimmed || null } : {})
-        },
-        gemini_cli: {
-          ...(shouldSendGeminiCliApiKey ? { apiKey: geminiCliApiKeyTrimmed || null } : {})
+  const patchRepoScopedCredentials = useCallback(
+    async (patch: Parameters<typeof updateRepo>[1]) => {
+      // Business context: repo-scoped credentials (repo token + model provider keys) live on the repository record
+      // and can contain multiple profiles, which robots can reference by `credentialProfileId`.
+      if (!repoId || credentialsSaving) return null;
+      setCredentialsSaving(true);
+      try {
+        const updated = await updateRepo(repoId, patch);
+        setRepo(updated.repo);
+        if (updated.repoScopedCredentials !== undefined) {
+          setRepoScopedCredentials(updated.repoScopedCredentials ?? null);
         }
+        message.success(t('toast.repos.saved'));
+        return updated;
+      } catch (err: any) {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.repos.saveFailed'));
+        return null;
+      } finally {
+        setCredentialsSaving(false);
+      }
+    },
+    [credentialsSaving, message, repoId, t]
+  );
+
+  const startEditRepoProviderProfile = useCallback(
+    (profile?: UserRepoProviderCredentialProfilePublic | null) => {
+      setRepoProviderProfileEditing(profile ?? null);
+      setRepoProviderProfileModalOpen(true);
+
+      const initialRemark = profile?.remark ?? '';
+      const initialCloneUsername = profile?.cloneUsername ?? '';
+
+      // UX: keep existing tokens by default (backend never returns raw tokens).
+      setRepoProviderTokenMode(profile?.hasToken ? 'keep' : 'set');
+      repoProviderProfileForm.setFieldsValue({ remark: initialRemark, cloneUsername: initialCloneUsername, token: '' });
+
+      const defaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
+      setRepoProviderProfileDefault(defaultId || null);
+    },
+    [repoProviderProfileForm, repoScopedCredentials?.repoProvider?.defaultProfileId]
+  );
+
+  const submitRepoProviderProfile = useCallback(async () => {
+    if (repoProviderProfileSubmitting) return;
+    try {
+      const values = await repoProviderProfileForm.validateFields();
+      setRepoProviderProfileSubmitting(true);
+
+      const remark = String(values.remark ?? '').trim();
+      const cloneUsername = String(values.cloneUsername ?? '').trim();
+      const tokenValue = String(values.token ?? '').trim();
+      const shouldSendToken = repoProviderTokenMode === 'set';
+
+      const payload = {
+        id: repoProviderProfileEditing?.id ?? null,
+        remark: remark || null,
+        cloneUsername: cloneUsername || null,
+        ...(shouldSendToken ? { token: tokenValue ? tokenValue : null } : {})
       };
 
-      await updateRepo(repoId, {
-        repoProviderCredential,
-        modelProviderCredential
+      const updated = await patchRepoScopedCredentials({
+        repoProviderCredential: {
+          profiles: [payload],
+          defaultProfileId: repoProviderProfileDefault || null
+        }
       });
+      if (!updated) return;
 
-      message.success(t('toast.repos.saved'));
-      await refresh();
+      setRepoProviderProfileModalOpen(false);
+      setRepoProviderProfileEditing(null);
     } catch (err: any) {
-      console.error(err);
-      message.error(err?.response?.data?.error || t('toast.repos.saveFailed'));
+      if (err?.errorFields) {
+        // Form validation error; no toast.
+      } else {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.repos.saveFailed'));
+      }
     } finally {
-      setCredentialsSaving(false);
+      setRepoProviderProfileSubmitting(false);
     }
   }, [
-    credentialsForm,
-    credentialsSaving,
     message,
-    refresh,
-    repoClaudeCodeChangingApiKey,
-    repoCodexChangingApiKey,
-    repoGeminiCliChangingApiKey,
-    repoId,
-    repoProviderChangingToken,
-    repoScopedCredentials?.modelProvider?.claude_code?.hasApiKey,
-    repoScopedCredentials?.modelProvider?.codex?.hasApiKey,
-    repoScopedCredentials?.modelProvider?.gemini_cli?.hasApiKey,
-    repoScopedCredentials?.repoProvider?.hasToken,
+    patchRepoScopedCredentials,
+    repoProviderProfileDefault,
+    repoProviderProfileEditing?.id,
+    repoProviderProfileForm,
+    repoProviderProfileSubmitting,
+    repoProviderTokenMode,
     t
   ]);
+
+  const setRepoProviderDefault = useCallback(
+    async (nextDefaultId: string | null) => {
+      await patchRepoScopedCredentials({
+        repoProviderCredential: { defaultProfileId: nextDefaultId || null }
+      });
+    },
+    [patchRepoScopedCredentials]
+  );
+
+  const removeRepoProviderProfile = useCallback(
+    (id: string) => {
+      Modal.confirm({
+        title: t('panel.credentials.profile.removeTitle'),
+        content: t('panel.credentials.profile.removeDesc'),
+        okText: t('panel.credentials.profile.removeOk'),
+        okButtonProps: { danger: true },
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          await patchRepoScopedCredentials({
+            repoProviderCredential: { removeProfileIds: [id] }
+          });
+        }
+      });
+    },
+    [patchRepoScopedCredentials, t]
+  );
+
+  const startEditModelProfile = useCallback(
+    (provider: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
+      setModelProfileProvider(provider);
+      setModelProfileEditing(profile ?? null);
+      setModelProfileModalOpen(true);
+
+      const initialRemark = profile?.remark ?? '';
+      const initialApiBaseUrl = profile?.apiBaseUrl ?? '';
+
+      // UX: keep existing keys by default (backend never returns raw apiKey).
+      setModelProfileApiKeyMode(profile?.hasApiKey ? 'keep' : 'set');
+      modelProfileForm.setFieldsValue({ remark: initialRemark, apiBaseUrl: initialApiBaseUrl, apiKey: '' });
+
+      const defaultId = String((repoScopedCredentials as any)?.modelProvider?.[provider]?.defaultProfileId ?? '').trim();
+      setModelProfileDefault(defaultId || null);
+    },
+    [modelProfileForm, repoScopedCredentials]
+  );
+
+  const submitModelProfile = useCallback(async () => {
+    if (modelProfileSubmitting) return;
+    try {
+      const values = await modelProfileForm.validateFields();
+      setModelProfileSubmitting(true);
+
+      const remark = String(values.remark ?? '').trim();
+      const apiBaseUrl = String(values.apiBaseUrl ?? '').trim();
+      const apiKey = String(values.apiKey ?? '').trim();
+      const shouldSendApiKey = modelProfileApiKeyMode === 'set';
+
+      const payload = {
+        id: modelProfileEditing?.id ?? null,
+        remark: remark || null,
+        apiBaseUrl: apiBaseUrl || null,
+        ...(shouldSendApiKey ? { apiKey: apiKey ? apiKey : null } : {})
+      };
+
+      const updated = await patchRepoScopedCredentials({
+        modelProviderCredential: {
+          [modelProfileProvider]: {
+            profiles: [payload],
+            defaultProfileId: modelProfileDefault || null
+          }
+        } as any
+      });
+      if (!updated) return;
+
+      setModelProfileModalOpen(false);
+      setModelProfileEditing(null);
+    } catch (err: any) {
+      if (err?.errorFields) {
+        // Form validation error; no toast.
+      } else {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.repos.saveFailed'));
+      }
+    } finally {
+      setModelProfileSubmitting(false);
+    }
+  }, [
+    message,
+    modelProfileApiKeyMode,
+    modelProfileDefault,
+    modelProfileEditing?.id,
+    modelProfileForm,
+    modelProfileProvider,
+    modelProfileSubmitting,
+    patchRepoScopedCredentials,
+    t
+  ]);
+
+  const setModelProviderDefault = useCallback(
+    async (provider: ModelProviderKey, nextDefaultId: string | null) => {
+      await patchRepoScopedCredentials({
+        modelProviderCredential: { [provider]: { defaultProfileId: nextDefaultId || null } } as any
+      });
+    },
+    [patchRepoScopedCredentials]
+  );
+
+  const removeModelProviderProfile = useCallback(
+    (provider: ModelProviderKey, id: string) => {
+      Modal.confirm({
+        title: t('panel.credentials.profile.removeTitle'),
+        content: t('panel.credentials.profile.removeDesc'),
+        okText: t('panel.credentials.profile.removeOk'),
+        okButtonProps: { danger: true },
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          await patchRepoScopedCredentials({
+            modelProviderCredential: { [provider]: { removeProfileIds: [id] } } as any
+          });
+        }
+      });
+    },
+    [patchRepoScopedCredentials, t]
+  );
 
   useEffect(() => {
     if (!robotModalOpen) return;
@@ -405,21 +552,26 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   }, [robotModalOpen]);
 
   useEffect(() => {
-    // UX: auto-pick a usable provider profile when users choose `repoCredentialSource=user`.
+    // UX: auto-pick a usable provider profile when users choose `repoCredentialSource=user/repo`.
     if (!robotModalOpen) return;
     if (!repo?.provider) return;
 
     const source = watchedRepoCredentialSource === 'robot' ? 'robot' : watchedRepoCredentialSource === 'repo' ? 'repo' : 'user';
     const currentProfileId = typeof watchedRepoCredentialProfileId === 'string' ? watchedRepoCredentialProfileId.trim() : '';
 
-    if (source !== 'user') {
+    if (source === 'robot') {
       if (currentProfileId) {
         robotForm.setFieldsValue({ repoCredentialProfileId: null });
       }
       return;
     }
 
-    const providerCredentials = repo.provider === 'github' ? userModelCredentials?.github : userModelCredentials?.gitlab;
+    const providerCredentials =
+      source === 'user'
+        ? repo.provider === 'github'
+          ? userModelCredentials?.github
+          : userModelCredentials?.gitlab
+        : repoScopedCredentials?.repoProvider;
     const profiles = providerCredentials?.profiles ?? [];
     const existing = currentProfileId ? profiles.find((p) => p.id === currentProfileId) ?? null : null;
     if (existing && existing.hasToken) return;
@@ -429,7 +581,61 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     const nextId = (defaultProfile && defaultProfile.hasToken ? defaultProfile.id : '') || (profiles.find((p) => p.hasToken)?.id ?? '');
     if (!nextId || nextId === currentProfileId) return;
     robotForm.setFieldsValue({ repoCredentialProfileId: nextId });
-  }, [repo?.provider, robotForm, robotModalOpen, userModelCredentials?.gitlab, userModelCredentials?.github, watchedRepoCredentialProfileId, watchedRepoCredentialSource]);
+  }, [
+    repo?.provider,
+    repoScopedCredentials?.repoProvider,
+    robotForm,
+    robotModalOpen,
+    userModelCredentials?.gitlab,
+    userModelCredentials?.github,
+    watchedRepoCredentialProfileId,
+    watchedRepoCredentialSource
+  ]);
+
+  useEffect(() => {
+    // UX: auto-pick a usable model credential profile when `credentialSource` is `user` or `repo`.
+    if (!robotModalOpen) return;
+
+    const providerRaw = String(watchedModelProvider ?? '').trim();
+    const provider: ModelProviderKey =
+      providerRaw === 'claude_code' ? 'claude_code' : providerRaw === 'gemini_cli' ? 'gemini_cli' : 'codex';
+
+    const source = normalizeCredentialSource(watchedModelCredentialSource);
+    const currentProfileId = typeof watchedModelCredentialProfileId === 'string' ? watchedModelCredentialProfileId.trim() : '';
+
+    if (source === 'robot') {
+      if (currentProfileId) {
+        robotForm.setFieldsValue({ modelProviderConfig: { credentialProfileId: null } as any });
+      }
+      return;
+    }
+
+    const providerCredentials =
+      source === 'user'
+        ? ((userModelCredentials as any)?.[provider] as any)
+        : ((repoScopedCredentials as any)?.modelProvider?.[provider] as any);
+    const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
+
+    const existing = currentProfileId ? profiles.find((p: any) => p && p.id === currentProfileId) ?? null : null;
+    if (existing && existing.hasApiKey) return;
+
+    const defaultId = String(providerCredentials?.defaultProfileId ?? '').trim();
+    const defaultProfile = defaultId ? profiles.find((p: any) => p && p.id === defaultId) ?? null : null;
+    const nextId =
+      (defaultProfile && defaultProfile.hasApiKey ? String(defaultProfile.id) : '') ||
+      (profiles.find((p: any) => p && p.hasApiKey)?.id ?? '');
+    if (!nextId || nextId === currentProfileId) return;
+
+    robotForm.setFieldsValue({ modelProviderConfig: { credentialProfileId: String(nextId) } as any });
+  }, [
+    repoScopedCredentials?.modelProvider,
+    robotForm,
+    robotModalOpen,
+    userModelCredentials,
+    watchedModelCredentialProfileId,
+    watchedModelCredentialSource,
+    watchedModelProvider
+  ]);
 
   const buildRobotInitialValues = useCallback(
     (robot?: RepoRobot | null): RobotFormValues => {
@@ -437,6 +643,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         if (provider === 'claude_code') {
           return {
             credentialSource: 'user',
+            credentialProfileId: null,
             model: 'claude-sonnet-4-5-20250929',
             sandbox: 'read-only',
             sandbox_workspace_write: { network_access: false }
@@ -445,6 +652,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         if (provider === 'gemini_cli') {
           return {
             credentialSource: 'user',
+            credentialProfileId: null,
             model: 'gemini-2.5-pro',
             sandbox: 'read-only',
             sandbox_workspace_write: { network_access: false }
@@ -452,6 +660,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         }
         return {
           credentialSource: 'user',
+          credentialProfileId: null,
           model: 'gpt-5.2',
           sandbox: 'read-only',
           model_reasoning_effort: 'medium',
@@ -463,6 +672,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         name: '',
         repoCredentialSource: 'robot',
         repoCredentialProfileId: null,
+        repoCredentialRemark: null,
         token: '',
         cloneUsername: '',
         promptDefault: '',
@@ -477,17 +687,24 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
       const modelProvider = String(robot.modelProvider ?? 'codex').trim() || 'codex';
       const cfg = (robot.modelProviderConfig ?? {}) as any;
-      const repoCredentialSource = robot.hasToken ? 'robot' : robot.repoCredentialProfileId ? 'user' : 'repo';
+      const repoCredentialSource = (() => {
+        const explicit = String(robot.repoCredentialSource ?? '').trim();
+        if (explicit === 'robot' || explicit === 'user' || explicit === 'repo') return explicit;
+        return robot.hasToken ? 'robot' : robot.repoCredentialProfileId ? 'user' : 'repo';
+      })();
       const providerDefaults = buildDefaultModelProviderConfig(modelProvider);
       const credentialSource = normalizeCredentialSource(cfg?.credentialSource ?? providerDefaults.credentialSource);
+      const credentialProfileId =
+        credentialSource === 'robot' ? null : typeof cfg?.credentialProfileId === 'string' ? cfg.credentialProfileId.trim() || null : null;
 
       return {
         ...base,
         name: robot.name || robot.id,
         repoCredentialSource,
-        repoCredentialProfileId: repoCredentialSource === 'user' ? robot.repoCredentialProfileId ?? null : null,
+        repoCredentialProfileId: repoCredentialSource === 'robot' ? null : robot.repoCredentialProfileId ?? null,
+        repoCredentialRemark: repoCredentialSource === 'robot' ? robot.repoCredentialRemark ?? null : null,
         token: '',
-        cloneUsername: robot.cloneUsername ?? '',
+        cloneUsername: repoCredentialSource === 'robot' ? robot.cloneUsername ?? '' : '',
         promptDefault: robot.promptDefault ?? '',
         language: typeof robot.language === 'string' && robot.language.trim() ? robot.language.trim() : locale,
         defaultBranch: robot.defaultBranch ?? null,
@@ -495,12 +712,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         modelProvider: modelProvider as any,
         modelProviderConfig: {
           credentialSource,
+          credentialProfileId,
           credential:
             credentialSource === 'robot'
               ? {
                   apiKey: '',
                   hasApiKey: Boolean(cfg?.credential?.hasApiKey),
-                  ...(modelProvider === 'codex' ? { apiBaseUrl: cfg?.credential?.apiBaseUrl ?? '' } : {})
+                  apiBaseUrl: typeof cfg?.credential?.apiBaseUrl === 'string' ? cfg.credential.apiBaseUrl : '',
+                  remark: typeof cfg?.credential?.remark === 'string' ? cfg.credential.remark : ''
                 }
               : undefined,
           model: cfg?.model ?? providerDefaults.model,
@@ -570,14 +789,26 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         })();
         const isCodex = normalizedModelProvider === 'codex';
 
-        // Repo provider credential validation.
-        if (repoCredentialSource === 'user') {
+        // Repo provider credential validation (GitLab/GitHub token).
+        if (repoCredentialSource === 'user' || repoCredentialSource === 'repo') {
           if (!repoCredentialProfileId) {
             message.warning(t('repos.robotForm.repoCredential.profileRequired'));
             return;
           }
-          const providerCredentials = repo.provider === 'github' ? userModelCredentials?.github : userModelCredentials?.gitlab;
+
+          const providerCredentials =
+            repoCredentialSource === 'user'
+              ? repo.provider === 'github'
+                ? userModelCredentials?.github
+                : userModelCredentials?.gitlab
+              : repoScopedCredentials?.repoProvider;
           const profiles = providerCredentials?.profiles ?? [];
+
+          if (repoCredentialSource === 'repo' && !profiles.some((p) => p.hasToken)) {
+            message.warning(t('repos.robotForm.repoCredential.repoNotConfigured'));
+            return;
+          }
+
           const selected = profiles.find((p) => p.id === repoCredentialProfileId) ?? null;
           if (!selected) {
             message.warning(t('repos.robotForm.repoCredential.profileNotFound'));
@@ -585,12 +816,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
           }
           if (!selected.hasToken) {
             message.warning(t('repos.robotForm.repoCredential.profileTokenMissing'));
-            return;
-          }
-        } else if (repoCredentialSource === 'repo') {
-          const hasRepoToken = Boolean(repoScopedCredentials?.repoProvider?.hasToken);
-          if (!hasRepoToken) {
-            message.warning(t('repos.robotForm.repoCredential.repoNotConfigured'));
             return;
           }
         } else if (repoCredentialSource === 'robot') {
@@ -601,45 +826,46 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
           }
         }
 
+        const modelCredentialProfileId = typeof cfg?.credentialProfileId === 'string' ? cfg.credentialProfileId.trim() : '';
+
         // Model provider credential validation (codex / claude_code / gemini_cli).
-        if (credentialSource === 'repo') {
-          const hasRepoApiKey =
-            normalizedModelProvider === 'codex'
-              ? Boolean(repoScopedCredentials?.modelProvider?.codex?.hasApiKey)
-              : normalizedModelProvider === 'claude_code'
-                ? Boolean(repoScopedCredentials?.modelProvider?.claude_code?.hasApiKey)
-                : Boolean(repoScopedCredentials?.modelProvider?.gemini_cli?.hasApiKey);
-          if (!hasRepoApiKey) {
+        if (credentialSource === 'user' || credentialSource === 'repo') {
+          const providerCredentials =
+            credentialSource === 'user'
+              ? ((userModelCredentials as any)?.[normalizedModelProvider] as any)
+              : ((repoScopedCredentials as any)?.modelProvider?.[normalizedModelProvider] as any);
+          const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
+          const hasAnyApiKey = profiles.some((p: any) => p && p.hasApiKey);
+
+          if (!hasAnyApiKey) {
             const key =
-              normalizedModelProvider === 'codex'
-                ? 'repos.robotForm.modelCredential.repoNotConfigured'
-                : normalizedModelProvider === 'claude_code'
-                  ? 'repos.robotForm.modelCredential.repoNotConfigured.claude_code'
-                  : 'repos.robotForm.modelCredential.repoNotConfigured.gemini_cli';
-            message.warning(
-              t(key)
-            );
+              credentialSource === 'repo'
+                ? normalizedModelProvider === 'codex'
+                  ? 'repos.robotForm.modelCredential.repoNotConfigured'
+                  : normalizedModelProvider === 'claude_code'
+                    ? 'repos.robotForm.modelCredential.repoNotConfigured.claude_code'
+                    : 'repos.robotForm.modelCredential.repoNotConfigured.gemini_cli'
+                : normalizedModelProvider === 'codex'
+                  ? 'repos.robotForm.modelCredential.userNotConfigured'
+                  : normalizedModelProvider === 'claude_code'
+                    ? 'repos.robotForm.modelCredential.userNotConfigured.claude_code'
+                    : 'repos.robotForm.modelCredential.userNotConfigured.gemini_cli';
+            message.warning(t(key));
             return;
           }
-        }
 
-        if (credentialSource === 'user') {
-          const hasUserApiKey =
-            normalizedModelProvider === 'codex'
-              ? Boolean(userModelCredentials?.codex?.hasApiKey)
-              : normalizedModelProvider === 'claude_code'
-                ? Boolean(userModelCredentials?.claude_code?.hasApiKey)
-                : Boolean(userModelCredentials?.gemini_cli?.hasApiKey);
-          if (!hasUserApiKey) {
-            const key =
-              normalizedModelProvider === 'codex'
-                ? 'repos.robotForm.modelCredential.userNotConfigured'
-                : normalizedModelProvider === 'claude_code'
-                  ? 'repos.robotForm.modelCredential.userNotConfigured.claude_code'
-                  : 'repos.robotForm.modelCredential.userNotConfigured.gemini_cli';
-            message.warning(
-              t(key)
-            );
+          if (!modelCredentialProfileId) {
+            message.warning(t('repos.robotForm.modelCredential.profileRequired'));
+            return;
+          }
+
+          const selected = profiles.find((p: any) => p && p.id === modelCredentialProfileId) ?? null;
+          if (!selected) {
+            message.warning(t('repos.robotForm.modelCredential.profileNotFound'));
+            return;
+          }
+          if (!selected.hasApiKey) {
+            message.warning(t('repos.robotForm.modelCredential.profileApiKeyMissing'));
             return;
           }
         }
@@ -648,9 +874,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
           editingRobot && String(editingRobot.modelProvider ?? '').trim() === normalizedModelProvider && (editingRobot.modelProviderConfig as any)?.credential?.hasApiKey
         );
         const apiBaseUrl =
-          isCodex && credentialSource === 'robot' && typeof cfg?.credential?.apiBaseUrl === 'string'
-            ? cfg.credential.apiBaseUrl.trim()
-            : '';
+          credentialSource === 'robot' && typeof cfg?.credential?.apiBaseUrl === 'string' ? cfg.credential.apiBaseUrl.trim() : '';
+        const modelCredentialRemark =
+          credentialSource === 'robot' && typeof cfg?.credential?.remark === 'string' ? cfg.credential.remark.trim() : '';
         const apiKey =
           credentialSource === 'robot' && typeof cfg?.credential?.apiKey === 'string' ? cfg.credential.apiKey.trim() : '';
         const shouldSendModelApiKey =
@@ -660,17 +886,21 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
           name: values.name,
           ...(shouldSendToken ? { token: repoCredentialSource === 'robot' ? tokenValue : null } : {}),
           cloneUsername: repoCredentialSource === 'robot' ? (values.cloneUsername?.trim() ? values.cloneUsername.trim() : null) : null,
-          repoCredentialProfileId: repoCredentialSource === 'user' ? repoCredentialProfileId : null,
+          repoCredentialSource,
+          repoCredentialProfileId: repoCredentialSource === 'robot' ? null : repoCredentialProfileId,
+          repoCredentialRemark: repoCredentialSource === 'robot' ? (values.repoCredentialRemark?.trim() ? values.repoCredentialRemark.trim() : null) : null,
           promptDefault: promptDefaultValue,
           language: values.language?.trim() ? values.language.trim() : null,
           modelProvider: normalizedModelProvider,
           modelProviderConfig: isCodex
             ? {
                 credentialSource,
+                credentialProfileId: credentialSource === 'robot' ? undefined : modelCredentialProfileId,
                 credential:
                   credentialSource === 'robot'
                     ? {
                         apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined,
+                        remark: modelCredentialRemark ? modelCredentialRemark : undefined,
                         ...(shouldSendModelApiKey ? { apiKey: apiKey ? apiKey : undefined } : {})
                       }
                     : undefined,
@@ -681,7 +911,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               }
             : {
                 credentialSource,
-                credential: credentialSource === 'robot' ? { ...(shouldSendModelApiKey ? { apiKey: apiKey ? apiKey : undefined } : {}) } : undefined,
+                credentialProfileId: credentialSource === 'robot' ? undefined : modelCredentialProfileId,
+                credential:
+                  credentialSource === 'robot'
+                    ? {
+                        apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined,
+                        remark: modelCredentialRemark ? modelCredentialRemark : undefined,
+                        ...(shouldSendModelApiKey ? { apiKey: apiKey ? apiKey : undefined } : {})
+                      }
+                    : undefined,
                 model: String(cfg.model ?? '').trim(),
                 sandbox: normalizeCodexSandbox(cfg.sandbox),
                 sandbox_workspace_write: { network_access: Boolean(cfg?.sandbox_workspace_write?.network_access) }
@@ -711,18 +949,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       editingRobot,
       message,
       repo,
-      repoScopedCredentials?.modelProvider?.claude_code?.hasApiKey,
-      repoScopedCredentials?.modelProvider?.codex?.hasApiKey,
-      repoScopedCredentials?.modelProvider?.gemini_cli?.hasApiKey,
-      repoScopedCredentials?.repoProvider?.hasToken,
+      repoScopedCredentials,
       robotChangingModelApiKey,
       robotChangingToken,
       t,
-      userModelCredentials?.claude_code?.hasApiKey,
-      userModelCredentials?.codex?.hasApiKey,
-      userModelCredentials?.gemini_cli?.hasApiKey,
-      userModelCredentials?.github,
-      userModelCredentials?.gitlab,
+      userModelCredentials,
       webhookVerified
     ]
   );
@@ -961,219 +1192,162 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                     label: t('repos.detail.tabs.credentials'),
                     children: (
                       <Card size="small" title={t('repos.detail.credentialsTitle')} className="hc-card">
-                        <Form form={credentialsForm} layout="vertical" requiredMark={false}>
-                          <Row gutter={16}>
-                            <Col xs={24} md={12}>
-                              <Typography.Text strong>{t('repos.detail.credentials.repoProvider')}</Typography.Text>
-                              <Typography.Paragraph type="secondary" style={{ marginTop: 6 }}>
-                                {t('repos.detail.credentials.repoProviderTip')}
-                              </Typography.Paragraph>
-                              <Space direction="vertical" size={10} style={{ width: '100%' }}>
-                                <Typography.Text type="secondary">
-                                  {t('repos.detail.credentials.repoProviderStatus')}:{' '}
-                                  <Tag color={repoScopedCredentials?.repoProvider?.hasToken ? 'green' : 'default'}>
-                                    {repoScopedCredentials?.repoProvider?.hasToken ? t('common.configured') : t('common.notConfigured')}
-                                  </Tag>
-                                </Typography.Text>
+                        <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+                          {t('repos.detail.credentials.tip')}
+                        </Typography.Paragraph>
 
-                                <Form.Item label={t('repos.detail.credentials.cloneUsername')} name="cloneUsername">
-                                  <Input placeholder={t('repos.detail.credentials.cloneUsernamePlaceholder')} />
-                                </Form.Item>
-
-                                <Form.Item
-                                  label={t('repos.detail.credentials.repoToken')}
-                                  name="repoToken"
-                                  extra={
-                                    repoScopedCredentials?.repoProvider?.hasToken ? (
-                                      <Button
-                                        type="link"
-                                        size="small"
-                                        style={{ padding: 0 }}
-                                        onClick={() => {
-                                          setRepoProviderChangingToken((v) => {
-                                            const next = !v;
-                                            if (!next) credentialsForm.setFieldsValue({ repoToken: '' });
-                                            return next;
-                                          });
-                                        }}
-                                      >
-                                        {repoProviderChangingToken ? t('common.cancel') : t('panel.credentials.changeSecret')}
-                                      </Button>
-                                    ) : undefined
-                                  }
-                                >
-                                  <Input.Password
-                                    disabled={Boolean(repoScopedCredentials?.repoProvider?.hasToken) && !repoProviderChangingToken}
-                                    placeholder={
-                                      repoScopedCredentials?.repoProvider?.hasToken && !repoProviderChangingToken
-                                        ? t('panel.credentials.secretConfiguredPlaceholder')
-                                        : t('panel.credentials.secretInputPlaceholder')
-                                    }
-                                    autoComplete="new-password"
-                                  />
-                                </Form.Item>
+                        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
+                          <Card
+                            size="small"
+                            title={
+                              <Space size={8}>
+                                <GlobalOutlined />
+                                <span>{t('repos.detail.credentials.repoProvider')}</span>
                               </Space>
-                            </Col>
+                            }
+                            className="hc-inner-card"
+                            styles={{ body: { padding: 12 } }}
+                            extra={
+                              <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving}>
+                                {t('panel.credentials.profile.add')}
+                              </Button>
+                            }
+                          >
+                            <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                              <Typography.Text type="secondary">{t('repos.detail.credentials.repoProviderTip')}</Typography.Text>
 
-                            <Col xs={24} md={12}>
-                              <Typography.Text strong>{t('repos.detail.credentials.modelProvider')}</Typography.Text>
-                              <Typography.Paragraph type="secondary" style={{ marginTop: 6 }}>
-                                {t('repos.detail.credentials.modelProviderTip')}
-                              </Typography.Paragraph>
-
-                              <Space direction="vertical" size={10} style={{ width: '100%' }}>
-                                <div>
-                                  <Typography.Text strong>{t('repos.robotForm.modelProvider.codex')}</Typography.Text>
-                                  <div style={{ marginTop: 6 }}>
-                                    <Typography.Text type="secondary">
-                                      {t('repos.detail.credentials.modelProviderStatus')}:{' '}
-                                      <Tag color={repoScopedCredentials?.modelProvider?.codex?.hasApiKey ? 'green' : 'default'}>
-                                        {repoScopedCredentials?.modelProvider?.codex?.hasApiKey ? t('common.configured') : t('common.notConfigured')}
-                                      </Tag>
-                                    </Typography.Text>
-                                  </div>
-                                </div>
-
-                                <Form.Item label={t('panel.credentials.codexApiBaseUrl')} name="codexApiBaseUrl">
-                                  <Input placeholder={t('panel.credentials.codexApiBaseUrlPlaceholder')} />
-                                </Form.Item>
-
-                                <Form.Item
-                                  label={t('panel.credentials.codexApiKey')}
-                                  name="codexApiKey"
-                                  extra={
-                                    repoScopedCredentials?.modelProvider?.codex?.hasApiKey ? (
-                                      <Button
-                                        type="link"
-                                        size="small"
-                                        style={{ padding: 0 }}
-                                        onClick={() => {
-                                          setRepoCodexChangingApiKey((v) => {
-                                            const next = !v;
-                                            if (!next) credentialsForm.setFieldsValue({ codexApiKey: '' });
-                                            return next;
-                                          });
-                                        }}
-                                      >
-                                        {repoCodexChangingApiKey ? t('common.cancel') : t('panel.credentials.changeSecret')}
-                                      </Button>
-                                    ) : undefined
-                                  }
-                                >
-                                  <Input.Password
-                                    disabled={Boolean(repoScopedCredentials?.modelProvider?.codex?.hasApiKey) && !repoCodexChangingApiKey}
-                                    placeholder={
-                                      repoScopedCredentials?.modelProvider?.codex?.hasApiKey && !repoCodexChangingApiKey
-                                        ? t('panel.credentials.secretConfiguredPlaceholder')
-                                        : t('panel.credentials.secretInputPlaceholder')
-                                    }
-                                    autoComplete="new-password"
+                              <div>
+                                <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
+                                <div style={{ marginTop: 6 }}>
+                                  <Select
+                                    value={(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '') || undefined}
+                                    style={{ width: '100%' }}
+                                    placeholder={t('panel.credentials.profile.defaultPlaceholder')}
+                                    onChange={(value) => void setRepoProviderDefault(value ? String(value) : null)}
+                                    options={(repoScopedCredentials?.repoProvider?.profiles ?? []).map((p) => ({ value: p.id, label: p.remark || p.id }))}
+                                    allowClear
+                                    disabled={credentialsSaving}
                                   />
-                                </Form.Item>
-
-                                <Divider style={{ margin: '12px 0' }} />
-
-                                <div>
-                                  <Typography.Text strong>{t('repos.robotForm.modelProvider.claude_code')}</Typography.Text>
-                                  <div style={{ marginTop: 6 }}>
-                                    <Typography.Text type="secondary">
-                                      {t('repos.detail.credentials.modelProviderStatus')}:{' '}
-                                      <Tag color={repoScopedCredentials?.modelProvider?.claude_code?.hasApiKey ? 'green' : 'default'}>
-                                        {repoScopedCredentials?.modelProvider?.claude_code?.hasApiKey ? t('common.configured') : t('common.notConfigured')}
-                                      </Tag>
-                                    </Typography.Text>
-                                  </div>
                                 </div>
+                              </div>
 
-                                <Form.Item
-                                  label={t('panel.credentials.claudeCodeApiKey')}
-                                  name="claudeCodeApiKey"
-                                  extra={
-                                    repoScopedCredentials?.modelProvider?.claude_code?.hasApiKey ? (
-                                      <Button
-                                        type="link"
-                                        size="small"
-                                        style={{ padding: 0 }}
-                                        onClick={() => {
-                                          setRepoClaudeCodeChangingApiKey((v) => {
-                                            const next = !v;
-                                            if (!next) credentialsForm.setFieldsValue({ claudeCodeApiKey: '' });
-                                            return next;
-                                          });
-                                        }}
-                                      >
-                                        {repoClaudeCodeChangingApiKey ? t('common.cancel') : t('panel.credentials.changeSecret')}
-                                      </Button>
-                                    ) : undefined
-                                  }
-                                >
-                                  <Input.Password
-                                    disabled={Boolean(repoScopedCredentials?.modelProvider?.claude_code?.hasApiKey) && !repoClaudeCodeChangingApiKey}
-                                    placeholder={
-                                      repoScopedCredentials?.modelProvider?.claude_code?.hasApiKey && !repoClaudeCodeChangingApiKey
-                                        ? t('panel.credentials.secretConfiguredPlaceholder')
-                                        : t('panel.credentials.secretInputPlaceholder')
-                                    }
-                                    autoComplete="new-password"
-                                  />
-                                </Form.Item>
+                              {(repoScopedCredentials?.repoProvider?.profiles ?? []).length ? (
+                                <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                                  {(repoScopedCredentials?.repoProvider?.profiles ?? []).map((p) => {
+                                    const defaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
+                                    return (
+                                      <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                        <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                          <Space size={8} wrap>
+                                            <Typography.Text strong>{p.remark || p.id}</Typography.Text>
+                                            {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                                            <Tag color={p.hasToken ? 'green' : 'default'}>
+                                              {p.hasToken ? t('common.configured') : t('common.notConfigured')}
+                                            </Tag>
+                                          </Space>
+                                          <Typography.Text type="secondary">{p.cloneUsername || '-'}</Typography.Text>
+                                        </Space>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                                          <Button size="small" onClick={() => startEditRepoProviderProfile(p)} disabled={credentialsSaving}>
+                                            {t('common.manage')}
+                                          </Button>
+                                          <Button size="small" danger onClick={() => removeRepoProviderProfile(p.id)} disabled={credentialsSaving}>
+                                            {t('panel.credentials.profile.remove')}
+                                          </Button>
+                                        </div>
+                                      </Card>
+                                    );
+                                  })}
+                                </Space>
+                              ) : (
+                                <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
+                              )}
+                            </Space>
+                          </Card>
 
-                                <Divider style={{ margin: '12px 0' }} />
-
-                                <div>
-                                  <Typography.Text strong>{t('repos.robotForm.modelProvider.gemini_cli')}</Typography.Text>
-                                  <div style={{ marginTop: 6 }}>
-                                    <Typography.Text type="secondary">
-                                      {t('repos.detail.credentials.modelProviderStatus')}:{' '}
-                                      <Tag color={repoScopedCredentials?.modelProvider?.gemini_cli?.hasApiKey ? 'green' : 'default'}>
-                                        {repoScopedCredentials?.modelProvider?.gemini_cli?.hasApiKey ? t('common.configured') : t('common.notConfigured')}
-                                      </Tag>
-                                    </Typography.Text>
-                                  </div>
-                                </div>
-
-                                <Form.Item
-                                  label={t('panel.credentials.geminiCliApiKey')}
-                                  name="geminiCliApiKey"
-                                  extra={
-                                    repoScopedCredentials?.modelProvider?.gemini_cli?.hasApiKey ? (
-                                      <Button
-                                        type="link"
-                                        size="small"
-                                        style={{ padding: 0 }}
-                                        onClick={() => {
-                                          setRepoGeminiCliChangingApiKey((v) => {
-                                            const next = !v;
-                                            if (!next) credentialsForm.setFieldsValue({ geminiCliApiKey: '' });
-                                            return next;
-                                          });
-                                        }}
-                                      >
-                                        {repoGeminiCliChangingApiKey ? t('common.cancel') : t('panel.credentials.changeSecret')}
-                                      </Button>
-                                    ) : undefined
-                                  }
-                                >
-                                  <Input.Password
-                                    disabled={Boolean(repoScopedCredentials?.modelProvider?.gemini_cli?.hasApiKey) && !repoGeminiCliChangingApiKey}
-                                    placeholder={
-                                      repoScopedCredentials?.modelProvider?.gemini_cli?.hasApiKey && !repoGeminiCliChangingApiKey
-                                        ? t('panel.credentials.secretConfiguredPlaceholder')
-                                        : t('panel.credentials.secretInputPlaceholder')
-                                    }
-                                    autoComplete="new-password"
-                                  />
-                                </Form.Item>
+                          <Card
+                            size="small"
+                            title={
+                              <Space size={8}>
+                                <KeyOutlined />
+                                <span>{t('repos.detail.credentials.modelProvider')}</span>
                               </Space>
-                            </Col>
-                          </Row>
-                        </Form>
+                            }
+                            className="hc-inner-card"
+                            styles={{ body: { padding: 12 } }}
+                          >
+                            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+                              <Typography.Text type="secondary">{t('repos.detail.credentials.modelProviderTip')}</Typography.Text>
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button type="primary" icon={<SaveOutlined />} loading={credentialsSaving} onClick={() => void handleSaveCredentials()}>
-                            {t('common.save')}
-                          </Button>
-                        </div>
+                              {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
+                                const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[provider] as any;
+                                const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
+                                const defaultId = String(providerCredentials?.defaultProfileId ?? '').trim();
+
+                                return (
+                                  <Card
+                                    key={provider}
+                                    size="small"
+                                    className="hc-inner-card"
+                                    title={t(`repos.robotForm.modelProvider.${provider}` as any)}
+                                    extra={
+                                      <Button size="small" onClick={() => startEditModelProfile(provider, null)} disabled={credentialsSaving}>
+                                        {t('panel.credentials.profile.add')}
+                                      </Button>
+                                    }
+                                    styles={{ body: { padding: 12 } }}
+                                  >
+                                    <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                                      <div>
+                                        <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
+                                        <div style={{ marginTop: 6 }}>
+                                          <Select
+                                            value={defaultId || undefined}
+                                            style={{ width: '100%' }}
+                                            placeholder={t('panel.credentials.profile.defaultPlaceholder')}
+                                            onChange={(value) => void setModelProviderDefault(provider, value ? String(value) : null)}
+                                            options={profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id }))}
+                                            allowClear
+                                            disabled={credentialsSaving}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      {profiles.length ? (
+                                        <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                                          {profiles.map((p: any) => (
+                                            <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                              <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                                <Space size={8} wrap>
+                                                  <Typography.Text strong>{p.remark || p.id}</Typography.Text>
+                                                  {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                                                  <Tag color={p.hasApiKey ? 'green' : 'default'}>
+                                                    {p.hasApiKey ? t('common.configured') : t('common.notConfigured')}
+                                                  </Tag>
+                                                </Space>
+                                                <Typography.Text type="secondary">{p.apiBaseUrl || '-'}</Typography.Text>
+                                              </Space>
+                                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                                                <Button size="small" onClick={() => startEditModelProfile(provider, p)} disabled={credentialsSaving}>
+                                                  {t('common.manage')}
+                                                </Button>
+                                                <Button size="small" danger onClick={() => removeModelProviderProfile(provider, p.id)} disabled={credentialsSaving}>
+                                                  {t('panel.credentials.profile.remove')}
+                                                </Button>
+                                              </div>
+                                            </Card>
+                                          ))}
+                                        </Space>
+                                      ) : (
+                                        <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
+                                      )}
+                                    </Space>
+                                  </Card>
+                                );
+                              })}
+                            </Space>
+                          </Card>
+                        </Space>
                       </Card>
                     )
                   },
@@ -1381,6 +1555,148 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       />
 
       <ResponsiveDialog
+        open={repoProviderProfileModalOpen}
+        title={repoProviderProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
+        onCancel={() => {
+          setRepoProviderProfileModalOpen(false);
+          setRepoProviderProfileEditing(null);
+        }}
+        confirmLoading={repoProviderProfileSubmitting}
+        onOk={() => void submitRepoProviderProfile()}
+        variant="compact"
+        modalWidth={520}
+      >
+        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: repo ? providerLabel(repo.provider) : '-' })}</Typography.Text>
+          <Form form={repoProviderProfileForm} layout="vertical" requiredMark={false} size="small">
+            <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item label={t('panel.credentials.profile.cloneUsername')} name="cloneUsername">
+              <Input placeholder={t('panel.credentials.profile.cloneUsernamePlaceholder')} />
+            </Form.Item>
+
+            <Form.Item label={t('panel.credentials.profile.token')}>
+              <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                {repoProviderProfileEditing?.hasToken ? (
+                  <Radio.Group value={repoProviderTokenMode} onChange={(e) => setRepoProviderTokenMode(e.target.value)}>
+                    <Radio value="keep">{t('panel.credentials.profile.tokenKeep')}</Radio>
+                    <Radio value="set">{t('panel.credentials.profile.tokenSet')}</Radio>
+                  </Radio.Group>
+                ) : (
+                  <Typography.Text type="secondary">{t('panel.credentials.profile.tokenSetTip')}</Typography.Text>
+                )}
+
+                <Form.Item
+                  name="token"
+                  style={{ marginBottom: 0 }}
+                  rules={[
+                    {
+                      required: repoProviderTokenMode === 'set',
+                      whitespace: true,
+                      message: t('panel.validation.required')
+                    }
+                  ]}
+                >
+                  <Input.Password disabled={repoProviderTokenMode !== 'set'} autoComplete="new-password" />
+                </Form.Item>
+              </Space>
+            </Form.Item>
+
+            <Form.Item label={t('panel.credentials.profile.default')} style={{ marginBottom: 0 }}>
+              <Select
+                value={repoProviderProfileDefault || undefined}
+                style={{ width: '100%' }}
+                placeholder={t('panel.credentials.profile.defaultPlaceholder')}
+                allowClear
+                onChange={(value) => setRepoProviderProfileDefault(value ? String(value) : null)}
+                options={(repoScopedCredentials?.repoProvider?.profiles ?? []).map((p) => ({ value: p.id, label: p.remark || p.id }))}
+                disabled={credentialsSaving}
+              />
+            </Form.Item>
+          </Form>
+        </Space>
+      </ResponsiveDialog>
+
+      <ResponsiveDialog
+        open={modelProfileModalOpen}
+        title={modelProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
+        onCancel={() => {
+          setModelProfileModalOpen(false);
+          setModelProfileEditing(null);
+        }}
+        confirmLoading={modelProfileSubmitting}
+        onOk={() => void submitModelProfile()}
+        variant="compact"
+        modalWidth={520}
+      >
+        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: modelProfileProvider })}</Typography.Text>
+          <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="small">
+            <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
+              <Input />
+            </Form.Item>
+
+            <Form.Item
+              label={
+                modelProfileProvider === 'codex'
+                  ? t('panel.credentials.codexApiKey')
+                  : modelProfileProvider === 'claude_code'
+                    ? t('panel.credentials.claudeCodeApiKey')
+                    : t('panel.credentials.geminiCliApiKey')
+              }
+            >
+              <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                {modelProfileEditing?.hasApiKey ? (
+                  <Radio.Group value={modelProfileApiKeyMode} onChange={(e) => setModelProfileApiKeyMode(e.target.value)}>
+                    <Radio value="keep">{t('panel.credentials.profile.tokenKeep')}</Radio>
+                    <Radio value="set">{t('panel.credentials.profile.tokenSet')}</Radio>
+                  </Radio.Group>
+                ) : (
+                  <Typography.Text type="secondary">{t('panel.credentials.profile.tokenSetTip')}</Typography.Text>
+                )}
+
+                <Form.Item
+                  name="apiKey"
+                  style={{ marginBottom: 0 }}
+                  rules={[
+                    {
+                      required: modelProfileApiKeyMode === 'set',
+                      whitespace: true,
+                      message: t('panel.validation.required')
+                    }
+                  ]}
+                >
+                  <Input.Password disabled={modelProfileApiKeyMode !== 'set'} autoComplete="new-password" />
+                </Form.Item>
+              </Space>
+            </Form.Item>
+
+            {/* UX: keep "API Base URL" below the secret input to match user expectations for proxy settings. */}
+            <Form.Item label={t('panel.credentials.codexApiBaseUrl')} name="apiBaseUrl">
+              <Input placeholder={t('panel.credentials.codexApiBaseUrlPlaceholder')} />
+            </Form.Item>
+
+            <Form.Item label={t('panel.credentials.profile.default')} style={{ marginBottom: 0 }}>
+              <Select
+                value={modelProfileDefault || undefined}
+                style={{ width: '100%' }}
+                placeholder={t('panel.credentials.profile.defaultPlaceholder')}
+                allowClear
+                onChange={(value) => setModelProfileDefault(value ? String(value) : null)}
+                options={(() => {
+                  const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[modelProfileProvider] as any;
+                  const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
+                  return profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id }));
+                })()}
+                disabled={credentialsSaving}
+              />
+            </Form.Item>
+          </Form>
+        </Space>
+      </ResponsiveDialog>
+
+      <ResponsiveDialog
         variant="large"
         open={robotModalOpen}
         title={
@@ -1473,13 +1789,21 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               <Col xs={24} md={12}>
                 <Form.Item label={t('repos.robotForm.repoCredential.profile')} name="repoCredentialProfileId">
                   <Select
-                    disabled={watchedRepoCredentialSource !== 'user'}
-                    loading={userModelCredentialsLoading}
+                    disabled={watchedRepoCredentialSource === 'robot'}
+                    loading={userModelCredentialsLoading && watchedRepoCredentialSource === 'user'}
                     placeholder={t('repos.robotForm.repoCredential.profilePlaceholder')}
                     options={(() => {
-                      const providerCredentials = repo?.provider === 'github' ? userModelCredentials?.github : userModelCredentials?.gitlab;
+                      const source = watchedRepoCredentialSource === 'repo' ? 'repo' : watchedRepoCredentialSource === 'robot' ? 'robot' : 'user';
+                      if (source === 'robot') return [];
+
+                      const providerCredentials =
+                        source === 'user'
+                          ? repo?.provider === 'github'
+                            ? userModelCredentials?.github
+                            : userModelCredentials?.gitlab
+                          : repoScopedCredentials?.repoProvider;
                       const profiles = providerCredentials?.profiles ?? [];
-                      return profiles.map((p) => ({ value: p.id, label: p.name || p.id, disabled: !p.hasToken }));
+                      return profiles.map((p) => ({ value: p.id, label: p.remark || p.id, disabled: !p.hasToken }));
                     })()}
                   />
                 </Form.Item>
@@ -1494,8 +1818,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                 const tokenDisabled = normalizedSource !== 'robot' || (Boolean(editingRobot) && hasToken && !robotChangingToken);
 
                 return normalizedSource === 'robot' ? (
-                  <Row gutter={16}>
-                    <Col xs={24} md={12}>
+                  <>
+                    <Row gutter={16}>
+                      <Col xs={24} md={12}>
                       <Form.Item
                         label={t('repos.robotForm.repoCredential.token')}
                         name="token"
@@ -1531,19 +1856,24 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                           autoComplete="new-password"
                         />
                       </Form.Item>
-                    </Col>
-                    <Col xs={24} md={12}>
+                      </Col>
+                      <Col xs={24} md={12}>
                       <Form.Item label={t('repos.robotForm.repoCredential.cloneUsername')} name="cloneUsername">
                         <Input placeholder={t('repos.robotForm.repoCredential.cloneUsernamePlaceholder')} />
                       </Form.Item>
-                    </Col>
-                  </Row>
+                      </Col>
+                    </Row>
+
+                    <Form.Item label={t('repos.robotForm.repoCredential.remark')} name="repoCredentialRemark">
+                      <Input placeholder={t('repos.robotForm.repoCredential.remarkPlaceholder')} />
+                    </Form.Item>
+                  </>
                 ) : normalizedSource === 'repo' ? (
                   <Alert
-                    type={repoScopedCredentials?.repoProvider?.hasToken ? 'info' : 'warning'}
+                    type={repoScopedCredentials?.repoProvider?.profiles?.some((p) => p.hasToken) ? 'info' : 'warning'}
                     showIcon
                     message={
-                      repoScopedCredentials?.repoProvider?.hasToken
+                      repoScopedCredentials?.repoProvider?.profiles?.some((p) => p.hasToken)
                         ? t('repos.robotForm.repoCredential.repoConfigured')
                         : t('repos.robotForm.repoCredential.repoNotConfigured')
                     }
@@ -1577,18 +1907,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                 );
                 const apiKeyDisabled = Boolean(editingRobot) && editingRobotHasApiKey && !robotChangingModelApiKey && source === 'robot';
 
-                const repoHasApiKey =
-                  provider === 'codex'
-                    ? Boolean(repoScopedCredentials?.modelProvider?.codex?.hasApiKey)
-                    : provider === 'claude_code'
-                      ? Boolean(repoScopedCredentials?.modelProvider?.claude_code?.hasApiKey)
-                      : Boolean(repoScopedCredentials?.modelProvider?.gemini_cli?.hasApiKey);
-                const userHasApiKey =
-                  provider === 'codex'
-                    ? Boolean(userModelCredentials?.codex?.hasApiKey)
-                    : provider === 'claude_code'
-                      ? Boolean(userModelCredentials?.claude_code?.hasApiKey)
-                      : Boolean(userModelCredentials?.gemini_cli?.hasApiKey);
+                const repoProviderCredentials = (repoScopedCredentials as any)?.modelProvider?.[provider] as any;
+                const userProviderCredentials = (userModelCredentials as any)?.[provider] as any;
+                const repoHasApiKey = Array.isArray(repoProviderCredentials?.profiles)
+                  ? repoProviderCredentials.profiles.some((p: any) => p && p.hasApiKey)
+                  : false;
+                const userHasApiKey = Array.isArray(userProviderCredentials?.profiles)
+                  ? userProviderCredentials.profiles.some((p: any) => p && p.hasApiKey)
+                  : false;
 
                 const userSourceLabel =
                   provider === 'codex'
@@ -1638,6 +1964,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                 nextProvider === 'claude_code'
                                   ? {
                                       credentialSource: 'user',
+                                      credentialProfileId: null,
                                       model: 'claude-sonnet-4-5-20250929',
                                       sandbox: 'read-only',
                                       sandbox_workspace_write: { network_access: false }
@@ -1645,12 +1972,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                   : nextProvider === 'gemini_cli'
                                     ? {
                                         credentialSource: 'user',
+                                        credentialProfileId: null,
                                         model: 'gemini-2.5-pro',
                                         sandbox: 'read-only',
                                         sandbox_workspace_write: { network_access: false }
                                       }
                                   : {
                                       credentialSource: 'user',
+                                      credentialProfileId: null,
                                       model: 'gpt-5.2',
                                       sandbox: 'read-only',
                                       model_reasoning_effort: 'medium',
@@ -1680,56 +2009,95 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                       </Col>
                     </Row>
 
-                    {source === 'robot' ? (
+                    {source !== 'robot' ? (
                       <Row gutter={16}>
-                        {isCodex ? (
-                          <Col xs={24} md={12}>
-                            <Form.Item
-                              label={t('repos.robotForm.modelCredential.apiBaseUrl')}
-                              name={['modelProviderConfig', 'credential', 'apiBaseUrl']}
-                            >
-                              <Input placeholder={t('repos.robotForm.modelCredential.apiBaseUrlPlaceholder')} />
-                            </Form.Item>
-                          </Col>
-                        ) : null}
-                        <Col xs={24} md={isCodex ? 12 : 24}>
+                        <Col xs={24} md={12}>
                           <Form.Item
-                            label={t('repos.robotForm.modelCredential.apiKey')}
-                            name={['modelProviderConfig', 'credential', 'apiKey']}
+                            label={t('repos.robotForm.modelCredential.profile')}
+                            name={['modelProviderConfig', 'credentialProfileId']}
                             rules={[
                               {
-                                required: !editingRobot || robotChangingModelApiKey || !editingRobotHasApiKey,
-                                whitespace: true,
-                                message: t('repos.robotForm.modelCredential.apiKeyRequired')
+                                required: source !== 'robot',
+                                message: t('repos.robotForm.modelCredential.profileRequired')
                               }
                             ]}
-                            extra={
-                              editingRobot && editingRobotHasApiKey ? (
-                                <Button
-                                  type="link"
-                                  size="small"
-                                  style={{ padding: 0 }}
-                                  onClick={() => {
-                                    setRobotChangingModelApiKey((v) => {
-                                      const next = !v;
-                                      if (!next) robotForm.setFieldsValue({ modelProviderConfig: { ...robotForm.getFieldValue('modelProviderConfig'), credential: { ...robotForm.getFieldValue(['modelProviderConfig', 'credential']), apiKey: '' } } } as any);
-                                      return next;
-                                    });
-                                  }}
-                                >
-                                  {robotChangingModelApiKey ? t('common.cancel') : t('repos.robotForm.modelCredential.changeApiKey')}
-                                </Button>
-                              ) : undefined
-                            }
                           >
-                            <Input.Password
-                              disabled={apiKeyDisabled}
-                              placeholder={apiKeyDisabled ? t('panel.credentials.secretConfiguredPlaceholder') : t('panel.credentials.secretInputPlaceholder')}
-                              autoComplete="new-password"
+                            <Select
+                              loading={userModelCredentialsLoading && source === 'user'}
+                              placeholder={t('repos.robotForm.modelCredential.profilePlaceholder')}
+                              options={(() => {
+                                const providerCredentials = source === 'user' ? userProviderCredentials : repoProviderCredentials;
+                                const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
+                                return profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id, disabled: !p.hasApiKey }));
+                              })()}
                             />
                           </Form.Item>
                         </Col>
                       </Row>
+                    ) : null}
+
+                    {source === 'robot' ? (
+                      <>
+                        <Row gutter={16}>
+                          <Col xs={24} md={12}>
+                            <Form.Item
+                              label={t('repos.robotForm.modelCredential.apiKey')}
+                              name={['modelProviderConfig', 'credential', 'apiKey']}
+                              rules={[
+                                {
+                                  required: !editingRobot || robotChangingModelApiKey || !editingRobotHasApiKey,
+                                  whitespace: true,
+                                  message: t('repos.robotForm.modelCredential.apiKeyRequired')
+                                }
+                              ]}
+                              extra={
+                                editingRobot && editingRobotHasApiKey ? (
+                                  <Button
+                                    type="link"
+                                    size="small"
+                                    style={{ padding: 0 }}
+                                    onClick={() => {
+                                      setRobotChangingModelApiKey((v) => {
+                                        const next = !v;
+                                        if (!next) {
+                                          robotForm.setFieldsValue({
+                                            modelProviderConfig: {
+                                              ...robotForm.getFieldValue('modelProviderConfig'),
+                                              credential: { ...robotForm.getFieldValue(['modelProviderConfig', 'credential']), apiKey: '' }
+                                            }
+                                          } as any);
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    {robotChangingModelApiKey ? t('common.cancel') : t('repos.robotForm.modelCredential.changeApiKey')}
+                                  </Button>
+                                ) : undefined
+                              }
+                            >
+                              <Input.Password
+                                disabled={apiKeyDisabled}
+                                placeholder={apiKeyDisabled ? t('panel.credentials.secretConfiguredPlaceholder') : t('panel.credentials.secretInputPlaceholder')}
+                                autoComplete="new-password"
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <Form.Item label={t('repos.robotForm.modelCredential.remark')} name={['modelProviderConfig', 'credential', 'remark']}>
+                              <Input placeholder={t('repos.robotForm.modelCredential.remarkPlaceholder')} />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+
+                        {/* UX: keep proxy/base URL below the API key input (especially for Claude/Gemini). */}
+                        <Form.Item
+                          label={t('repos.robotForm.modelCredential.apiBaseUrl')}
+                          name={['modelProviderConfig', 'credential', 'apiBaseUrl']}
+                        >
+                          <Input placeholder={t('repos.robotForm.modelCredential.apiBaseUrlPlaceholder')} />
+                        </Form.Item>
+                      </>
                     ) : source === 'repo' ? (
                       <Alert
                         type={repoHasApiKey ? 'info' : 'warning'}

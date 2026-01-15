@@ -122,6 +122,8 @@ model RepoRobot {
   token                 String?
   cloneUsername         String?   @map("clone_username")
   repoCredentialProfileId String? @map("repo_credential_profile_id")
+  repoCredentialSource  String?   @map("repo_credential_source")
+  repoCredentialRemark  String?   @map("repo_credential_remark")
   repoTokenUserId       String?   @map("repo_token_user_id")
   repoTokenUsername     String?   @map("repo_token_username")
   repoTokenUserName     String?   @map("repo_token_user_name")

@@ -4,17 +4,36 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import readline from 'readline';
 import { buildMergedProcessEnv, createAsyncLineLogger } from '../utils/providerRuntime';
+import { normalizeHttpBaseUrl } from '../utils/url';
 
 export const GEMINI_CLI_PROVIDER_KEY = 'gemini_cli' as const;
 
 export type GeminiCliCredentialSource = 'user' | 'repo' | 'robot';
 
 export interface GeminiCliCredential {
+  /**
+   * Gemini API Base URL (proxy).
+   *
+   * Notes:
+   * - For Gemini Developer API, HookCode maps this to `GOOGLE_GEMINI_BASE_URL`.
+   */
+  apiBaseUrl?: string;
   apiKey?: string;
+  /**
+   * User-defined note for distinguishing credentials in UI.
+   */
+  remark?: string;
 }
 
 export interface GeminiCliRobotProviderConfig {
   credentialSource: GeminiCliCredentialSource;
+  /**
+   * Selected credential profile id (when `credentialSource` is `user` or `repo`).
+   *
+   * Change record:
+   * - 2026-01-14: Allow selecting one credential from multiple user/repo-scoped credentials.
+   */
+  credentialProfileId?: string;
   credential?: GeminiCliCredential;
   /**
    * Gemini model name (passed through to Gemini CLI `--model`).
@@ -34,7 +53,9 @@ export interface GeminiCliRobotProviderConfig {
 }
 
 export interface GeminiCliCredentialPublic {
+  apiBaseUrl?: string;
   hasApiKey: boolean;
+  remark?: string;
 }
 
 export type GeminiCliRobotProviderConfigPublic = Omit<GeminiCliRobotProviderConfig, 'credential'> & {
@@ -48,6 +69,11 @@ const asString = (value: unknown): string => (typeof value === 'string' ? value 
 
 const asBoolean = (value: unknown, fallback: boolean): boolean =>
   typeof value === 'boolean' ? value : fallback;
+
+const normalizeCredentialProfileId = (value: unknown): string | undefined => {
+  const raw = asString(value).trim();
+  return raw ? raw : undefined;
+};
 
 const normalizeCredentialSource = (value: unknown): GeminiCliCredentialSource => {
   const raw = asString(value).trim().toLowerCase();
@@ -81,17 +107,24 @@ export const normalizeGeminiCliRobotProviderConfig = (raw: unknown): GeminiCliRo
   if (!isRecord(raw)) return base;
 
   const credentialSource = normalizeCredentialSource(raw.credentialSource);
+  const credentialProfileId = credentialSource === 'robot' ? undefined : normalizeCredentialProfileId(raw.credentialProfileId);
   const credentialRaw = isRecord(raw.credential) ? raw.credential : null;
+  const apiBaseUrl = credentialRaw ? normalizeHttpBaseUrl(asString(credentialRaw.apiBaseUrl)) : undefined;
   const apiKey = credentialRaw ? asString(credentialRaw.apiKey).trim() : '';
+  const remark = credentialRaw ? asString(credentialRaw.remark).trim() : '';
 
   const sandboxWorkspaceWriteRaw = isRecord(raw.sandbox_workspace_write) ? raw.sandbox_workspace_write : null;
 
   const next: GeminiCliRobotProviderConfig = {
     credentialSource,
+    credentialProfileId,
     credential:
       credentialSource === 'robot'
         ? {
+            apiBaseUrl,
             apiKey: apiKey ? apiKey : undefined
+            ,
+            remark: remark ? remark : undefined
           }
         : undefined,
     model: normalizeGeminiModel(raw.model),
@@ -119,14 +152,21 @@ export const mergeGeminiCliRobotProviderConfig = (params: {
   const hasNextApiKey = Boolean((nextNormalized.credential?.apiKey ?? '').trim());
   const existingApiKey = (existingNormalized.credential?.apiKey ?? '').trim();
   const mergedCredential: GeminiCliCredential = {
+    apiBaseUrl: nextNormalized.credential?.apiBaseUrl,
     apiKey: hasNextApiKey ? nextNormalized.credential?.apiKey : existingApiKey
+    ,
+    remark: nextNormalized.credential?.remark
   };
   const apiKey = (mergedCredential.apiKey ?? '').trim();
+  const remark = (mergedCredential.remark ?? '').trim();
 
   return {
     ...nextNormalized,
     credential: {
+      apiBaseUrl: mergedCredential.apiBaseUrl,
       apiKey: apiKey ? apiKey : undefined
+      ,
+      remark: remark ? remark : undefined
     }
   };
 };
@@ -135,10 +175,16 @@ export const toPublicGeminiCliRobotProviderConfig = (raw: unknown): GeminiCliRob
   const normalized = normalizeGeminiCliRobotProviderConfig(raw);
   const apiKey = (normalized.credential?.apiKey ?? '').trim();
   const hasApiKey = Boolean(apiKey);
+  const apiBaseUrl = (normalized.credential?.apiBaseUrl ?? '').trim();
+  const remark = (normalized.credential?.remark ?? '').trim();
 
   return {
     credentialSource: normalized.credentialSource,
-    credential: normalized.credentialSource === 'robot' ? { hasApiKey } : undefined,
+    credentialProfileId: normalized.credentialProfileId,
+    credential:
+      normalized.credentialSource === 'robot'
+        ? { hasApiKey, apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined, remark: remark ? remark : undefined }
+        : undefined,
     model: normalized.model,
     sandbox: normalized.sandbox,
     sandbox_workspace_write: normalized.sandbox_workspace_write
@@ -266,6 +312,7 @@ export const runGeminiCliExecWithCli = async (params: {
   networkAccess: boolean;
   resumeSessionId?: string;
   apiKey: string;
+  apiBaseUrl?: string;
   outputLastMessageFile: string;
   geminiHomeDir: string;
   env?: Record<string, string | undefined>;
@@ -294,10 +341,20 @@ export const runGeminiCliExecWithCli = async (params: {
   const policyPath = path.join(policyDir, 'hookcode.toml');
   await writeFile(policyPath, buildPolicyToml({ allowTools: coreTools }), 'utf8');
 
+  const apiBaseUrl = normalizeHttpBaseUrl(params.apiBaseUrl);
   const mergedEnv = buildMergedProcessEnv({
     ...params.env,
     // Business intent: allow selecting Gemini credentials at runtime without mutating process.env.
     GEMINI_API_KEY: params.apiKey,
+    ...(apiBaseUrl
+      ? {
+          // Business intent: allow routing Gemini requests through a proxy by overriding the Gemini API base URL.
+          // Notes:
+          // - Gemini CLI uses `@google/genai` internally; that SDK honors `GOOGLE_GEMINI_BASE_URL`.
+          // - We keep the override at runtime so robots can select different proxies per credential profile.
+          GOOGLE_GEMINI_BASE_URL: apiBaseUrl
+        }
+      : {}),
     // Security intent: isolate Gemini CLI state (sessions, caches, policies) per execution scope.
     HOME: params.geminiHomeDir,
     USERPROFILE: params.geminiHomeDir,

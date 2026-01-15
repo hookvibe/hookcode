@@ -61,6 +61,19 @@ const normalizeLanguage = (value: unknown): string | undefined => {
   return raw ? raw : undefined;
 };
 
+const normalizeRepoCredentialSource = (value: unknown): 'robot' | 'user' | 'repo' | undefined => {
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (raw === 'robot' || raw === 'user' || raw === 'repo') return raw;
+  return undefined;
+};
+
+const normalizeRepoCredentialRemark = (value: unknown): string | null | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const raw = typeof value === 'string' ? value.trim() : '';
+  return raw ? raw : null;
+};
+
 const normalizeModelProvider = (value: unknown): string => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
   if (!raw) return CODEX_PROVIDER_KEY;
@@ -99,6 +112,9 @@ const recordToRobot = (row: any): RepoRobot => ({
   name: String(row.name),
   permission: normalizePermission(String(row.permission)),
   hasToken: Boolean((typeof row.token === 'string' ? row.token : '').trim()),
+  // Change record: expose explicit repo credential source + remark for multi-profile selection UX.
+  repoCredentialSource: row.repoCredentialSource ?? undefined,
+  repoCredentialRemark: row.repoCredentialRemark ?? undefined,
   repoCredentialProfileId: row.repoCredentialProfileId ?? undefined,
   cloneUsername: row.cloneUsername ?? undefined,
   repoTokenUserId: row.repoTokenUserId ?? undefined,
@@ -138,7 +154,9 @@ export interface CreateRepoRobotInput {
   name: string;
   token?: string | null;
   cloneUsername?: string | null;
+  repoCredentialSource?: 'robot' | 'user' | 'repo' | string | null;
   repoCredentialProfileId?: string | null;
+  repoCredentialRemark?: string | null;
   promptDefault: string;
   language?: string | null;
   modelProvider?: string;
@@ -152,7 +170,9 @@ export interface UpdateRepoRobotInput {
   name?: string;
   token?: string | null;
   cloneUsername?: string | null;
+  repoCredentialSource?: 'robot' | 'user' | 'repo' | string | null;
   repoCredentialProfileId?: string | null;
+  repoCredentialRemark?: string | null;
   promptDefault?: string;
   language?: string | null;
   modelProvider?: string;
@@ -201,9 +221,30 @@ export class RepoRobotService {
     const name = normalizeRobotName(String(input.name ?? ''));
     if (!name) throw new Error('name is required');
 
-    const token = input.token === undefined ? null : input.token;
+    const tokenRaw = input.token === undefined ? null : input.token;
+    const token =
+      typeof tokenRaw === 'string'
+        ? (tokenRaw.trim() ? tokenRaw.trim() : null)
+        : tokenRaw;
     const cloneUsername = input.cloneUsername === undefined ? null : input.cloneUsername;
-    const repoCredentialProfileId = input.repoCredentialProfileId === undefined ? null : input.repoCredentialProfileId;
+    const repoCredentialProfileIdRaw = input.repoCredentialProfileId === undefined ? null : input.repoCredentialProfileId;
+    const repoCredentialProfileId =
+      typeof repoCredentialProfileIdRaw === 'string'
+        ? (repoCredentialProfileIdRaw.trim() ? repoCredentialProfileIdRaw.trim() : null)
+        : repoCredentialProfileIdRaw;
+    const explicitSource = normalizeRepoCredentialSource(input.repoCredentialSource);
+    const repoCredentialSource = explicitSource ?? (token ? 'robot' : repoCredentialProfileId ? 'user' : 'repo');
+    const repoCredentialRemark = normalizeRepoCredentialRemark(input.repoCredentialRemark);
+
+    // Change record: enforce explicit selection semantics now that both user/repo credentials can be multi-profile.
+    if (repoCredentialSource === 'robot') {
+      if (repoCredentialProfileId) throw new Error('repoCredentialProfileId must be null when repoCredentialSource=robot');
+    } else {
+      if (token) throw new Error('token must be null when repoCredentialSource is user/repo');
+      if (!repoCredentialProfileId) {
+        throw new Error('repoCredentialProfileId is required when repoCredentialSource is user/repo');
+      }
+    }
     const promptDefault = String(input.promptDefault ?? '').trim();
     if (!promptDefault) throw new Error('promptDefault is required');
     const language = input.language === undefined ? null : input.language ? String(input.language).trim() : null;
@@ -223,9 +264,11 @@ export class RepoRobotService {
         repoId,
         name,
         permission,
-        token,
+        token: repoCredentialSource === 'robot' ? token : null,
         cloneUsername,
-        repoCredentialProfileId: token ? null : repoCredentialProfileId,
+        repoCredentialSource,
+        repoCredentialRemark: repoCredentialSource === 'robot' ? (repoCredentialRemark ?? null) : null,
+        repoCredentialProfileId: repoCredentialSource === 'robot' ? null : repoCredentialProfileId,
         repoTokenUserId: null,
         repoTokenUsername: null,
         repoTokenUserName: null,
@@ -264,12 +307,56 @@ export class RepoRobotService {
       input.name === undefined ? existing.name : normalizeRobotName(String(input.name));
     if (!nextName) throw new Error('name is required');
 
-    const existingToken = existing.token ?? null;
-    const nextToken = input.token === undefined ? existingToken : input.token;
+    const existingToken = typeof existing.token === 'string' ? (existing.token.trim() ? existing.token.trim() : null) : null;
+    const nextTokenRaw = input.token === undefined ? existingToken : input.token;
+    const nextToken =
+      typeof nextTokenRaw === 'string'
+        ? (nextTokenRaw.trim() ? nextTokenRaw.trim() : null)
+        : nextTokenRaw;
     const nextCloneUsername =
       input.cloneUsername === undefined ? existing.cloneUsername ?? null : input.cloneUsername;
-    const nextRepoCredentialProfileId =
+    const existingSource =
+      normalizeRepoCredentialSource(existing.repoCredentialSource) ??
+      (existingToken ? 'robot' : String(existing.repoCredentialProfileId ?? '').trim() ? 'user' : 'repo');
+    const requestedSource =
+      input.repoCredentialSource === undefined || input.repoCredentialSource === null
+        ? undefined
+        : normalizeRepoCredentialSource(input.repoCredentialSource);
+
+    const nextRepoCredentialSource = requestedSource ?? existingSource;
+
+    const nextRepoCredentialProfileIdRaw =
       input.repoCredentialProfileId === undefined ? existing.repoCredentialProfileId ?? null : input.repoCredentialProfileId;
+    const nextRepoCredentialProfileId =
+      typeof nextRepoCredentialProfileIdRaw === 'string'
+        ? (nextRepoCredentialProfileIdRaw.trim() ? nextRepoCredentialProfileIdRaw.trim() : null)
+        : nextRepoCredentialProfileIdRaw;
+
+    const nextRepoCredentialRemark =
+      input.repoCredentialRemark === undefined
+        ? (existing.repoCredentialRemark ?? null)
+        : normalizeRepoCredentialRemark(input.repoCredentialRemark);
+
+    // Change record: enforce explicit source + single selected profile semantics for multi-profile credentials.
+    if (nextRepoCredentialSource === 'robot') {
+      const profileProvided =
+        input.repoCredentialProfileId !== undefined &&
+        input.repoCredentialProfileId !== null &&
+        String(input.repoCredentialProfileId ?? '').trim();
+      if (profileProvided) {
+        throw new Error('repoCredentialProfileId must be null when repoCredentialSource=robot');
+      }
+    } else {
+      const tokenProvided =
+        input.token !== undefined &&
+        input.token !== null &&
+        String(input.token ?? '').trim();
+      if (tokenProvided) throw new Error('token must be null when repoCredentialSource is user/repo');
+      if (!nextRepoCredentialProfileId) {
+        throw new Error('repoCredentialProfileId is required when repoCredentialSource is user/repo');
+      }
+    }
+
     const nextPromptDefault =
       input.promptDefault === undefined ? String(existing.promptDefault ?? '').trim() : String(input.promptDefault ?? '').trim();
     if (!nextPromptDefault) throw new Error('promptDefault is required');
@@ -298,11 +385,12 @@ export class RepoRobotService {
       input.defaultBranchRole === undefined
         ? existing.defaultBranchRole ?? null
         : input.defaultBranchRole;
+    const sourceChanged = input.repoCredentialSource !== undefined && nextRepoCredentialSource !== existingSource;
     const profileChanged =
       input.repoCredentialProfileId !== undefined &&
       String(nextRepoCredentialProfileId ?? '').trim() !== String(existing.repoCredentialProfileId ?? '').trim();
     const tokenChanged = input.token !== undefined && nextToken !== existingToken;
-    const credentialChanged = tokenChanged || profileChanged;
+    const credentialChanged = sourceChanged || tokenChanged || profileChanged;
     const nextEnabled =
       credentialChanged ? false : input.enabled === undefined ? existing.enabled : Boolean(input.enabled);
     const nextIsDefault = input.isDefault === undefined ? existing.isDefault : Boolean(input.isDefault);
@@ -327,9 +415,11 @@ export class RepoRobotService {
       data: {
         name: nextName,
         permission: nextPermission,
-        token: nextToken,
+        token: nextRepoCredentialSource === 'robot' ? nextToken : null,
         cloneUsername: nextCloneUsername,
-        repoCredentialProfileId: nextToken ? null : nextRepoCredentialProfileId,
+        repoCredentialSource: nextRepoCredentialSource,
+        repoCredentialRemark: nextRepoCredentialSource === 'robot' ? (nextRepoCredentialRemark ?? null) : null,
+        repoCredentialProfileId: nextRepoCredentialSource === 'robot' ? null : nextRepoCredentialProfileId,
         promptDefault: nextPromptDefault,
         language: nextLanguage,
         modelProvider: nextModelProvider,

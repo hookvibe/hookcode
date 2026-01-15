@@ -8,6 +8,7 @@ import type { User } from '../../types/user';
 import { CODEX_PROVIDER_KEY } from '../../modelProviders/codex';
 import { CLAUDE_CODE_PROVIDER_KEY } from '../../modelProviders/claudeCode';
 import { GEMINI_CLI_PROVIDER_KEY } from '../../modelProviders/geminiCli';
+import { normalizeHttpBaseUrl } from '../../utils/url';
 
 dotenv.config();
 
@@ -74,17 +75,30 @@ const asTrimmedString = (value: unknown): string =>
   (typeof value === 'string' ? value : '').trim();
 
 export interface UserModelCredentials {
-  codex?: { apiBaseUrl?: string; apiKey?: string };
-  claude_code?: { apiKey?: string };
-  gemini_cli?: { apiKey?: string };
+  // Business context: user-scoped model provider credentials can include multiple profiles per provider.
+  codex?: UserModelProviderCredentials;
+  claude_code?: UserModelProviderCredentials;
+  gemini_cli?: UserModelProviderCredentials;
   gitlab?: UserRepoProviderCredentials;
   github?: UserRepoProviderCredentials;
   [key: string]: any;
 }
 
+export interface UserModelProviderCredentialProfile {
+  id: string;
+  remark: string;
+  apiBaseUrl?: string;
+  apiKey?: string;
+}
+
+export interface UserModelProviderCredentials {
+  profiles: UserModelProviderCredentialProfile[];
+  defaultProfileId?: string;
+}
+
 export interface UserRepoProviderCredentialProfile {
   id: string;
-  name: string;
+  remark: string;
   token?: string;
   cloneUsername?: string;
 }
@@ -95,17 +109,29 @@ export interface UserRepoProviderCredentials {
 }
 
 export interface UserModelCredentialsPublic {
-  codex?: { apiBaseUrl?: string; hasApiKey: boolean };
-  claude_code?: { hasApiKey: boolean };
-  gemini_cli?: { hasApiKey: boolean };
+  codex: UserModelProviderCredentialsPublic;
+  claude_code: UserModelProviderCredentialsPublic;
+  gemini_cli: UserModelProviderCredentialsPublic;
   gitlab?: UserRepoProviderCredentialsPublic;
   github?: UserRepoProviderCredentialsPublic;
   [key: string]: any;
 }
 
+export interface UserModelProviderCredentialProfilePublic {
+  id: string;
+  remark: string;
+  apiBaseUrl?: string;
+  hasApiKey: boolean;
+}
+
+export interface UserModelProviderCredentialsPublic {
+  profiles: UserModelProviderCredentialProfilePublic[];
+  defaultProfileId?: string;
+}
+
 export interface UserRepoProviderCredentialProfilePublic {
   id: string;
-  name: string;
+  remark: string;
   hasToken: boolean;
   cloneUsername?: string;
 }
@@ -115,104 +141,115 @@ export interface UserRepoProviderCredentialsPublic {
   defaultProfileId?: string;
 }
 
+const normalizeModelProviderCredentials = (raw: unknown): UserModelProviderCredentials => {
+  if (!isRecord(raw)) return { profiles: [], defaultProfileId: undefined };
+
+  const profilesRaw = Array.isArray(raw.profiles) ? raw.profiles : [];
+  const profiles: UserModelProviderCredentialProfile[] = profilesRaw
+    .map((item) => (isRecord(item) ? (item as Record<string, unknown>) : null))
+    .filter(Boolean)
+    .map((item) => {
+      const id = asTrimmedString(item!.id);
+      const remark = asTrimmedString(item!.remark);
+      const apiKey = asTrimmedString(item!.apiKey);
+      const apiBaseUrl = normalizeHttpBaseUrl(item!.apiBaseUrl);
+
+      return {
+        id,
+        remark,
+        apiKey: apiKey ? apiKey : undefined,
+        apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined
+      };
+    })
+    .filter((p) => p.id && p.remark);
+
+  const defaultProfileId = asTrimmedString(raw.defaultProfileId);
+  const defaultValid = defaultProfileId && profiles.some((p) => p.id === defaultProfileId);
+
+  return {
+    profiles,
+    defaultProfileId: defaultValid ? defaultProfileId : undefined
+  };
+};
+
 const normalizeRepoProviderCredentials = (raw: unknown): UserRepoProviderCredentials | undefined => {
   if (!isRecord(raw)) return undefined;
 
-  const profilesRaw = Array.isArray(raw.profiles) ? raw.profiles : null;
-  if (profilesRaw) {
-    const profiles: UserRepoProviderCredentialProfile[] = profilesRaw
-      .map((item) => (isRecord(item) ? (item as Record<string, unknown>) : null))
-      .filter(Boolean)
-      .map((item) => {
-        const id = asTrimmedString(item!.id);
-        const name = asTrimmedString(item!.name);
-        const token = asTrimmedString(item!.token);
-        const cloneUsername = asTrimmedString(item!.cloneUsername);
-        return {
-          id,
-          name,
-          token: token ? token : undefined,
-          cloneUsername: cloneUsername ? cloneUsername : undefined
-        };
-      })
-      .filter((p) => p.id && p.name);
-
-    const defaultProfileId = asTrimmedString(raw.defaultProfileId);
-    const defaultValid = defaultProfileId && profiles.some((p) => p.id === defaultProfileId);
-
-    return {
-      profiles,
-      defaultProfileId: defaultValid ? defaultProfileId : undefined
-    };
-  }
-
-  // Legacy single-credential shape: `{ token, cloneUsername }`.
-  const token = asTrimmedString(raw.token);
-  const cloneUsername = asTrimmedString(raw.cloneUsername);
-  if (!token && !cloneUsername) return { profiles: [], defaultProfileId: undefined };
-
-  const legacyId = 'legacy';
-  return {
-    profiles: [
-      {
-        id: legacyId,
-        name: 'legacy',
+  const profilesRaw = Array.isArray(raw.profiles) ? raw.profiles : [];
+  const profiles: UserRepoProviderCredentialProfile[] = profilesRaw
+    .map((item) => (isRecord(item) ? (item as Record<string, unknown>) : null))
+    .filter(Boolean)
+    .map((item) => {
+      const id = asTrimmedString(item!.id);
+      const remark = asTrimmedString(item!.remark);
+      const token = asTrimmedString(item!.token);
+      const cloneUsername = asTrimmedString(item!.cloneUsername);
+      return {
+        id,
+        remark,
         token: token ? token : undefined,
         cloneUsername: cloneUsername ? cloneUsername : undefined
-      }
-    ],
-    defaultProfileId: legacyId
+      };
+    })
+    .filter((p) => p.id && p.remark);
+
+  const defaultProfileId = asTrimmedString(raw.defaultProfileId);
+  const defaultValid = defaultProfileId && profiles.some((p) => p.id === defaultProfileId);
+
+  return {
+    profiles,
+    defaultProfileId: defaultValid ? defaultProfileId : undefined
   };
 };
 
 const normalizeUserModelCredentials = (raw: unknown): UserModelCredentials => {
-  if (!isRecord(raw)) return {};
-  const codexRaw = isRecord(raw[CODEX_PROVIDER_KEY]) ? (raw[CODEX_PROVIDER_KEY] as Record<string, unknown>) : null;
-  const apiBaseUrl = codexRaw ? asTrimmedString(codexRaw.apiBaseUrl) : '';
-  const apiKey = codexRaw ? asTrimmedString(codexRaw.apiKey) : '';
-  const claudeRaw = isRecord(raw[CLAUDE_CODE_PROVIDER_KEY]) ? (raw[CLAUDE_CODE_PROVIDER_KEY] as Record<string, unknown>) : null;
-  const claudeApiKey = claudeRaw ? asTrimmedString(claudeRaw.apiKey) : '';
-  const geminiRaw = isRecord(raw[GEMINI_CLI_PROVIDER_KEY]) ? (raw[GEMINI_CLI_PROVIDER_KEY] as Record<string, unknown>) : null;
-  const geminiApiKey = geminiRaw ? asTrimmedString(geminiRaw.apiKey) : '';
-  const gitlab = normalizeRepoProviderCredentials(raw.gitlab);
-  const github = normalizeRepoProviderCredentials(raw.github);
-  return {
-    codex: codexRaw
-      ? {
-          apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined,
-          apiKey: apiKey ? apiKey : undefined
-        }
-      : undefined
-    ,
-    claude_code: claudeRaw
-      ? {
-          apiKey: claudeApiKey ? claudeApiKey : undefined
-        }
-      : undefined,
-    gemini_cli: geminiRaw
-      ? {
-          apiKey: geminiApiKey ? geminiApiKey : undefined
-        }
-      : undefined,
-    gitlab,
-    github
-  };
+  // Business intent: always return a stable object shape so callers can rely on `profiles` arrays.
+  if (!isRecord(raw)) {
+    return {
+      codex: { profiles: [], defaultProfileId: undefined },
+      claude_code: { profiles: [], defaultProfileId: undefined },
+      gemini_cli: { profiles: [], defaultProfileId: undefined },
+      gitlab: { profiles: [], defaultProfileId: undefined },
+      github: { profiles: [], defaultProfileId: undefined }
+    };
+  }
+
+  const codex = normalizeModelProviderCredentials(raw[CODEX_PROVIDER_KEY]);
+  const claude_code = normalizeModelProviderCredentials(raw[CLAUDE_CODE_PROVIDER_KEY]);
+  const gemini_cli = normalizeModelProviderCredentials(raw[GEMINI_CLI_PROVIDER_KEY]);
+  const gitlab = normalizeRepoProviderCredentials(raw.gitlab) ?? { profiles: [], defaultProfileId: undefined };
+  const github = normalizeRepoProviderCredentials(raw.github) ?? { profiles: [], defaultProfileId: undefined };
+
+  return { codex, claude_code, gemini_cli, gitlab, github };
 };
 
 const toPublicUserModelCredentials = (raw: unknown): UserModelCredentialsPublic => {
   const normalized = normalizeUserModelCredentials(raw);
-  const apiBaseUrl = (normalized.codex?.apiBaseUrl ?? '').trim();
-  const apiKey = (normalized.codex?.apiKey ?? '').trim();
-  const claudeApiKey = (normalized.claude_code?.apiKey ?? '').trim();
-  const geminiApiKey = (normalized.gemini_cli?.apiKey ?? '').trim();
+  const toPublicModelProvider = (creds: UserModelProviderCredentials | undefined): UserModelProviderCredentialsPublic => {
+    const profiles = (creds?.profiles ?? []).map((p) => {
+      const apiKey = (p.apiKey ?? '').trim();
+      const apiBaseUrl = (p.apiBaseUrl ?? '').trim();
+      const remark = (p.remark ?? '').trim();
+      return {
+        id: p.id,
+        remark,
+        apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined,
+        hasApiKey: Boolean(apiKey)
+      };
+    });
+    const defaultProfileId = (creds?.defaultProfileId ?? '').trim();
+    const defaultValid = defaultProfileId && profiles.some((p) => p.id === defaultProfileId);
+    return { profiles, defaultProfileId: defaultValid ? defaultProfileId : undefined };
+  };
 
   const toPublicRepoProvider = (creds: UserRepoProviderCredentials | undefined): UserRepoProviderCredentialsPublic => {
     const profiles = (creds?.profiles ?? []).map((p) => {
       const token = (p.token ?? '').trim();
       const cloneUsername = (p.cloneUsername ?? '').trim();
+      const remark = (p.remark ?? '').trim();
       return {
         id: p.id,
-        name: p.name,
+        remark,
         hasToken: Boolean(token),
         cloneUsername: cloneUsername ? cloneUsername : undefined
       };
@@ -222,15 +259,9 @@ const toPublicUserModelCredentials = (raw: unknown): UserModelCredentialsPublic 
     return { profiles, defaultProfileId: defaultValid ? defaultProfileId : undefined };
   };
   return {
-    codex: normalized.codex
-      ? {
-          apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined,
-          hasApiKey: Boolean(apiKey)
-        }
-      : { apiBaseUrl: undefined, hasApiKey: false }
-    ,
-    claude_code: { hasApiKey: Boolean(claudeApiKey) },
-    gemini_cli: { hasApiKey: Boolean(geminiApiKey) },
+    codex: toPublicModelProvider(normalized.codex),
+    claude_code: toPublicModelProvider(normalized.claude_code),
+    gemini_cli: toPublicModelProvider(normalized.gemini_cli),
     gitlab: toPublicRepoProvider(normalized.gitlab),
     github: toPublicRepoProvider(normalized.github)
   };
@@ -249,35 +280,55 @@ export interface UpdateUserInput {
 
 export interface UpdateUserModelCredentialsInput {
   codex?: {
-    apiBaseUrl?: string | null;
-    apiKey?: string | null;
-  };
+    profiles?: Array<{
+      id?: string;
+      remark?: string | null;
+      apiBaseUrl?: string | null;
+      apiKey?: string | null;
+    }> | null;
+    removeProfileIds?: string[] | null;
+    defaultProfileId?: string | null;
+  } | null;
   claude_code?: {
-    apiKey?: string | null;
-  };
+    profiles?: Array<{
+      id?: string;
+      remark?: string | null;
+      apiBaseUrl?: string | null;
+      apiKey?: string | null;
+    }> | null;
+    removeProfileIds?: string[] | null;
+    defaultProfileId?: string | null;
+  } | null;
   gemini_cli?: {
-    apiKey?: string | null;
-  };
+    profiles?: Array<{
+      id?: string;
+      remark?: string | null;
+      apiBaseUrl?: string | null;
+      apiKey?: string | null;
+    }> | null;
+    removeProfileIds?: string[] | null;
+    defaultProfileId?: string | null;
+  } | null;
   gitlab?: {
     profiles?: Array<{
       id?: string;
-      name?: string | null;
+      remark?: string | null;
       token?: string | null;
       cloneUsername?: string | null;
     }> | null;
     removeProfileIds?: string[] | null;
     defaultProfileId?: string | null;
-  };
+  } | null;
   github?: {
     profiles?: Array<{
       id?: string;
-      name?: string | null;
+      remark?: string | null;
       token?: string | null;
       cloneUsername?: string | null;
     }> | null;
     removeProfileIds?: string[] | null;
     defaultProfileId?: string | null;
-  };
+  } | null;
 }
 
 @Injectable()
@@ -397,83 +448,136 @@ export class UserService {
     const current = normalizeUserModelCredentials(existing.modelCredentials as any);
     const next: UserModelCredentials = { ...current };
 
+    const applyModelProviderUpdate = (
+      currentProvider: UserModelProviderCredentials | undefined,
+      update:
+        | UpdateUserModelCredentialsInput['codex']
+        | UpdateUserModelCredentialsInput['claude_code']
+        | UpdateUserModelCredentialsInput['gemini_cli']
+    ): UserModelProviderCredentials => {
+      // Business intent: allow wiping provider credentials without requiring backwards compatibility.
+      if (update === null) return { profiles: [], defaultProfileId: undefined };
+
+      const map = new Map<string, UserModelProviderCredentialProfile>();
+      (currentProvider?.profiles ?? []).forEach((p) => {
+        if (!p.id) return;
+        map.set(p.id, { ...p });
+      });
+
+      const removeIds = Array.isArray(update?.removeProfileIds) ? update.removeProfileIds : [];
+      removeIds
+        .map((id) => asTrimmedString(id))
+        .filter(Boolean)
+        .forEach((id) => map.delete(id));
+
+      const patches = Array.isArray(update?.profiles) ? update.profiles : [];
+      patches.forEach((patch) => {
+        if (!isRecord(patch)) return;
+        const patchId = asTrimmedString(patch.id) || randomUUID();
+        const existing = map.get(patchId);
+        const currentRemark = existing?.remark ?? '';
+        const currentApiKey = existing?.apiKey;
+        const currentApiBaseUrl = existing?.apiBaseUrl;
+
+        const remark =
+          patch.remark === undefined
+            ? currentRemark
+            : patch.remark === null
+              ? ''
+              : asTrimmedString(patch.remark);
+        if (!remark) {
+          throw new Error('model provider credential profile remark is required');
+        }
+
+        const apiKey =
+          patch.apiKey === undefined
+            ? currentApiKey
+            : patch.apiKey === null
+              ? undefined
+              : asTrimmedString(patch.apiKey);
+
+        const apiBaseUrl =
+          patch.apiBaseUrl === undefined
+            ? currentApiBaseUrl
+            : patch.apiBaseUrl === null
+              ? undefined
+              : normalizeHttpBaseUrl(patch.apiBaseUrl);
+
+        map.set(patchId, {
+          id: patchId,
+          remark,
+          apiKey: apiKey ? apiKey : undefined,
+          apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined
+        });
+      });
+
+      const requestedDefault =
+        update?.defaultProfileId === undefined
+          ? (currentProvider?.defaultProfileId ?? undefined)
+          : update.defaultProfileId === null
+            ? undefined
+            : asTrimmedString(update.defaultProfileId);
+
+      const profiles = Array.from(map.values());
+      const defaultProfileId =
+        requestedDefault && profiles.some((p) => p.id === requestedDefault) ? requestedDefault : undefined;
+
+      return { profiles, defaultProfileId };
+    };
+
     if (input.codex !== undefined) {
-      const currentCodex = current.codex ?? {};
-      const apiBaseUrl =
-        input.codex.apiBaseUrl === undefined
-          ? currentCodex.apiBaseUrl
-          : input.codex.apiBaseUrl === null
-            ? undefined
-            : asTrimmedString(input.codex.apiBaseUrl);
-      const apiKey =
-        input.codex.apiKey === undefined
-          ? currentCodex.apiKey
-          : input.codex.apiKey === null
-            ? undefined
-            : asTrimmedString(input.codex.apiKey);
-      next.codex = {
-        apiBaseUrl: apiBaseUrl ? apiBaseUrl : undefined,
-        apiKey: apiKey ? apiKey : undefined
-      };
+      // Change record: account-scoped Codex credentials now support multiple profiles.
+      next.codex = applyModelProviderUpdate(current.codex, input.codex);
     }
 
     if (input.claude_code !== undefined) {
-      // Change record: allow users to configure Claude Code API key side-by-side with Codex credentials.
-      const currentClaude = current.claude_code ?? {};
-      const apiKey =
-        input.claude_code.apiKey === undefined
-          ? currentClaude.apiKey
-          : input.claude_code.apiKey === null
-            ? undefined
-            : asTrimmedString(input.claude_code.apiKey);
-      next.claude_code = { apiKey: apiKey ? apiKey : undefined };
+      // Change record: account-scoped Claude Code credentials now support multiple profiles + API Base URL.
+      next.claude_code = applyModelProviderUpdate(current.claude_code, input.claude_code);
     }
 
     if (input.gemini_cli !== undefined) {
-      // Change record: allow users to configure Gemini CLI API key side-by-side with Codex/Claude Code credentials.
-      const currentGemini = current.gemini_cli ?? {};
-      const apiKey =
-        input.gemini_cli.apiKey === undefined
-          ? currentGemini.apiKey
-          : input.gemini_cli.apiKey === null
-            ? undefined
-            : asTrimmedString(input.gemini_cli.apiKey);
-      next.gemini_cli = { apiKey: apiKey ? apiKey : undefined };
+      // Change record: account-scoped Gemini CLI credentials now support multiple profiles + API Base URL.
+      next.gemini_cli = applyModelProviderUpdate(current.gemini_cli, input.gemini_cli);
     }
 
     const applyRepoProviderUpdate = (
       currentProvider: UserRepoProviderCredentials | undefined,
       update: UpdateUserModelCredentialsInput['gitlab'] | UpdateUserModelCredentialsInput['github']
     ): UserRepoProviderCredentials => {
+      // TypeScript note: `UpdateUserModelCredentialsInput['gitlab']` is optional, so `undefined` is possible at the type level.
+      // Business intent: treat `undefined` as "no-op" and keep the current provider credentials.
+      if (update === undefined) return currentProvider ?? { profiles: [], defaultProfileId: undefined };
+      if (update === null) return { profiles: [], defaultProfileId: undefined };
+
       const map = new Map<string, UserRepoProviderCredentialProfile>();
       (currentProvider?.profiles ?? []).forEach((p) => {
         if (!p.id) return;
         map.set(p.id, { ...p });
       });
 
-      const removeIds = Array.isArray((update as any)?.removeProfileIds) ? ((update as any).removeProfileIds as any[]) : [];
+      const removeIds = Array.isArray(update.removeProfileIds) ? update.removeProfileIds : [];
       removeIds
         .map((id) => asTrimmedString(id))
         .filter(Boolean)
         .forEach((id) => map.delete(id));
 
-      const patches = Array.isArray((update as any)?.profiles) ? ((update as any).profiles as any[]) : [];
+      const patches = Array.isArray(update.profiles) ? update.profiles : [];
       patches.forEach((patch) => {
         if (!isRecord(patch)) return;
         const patchId = asTrimmedString(patch.id) || randomUUID();
         const existing = map.get(patchId);
-        const currentName = existing?.name ?? '';
+        const currentRemark = existing?.remark ?? '';
         const currentToken = existing?.token;
         const currentCloneUsername = existing?.cloneUsername;
 
-        const name =
-          patch.name === undefined
-            ? currentName
-            : patch.name === null
+        const remark =
+          patch.remark === undefined
+            ? currentRemark
+            : patch.remark === null
               ? ''
-              : asTrimmedString(patch.name);
-        if (!name) {
-          throw new Error('repo provider credential profile name is required');
+              : asTrimmedString(patch.remark);
+        if (!remark) {
+          throw new Error('repo provider credential profile remark is required');
         }
 
         const token =
@@ -491,18 +595,18 @@ export class UserService {
 
         map.set(patchId, {
           id: patchId,
-          name,
+          remark,
           token: token ? token : undefined,
           cloneUsername: cloneUsername ? cloneUsername : undefined
         });
       });
 
       const requestedDefault =
-        (update as any)?.defaultProfileId === undefined
+        update.defaultProfileId === undefined
           ? (currentProvider?.defaultProfileId ?? undefined)
-          : (update as any).defaultProfileId === null
+          : update.defaultProfileId === null
             ? undefined
-            : asTrimmedString((update as any).defaultProfileId);
+            : asTrimmedString(update.defaultProfileId);
 
       const profiles = Array.from(map.values());
       const defaultProfileId = requestedDefault && profiles.some((p) => p.id === requestedDefault) ? requestedDefault : undefined;

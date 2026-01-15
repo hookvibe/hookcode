@@ -131,21 +131,19 @@ export class UsersController {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
 
-      const codex = body.codex && typeof body.codex === 'object' ? body.codex : undefined;
-      const gitlab = body.gitlab && typeof body.gitlab === 'object' ? body.gitlab : undefined;
-      const github = body.github && typeof body.github === 'object' ? body.github : undefined;
-
       const credentials = await this.userService.updateModelCredentials(req.user.id, {
-        ...(codex ? { codex } : {}),
-        ...(gitlab ? { gitlab } : {}),
-        ...(github ? { github } : {})
+        ...(body.codex !== undefined ? { codex: body.codex as any } : {}),
+        ...(body.claude_code !== undefined ? { claude_code: body.claude_code as any } : {}),
+        ...(body.gemini_cli !== undefined ? { gemini_cli: body.gemini_cli as any } : {}),
+        ...(body.gitlab !== undefined ? { gitlab: body.gitlab as any } : {}),
+        ...(body.github !== undefined ? { github: body.github as any } : {})
       });
       if (!credentials) throw new NotFoundException({ error: 'User not found' });
       return { credentials };
     } catch (err: any) {
       if (err instanceof HttpException) throw err;
       const message = err?.message ? String(err.message) : '';
-      if (message.includes('repo provider credential profile name is required')) {
+      if (message.includes('repo provider credential profile remark is required') || message.includes('model provider credential profile remark is required')) {
         throw new BadRequestException({ error: message });
       }
       console.error('[users] update model credentials failed', err);

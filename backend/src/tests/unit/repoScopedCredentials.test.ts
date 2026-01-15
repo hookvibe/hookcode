@@ -16,21 +16,43 @@ describe('Repository repo-scoped credentials', () => {
     const repositoryService = new RepositoryService();
 
     (db.repository.findUnique as jest.Mock).mockResolvedValue({
-      repoProviderCredentials: { token: 'tok', cloneUsername: 'oauth2' },
-      modelProviderCredentials: { codex: { apiBaseUrl: 'https://api.example.com', apiKey: 'k' } }
+      repoProviderCredentials: {
+        profiles: [{ id: 'rp-1', remark: 'main', token: 'tok', cloneUsername: 'oauth2' }],
+        defaultProfileId: 'rp-1'
+      },
+      modelProviderCredentials: {
+        codex: {
+          profiles: [{ id: 'mp-1', remark: 'main', apiBaseUrl: 'https://api.example.com', apiKey: 'k' }],
+          defaultProfileId: 'mp-1'
+        }
+      }
     });
 
     const result = await repositoryService.getRepoScopedCredentials('r1');
     expect(result).toEqual(
       expect.objectContaining({
-        repoProvider: { token: 'tok', cloneUsername: 'oauth2' },
-        modelProvider: expect.objectContaining({ codex: { apiBaseUrl: 'https://api.example.com', apiKey: 'k' } }),
+        repoProvider: {
+          profiles: [{ id: 'rp-1', remark: 'main', token: 'tok', cloneUsername: 'oauth2' }],
+          defaultProfileId: 'rp-1'
+        },
+        modelProvider: expect.objectContaining({
+          codex: {
+            profiles: [{ id: 'mp-1', remark: 'main', apiBaseUrl: 'https://api.example.com/', apiKey: 'k' }],
+            defaultProfileId: 'mp-1'
+          }
+        }),
         public: {
-          repoProvider: { hasToken: true, cloneUsername: 'oauth2' },
+          repoProvider: {
+            profiles: [{ id: 'rp-1', remark: 'main', hasToken: true, cloneUsername: 'oauth2' }],
+            defaultProfileId: 'rp-1'
+          },
           modelProvider: {
-            codex: { apiBaseUrl: 'https://api.example.com', hasApiKey: true },
-            claude_code: { hasApiKey: false },
-            gemini_cli: { hasApiKey: false }
+            codex: {
+              profiles: [{ id: 'mp-1', remark: 'main', apiBaseUrl: 'https://api.example.com/', hasApiKey: true }],
+              defaultProfileId: 'mp-1'
+            },
+            claude_code: { profiles: [], defaultProfileId: undefined },
+            gemini_cli: { profiles: [], defaultProfileId: undefined }
           }
         }
       })
@@ -65,8 +87,16 @@ describe('Repository repo-scoped credentials', () => {
       })
       // getRepoScopedCredentials()
       .mockResolvedValueOnce({
-        repoProviderCredentials: { token: 'oldTok', cloneUsername: 'oauth2' },
-        modelProviderCredentials: { codex: { apiBaseUrl: 'https://old.example.com', apiKey: 'oldKey' } }
+        repoProviderCredentials: {
+          profiles: [{ id: 'rp-1', remark: 'main', token: 'oldTok', cloneUsername: 'oauth2' }],
+          defaultProfileId: 'rp-1'
+        },
+        modelProviderCredentials: {
+          codex: {
+            profiles: [{ id: 'mp-1', remark: 'main', apiBaseUrl: 'https://old.example.com', apiKey: 'oldKey' }],
+            defaultProfileId: 'mp-1'
+          }
+        }
       });
 
     (db.repository.update as jest.Mock).mockResolvedValue({
@@ -90,15 +120,23 @@ describe('Repository repo-scoped credentials', () => {
     });
 
     await repositoryService.updateRepository('r1', {
-      repoProviderCredential: { cloneUsername: 'alice' },
-      modelProviderCredential: { codex: { apiBaseUrl: 'https://new.example.com' } }
+      repoProviderCredential: { profiles: [{ id: 'rp-1', cloneUsername: 'alice' }] },
+      modelProviderCredential: { codex: { profiles: [{ id: 'mp-1', apiBaseUrl: 'https://new.example.com' }] } }
     });
 
     expect(db.repository.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          repoProviderCredentials: { token: 'oldTok', cloneUsername: 'alice' },
-          modelProviderCredentials: { codex: { apiBaseUrl: 'https://new.example.com', apiKey: 'oldKey' } }
+          repoProviderCredentials: {
+            profiles: [{ id: 'rp-1', remark: 'main', token: 'oldTok', cloneUsername: 'alice' }],
+            defaultProfileId: 'rp-1'
+          },
+          modelProviderCredentials: {
+            codex: {
+              profiles: [{ id: 'mp-1', remark: 'main', apiKey: 'oldKey', apiBaseUrl: 'https://new.example.com/' }],
+              defaultProfileId: 'mp-1'
+            }
+          }
         })
       })
     );

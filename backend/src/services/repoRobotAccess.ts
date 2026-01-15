@@ -5,9 +5,14 @@ const asTrimmedString = (value: unknown): string => (typeof value === 'string' ?
 
 export type RepoProviderCredentialSource = 'auto' | 'user' | 'repo' | 'robot';
 
-export interface RepoScopedRepoProviderCredential {
-  token?: string | null;
-  cloneUsername?: string | null;
+export interface RepoScopedRepoProviderCredentials {
+  profiles?: Array<{
+    id?: string | null;
+    token?: string | null;
+    cloneUsername?: string | null;
+    remark?: string | null;
+  }> | null;
+  defaultProfileId?: string | null;
 }
 
 const getUserProviderCredentials = (
@@ -38,8 +43,13 @@ const getUserProviderCredentials = (
 
 export const inferRobotRepoProviderCredentialSource = (robot: {
   token?: string | null;
+  repoCredentialSource?: string | null;
   repoCredentialProfileId?: string | null;
 }): Exclude<RepoProviderCredentialSource, 'auto'> => {
+  // Change record: allow explicit source selection now that both user/repo credentials can have profile ids.
+  const explicit = asTrimmedString(robot.repoCredentialSource);
+  if (explicit === 'robot' || explicit === 'user' || explicit === 'repo') return explicit;
+
   const robotToken = asTrimmedString(robot.token);
   if (robotToken) return 'robot';
   const profileId = asTrimmedString(robot.repoCredentialProfileId);
@@ -47,18 +57,36 @@ export const inferRobotRepoProviderCredentialSource = (robot: {
   return 'repo';
 };
 
+const getRepoProviderCredentials = (
+  repoCredentials: RepoScopedRepoProviderCredentials | null | undefined,
+  profileId?: string | null
+): { token: string; cloneUsername: string } => {
+  const profiles = Array.isArray((repoCredentials as any)?.profiles) ? ((repoCredentials as any).profiles as any[]) : [];
+  const requestedId = asTrimmedString(profileId);
+  const defaultId = asTrimmedString((repoCredentials as any)?.defaultProfileId);
+
+  const selected =
+    (requestedId && profiles.find((p) => asTrimmedString(p?.id) === requestedId)) ||
+    (defaultId && profiles.find((p) => asTrimmedString(p?.id) === defaultId)) ||
+    profiles.find((p) => Boolean(p && asTrimmedString(p?.id)));
+
+  const token = asTrimmedString(selected?.token);
+  const cloneUsername = asTrimmedString(selected?.cloneUsername);
+  return { token, cloneUsername };
+};
+
 export const resolveRobotProviderToken = (params: {
   provider: RepoProvider;
-  robot: { token?: string | null; repoCredentialProfileId?: string | null };
+  robot: { token?: string | null; repoCredentialSource?: string | null; repoCredentialProfileId?: string | null };
   userCredentials: UserModelCredentials | null;
-  repoCredentials?: RepoScopedRepoProviderCredential | null;
+  repoCredentials?: RepoScopedRepoProviderCredentials | null;
   source?: RepoProviderCredentialSource;
 }): string => {
   const source: RepoProviderCredentialSource = params.source ?? 'auto';
 
   const robotToken = asTrimmedString(params.robot.token);
   const userToken = getUserProviderCredentials(params.provider, params.userCredentials, params.robot.repoCredentialProfileId).token;
-  const repoToken = asTrimmedString(params.repoCredentials?.token);
+  const repoToken = getRepoProviderCredentials(params.repoCredentials, params.robot.repoCredentialProfileId).token;
 
   if (source === 'robot') return robotToken;
   if (source === 'user') return userToken;
@@ -72,9 +100,9 @@ export const resolveRobotProviderToken = (params: {
 
 export const resolveRobotCloneUsername = (params: {
   provider: RepoProvider;
-  robot: { cloneUsername?: string | null; repoCredentialProfileId?: string | null };
+  robot: { cloneUsername?: string | null; repoCredentialSource?: string | null; repoCredentialProfileId?: string | null };
   userCredentials: UserModelCredentials | null;
-  repoCredentials?: RepoScopedRepoProviderCredential | null;
+  repoCredentials?: RepoScopedRepoProviderCredentials | null;
   source?: RepoProviderCredentialSource;
 }): string => {
   const source: RepoProviderCredentialSource = params.source ?? 'auto';
@@ -87,7 +115,7 @@ export const resolveRobotCloneUsername = (params: {
     params.userCredentials,
     params.robot.repoCredentialProfileId
   ).cloneUsername;
-  const repoCloneUsername = asTrimmedString(params.repoCredentials?.cloneUsername);
+  const repoCloneUsername = getRepoProviderCredentials(params.repoCredentials, params.robot.repoCredentialProfileId).cloneUsername;
 
   if (source === 'user') return userCloneUsername;
   if (source === 'repo') return repoCloneUsername;
@@ -98,9 +126,9 @@ export const resolveRobotCloneUsername = (params: {
 
 export const getGitCloneAuth = (params: {
   provider: RepoProvider;
-  robot: { token?: string | null; cloneUsername?: string | null; repoCredentialProfileId?: string | null };
+  robot: { token?: string | null; cloneUsername?: string | null; repoCredentialSource?: string | null; repoCredentialProfileId?: string | null };
   userCredentials: UserModelCredentials | null;
-  repoCredentials?: RepoScopedRepoProviderCredential | null;
+  repoCredentials?: RepoScopedRepoProviderCredentials | null;
   source?: RepoProviderCredentialSource;
 }): { username: string; password: string } | undefined => {
   const token = resolveRobotProviderToken({

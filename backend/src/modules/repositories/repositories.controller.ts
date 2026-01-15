@@ -86,6 +86,26 @@ const normalizeDefaultBranch = (value: unknown): string | null | undefined => {
   return trimmed ? trimmed : null;
 };
 
+const normalizeNullableTrimmedString = (value: unknown, fieldName: string): string | null | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') throw new Error(`${fieldName} must be string or null`);
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const normalizeRepoCredentialSource = (
+  value: unknown
+): 'robot' | 'user' | 'repo' | null | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') throw new Error('repoCredentialSource must be string or null');
+  const raw = value.trim().toLowerCase();
+  if (!raw) return null;
+  if (raw === 'robot' || raw === 'user' || raw === 'repo') return raw;
+  throw new Error('repoCredentialSource must be robot/user/repo or null');
+};
+
 @Controller('repos')
 @ApiTags('Repos')
 @ApiBearerAuth('bearerAuth')
@@ -353,80 +373,9 @@ export class RepositoriesController {
               ? body.webhookSecret
               : undefined;
 
-      const parseCredentialStringPatch = (value: any): string | null | undefined => {
-        if (value === undefined) return undefined;
-        if (value === null) return null;
-        if (typeof value !== 'string') return undefined;
-        const trimmed = value.trim();
-        return trimmed ? trimmed : null;
-      };
-
-      const rawRepoProviderCredential = body?.repoProviderCredential;
-      const repoProviderCredential =
-        rawRepoProviderCredential === undefined
-          ? undefined
-          : rawRepoProviderCredential === null
-            ? null
-            : typeof rawRepoProviderCredential === 'object' && rawRepoProviderCredential
-              ? {
-                  token: parseCredentialStringPatch((rawRepoProviderCredential as any).token),
-                  cloneUsername: parseCredentialStringPatch((rawRepoProviderCredential as any).cloneUsername)
-                }
-              : (() => {
-                  throw new Error('repoProviderCredential must be object or null');
-                })();
-
-      const rawModelProviderCredential = body?.modelProviderCredential;
-      const modelProviderCredential =
-        rawModelProviderCredential === undefined
-          ? undefined
-          : rawModelProviderCredential === null
-            ? null
-            : typeof rawModelProviderCredential === 'object' && rawModelProviderCredential
-              ? {
-                  codex:
-                    (rawModelProviderCredential as any).codex === undefined
-                      ? undefined
-                      : (rawModelProviderCredential as any).codex === null
-                        ? null
-                        : typeof (rawModelProviderCredential as any).codex === 'object' && (rawModelProviderCredential as any).codex
-                          ? {
-                              apiBaseUrl: parseCredentialStringPatch((rawModelProviderCredential as any).codex.apiBaseUrl),
-                              apiKey: parseCredentialStringPatch((rawModelProviderCredential as any).codex.apiKey)
-                            }
-                          : (() => {
-                              throw new Error('modelProviderCredential.codex must be object or null');
-                            })()
-                  ,
-                  claude_code:
-                    (rawModelProviderCredential as any).claude_code === undefined
-                      ? undefined
-                      : (rawModelProviderCredential as any).claude_code === null
-                        ? null
-                        : typeof (rawModelProviderCredential as any).claude_code === 'object' && (rawModelProviderCredential as any).claude_code
-                          ? {
-                              apiKey: parseCredentialStringPatch((rawModelProviderCredential as any).claude_code.apiKey)
-                            }
-                          : (() => {
-                              throw new Error('modelProviderCredential.claude_code must be object or null');
-                            })()
-                  ,
-                  gemini_cli:
-                    (rawModelProviderCredential as any).gemini_cli === undefined
-                      ? undefined
-                      : (rawModelProviderCredential as any).gemini_cli === null
-                        ? null
-                        : typeof (rawModelProviderCredential as any).gemini_cli === 'object' && (rawModelProviderCredential as any).gemini_cli
-                          ? {
-                              apiKey: parseCredentialStringPatch((rawModelProviderCredential as any).gemini_cli.apiKey)
-                            }
-                          : (() => {
-                              throw new Error('modelProviderCredential.gemini_cli must be object or null');
-                            })()
-                }
-              : (() => {
-                  throw new Error('modelProviderCredential must be object or null');
-                })();
+      // Change record: repo-scoped credentials are now updated via profile patch objects (profiles/remove/default).
+      const repoProviderCredential = body?.repoProviderCredential as any;
+      const modelProviderCredential = body?.modelProviderCredential as any;
 
       const updated = await this.repositoryService.updateRepository(repoId, {
         name,
@@ -457,11 +406,8 @@ export class RepositoriesController {
         throw new BadRequestException({ error: message });
       }
       if (
-        message.includes('repoProviderCredential must be') ||
-        message.includes('modelProviderCredential must be') ||
-        message.includes('modelProviderCredential.codex must be') ||
-        message.includes('modelProviderCredential.claude_code must be') ||
-        message.includes('modelProviderCredential.gemini_cli must be')
+        message.includes('repo provider credential profile remark is required') ||
+        message.includes('model provider credential profile remark is required')
       ) {
         throw new BadRequestException({ error: message });
       }
@@ -515,28 +461,39 @@ export class RepositoriesController {
       }
 
       const name = typeof body?.name === 'string' ? body.name.trim() : '';
-      const token =
-        typeof body?.token === 'string' ? (body.token.trim() ? body.token.trim() : null) : body?.token === null ? null : undefined;
-      const cloneUsername =
-        body?.cloneUsername === undefined
-          ? undefined
-          : body?.cloneUsername === null
-            ? null
-            : typeof body?.cloneUsername === 'string'
-              ? body.cloneUsername
-              : undefined;
-      const repoCredentialProfileIdRaw =
-        body?.repoCredentialProfileId === undefined
-          ? undefined
-          : body?.repoCredentialProfileId === null
-            ? null
-            : typeof body?.repoCredentialProfileId === 'string'
-              ? body.repoCredentialProfileId.trim()
-              : undefined;
-      const repoCredentialProfileId =
-        typeof repoCredentialProfileIdRaw === 'string'
-          ? (repoCredentialProfileIdRaw.trim() ? repoCredentialProfileIdRaw.trim() : null)
-          : repoCredentialProfileIdRaw;
+      const token = normalizeNullableTrimmedString(body?.token, 'token');
+      const repoCredentialSourceRaw = normalizeRepoCredentialSource(body?.repoCredentialSource);
+      const repoCredentialProfileId = normalizeNullableTrimmedString(body?.repoCredentialProfileId, 'repoCredentialProfileId');
+      const cloneUsername = normalizeNullableTrimmedString(body?.cloneUsername, 'cloneUsername');
+      const repoCredentialRemark = normalizeNullableTrimmedString(body?.repoCredentialRemark, 'repoCredentialRemark');
+
+      // Enforce explicit scope selection (robot/user/repo) now that both user/repo credentials can have multiple profiles.
+      const repoCredentialSource: 'robot' | 'user' | 'repo' = (() => {
+        if (repoCredentialSourceRaw === 'robot' || repoCredentialSourceRaw === 'user' || repoCredentialSourceRaw === 'repo') {
+          return repoCredentialSourceRaw;
+        }
+        if (token) return 'robot';
+        if (repoCredentialProfileId) {
+          throw new BadRequestException({ error: 'repoCredentialSource is required when selecting a credential profile' });
+        }
+        throw new BadRequestException({ error: 'repoCredentialSource and repoCredentialProfileId are required' });
+      })();
+
+      if (repoCredentialSource === 'robot') {
+        if (repoCredentialProfileId) {
+          throw new BadRequestException({ error: 'repoCredentialProfileId must be null when repoCredentialSource=robot' });
+        }
+      } else {
+        if (token) {
+          throw new BadRequestException({ error: 'token must be null when repoCredentialSource is user/repo' });
+        }
+        if (!repoCredentialProfileId) {
+          throw new BadRequestException({ error: 'repoCredentialProfileId is required when repoCredentialSource is user/repo' });
+        }
+        if (repoCredentialRemark !== undefined) {
+          throw new BadRequestException({ error: 'repoCredentialRemark is only supported for repoCredentialSource=robot' });
+        }
+      }
       const defaultBranch = body?.defaultBranch === undefined ? undefined : normalizeDefaultBranch(body?.defaultBranch);
       const defaultBranchRole =
         body?.defaultBranchRole === undefined ? undefined : normalizeDefaultBranchRole(body?.defaultBranchRole);
@@ -549,10 +506,6 @@ export class RepositoriesController {
       const modelProviderConfig = body?.modelProviderConfig;
       const isDefault = typeof body?.isDefault === 'boolean' ? body.isDefault : undefined;
 
-      if (token && repoCredentialProfileId) {
-        throw new BadRequestException({ error: 'cannot set both token and repoCredentialProfileId' });
-      }
-
       let repoScopedCredentials:
         | Awaited<ReturnType<RepositoryService['getRepoScopedCredentials']>>
         | null
@@ -563,13 +516,14 @@ export class RepositoriesController {
         return repoScopedCredentials;
       };
 
-      // Repo provider credentials source (3 scopes):
-      // - per-robot token (robot.token)
-      // - account-level token profile (robot.repoCredentialProfileId)
-      // - repo-scoped token (when both token and repoCredentialProfileId are empty)
-      if (!token && repoCredentialProfileId) {
+      const loadUserCredentials = async () => {
         if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
-        const rawCredentials = await this.userService.getModelCredentialsRaw(req.user.id);
+        return await this.userService.getModelCredentialsRaw(req.user.id);
+      };
+
+      // Repo provider credential validation by scope.
+      if (repoCredentialSource === 'user') {
+        const rawCredentials = await loadUserCredentials();
         const providerCredentials = repo.provider === 'github' ? rawCredentials?.github : rawCredentials?.gitlab;
         const profile = (providerCredentials?.profiles ?? []).find((p) => p.id === repoCredentialProfileId);
         if (!profile) {
@@ -578,47 +532,69 @@ export class RepositoriesController {
         if (!String(profile.token ?? '').trim()) {
           throw new BadRequestException({ error: 'selected repo credential profile token is missing' });
         }
-      } else if (!token && !repoCredentialProfileId) {
+      } else if (repoCredentialSource === 'repo') {
         const repoScopedCredentials = await loadRepoScopedCredentials();
-        if (!String(repoScopedCredentials?.repoProvider?.token ?? '').trim()) {
-          throw new BadRequestException({ error: 'repo-scoped repo provider token is missing' });
+        const profile = (repoScopedCredentials?.repoProvider?.profiles ?? []).find((p) => p.id === repoCredentialProfileId);
+        if (!profile) {
+          throw new BadRequestException({ error: 'repoCredentialProfileId does not exist in repo-scoped credentials' });
+        }
+        if (!String(profile.token ?? '').trim()) {
+          throw new BadRequestException({ error: 'selected repo-scoped repo provider token is missing' });
         }
       }
 
       const normalizedModelProvider = typeof modelProvider === 'string' ? modelProvider.trim().toLowerCase() : CODEX_PROVIDER_KEY;
+      const validateModelCredential = async (cfg: { credentialSource: string; credentialProfileId?: string; credential?: { apiKey?: string } }, providerKey: string) => {
+        const credentialSource = String(cfg.credentialSource ?? '').trim().toLowerCase();
+        if (credentialSource === 'robot') {
+          if (!String(cfg.credential?.apiKey ?? '').trim()) {
+            throw new BadRequestException({ error: `${providerKey} apiKey is required (robot credential)` });
+          }
+          return;
+        }
+
+        const profileId = String(cfg.credentialProfileId ?? '').trim();
+        if (!profileId) {
+          throw new BadRequestException({ error: `${providerKey} credentialProfileId is required when credentialSource is user/repo` });
+        }
+
+        if (credentialSource === 'user') {
+          const rawCredentials = await loadUserCredentials();
+          const providerCredentials = (rawCredentials as any)?.[providerKey] as any;
+          const profile = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles.find((p: any) => p && p.id === profileId) : null;
+          if (!profile) throw new BadRequestException({ error: `${providerKey} credentialProfileId does not exist in your account credentials` });
+          if (!String(profile.apiKey ?? '').trim()) throw new BadRequestException({ error: `selected ${providerKey} profile apiKey is missing` });
+          return;
+        }
+
+        if (credentialSource === 'repo') {
+          const repoScopedCredentials = await loadRepoScopedCredentials();
+          const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[providerKey] as any;
+          const profile = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles.find((p: any) => p && p.id === profileId) : null;
+          if (!profile) throw new BadRequestException({ error: `${providerKey} credentialProfileId does not exist in repo-scoped credentials` });
+          if (!String(profile.apiKey ?? '').trim()) throw new BadRequestException({ error: `selected repo-scoped ${providerKey} apiKey is missing` });
+          return;
+        }
+      };
+
       if (!normalizedModelProvider || normalizedModelProvider === CODEX_PROVIDER_KEY) {
         const cfg = normalizeCodexRobotProviderConfig(modelProviderConfig);
-        if (cfg.credentialSource === 'repo') {
-          const repoScopedCredentials = await loadRepoScopedCredentials();
-          if (!String(repoScopedCredentials?.modelProvider?.codex?.apiKey ?? '').trim()) {
-            throw new BadRequestException({ error: 'repo-scoped model provider apiKey is missing' });
-          }
-        }
-      }
-      if (normalizedModelProvider === CLAUDE_CODE_PROVIDER_KEY) {
+        await validateModelCredential(cfg as any, CODEX_PROVIDER_KEY);
+      } else if (normalizedModelProvider === CLAUDE_CODE_PROVIDER_KEY) {
         const cfg = normalizeClaudeCodeRobotProviderConfig(modelProviderConfig);
-        if (cfg.credentialSource === 'repo') {
-          const repoScopedCredentials = await loadRepoScopedCredentials();
-          if (!String(repoScopedCredentials?.modelProvider?.claude_code?.apiKey ?? '').trim()) {
-            throw new BadRequestException({ error: 'repo-scoped model provider apiKey is missing' });
-          }
-        }
-      }
-      if (normalizedModelProvider === GEMINI_CLI_PROVIDER_KEY) {
+        await validateModelCredential(cfg as any, CLAUDE_CODE_PROVIDER_KEY);
+      } else if (normalizedModelProvider === GEMINI_CLI_PROVIDER_KEY) {
         const cfg = normalizeGeminiCliRobotProviderConfig(modelProviderConfig);
-        if (cfg.credentialSource === 'repo') {
-          const repoScopedCredentials = await loadRepoScopedCredentials();
-          if (!String(repoScopedCredentials?.modelProvider?.gemini_cli?.apiKey ?? '').trim()) {
-            throw new BadRequestException({ error: 'repo-scoped model provider apiKey is missing' });
-          }
-        }
+        await validateModelCredential(cfg as any, GEMINI_CLI_PROVIDER_KEY);
       }
 
       const robot = await this.repoRobotService.createRobot(req.user ?? null, repoId, {
         name,
         token,
+        repoCredentialSource,
         cloneUsername,
         repoCredentialProfileId,
+        repoCredentialRemark,
         defaultBranch,
         defaultBranchRole,
         promptDefault,
@@ -642,7 +618,10 @@ export class RepositoriesController {
         message.includes('defaultBranch must be') ||
         message.includes('robot must be activated') ||
         message.includes('name is required') ||
-        message.includes('promptDefault is required')
+        message.includes('promptDefault is required') ||
+        message.includes('repoCredential') ||
+        message.includes('credentialProfileId') ||
+        message.includes('token must be null')
       ) {
         throw new BadRequestException({ error: message });
       }
@@ -683,25 +662,21 @@ export class RepositoriesController {
 
       const name = typeof body?.name === 'string' ? body.name : undefined;
       const cloneUsername =
-        body?.cloneUsername === undefined
-          ? undefined
-          : body?.cloneUsername === null
-            ? null
-            : typeof body?.cloneUsername === 'string'
-              ? body.cloneUsername
-              : undefined;
-      const repoCredentialProfileIdRaw =
+        body?.cloneUsername === undefined ? undefined : normalizeNullableTrimmedString(body?.cloneUsername, 'cloneUsername');
+      const repoCredentialSourceRaw =
+        body?.repoCredentialSource === undefined ? undefined : normalizeRepoCredentialSource(body?.repoCredentialSource);
+      const repoCredentialSource =
+        repoCredentialSourceRaw === 'robot' || repoCredentialSourceRaw === 'user' || repoCredentialSourceRaw === 'repo'
+          ? repoCredentialSourceRaw
+          : undefined;
+      const repoCredentialProfileId =
         body?.repoCredentialProfileId === undefined
           ? undefined
-          : body?.repoCredentialProfileId === null
-            ? null
-            : typeof body?.repoCredentialProfileId === 'string'
-              ? body.repoCredentialProfileId.trim()
-              : undefined;
-      const repoCredentialProfileId =
-        typeof repoCredentialProfileIdRaw === 'string'
-          ? (repoCredentialProfileIdRaw.trim() ? repoCredentialProfileIdRaw.trim() : null)
-          : repoCredentialProfileIdRaw;
+          : normalizeNullableTrimmedString(body?.repoCredentialProfileId, 'repoCredentialProfileId');
+      const repoCredentialRemark =
+        body?.repoCredentialRemark === undefined
+          ? undefined
+          : normalizeNullableTrimmedString(body?.repoCredentialRemark, 'repoCredentialRemark');
       const language =
         body?.language === undefined
           ? undefined
@@ -724,90 +699,146 @@ export class RepositoriesController {
       const enabled = typeof body?.enabled === 'boolean' ? body.enabled : undefined;
       const isDefault = typeof body?.isDefault === 'boolean' ? body.isDefault : undefined;
 
-      // Only update token when explicitly provided in the request body.
       const token =
-        body?.token === undefined
-          ? undefined
-          : typeof body?.token === 'string'
-            ? body.token.trim()
-              ? body.token.trim()
-              : null
-            : body?.token === null
-              ? null
-              : undefined;
+        body?.token === undefined ? undefined : normalizeNullableTrimmedString(body?.token, 'token');
 
-      const existingToken = String((existing as any).token ?? '').trim();
-      const hasExistingToken = Boolean(existingToken);
-      const wantsProfile = typeof repoCredentialProfileId === 'string' && Boolean(repoCredentialProfileId.trim());
-      const wantsRepoScoped = token === null && repoCredentialProfileId === null;
+      const existingRepoCredentialSource =
+        normalizeRepoCredentialSource((existing as any).repoCredentialSource) ??
+        (String((existing as any).token ?? '').trim()
+          ? 'robot'
+          : String((existing as any).repoCredentialProfileId ?? '').trim()
+            ? 'user'
+            : 'repo');
 
-      if (wantsRepoScoped) {
+      // If the client patches `repoCredentialProfileId` while the current robot is using `robot` credentials,
+      // force an explicit `repoCredentialSource` to avoid ambiguity (user vs repo).
+      const profileProvided =
+        repoCredentialProfileId !== undefined && repoCredentialProfileId !== null && String(repoCredentialProfileId).trim();
+      if (profileProvided && !repoCredentialSource && existingRepoCredentialSource === 'robot') {
+        throw new BadRequestException({ error: 'repoCredentialSource is required when selecting a credential profile' });
+      }
+
+      const nextRepoCredentialSource = repoCredentialSource ?? existingRepoCredentialSource;
+
+      // Repo provider credential validation by scope.
+      const validateRepoProviderCredential = async (source: 'robot' | 'user' | 'repo') => {
+        if (source === 'robot') {
+          if (repoCredentialProfileId !== undefined && repoCredentialProfileId !== null && repoCredentialProfileId.trim()) {
+            throw new BadRequestException({ error: 'repoCredentialProfileId must be null when repoCredentialSource=robot' });
+          }
+          return;
+        }
+
+        if (token !== undefined && token !== null && token.trim()) {
+          throw new BadRequestException({ error: 'token must be null when repoCredentialSource is user/repo' });
+        }
+
+        const profileId = (repoCredentialProfileId === undefined
+          ? String((existing as any).repoCredentialProfileId ?? '').trim()
+          : String(repoCredentialProfileId ?? '').trim());
+        if (!profileId) {
+          throw new BadRequestException({ error: 'repoCredentialProfileId is required when repoCredentialSource is user/repo' });
+        }
+
+        if (repoCredentialRemark !== undefined) {
+          throw new BadRequestException({ error: 'repoCredentialRemark is only supported for repoCredentialSource=robot' });
+        }
+
+        if (source === 'user') {
+          if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+          const rawCredentials = await this.userService.getModelCredentialsRaw(req.user.id);
+          const providerCredentials = repo.provider === 'github' ? rawCredentials?.github : rawCredentials?.gitlab;
+          const profile = (providerCredentials?.profiles ?? []).find((p) => p.id === profileId);
+          if (!profile) {
+            throw new BadRequestException({ error: 'repoCredentialProfileId does not exist in your account credentials' });
+          }
+          if (!String(profile.token ?? '').trim()) {
+            throw new BadRequestException({ error: 'selected repo credential profile token is missing' });
+          }
+          return;
+        }
+
         const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
-        if (!String(repoScopedCredentials?.repoProvider?.token ?? '').trim()) {
-          throw new BadRequestException({ error: 'repo-scoped repo provider token is missing' });
-        }
-      }
-
-      if (token === null && !wantsProfile && !wantsRepoScoped) {
-        throw new BadRequestException({
-          error:
-            'repoCredentialProfileId is required when clearing token (set a profile id, or set repoCredentialProfileId=null to use repo-scoped credentials)'
-        });
-      }
-
-      if (wantsProfile) {
-        if (token === undefined && hasExistingToken) {
-          throw new BadRequestException({ error: 'token must be null when setting repoCredentialProfileId' });
-        }
-        if (token !== undefined && token !== null) {
-          throw new BadRequestException({ error: 'cannot set both token and repoCredentialProfileId' });
-        }
-        if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
-        const rawCredentials = await this.userService.getModelCredentialsRaw(req.user.id);
-        const providerCredentials = repo.provider === 'github' ? rawCredentials?.github : rawCredentials?.gitlab;
-        const profile = (providerCredentials?.profiles ?? []).find((p) => p.id === repoCredentialProfileId);
+        const profile = (repoScopedCredentials?.repoProvider?.profiles ?? []).find((p) => p.id === profileId);
         if (!profile) {
-          throw new BadRequestException({ error: 'repoCredentialProfileId does not exist in account credentials' });
+          throw new BadRequestException({ error: 'repoCredentialProfileId does not exist in repo-scoped credentials' });
         }
         if (!String(profile.token ?? '').trim()) {
-          throw new BadRequestException({ error: 'selected repo credential profile token is missing' });
+          throw new BadRequestException({ error: 'selected repo-scoped repo provider token is missing' });
         }
+      };
+
+      // Only validate repo provider credential scope when related fields are being patched.
+      if (repoCredentialSource !== undefined || repoCredentialProfileId !== undefined || token !== undefined || repoCredentialRemark !== undefined) {
+        await validateRepoProviderCredential(nextRepoCredentialSource);
       }
 
-      const normalizedModelProvider = typeof modelProvider === 'string' ? modelProvider.trim().toLowerCase() : CODEX_PROVIDER_KEY;
-      if (modelProviderConfig !== undefined && (!normalizedModelProvider || normalizedModelProvider === CODEX_PROVIDER_KEY)) {
-        const cfg = normalizeCodexRobotProviderConfig(modelProviderConfig);
-        if (cfg.credentialSource === 'repo') {
-          const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
-          if (!String(repoScopedCredentials?.modelProvider?.codex?.apiKey ?? '').trim()) {
-            throw new BadRequestException({ error: 'repo-scoped model provider apiKey is missing' });
+      const normalizedModelProvider =
+        typeof modelProvider === 'string'
+          ? modelProvider.trim().toLowerCase()
+          : String((existing as any).modelProvider ?? '').trim().toLowerCase() || CODEX_PROVIDER_KEY;
+
+      const validateModelCredential = async (
+        cfg: { credentialSource: string; credentialProfileId?: string; credential?: { apiKey?: string } },
+        providerKey: string
+      ) => {
+        const credentialSource = String(cfg.credentialSource ?? '').trim().toLowerCase();
+        if (credentialSource === 'robot') {
+          if (!String(cfg.credential?.apiKey ?? '').trim()) {
+            throw new BadRequestException({ error: `${providerKey} apiKey is required (robot credential)` });
           }
+          return;
         }
-      }
-      if (modelProviderConfig !== undefined && normalizedModelProvider === CLAUDE_CODE_PROVIDER_KEY) {
-        const cfg = normalizeClaudeCodeRobotProviderConfig(modelProviderConfig);
-        if (cfg.credentialSource === 'repo') {
-          const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
-          if (!String(repoScopedCredentials?.modelProvider?.claude_code?.apiKey ?? '').trim()) {
-            throw new BadRequestException({ error: 'repo-scoped model provider apiKey is missing' });
-          }
+
+        const profileId = String(cfg.credentialProfileId ?? '').trim();
+        if (!profileId) {
+          throw new BadRequestException({ error: `${providerKey} credentialProfileId is required when credentialSource is user/repo` });
         }
-      }
-      if (modelProviderConfig !== undefined && normalizedModelProvider === GEMINI_CLI_PROVIDER_KEY) {
-        const cfg = normalizeGeminiCliRobotProviderConfig(modelProviderConfig);
-        if (cfg.credentialSource === 'repo') {
+
+        if (credentialSource === 'user') {
+          if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+          const rawCredentials = await this.userService.getModelCredentialsRaw(req.user.id);
+          const providerCredentials = (rawCredentials as any)?.[providerKey] as any;
+          const profile = Array.isArray(providerCredentials?.profiles)
+            ? providerCredentials.profiles.find((p: any) => p && p.id === profileId)
+            : null;
+          if (!profile) throw new BadRequestException({ error: `${providerKey} credentialProfileId does not exist in your account credentials` });
+          if (!String(profile.apiKey ?? '').trim()) throw new BadRequestException({ error: `selected ${providerKey} profile apiKey is missing` });
+          return;
+        }
+
+        if (credentialSource === 'repo') {
           const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
-          if (!String(repoScopedCredentials?.modelProvider?.gemini_cli?.apiKey ?? '').trim()) {
-            throw new BadRequestException({ error: 'repo-scoped model provider apiKey is missing' });
-          }
+          const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[providerKey] as any;
+          const profile = Array.isArray(providerCredentials?.profiles)
+            ? providerCredentials.profiles.find((p: any) => p && p.id === profileId)
+            : null;
+          if (!profile) throw new BadRequestException({ error: `${providerKey} credentialProfileId does not exist in repo-scoped credentials` });
+          if (!String(profile.apiKey ?? '').trim()) throw new BadRequestException({ error: `selected repo-scoped ${providerKey} apiKey is missing` });
+          return;
+        }
+      };
+
+      if (modelProviderConfig !== undefined) {
+        if (!normalizedModelProvider || normalizedModelProvider === CODEX_PROVIDER_KEY) {
+          const cfg = normalizeCodexRobotProviderConfig(modelProviderConfig);
+          await validateModelCredential(cfg as any, CODEX_PROVIDER_KEY);
+        } else if (normalizedModelProvider === CLAUDE_CODE_PROVIDER_KEY) {
+          const cfg = normalizeClaudeCodeRobotProviderConfig(modelProviderConfig);
+          await validateModelCredential(cfg as any, CLAUDE_CODE_PROVIDER_KEY);
+        } else if (normalizedModelProvider === GEMINI_CLI_PROVIDER_KEY) {
+          const cfg = normalizeGeminiCliRobotProviderConfig(modelProviderConfig);
+          await validateModelCredential(cfg as any, GEMINI_CLI_PROVIDER_KEY);
         }
       }
 
       const robot = await this.repoRobotService.updateRobot(robotId, {
         name,
         token,
+        repoCredentialSource,
         cloneUsername,
         repoCredentialProfileId,
+        repoCredentialRemark,
         defaultBranch,
         defaultBranchRole,
         promptDefault,
@@ -833,7 +864,10 @@ export class RepositoriesController {
         message.includes('defaultBranch must be') ||
         message.includes('robot must be activated') ||
         message.includes('name is required') ||
-        message.includes('promptDefault is required')
+        message.includes('promptDefault is required') ||
+        message.includes('repoCredential') ||
+        message.includes('credentialProfileId') ||
+        message.includes('token must be null')
       ) {
         throw new BadRequestException({ error: message });
       }

@@ -11,8 +11,21 @@ vi.mock('../api', () => {
     fetchMe: vi.fn(async () => ({ id: 'u', username: 'u', displayName: 'User', roles: [], createdAt: '', updatedAt: '' })),
     updateMe: vi.fn(async () => ({ id: 'u', username: 'u', displayName: 'User', roles: [], createdAt: '', updatedAt: '' })),
     changeMyPassword: vi.fn(async () => undefined),
-    fetchMyModelCredentials: vi.fn(async () => ({ codex: { hasApiKey: false }, claude_code: { hasApiKey: false }, gitlab: { profiles: [] }, github: { profiles: [] } })),
-    updateMyModelCredentials: vi.fn(async () => ({ codex: { hasApiKey: false }, claude_code: { hasApiKey: false }, gitlab: { profiles: [] }, github: { profiles: [] } })),
+    fetchMyModelCredentials: vi.fn(async () => ({
+      // Change record: credentials API returns `profiles[]` per provider (multi-profile support).
+      codex: { profiles: [], defaultProfileId: null },
+      claude_code: { profiles: [], defaultProfileId: null },
+      gemini_cli: { profiles: [], defaultProfileId: null },
+      gitlab: { profiles: [], defaultProfileId: null },
+      github: { profiles: [], defaultProfileId: null }
+    })),
+    updateMyModelCredentials: vi.fn(async () => ({
+      codex: { profiles: [], defaultProfileId: null },
+      claude_code: { profiles: [], defaultProfileId: null },
+      gemini_cli: { profiles: [], defaultProfileId: null },
+      gitlab: { profiles: [], defaultProfileId: null },
+      github: { profiles: [], defaultProfileId: null }
+    })),
     fetchAdminToolsMeta: vi.fn(async () => ({ enabled: true, ports: { prisma: 7215, swagger: 7216 } }))
   };
 });
@@ -64,7 +77,7 @@ describe('UserPanelPopover', () => {
     expect(screen.getByRole('button', { name: 'Me' })).not.toBeDisabled();
 
     await ui.click(screen.getByRole('button', { name: 'Credentials' }));
-    expect(await screen.findByText('Model provider')).toBeInTheDocument();
+    expect(await screen.findByText('Model provider credentials')).toBeInTheDocument();
     expect(await screen.findByText('Claude Code')).toBeInTheDocument();
   });
 });

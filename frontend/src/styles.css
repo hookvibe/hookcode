@@ -301,8 +301,8 @@ body {
   justify-content: flex-start;
   border-radius: 10px;
   height: 40px;
-  background: var(--hc-accent-soft);
-  border: 1px solid var(--hc-accent-border);
+  /* background: var(--hc-accent-soft); */
+  /* border: 1px solid var(--hc-accent-border); */
   color: var(--text);
   box-shadow: none;
   transition: background-color 0.2s ease, border-color 0.2s ease;

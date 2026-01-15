@@ -159,6 +159,8 @@ const schemaIsLatest = async (): Promise<boolean> => {
     has_repo_repo_provider_credentials: boolean;
     has_repo_model_provider_credentials: boolean;
     has_repo_robot_repo_credential_profile_id: boolean;
+    has_repo_robot_repo_credential_source: boolean;
+    has_repo_robot_repo_credential_remark: boolean;
     has_repo_robot_token_introspection: boolean;
     has_task_groups: boolean;
     has_task_group_id: boolean;
@@ -213,6 +215,20 @@ const schemaIsLatest = async (): Promise<boolean> => {
             AND table_name = 'repo_robots'
             AND column_name = 'repo_credential_profile_id'
           ) AS has_repo_robot_repo_credential_profile_id,
+        EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'repo_robots'
+            AND column_name = 'repo_credential_source'
+        ) AS has_repo_robot_repo_credential_source,
+        EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'repo_robots'
+            AND column_name = 'repo_credential_remark'
+        ) AS has_repo_robot_repo_credential_remark,
         EXISTS (
           SELECT 1
           FROM information_schema.columns
@@ -281,6 +297,8 @@ const schemaIsLatest = async (): Promise<boolean> => {
       rows?.[0]?.has_repo_repo_provider_credentials &&
       rows?.[0]?.has_repo_model_provider_credentials &&
       rows?.[0]?.has_repo_robot_repo_credential_profile_id &&
+      rows?.[0]?.has_repo_robot_repo_credential_source &&
+      rows?.[0]?.has_repo_robot_repo_credential_remark &&
       rows?.[0]?.has_repo_robot_token_introspection &&
       rows?.[0]?.has_task_groups &&
       rows?.[0]?.has_task_group_id
