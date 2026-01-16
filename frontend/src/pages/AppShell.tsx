@@ -111,6 +111,7 @@ export const AppShell: FC<AppShellProps> = ({
 
   const [authToken, setAuthToken] = useState<string | null>(() => getToken());
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
+  const [taskLogsEnabled, setTaskLogsEnabled] = useState<boolean | null>(null); // Cache backend feature toggles from `/auth/me` for downstream UI guards. 0nazpc53wnvljv5yh7c6
   const [authChecking, setAuthChecking] = useState(true);
   const [siderCollapsed, setSiderCollapsed] = useState(false);
   const [taskSectionExpanded, setTaskSectionExpanded] = useState<Record<SidebarTaskSectionKey, boolean>>(defaultExpanded);
@@ -131,10 +132,12 @@ export const AppShell: FC<AppShellProps> = ({
     try {
       const me = await fetchAuthMe();
       setAuthEnabled(Boolean(me?.authEnabled));
+      setTaskLogsEnabled(Boolean(me?.features?.taskLogsEnabled));
     } catch (err: any) {
       // When auth is enabled but token is missing/invalid, `/auth/me` returns 401.
       const status = err?.response?.status;
       setAuthEnabled(true);
+      setTaskLogsEnabled(null);
       if (status !== 401) {
         console.warn('[auth] fetchAuthMe failed; falling back to authEnabled=true', err);
       }
@@ -511,8 +514,13 @@ export const AppShell: FC<AppShellProps> = ({
         {route.page === 'repos' ? <ReposPage userPanel={userPanel} /> : null}
         {route.page === 'repo' && route.repoId ? <RepoDetailPage repoId={route.repoId} userPanel={userPanel} /> : null}
         {route.page === 'tasks' ? <TasksPage status={route.tasksStatus} userPanel={userPanel} /> : null}
-        {route.page === 'task' && route.taskId ? <TaskDetailPage taskId={route.taskId} userPanel={userPanel} /> : null}
-        {showChatPage ? <TaskGroupChatPage taskGroupId={chatGroupId} userPanel={userPanel} /> : null}
+        {/* Pass backend feature toggles to pages that mount log streaming components. 0nazpc53wnvljv5yh7c6 */}
+        {route.page === 'task' && route.taskId ? (
+          <TaskDetailPage taskId={route.taskId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} />
+        ) : null}
+        {showChatPage ? (
+          <TaskGroupChatPage taskGroupId={chatGroupId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} />
+        ) : null}
       </Content>
     </Layout>
   );

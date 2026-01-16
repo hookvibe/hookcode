@@ -587,6 +587,8 @@ export const enUS: Record<MessageKey, string> = {
   'logViewer.actions.copy': 'Copy',
   'logViewer.actions.clear': 'Clear',
   'logViewer.error.autoReconnect': 'Connection error. Auto reconnecting…',
+  // Display a stable message when the backend disables task logs (feature flag). 0nazpc53wnvljv5yh7c6
+  'logViewer.disabled': 'Task logs are disabled on server (TASK_LOGS_ENABLED=false).',
   'logViewer.empty': 'No logs',
   'logViewer.copySuccess': 'Copied',
   'logViewer.copyFailed': 'Copy failed',

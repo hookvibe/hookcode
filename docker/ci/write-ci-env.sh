@@ -126,6 +126,7 @@ write_kv GITHUB_PERSONAL_ACCESS_TOKEN "${GITHUB_PERSONAL_ACCESS_TOKEN:-dummy-tok
 # ------------------------------------------------------------------------------
 # Feature toggles (keep CI fast & predictable)
 # ------------------------------------------------------------------------------
+# Enable task log capture in CI deployments so the Live logs SSE UI works out of the box. 0nazpc53wnvljv5yh7c6
 write_kv TASK_LOGS_ENABLED "${TASK_LOGS_ENABLED:-false}"
 write_kv ADMIN_TOOLS_ENABLED "${ADMIN_TOOLS_ENABLED:-false}"
 write_kv INLINE_WORKER_ENABLED "${INLINE_WORKER_ENABLED:-false}"
