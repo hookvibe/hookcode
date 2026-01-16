@@ -2,14 +2,58 @@
 # Check if all phases in task_plan.md are complete
 # Exit 0 if complete, exit 1 if incomplete
 # Can be used at the end of a task to verify all phases are marked complete.
+# Support hash-based planning directories for traceability. sddsa89612jk4hbwas678
 
 set -euo pipefail
 
-PLAN_FILE="${1:-task_plan.md}"
+INPUT="${1:-}"
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+resolve_plan_file() {
+    local value="$1"
+
+    if [ -z "$value" ]; then
+        # Backward-compatible default: check current directory first.
+        if [ -f "task_plan.md" ]; then
+            echo "task_plan.md"
+            return 0
+        fi
+
+        echo ""
+        return 0
+    fi
+
+    if [ -f "$value" ]; then
+        echo "$value"
+        return 0
+    fi
+
+    if [ -d "$value" ] && [ -f "$value/task_plan.md" ]; then
+        echo "$value/task_plan.md"
+        return 0
+    fi
+
+    # Treat as a session hash and resolve into docs/en/developer/plans/<hash>/task_plan.md
+    local by_hash="${REPO_ROOT}/docs/en/developer/plans/${value}/task_plan.md"
+    if [ -f "$by_hash" ]; then
+        echo "$by_hash"
+        return 0
+    fi
+
+    echo ""
+    return 0
+}
+
+PLAN_FILE="$(resolve_plan_file "$INPUT")"
 
 if [ ! -f "$PLAN_FILE" ]; then
-    echo "ERROR: $PLAN_FILE not found"
-    echo "Cannot verify completion without a task plan."
+    echo "ERROR: task plan not found"
+    echo "Usage:"
+    echo "  bash .codex/skills/planning-with-files/scripts/check-complete.sh <plan-path|session-hash>"
+    echo ""
+    echo "Examples:"
+    echo "  bash .codex/skills/planning-with-files/scripts/check-complete.sh docs/en/developer/plans/<hash>/task_plan.md"
+    echo "  bash .codex/skills/planning-with-files/scripts/check-complete.sh <hash>"
     exit 1
 fi
 

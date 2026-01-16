@@ -1,0 +1,46 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "HookCode Docs",
+  "logo": "/assets/logo.svg",
+  "favicon": "/assets/logo.svg",
+  "colors": {
+    "primary": "#1677ff"
+  },
+  "redirects": [],
+  "navigation": {
+    "languages": [
+      {
+        "language": "en",
+        "default": true,
+        "tabs": [
+          {
+            "tab": "User Docs",
+            "groups": [{ "group": "Home", "pages": ["en/user-docs/index"] }]
+          },
+          {
+            "tab": "Open API",
+            "groups": [{ "group": "Home", "pages": ["en/api-reference/index"] }]
+          },
+          {
+            "tab": "Developer Docs",
+            "groups": [
+              {
+                "group": "Home",
+                "pages": ["en/developer/index" ]
+              },
+              {
+                "group": "plans",
+                "pages": ["en/developer/plans/sddsa89612jk4hbwas678"]
+              }
+            ]
+          },
+          {
+            "tab": "Changelog",
+            "groups": [{ "group": "Home", "pages": ["en/change-log/index"] }]
+          }
+        ]
+      }
+    ]
+  }
+}

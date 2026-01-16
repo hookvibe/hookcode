@@ -5,27 +5,27 @@
   WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md.
 -->
 
-<!-- Keep phase status updates in sync with task_plan.md for this session. [SESSION_HASH] -->
+<!-- Keep phase status updates in sync with task_plan.md for this session. 0lldjnbw5qxdhw4wwftz -->
 
 ## Session Metadata
-- **Session Title:** [SESSION_TITLE]
-- **Session Hash:** [SESSION_HASH]
+- **Session Title:** Enforce planning-with-files in AGENTS.md
+- **Session Hash:** 0lldjnbw5qxdhw4wwftz
 
-## Session: [DATE]
+## Session: 2026-01-17
 <!-- 
   WHAT: The date of this work session.
   WHY: Helps track when work happened, useful for resuming after time gaps.
   EXAMPLE: 2026-01-15
 -->
 
-### Phase 1: [Title]
+### Phase 1: Requirements & Update Plan
 <!-- 
   WHAT: Detailed log of actions taken during this phase.
   WHY: Provides context for what was done, making it easier to resume or debug.
   WHEN: Update as you work through the phase, or at least when you complete it.
 -->
-- **Status:** in_progress
-- **Started:** [timestamp]
+- **Status:** complete
+- **Started:** 2026-01-17
 <!-- 
   STATUS: Same as task_plan.md (pending, in_progress, complete)
   TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00")
@@ -38,7 +38,8 @@
       - Implemented add functionality
       - Fixed FileNotFoundError
   -->
-  -
+  - Initialized a new hash-based planning session folder.
+  - Identified required updates to `AGENTS.md` (workflow + inline comment traceability).
 - Files created/modified:
   <!-- 
     WHAT: Which files you created or changed.
@@ -48,18 +49,22 @@
       - todos.json (created by app)
       - task_plan.md (updated)
   -->
-  -
+  - `docs/en/developer/plans/0lldjnbw5qxdhw4wwftz/task_plan.md` (created/updated)
+  - `docs/en/developer/plans/0lldjnbw5qxdhw4wwftz/findings.md` (created/updated)
+  - `docs/en/developer/plans/0lldjnbw5qxdhw4wwftz/progress.md` (created/updated)
 
-### Phase 2: [Title]
+### Phase 2: Implement + Verify
 <!-- 
   WHAT: Same structure as Phase 1, for the next phase.
   WHY: Keep a separate log entry for each phase to track progress clearly.
 -->
-- **Status:** pending
+- **Status:** complete
 - Actions taken:
-  -
+  - Updated `AGENTS.md` workflow to make `planning-with-files` NON-NEGOTIABLE on every invocation.
+  - Updated `AGENTS.md` inline comment rules to require a 1-sentence English comment ending with `SESSION_HASH` for every changed area.
+  - Appended a release note entry with the session hash and a relative link to the plan.
 - Files created/modified:
-  -
+  - `AGENTS.md` (updated)
 
 ## Test Results
 <!-- 
@@ -72,7 +77,8 @@
 -->
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-|      |       |          |        |        |
+| Verify AGENTS rules | Open `AGENTS.md` and confirm required steps | Workflow + hash comment rule are explicit | Confirmed | ✓ |
+| Append changelog entry | `bash .codex/skills/planning-with-files/scripts/append-changelog.sh 0lldjnbw5qxdhw4wwftz "<summary>"` | Add bullet + relative plan link | Added entry in `docs/en/change-log/0.0.0.md` | ✓ |
 
 ## Error Log
 <!-- 

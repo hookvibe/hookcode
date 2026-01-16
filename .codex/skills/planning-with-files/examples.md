@@ -1,4 +1,5 @@
 # Examples: Planning with Files in Action
+<!-- Update examples to use hash-based plan directories. sddsa89612jk4hbwas678 -->
 
 ## Example 1: Research Task
 
@@ -6,7 +7,8 @@
 
 ### Loop 1: Create Plan
 ```bash
-bash .codex/skills/planning-with-files/scripts/init-session.sh "morning-exercise-research"
+SESSION_HASH="sddsa89612jk4hbwas678"
+bash .codex/skills/planning-with-files/scripts/init-session.sh "$SESSION_HASH" "morning-exercise-research"
 # (Alternative) Copy templates from .codex/skills/planning-with-files/templates/
 ```
 
@@ -33,23 +35,23 @@ Create a research summary on the benefits of morning exercise.
 
 ### Loop 2: Research
 ```bash
-cat task_plan.md            # Refresh goals
+cat "docs/en/developer/plans/$SESSION_HASH/task_plan.md"  # Refresh goals
 # Gather information (repo/docs/web as available)
-# Immediately save key findings into findings.md
-# Update task_plan.md to mark Phase 2 complete
+# Immediately save key findings into docs/en/developer/plans/$SESSION_HASH/findings.md
+# Update docs/en/developer/plans/$SESSION_HASH/task_plan.md to mark Phase 2 complete
 ```
 
 ### Loop 3: Synthesize
 ```bash
-cat task_plan.md            # Refresh goals
-cat findings.md             # Get findings
+cat "docs/en/developer/plans/$SESSION_HASH/task_plan.md"  # Refresh goals
+cat "docs/en/developer/plans/$SESSION_HASH/findings.md"   # Get findings
 # Write morning_exercise_summary.md
-# Update task_plan.md to mark Phase 3 complete
+# Update docs/en/developer/plans/$SESSION_HASH/task_plan.md to mark Phase 3 complete
 ```
 
 ### Loop 4: Deliver
 ```bash
-cat task_plan.md            # Verify complete
+cat "docs/en/developer/plans/$SESSION_HASH/task_plan.md"  # Verify complete
 Deliver morning_exercise_summary.md
 ```
 
@@ -59,7 +61,7 @@ Deliver morning_exercise_summary.md
 
 **User Request:** "Fix the login bug in the authentication module"
 
-### task_plan.md
+### docs/en/developer/plans/<session-hash>/task_plan.md
 ```markdown
 # Task Plan: Fix Login Bug
 
@@ -98,7 +100,7 @@ Identify and fix the bug preventing successful login.
 
 ### The 3-File Pattern in Action
 
-**task_plan.md:**
+**docs/en/developer/plans/<session-hash>/task_plan.md:**
 ```markdown
 # Task Plan: Dark Mode Toggle
 
@@ -176,7 +178,7 @@ Action: Read config.json  # Another retry
 Action: Read config.json
 Error: File not found
 
-# Update task_plan.md:
+# Update docs/en/developer/plans/<session-hash>/task_plan.md:
 ## Errors Encountered
 - config.json not found → Will create default config
 
@@ -196,7 +198,7 @@ Success!
 [Context is getting long...]
 [Original goal might be forgotten...]
 
-→ Read task_plan.md          # This brings goals back into attention!
+→ Read docs/en/developer/plans/<session-hash>/task_plan.md  # This brings goals back into attention!
 → Now make the decision       # Goals are fresh in context
 ```
 

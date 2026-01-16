@@ -1,15 +1,15 @@
-# Findings & Decisions: [SESSION_TITLE]
+# Findings & Decisions: Enforce planning-with-files in AGENTS.md
 <!-- 
   WHAT: Your knowledge base for the task. Stores everything you discover and decide.
   WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited.
   WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule).
 -->
 
-<!-- Link discoveries to code changes via this session hash. [SESSION_HASH] -->
+<!-- Link discoveries to code changes via this session hash. 0lldjnbw5qxdhw4wwftz -->
 
 ## Session Metadata
-- **Session Hash:** [SESSION_HASH]
-- **Created:** [DATE]
+- **Session Hash:** 0lldjnbw5qxdhw4wwftz
+- **Created:** 2026-01-17
 
 ## Requirements
 <!-- 
@@ -24,7 +24,9 @@
     - Python implementation
 -->
 <!-- Captured from user request -->
--
+- Update `AGENTS.md` "Working workflow" to mandate using the `planning-with-files` skill on every invocation.
+- Update `AGENTS.md` "Inline comment requirements" to mandate the `SESSION_HASH` suffix comment format for every changed code area.
+- Ensure the workflow explicitly requires: session folder updates + changelog update with relative plan link.
 
 ## Research Findings
 <!-- 
@@ -37,7 +39,7 @@
     - Standard pattern: python script.py <command> [args]
 -->
 <!-- Key discoveries during exploration -->
--
+- The repo already contains a refactored `planning-with-files` skill that stores plans under `docs/en/developer/plans/<hash>/`, so `AGENTS.md` should standardize that as the default workflow.
 
 ## Technical Decisions
 <!-- 
@@ -51,7 +53,8 @@
 <!-- Decisions made with rationale -->
 | Decision | Rationale |
 |----------|-----------|
-|          |           |
+| Add NON-NEGOTIABLE markers in `AGENTS.md` | Makes the workflow enforceable and hard to accidentally skip |
+| Provide explicit command examples in `AGENTS.md` | Reduces ambiguity and ensures consistent usage across sessions |
 
 ## Issues Encountered
 <!-- 
@@ -76,7 +79,9 @@
     - Project structure: src/main.py, src/utils.py
 -->
 <!-- URLs, file paths, API references -->
--
+- `AGENTS.md`
+- `.codex/skills/planning-with-files/SKILL.md`
+- `docs/en/developer/plans/0lldjnbw5qxdhw4wwftz/task_plan.md`
 
 ## Visual/Browser Findings
 <!-- 

@@ -1,19 +1,19 @@
-# Task Plan: [SESSION_TITLE]
+# Task Plan: Enforce planning-with-files in AGENTS.md
 <!-- 
   WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk."
   WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh.
   WHEN: Create this FIRST, before starting any work. Update after each phase completes.
 -->
 
-<!-- Track code changes with this session hash for traceability. [SESSION_HASH] -->
+<!-- Track code changes with this session hash for traceability. 0lldjnbw5qxdhw4wwftz -->
 
 ## Session Metadata
 <!-- 
   WHAT: Stable identifiers for traceability (code comments ↔ plan folder).
   WHY: Makes it easy to find the plan that explains a change.
 -->
-- **Session Hash:** [SESSION_HASH]
-- **Created:** [DATE]
+- **Session Hash:** 0lldjnbw5qxdhw4wwftz
+- **Created:** 2026-01-17
 
 ## Goal
 <!-- 
@@ -21,14 +21,14 @@
   WHY: This is your north star. Re-reading this keeps you focused on the end state.
   EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality."
 -->
-[One sentence describing the end state]
+Update `AGENTS.md` so every request strictly follows the `planning-with-files` workflow (hash folder + plan updates + changelog link) and enforces `SESSION_HASH` traceability in inline comments.
 
 ## Current Phase
 <!-- 
   WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3").
   WHY: Quick reference for where you are in the task. Update this as you progress.
 -->
-Phase 1
+Complete
 
 ## Phases
 <!-- 
@@ -42,10 +42,10 @@ Phase 1
   WHAT: Understand what needs to be done and gather initial information.
   WHY: Starting without understanding leads to wasted effort. This phase prevents that.
 -->
-- [ ] Understand user intent
-- [ ] Identify constraints and requirements
-- [ ] Document findings in findings.md
-- **Status:** in_progress
+- [x] Understand user intent
+- [x] Identify constraints and requirements
+- [x] Document findings in findings.md
+- **Status:** complete
 <!-- 
   STATUS VALUES:
   - pending: Not started yet
@@ -58,40 +58,37 @@ Phase 1
   WHAT: Decide how you'll approach the problem and what structure you'll use.
   WHY: Good planning prevents rework. Document decisions so you remember why you chose them.
 -->
-- [ ] Define technical approach
-- [ ] Create project structure if needed
-- [ ] Document decisions with rationale
-- **Status:** pending
+- [x] Define technical approach
+- [x] Decide required workflow invariants
+- [x] Document decisions with rationale
+- **Status:** complete
 
 ### Phase 3: Implementation
 <!-- 
   WHAT: Actually build/create/write the solution.
   WHY: This is where the work happens. Break into smaller sub-tasks if needed.
 -->
-- [ ] Execute the plan step by step
-- [ ] Write code to files before executing
-- [ ] Test incrementally
-- **Status:** pending
+- [x] Update `AGENTS.md` Working workflow to mandate plan sessions
+- [x] Update `AGENTS.md` Inline comment requirements to mandate hash suffix
+- **Status:** complete
 
 ### Phase 4: Testing & Verification
 <!-- 
   WHAT: Verify everything works and meets requirements.
   WHY: Catching issues early saves time. Document test results in progress.md.
 -->
-- [ ] Verify all requirements met
-- [ ] Document test results in progress.md
-- [ ] Fix any issues found
-- **Status:** pending
+- [x] Verify requirements are explicitly stated and unambiguous
+- [x] Document verification notes in progress.md
+- **Status:** complete
 
 ### Phase 5: Delivery
 <!-- 
   WHAT: Final review and handoff to user.
   WHY: Ensures nothing is forgotten and deliverables are complete.
 -->
-- [ ] Review all output files
-- [ ] Ensure deliverables are complete
-- [ ] Deliver to user
-- **Status:** pending
+- [x] Update `docs/en/change-log/0.0.0.md` with hash + relative plan link
+- [x] Deliver changes to user
+- **Status:** complete
 
 ## Key Questions
 <!-- 
@@ -101,8 +98,8 @@ Phase 1
     1. Should tasks persist between sessions? (Yes - need file storage)
     2. What format for storing tasks? (JSON file)
 -->
-1. [Question to answer]
-2. [Question to answer]
+1. How do we guarantee the planning skill is used every time? (Answer: make it NON-NEGOTIABLE in `AGENTS.md` workflow.)
+2. How do we link code edits back to the plan? (Answer: require a 1-sentence English comment ending with `SESSION_HASH`.)
 
 ## Decisions Made
 <!-- 
@@ -114,7 +111,8 @@ Phase 1
 -->
 | Decision | Rationale |
 |----------|-----------|
-|          |           |
+| Make `planning-with-files` mandatory in `AGENTS.md` | Prevents drift and ensures every task has durable traceability artifacts |
+| Require `SESSION_HASH` in every changed code area | Creates a stable backlink from code → plan folder |
 
 ## Errors Encountered
 <!-- 

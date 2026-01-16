@@ -1,6 +1,17 @@
 # Reference: Manus Context Engineering Principles
+<!-- Document repo-specific plan storage under docs/en/developer/plans/<hash>. sddsa89612jk4hbwas678 -->
 
 This skill borrows ideas often attributed to "Manus-style" context engineering: use the filesystem as durable working memory, and actively refresh goals to avoid "lost in the middle" drift.
+
+## Repo Convention: Hash-Based Plan Folders
+
+In this repository, planning files live under:
+
+- `docs/en/developer/plans/<session-hash>/task_plan.md`
+- `docs/en/developer/plans/<session-hash>/findings.md`
+- `docs/en/developer/plans/<session-hash>/progress.md`
+
+The same `<session-hash>` should be included in inline code comments to create a stable traceability link.
 
 ## The 6 Manus Principles
 
