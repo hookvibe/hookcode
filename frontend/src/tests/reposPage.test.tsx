@@ -5,6 +5,7 @@ import { App as AntdApp, Modal } from 'antd';
 import { setLocale } from '../i18n';
 import { ReposPage } from '../pages/ReposPage';
 import * as api from '../api';
+import { buildWebhookUrl } from '../utils/webhook';
 
 vi.mock('../api', () => {
   return {
@@ -77,9 +78,11 @@ describe('ReposPage (frontend-chat migration)', () => {
     await waitFor(() => expect(api.createRepo).toHaveBeenCalled());
 
     await waitFor(() => {
+      const expectedWebhookUrl = buildWebhookUrl('/api/webhook/gitlab/r_new');
+      // Business intent: assert against the same URL builder the UI uses so CI-specific API base ports stay aligned. (Change record: 2026-01-16)
       expect(screen.getByText(/Webhook quickstart/i)).toBeInTheDocument();
       expect(screen.getByText(/Webhook URL/i)).toBeInTheDocument();
-      expect(screen.getByText('http://localhost:4000/api/webhook/gitlab/r_new')).toBeInTheDocument();
+      expect(screen.getByText(expectedWebhookUrl)).toBeInTheDocument();
     });
   });
 });
