@@ -19,6 +19,8 @@ afterEach(() => {
     }
     window.location.hash = '';
   }
+  // Keep SSE tests isolated: clear created EventSource instances between test cases. kxthpiu4eqrmu0c6bboa
+  (globalThis as any).__eventSourceInstances = [];
 });
 
 if (typeof window !== 'undefined') {
@@ -114,6 +116,8 @@ if (typeof window !== 'undefined') {
 
     constructor(url: string) {
       this.url = url;
+      const store = ((globalThis as any).__eventSourceInstances ??= []);
+      store.push(this);
     }
 
     addEventListener(type: string, listener: (ev: any) => void) {
@@ -129,6 +133,11 @@ if (typeof window !== 'undefined') {
 
     close() {
       this.readyState = 2;
+    }
+
+    emit(type: string, ev: any = {}) {
+      const list = this.listeners[type] ?? [];
+      for (const fn of list) fn(ev);
     }
   }
 

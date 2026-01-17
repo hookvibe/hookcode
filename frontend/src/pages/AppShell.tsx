@@ -18,7 +18,7 @@ import {
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Task, TaskGroup, TaskStatusStats } from '../api';
-import { fetchAuthMe, fetchTaskGroups, fetchTaskStats, fetchTasks } from '../api';
+import { fetchAuthMe, fetchDashboardSidebar } from '../api';
 import { AUTH_CHANGED_EVENT, getToken } from '../auth';
 import { useT } from '../i18n';
 import {
@@ -31,6 +31,7 @@ import {
 } from '../router';
 import { navigateFromSidebar } from '../navHistory';
 import { clampText, getTaskTitle } from '../utils/task';
+import { createAuthedEventSource } from '../utils/sse';
 import type { AccentPreset } from '../theme/accent';
 import { UserPanelPopover } from '../components/UserPanelPopover';
 import { LoginCardSkeleton } from '../components/skeletons/LoginCardSkeleton';
@@ -100,6 +101,9 @@ const defaultTasksByStatus: Record<SidebarTaskSectionKey, Task[]> = {
   failed: []
 };
 
+const SIDEBAR_POLL_ACTIVE_MS = 10_000;
+const SIDEBAR_POLL_IDLE_MS = 30_000; // Slow down when no tasks are queued/processing. 7bqwou6abx4ste96ikhv
+
 export const AppShell: FC<AppShellProps> = ({
   route,
   themePreference,
@@ -109,6 +113,9 @@ export const AppShell: FC<AppShellProps> = ({
 }) => {
   const t = useT();
   const taskSectionAutoInitRef = useRef(false);
+  const refreshSidebarPromiseRef = useRef<Promise<TaskStatusStats | null> | null>(null); // Deduplicate sidebar refresh calls to avoid overlapping polling bursts. 7bqwou6abx4ste96ikhv
+  const sidebarSseRefreshTimerRef = useRef<number | null>(null); // Coalesce SSE-driven refresh bursts to avoid thundering herds. kxthpiu4eqrmu0c6bboa
+  const refreshSidebarQueuedRef = useRef(false); // Avoid dropping refresh signals when a refresh is already in-flight. kxthpiu4eqrmu0c6bboa
 
   const [authToken, setAuthToken] = useState<string | null>(() => getToken());
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
@@ -127,6 +134,7 @@ export const AppShell: FC<AppShellProps> = ({
   const [tasksByStatus, setTasksByStatus] = useState<Record<SidebarTaskSectionKey, Task[]>>(defaultTasksByStatus);
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
   const [sidebarLoading, setSidebarLoading] = useState(false);
+  const [sidebarSseConnected, setSidebarSseConnected] = useState(false);
 
   const refreshAuthState = useCallback(async () => {
     setAuthChecking(true);
@@ -167,73 +175,196 @@ export const AppShell: FC<AppShellProps> = ({
     }
   }, [authEnabled, authToken, route.page]);
 
-  const refreshSidebar = useCallback(async () => {
-    // Business intent: support "auth disabled" environments (no login required) while keeping login guards for normal deployments.
-    const canQuery = authEnabled === false || Boolean(authToken);
-    if (!canQuery) {
-      setTaskStats({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 });
-      setTasksByStatus(defaultTasksByStatus);
-      setTaskGroups([]);
-      // UX: reset the auto-init state so the next successful refresh can apply the "empty sections collapsed" default again.
-      taskSectionAutoInitRef.current = false;
-      return;
+  const refreshSidebar = useCallback(async (): Promise<TaskStatusStats | null> => {
+    if (refreshSidebarPromiseRef.current) {
+      // Queue a single follow-up refresh so SSE/poll signals are not lost during an in-flight request. kxthpiu4eqrmu0c6bboa
+      refreshSidebarQueuedRef.current = true;
+      return refreshSidebarPromiseRef.current;
     }
 
-    setSidebarLoading(true);
-    try {
-      const [stats, queued, processing, success, failed, groups] = await Promise.all([
-        fetchTaskStats(),
-        fetchTasks({ status: 'queued', limit: 3 }),
-        fetchTasks({ status: 'processing', limit: 3 }),
-        fetchTasks({ status: 'success', limit: 3 }),
-        fetchTasks({ status: 'failed', limit: 3 }),
-        fetchTaskGroups({ limit: 50 })
-      ]);
-      setTaskStats(stats);
-      setTasksByStatus({
-        queued: queued.slice(0, 3),
-        processing: processing.slice(0, 3),
-        success: success.slice(0, 3),
-        failed: failed.slice(0, 3)
-      });
-      setTaskSectionExpanded((prev) => {
-        // UX:
-        // - Default collapsed, but auto-expand when there are tasks updated within the last 24 hours.
-        // - Apply only once per auth session to avoid overriding user's manual expand/collapse preference.
-        if (taskSectionAutoInitRef.current) return prev;
-        taskSectionAutoInitRef.current = true;
-        const now = Date.now();
-        const recentWindowMs = 24 * 60 * 60 * 1000;
-        const isRecent = (task: Task): boolean => {
-          const ts = new Date(task.updatedAt).getTime();
-          if (!Number.isFinite(ts)) return false;
-          // Note: use absolute delta to tolerate minor server/client clock skew.
-          return Math.abs(now - ts) <= recentWindowMs;
-        };
-        const hasRecentTasks = (list: Task[]): boolean => list.some(isRecent);
-        return {
-          queued: hasRecentTasks(queued),
-          processing: hasRecentTasks(processing),
-          success: hasRecentTasks(success),
-          failed: hasRecentTasks(failed)
-        };
-      });
+    refreshSidebarPromiseRef.current = (async () => {
+      // Business intent: support "auth disabled" environments (no login required) while keeping login guards for normal deployments.
+      const canQuery = authEnabled === false || Boolean(authToken);
+      if (!canQuery) {
+        setTaskStats({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 });
+        setTasksByStatus(defaultTasksByStatus);
+        setTaskGroups([]);
+        // UX: reset the auto-init state so the next successful refresh can apply the "empty sections collapsed" default again.
+        taskSectionAutoInitRef.current = false;
+        return null;
+      }
 
-      const sorted = [...groups].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      setTaskGroups(sorted);
-    } catch (err) {
-      console.error(err);
-      // Sidebar errors should not block the whole app; keep last known values.
-    } finally {
-      setSidebarLoading(false);
-    }
+      setSidebarLoading(true);
+      try {
+        const snapshot = await fetchDashboardSidebar({ tasksLimit: 3, taskGroupsLimit: 50 });
+        const { stats, tasksByStatus, taskGroups: groups } = snapshot;
+        const queued = tasksByStatus.queued.slice(0, 3);
+        const processing = tasksByStatus.processing.slice(0, 3);
+        const success = tasksByStatus.success.slice(0, 3);
+        const failed = tasksByStatus.failed.slice(0, 3);
+
+        setTaskStats(stats);
+        setTasksByStatus({ queued, processing, success, failed });
+        setTaskSectionExpanded((prev) => {
+          // UX:
+          // - Default collapsed, but auto-expand when there are tasks updated within the last 24 hours.
+          // - Apply only once per auth session to avoid overriding user's manual expand/collapse preference.
+          if (taskSectionAutoInitRef.current) return prev;
+          taskSectionAutoInitRef.current = true;
+          const now = Date.now();
+          const recentWindowMs = 24 * 60 * 60 * 1000;
+          const isRecent = (task: Task): boolean => {
+            const ts = new Date(task.updatedAt).getTime();
+            if (!Number.isFinite(ts)) return false;
+            // Note: use absolute delta to tolerate minor server/client clock skew.
+            return Math.abs(now - ts) <= recentWindowMs;
+          };
+          const hasRecentTasks = (list: Task[]): boolean => list.some(isRecent);
+          return {
+            queued: hasRecentTasks(queued),
+            processing: hasRecentTasks(processing),
+            success: hasRecentTasks(success),
+            failed: hasRecentTasks(failed)
+          };
+        });
+
+        const sorted = [...groups].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        setTaskGroups(sorted);
+        return stats;
+      } catch (err) {
+        console.error(err);
+        // Sidebar errors should not block the whole app; keep last known values.
+        return null;
+      } finally {
+        setSidebarLoading(false);
+      }
+    })().finally(() => {
+      refreshSidebarPromiseRef.current = null;
+      if (!refreshSidebarQueuedRef.current) return;
+      refreshSidebarQueuedRef.current = false;
+      void refreshSidebar();
+    });
+
+    return refreshSidebarPromiseRef.current;
   }, [authEnabled, authToken]);
 
   useEffect(() => {
-    void refreshSidebar();
-    const timer = window.setInterval(() => void refreshSidebar(), 10_000);
-    return () => window.clearInterval(timer);
-  }, [refreshSidebar]);
+    const canQuery = authEnabled === false || Boolean(authToken);
+    if (!canQuery) {
+      setSidebarSseConnected(false);
+      return;
+    }
+
+    let disposed = false;
+    let eventSource: EventSource | null = null;
+
+    const close = () => {
+      eventSource?.close();
+      eventSource = null;
+      setSidebarSseConnected(false);
+      if (sidebarSseRefreshTimerRef.current !== null) {
+        window.clearTimeout(sidebarSseRefreshTimerRef.current);
+        sidebarSseRefreshTimerRef.current = null;
+      }
+    };
+
+    const scheduleRefresh = () => {
+      if (sidebarSseRefreshTimerRef.current !== null) return;
+      const jitterMs = Math.floor(Math.random() * 300);
+      sidebarSseRefreshTimerRef.current = window.setTimeout(() => {
+        sidebarSseRefreshTimerRef.current = null;
+        if (disposed) return;
+        if (document.visibilityState === 'hidden') return;
+        void refreshSidebar();
+      }, jitterMs);
+    };
+
+    const connect = () => {
+      if (eventSource) return;
+      if (document.visibilityState === 'hidden') return;
+      // Subscribe to the shared SSE channel and refresh the sidebar only when it actually changes. kxthpiu4eqrmu0c6bboa
+      eventSource = createAuthedEventSource('/events/stream', { topics: 'dashboard' });
+      eventSource.addEventListener('open', () => {
+        if (disposed) return;
+        setSidebarSseConnected(true);
+      });
+      eventSource.addEventListener('error', () => {
+        if (disposed) return;
+        setSidebarSseConnected(false);
+      });
+      eventSource.addEventListener('dashboard.sidebar.changed', () => {
+        if (disposed) return;
+        scheduleRefresh();
+      });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        close();
+        return;
+      }
+      connect();
+      scheduleRefresh();
+    };
+
+    connect();
+    window.addEventListener('focus', onVisibilityChange);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      disposed = true;
+      window.removeEventListener('focus', onVisibilityChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      close();
+    };
+  }, [authEnabled, authToken, refreshSidebar]);
+
+  useEffect(() => {
+    let disposed = false;
+    let timer: number | null = null;
+
+    const stop = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+    };
+
+    const schedule = (delayMs: number) => {
+      stop();
+      timer = window.setTimeout(async () => {
+        timer = null;
+        if (disposed) return;
+        if (document.visibilityState === 'hidden') return;
+
+        // Pause sidebar polling when the tab is hidden and slow down when the queue is idle. 7bqwou6abx4ste96ikhv
+        const stats = await refreshSidebar();
+        if (disposed) return;
+        const hasActiveTasks = Boolean(stats && (stats.queued > 0 || stats.processing > 0));
+        schedule(hasActiveTasks ? SIDEBAR_POLL_ACTIVE_MS : SIDEBAR_POLL_IDLE_MS);
+      }, delayMs);
+    };
+
+    const resume = () => {
+      if (document.visibilityState === 'hidden') {
+        stop();
+        return;
+      }
+      if (sidebarSseConnected) {
+        // When SSE is connected, rely on push-based refresh and keep polling as a fallback only. kxthpiu4eqrmu0c6bboa
+        stop();
+        return;
+      }
+      schedule(0);
+    };
+
+    resume();
+    window.addEventListener('focus', resume);
+    document.addEventListener('visibilitychange', resume);
+    return () => {
+      disposed = true;
+      stop();
+      window.removeEventListener('focus', resume);
+      document.removeEventListener('visibilitychange', resume);
+    };
+  }, [refreshSidebar, sidebarSseConnected]);
 
   const openTask = useCallback((task: Task) => {
     // Navigation rule: clicking in the left sidebar is treated as a global section switch,

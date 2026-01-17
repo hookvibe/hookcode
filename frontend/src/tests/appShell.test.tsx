@@ -29,6 +29,19 @@ vi.mock('../api', () => {
       user: { id: 'u', username: 'u', displayName: 'User' },
       features: { taskLogsEnabled: true }
     })),
+    // Mock the aggregated dashboard sidebar snapshot API used by AppShell polling. 7bqwou6abx4ste96ikhv
+    fetchDashboardSidebar: vi.fn(async () => ({
+      stats: { total: 7, queued: 5, processing: 1, success: 1, failed: 0 },
+      tasksByStatus: {
+        queued: [makeTask('t_q1', 'Queued task 1', 'queued'), makeTask('t_q2', 'Queued task 2', 'queued'), makeTask('t_q3', 'Queued task 3', 'queued')],
+        processing: [makeTask('t_p1', 'Processing task 1', 'processing')],
+        success: [makeTask('t_s1', 'Done task 1', 'succeeded')],
+        failed: []
+      },
+      taskGroups: [
+        { id: 'g1', kind: 'chat', bindingKey: 'b1', title: 'Group 1', createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' }
+      ]
+    })),
     fetchTaskStats: vi.fn(async () => ({ total: 7, queued: 5, processing: 1, success: 1, failed: 0 })),
     fetchTasks: vi.fn(async (options?: any) => {
       const status = options?.status;
@@ -212,8 +225,7 @@ describe('AppShell (frontend-chat migration)', () => {
 
   test('keeps a status collapsed when only old tasks exist', async () => {
     const ui = userEvent.setup();
-    const fetchTasksMock = vi.mocked(api.fetchTasks);
-    const fetchTaskStatsMock = vi.mocked(api.fetchTaskStats);
+    const fetchDashboardSidebarMock = vi.mocked(api.fetchDashboardSidebar);
 
     const now = Date.now();
     const recent = new Date(now - 60 * 60 * 1000).toISOString();
@@ -230,12 +242,15 @@ describe('AppShell (frontend-chat migration)', () => {
 
     // Test setup:
     // - processing has tasks, but they are older than 24 hours -> should remain collapsed by default.
-    fetchTaskStatsMock.mockResolvedValueOnce({ total: 2, queued: 1, processing: 1, success: 0, failed: 0 });
-    fetchTasksMock.mockImplementation(async (options?: any) => {
-      const status = options?.status;
-      if (status === 'queued') return [makeTask('t_q1', 'Queued task 1', 'queued', recent)];
-      if (status === 'processing') return [makeTask('t_p1', 'Processing task 1', 'processing', old)];
-      return [];
+    fetchDashboardSidebarMock.mockResolvedValueOnce({
+      stats: { total: 2, queued: 1, processing: 1, success: 0, failed: 0 },
+      tasksByStatus: {
+        queued: [makeTask('t_q1', 'Queued task 1', 'queued', recent)],
+        processing: [makeTask('t_p1', 'Processing task 1', 'processing', old)],
+        success: [],
+        failed: []
+      },
+      taskGroups: []
     });
 
     renderApp();
@@ -246,6 +261,42 @@ describe('AppShell (frontend-chat migration)', () => {
     const processingHeader = await screen.findByRole('button', { name: 'Processing' });
     await ui.click(processingHeader);
     expect(await screen.findByText('Processing task 1')).toBeInTheDocument();
+  });
+
+  test('refreshes sidebar after receiving dashboard change SSE event', async () => {
+    const fetchDashboardSidebarMock = vi.mocked(api.fetchDashboardSidebar);
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0); // Make SSE jitter deterministic for the test. kxthpiu4eqrmu0c6bboa
+
+    renderApp();
+    expect(await screen.findByText('Queued task 1')).toBeInTheDocument();
+
+    const now = new Date().toISOString();
+    // Reset call tracking so we only assert the SSE-triggered refresh behavior. kxthpiu4eqrmu0c6bboa
+    fetchDashboardSidebarMock.mockClear();
+    fetchDashboardSidebarMock.mockResolvedValueOnce({
+      stats: { total: 1, queued: 1, processing: 0, success: 0, failed: 0 },
+      tasksByStatus: {
+        queued: [{ id: 't_sse_q1', eventType: 'chat', title: 'Queued task SSE', status: 'queued', retries: 0, createdAt: now, updatedAt: now }],
+        processing: [],
+        success: [],
+        failed: []
+      },
+      taskGroups: []
+    } as any);
+
+    const sources = (globalThis as any).__eventSourceInstances as any[];
+    await waitFor(() =>
+      expect(Array.isArray(sources) && sources.some((s) => String(s?.url ?? '').includes('/events/stream'))).toBe(true)
+    );
+    const matching = sources.filter((s) => String(s?.url ?? '').includes('/events/stream'));
+    const eventsSource = matching[matching.length - 1];
+    expect(eventsSource).toBeTruthy();
+    eventsSource.emit('dashboard.sidebar.changed', { data: JSON.stringify({ token: 't' }) });
+
+    await waitFor(() => expect(fetchDashboardSidebarMock).toHaveBeenCalled());
+    expect(await screen.findByText('Queued task SSE')).toBeInTheDocument();
+
+    randomSpy.mockRestore();
   });
 
   test('redirects #/login to home when already signed in', async () => {

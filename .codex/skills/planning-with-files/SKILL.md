@@ -133,6 +133,12 @@ Example entry:
 - sddsa89612jk4hbwas678: Refactor planning-with-files to store plans in hash folders. ([plan](../developer/plans/sddsa89612jk4hbwas678/task_plan.md))
 ```
 
+<!-- Keep changelog entries clean and single-line (no extra HTML comment lines). l290bb7v758opd6uxu6r -->
+> **Note:** Do not add an extra `<!-- ... -->` line above changelog bullets. The bullet itself (hash + plan link) is enough traceability.
+
+<!-- Prefer stdin to avoid shell expansion when summaries contain code-like characters. l290bb7v758opd6uxu6r -->
+> **Tip:** If your summary contains backticks or other shell-sensitive characters, pipe it via stdin: `printf '%s' "<summary>" | bash .codex/skills/planning-with-files/scripts/append-changelog.sh "<hash>"`.
+
 ## Critical Rules
 
 ### 1. Create Plan First

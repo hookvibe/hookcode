@@ -1,9 +1,9 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Space, Tag, Typography, message } from 'antd';
 import { CopyOutlined, DeleteOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
-import { getToken } from '../auth';
 import { clearTaskLogs } from '../api';
 import { useT } from '../i18n';
+import { createAuthedEventSource } from '../utils/sse';
 
 /**
  * Live task log viewer (SSE/EventSource).
@@ -22,13 +22,7 @@ import { useT } from '../i18n';
  * Change record:
  * - 2026-01-11: Migrated from the legacy frontend to power the new chat-style views.
  */
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api').replace(/\/$/, '');
-
-const buildApiUrl = (path: string) => {
-  const base = new URL(apiBaseUrl, window.location.origin);
-  const baseWithSlash = base.toString().replace(/\/?$/, '/');
-  return new URL(path.replace(/^\//, ''), baseWithSlash).toString();
-};
+// Reuse the shared SSE helper to keep EventSource URL building consistent across pages. kxthpiu4eqrmu0c6bboa
 
 interface StreamInitPayload {
   logs: string[];
@@ -198,12 +192,7 @@ export const TaskLogViewer: FC<Props> = ({
     setError(null);
 
     const connect = () => {
-      const url = new URL(buildApiUrl(`/tasks/${encodeURIComponent(taskId)}/logs/stream`));
-      if (tail > 0) url.searchParams.set('tail', String(tail));
-      const token = getToken();
-      if (token) url.searchParams.set('token', token);
-
-      eventSource = new EventSource(url.toString());
+      eventSource = createAuthedEventSource(`/tasks/${encodeURIComponent(taskId)}/logs/stream`, tail > 0 ? { tail: String(tail) } : undefined);
 
       eventSource.addEventListener('open', () => {
         if (!alive) return;
@@ -313,4 +302,3 @@ export const TaskLogViewer: FC<Props> = ({
     </div>
   );
 };
-

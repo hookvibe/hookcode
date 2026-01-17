@@ -165,6 +165,29 @@ export const fetchTaskStats = async (options?: {
   return data.stats;
 };
 
+export interface DashboardSidebarSnapshot {
+  stats: TaskStatusStats;
+  tasksByStatus: {
+    queued: Task[];
+    processing: Task[];
+    success: Task[];
+    failed: Task[];
+  };
+  taskGroups: TaskGroup[];
+}
+
+export const fetchDashboardSidebar = async (options?: {
+  tasksLimit?: number;
+  taskGroupsLimit?: number;
+  repoId?: string;
+  robotId?: string;
+  eventType?: string;
+}): Promise<DashboardSidebarSnapshot> => {
+  // Reduce redundant sidebar polling calls by fetching a consistent snapshot in one request. 7bqwou6abx4ste96ikhv
+  const { data } = await api.get<DashboardSidebarSnapshot>('/dashboard/sidebar', { params: options });
+  return data;
+};
+
 export const fetchTask = async (taskId: string): Promise<Task> => {
   const { data } = await api.get<{ task: Task }>(`/tasks/${taskId}`);
   return data.task;
