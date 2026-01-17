@@ -108,6 +108,10 @@ export const zhCN = {
   'tasks.field.title': '标题/摘要',
   'tasks.field.repo': '仓库',
   'tasks.field.robot': '机器人',
+  // Surface direct-vs-fork workflow to reduce PR/MR targeting mistakes. 24yz61mdik7tqdgaa152
+  'tasks.field.repoWorkflow': '仓库工作流',
+  'tasks.repoWorkflow.direct': '直推',
+  'tasks.repoWorkflow.fork': 'Fork',
   'tasks.field.group': '任务组',
   'tasks.field.target': '目标',
   'tasks.field.ref': '分支/Ref',

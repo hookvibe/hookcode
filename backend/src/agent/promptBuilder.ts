@@ -6,6 +6,8 @@ import { renderTemplate } from './template';
 import type { GitlabCommitComment, GitlabIssue, GitlabNote } from '../services/gitlabService';
 import type { GitlabService } from '../services/gitlabService';
 import type { GithubCommitComment, GithubIssue, GithubIssueComment, GithubService } from '../services/githubService';
+// Reuse shared payload parsers to reduce drift between prompt building and provider posting. 24yz61mdik7tqdgaa152
+import { getGithubRepoSlugFromPayload, getGitlabProjectIdFromPayload } from '../utils/repoPayload';
 
 /**
  * Prompt builder (multi-repo):
@@ -185,23 +187,11 @@ const buildNotesContext = (
   };
 };
 
-const getGitlabProjectId = (task: Task, payload: any): string | number | null => {
-  const id = payload?.project?.id ?? task.projectId;
-  if (id === undefined || id === null || id === '') return null;
-  return id;
-};
+const getGitlabProjectId = (task: Task, payload: any): string | number | null =>
+  getGitlabProjectIdFromPayload(task, payload);
 
-const getGithubRepoSlug = (payload: any): { owner: string; repo: string } | null => {
-  const full = String(payload?.repository?.full_name ?? '').trim();
-  if (full.includes('/')) {
-    const [owner, repo] = full.split('/');
-    if (owner && repo) return { owner, repo };
-  }
-  const owner = String(payload?.repository?.owner?.login ?? '').trim();
-  const repo = String(payload?.repository?.name ?? '').trim();
-  if (owner && repo) return { owner, repo };
-  return null;
-};
+const getGithubRepoSlug = (payload: any): { owner: string; repo: string } | null =>
+  getGithubRepoSlugFromPayload(payload);
 
 const extractCommentContext = (input: BuildPromptInput): { body: string; author?: string } | undefined => {
   const provider = input.repo?.provider ?? input.task.repoProvider ?? 'gitlab';

@@ -61,8 +61,13 @@ export interface GithubCommit {
 
 export interface GithubRepository {
   id: number;
+  name?: string;
   full_name?: string;
+  owner?: GithubUser;
   html_url?: string;
+  clone_url?: string;
+  fork?: boolean;
+  parent?: { id?: number; full_name?: string; html_url?: string } | null;
   private?: boolean;
   permissions?: {
     admin?: boolean;
@@ -123,6 +128,16 @@ class GithubService {
     return this.request<GithubRepository>(`repos/${owner}/${repo}`);
   }
 
+  async createFork(owner: string, repo: string, options?: { organization?: string }): Promise<GithubRepository> {
+    // Create or reuse forks to enable PR workflows when upstream push is not allowed. 24yz61mdik7tqdgaa152
+    const organization = String(options?.organization ?? '').trim();
+    return this.request<GithubRepository>(`repos/${owner}/${repo}/forks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(organization ? { organization } : {})
+    });
+  }
+
   async getCurrentUser(): Promise<GithubCurrentUser> {
     return this.request<GithubCurrentUser>('user');
   }
@@ -165,4 +180,3 @@ class GithubService {
 }
 
 export { GithubService };
-

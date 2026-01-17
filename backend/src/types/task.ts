@@ -57,6 +57,15 @@ export interface TaskResult {
    * - Used as a quick entry in the console for "view posted comment / jump to logs"
    */
   providerCommentUrl?: string;
+  /**
+   * Repository workflow metadata for UI/debugging (direct clone vs fork-based PR/MR). 24yz61mdik7tqdgaa152
+   */
+  repoWorkflow?: {
+    mode: 'direct' | 'fork';
+    provider?: RepoProvider;
+    upstream?: { slug?: string; webUrl?: string; cloneUrl?: string };
+    fork?: { slug?: string; webUrl?: string; cloneUrl?: string };
+  };
 }
 
 export interface Task {

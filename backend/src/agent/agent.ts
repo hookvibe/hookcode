@@ -1,8 +1,8 @@
 import { spawn } from 'child_process';
-import { mkdir, rm, writeFile, stat, readFile } from 'fs/promises';
+import { mkdir, rm, writeFile, stat, readFile, chmod } from 'fs/promises';
 import path from 'path';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { Task } from '../types/task';
+import type { Task, TaskResult } from '../types/task';
 import {
   addTaskTokenUsage,
   extractClaudeCodeExecThreadIdFromLine,
@@ -49,6 +49,13 @@ import type { RepoRobotService } from '../modules/repositories/repo-robot.servic
 import type { TaskService } from '../modules/tasks/task.service';
 import type { TaskLogStream } from '../modules/tasks/task-log-stream.service';
 import type { UserService } from '../modules/users/user.service';
+import {
+  getGithubRepoSlugFromPayload,
+  getGitlabProjectIdFromPayload,
+  getGitlabProjectPathWithNamespaceFromPayload
+} from '../utils/repoPayload';
+// Keep git workflow helpers in a shared util so hooks/agent logic can be unit-tested. 24yz61mdik7tqdgaa152
+import { canTokenPushToUpstream, normalizeGitRemoteUrl } from '../utils/gitWorkflow';
 
 /**
  * Core task execution (callAgent):
@@ -420,6 +427,7 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
   let logsSeq = 0;
   let execution: ResolvedExecution | null = null;
   let tokenUsage: TaskTokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+  let repoWorkflow: TaskResult['repoWorkflow'] | undefined; // Surface direct-vs-fork workflow to UI/logs. 24yz61mdik7tqdgaa152
   const taskLogsDbEnabled = isTaskLogsDbEnabled(); // Persist task logs based on DB toggle even when user visibility is disabled. nykx5svtlgh050cstyht
   let taskGroupId: string | null = typeof task.groupId === 'string' ? task.groupId.trim() : null;
   let threadIdBound = false;
@@ -441,6 +449,7 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     if (lastPersistErrorAt > 0 && now - lastPersistErrorAt < 5000) return;
     try {
       const patch: any = { tokenUsage };
+      if (repoWorkflow) patch.repoWorkflow = repoWorkflow;
       if (taskLogsDbEnabled) {
         patch.logs = logs;
         patch.logsSeq = logsSeq;
@@ -542,15 +551,7 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     }
 
     const cloneRepo = async () => {
-      const repoCredentialSource = inferRobotRepoProviderCredentialSource(execution!.robot);
-      const auth = resolveGitCloneAuth({
-        provider: execution!.provider,
-        robot: execution!.robot,
-        userCredentials: execution!.userCredentials,
-        repoCredentials: execution!.repoScopedCredentials?.repoProvider ?? null,
-        source: repoCredentialSource
-      });
-      const injected = injectBasicAuth(repoUrl, auth);
+      const injected = upstreamInjected;
 
       if (checkoutRef) {
         try {
@@ -580,11 +581,25 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
       );
     };
 
+    const repoCredentialSource = inferRobotRepoProviderCredentialSource(execution.robot);
+    const cloneAuth = resolveGitCloneAuth({
+      provider: execution.provider,
+      robot: execution.robot,
+      userCredentials: execution.userCredentials,
+      repoCredentials: execution.repoScopedCredentials?.repoProvider ?? null,
+      source: repoCredentialSource
+    });
+    const upstreamInjected = injectBasicAuth(repoUrl, cloneAuth); // Ensure fetch/pull always uses upstream even after remotes drift. 24yz61mdik7tqdgaa152
+
     if (!repoExists) {
       await cloneRepo();
     } else {
       await appendLog(`Updating repository ${repoDir}`);
       try {
+        await streamCommand(`cd ${repoDir} && git remote set-url origin ${shDoubleQuote(upstreamInjected.execUrl)}`, appendRawLog, {
+          env: { GIT_TERMINAL_PROMPT: '0' },
+          redact: redactSensitiveText
+        });
         await streamCommand(`cd ${repoDir} && git fetch origin`, appendRawLog, {
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
@@ -624,6 +639,302 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
       } catch (err: any) {
         await appendLog(`Default branch update failed: ${err.message || err}`);
       }
+    }
+
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    const installGitPrePushGuard = async (params: { expectedUpstream: string; expectedPush: string }) => {
+      // Install a repo-local guard to prevent accidental pushes to the wrong remote. 24yz61mdik7tqdgaa152
+      const hookDir = path.join(repoDir, '.git', 'hooks');
+      const hookPath = path.join(hookDir, 'pre-push');
+      await mkdir(hookDir, { recursive: true });
+
+      const script = `#!/bin/sh
+# Guard pushes to ensure origin fetch/push targets stay correct for fork workflows. 24yz61mdik7tqdgaa152
+set -e
+
+normalize_url() {
+  raw="$1"
+  if [ -z "$raw" ]; then
+    echo ""
+    return 0
+  fi
+  # Strip basic auth and normalize common HTTPS URLs (avoid leaking credentials in error output).
+  echo "$raw" | sed -E 's#(https?://)[^@/[:space:]]+@#\\1#g; s#\\.git$##I; s#/*$##'
+}
+
+expected_upstream="$(git config --get hookcode.upstream_url 2>/dev/null || true)"
+expected_push="$(git config --get hookcode.push_url 2>/dev/null || true)"
+
+if [ -z "$expected_upstream" ] || [ -z "$expected_push" ]; then
+  exit 0
+fi
+
+origin_fetch="$(git remote get-url origin 2>/dev/null || true)"
+origin_push="$(git remote get-url --push origin 2>/dev/null || true)"
+
+norm_fetch="$(normalize_url "$origin_fetch")"
+norm_push="$(normalize_url "$origin_push")"
+norm_expected_upstream="$(normalize_url "$expected_upstream")"
+norm_expected_push="$(normalize_url "$expected_push")"
+
+if [ "$norm_fetch" != "$norm_expected_upstream" ]; then
+  echo "[hookcode] Blocked push: origin(fetch) is '$norm_fetch' but expected '$norm_expected_upstream'." 1>&2
+  exit 1
+fi
+
+if [ "$norm_push" != "$norm_expected_push" ]; then
+  echo "[hookcode] Blocked push: origin(push) is '$norm_push' but expected '$norm_expected_push'." 1>&2
+  exit 1
+fi
+
+exit 0
+`;
+
+      await writeFile(hookPath, script, 'utf8');
+      await chmod(hookPath, 0o755);
+
+      const expectedUpstream = normalizeGitRemoteUrl(params.expectedUpstream);
+      const expectedPush = normalizeGitRemoteUrl(params.expectedPush);
+      await streamCommand(
+        `cd ${repoDir} && git config --local hookcode.upstream_url ${shDoubleQuote(expectedUpstream)} && git config --local hookcode.push_url ${shDoubleQuote(expectedPush)}`,
+        appendRawLog,
+        { redact: redactSensitiveText }
+      );
+    };
+
+    const isProviderStatusError = (provider: RepoProvider, status: number, err: unknown): boolean => {
+      const message = err instanceof Error ? err.message : String(err);
+      return message.startsWith(`[${provider}] ${status} `);
+    };
+
+    const ensureGithubForkRepo = async (params: {
+      upstream: { owner: string; repo: string };
+    }): Promise<{ slug: string; webUrl?: string; cloneUrl?: string } | null> => {
+      if (!execution!.github) return null;
+      const me = await execution!.github.getCurrentUser();
+      const forkOwner = safeTrim(me?.login);
+      if (!forkOwner) throw new Error('github current user login is missing');
+
+      const forkSlug = `${forkOwner}/${params.upstream.repo}`;
+      try {
+        const existing = await execution!.github.getRepository(forkOwner, params.upstream.repo);
+        const parentFull = safeTrim((existing as any)?.parent?.full_name);
+        const expectedParent = `${params.upstream.owner}/${params.upstream.repo}`;
+        if ((existing as any)?.fork && parentFull.toLowerCase() === expectedParent.toLowerCase()) {
+          return {
+            slug: forkSlug,
+            webUrl: safeTrim((existing as any)?.html_url) || undefined,
+            cloneUrl: safeTrim((existing as any)?.clone_url) || undefined
+          };
+        }
+        throw new Error(`existing repo ${forkSlug} is not a fork of ${expectedParent}`);
+      } catch (err: any) {
+        if (!isProviderStatusError('github', 404, err)) throw err;
+      }
+
+      await appendLog(`Creating fork ${forkSlug} for upstream PR workflow`);
+      try {
+        await execution!.github.createFork(params.upstream.owner, params.upstream.repo);
+      } catch (err: any) {
+        // If the fork already exists, GitHub may return a conflict; fall back to polling. 24yz61mdik7tqdgaa152
+        await appendLog(`Fork request failed (will retry lookup): ${err?.message || err}`);
+      }
+
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        try {
+          const forkRepo = await execution!.github.getRepository(forkOwner, params.upstream.repo);
+          return {
+            slug: forkSlug,
+            webUrl: safeTrim((forkRepo as any)?.html_url) || undefined,
+            cloneUrl: safeTrim((forkRepo as any)?.clone_url) || undefined
+          };
+        } catch (err: any) {
+          if (!isProviderStatusError('github', 404, err)) throw err;
+          await sleep(1500);
+        }
+      }
+      throw new Error(`fork not ready after timeout: ${forkSlug}`);
+    };
+
+    const ensureGitlabForkProject = async (params: {
+      upstreamProject: string | number;
+    }): Promise<{ slug: string; webUrl?: string; cloneUrl?: string } | null> => {
+      if (!execution!.gitlab) return null;
+      const upstream = await execution!.gitlab.getProject(params.upstreamProject);
+      const upstreamId = upstream.id;
+
+      const forks = await execution!.gitlab.listProjectForks(upstreamId, { owned: true, perPage: 100, page: 1 });
+      if (forks.length) {
+        const picked = forks[0];
+        return {
+          slug: safeTrim(picked.path_with_namespace),
+          webUrl: safeTrim((picked as any)?.web_url) || undefined,
+          cloneUrl: safeTrim((picked as any)?.http_url_to_repo) || undefined
+        };
+      }
+
+      await appendLog(`Creating fork for upstream MR workflow (project ${upstreamId})`);
+      let forked: any;
+      try {
+        forked = await execution!.gitlab.forkProject(upstreamId, { mrDefaultTargetSelf: false });
+      } catch (err: any) {
+        if (!isProviderStatusError('gitlab', 409, err)) throw err;
+        const retry = await execution!.gitlab.listProjectForks(upstreamId, { owned: true, perPage: 100, page: 1 });
+        if (!retry.length) throw err;
+        forked = retry[0];
+      }
+
+      const forkId = typeof forked?.id === 'number' ? forked.id : null;
+      if (!forkId) throw new Error('gitlab fork response is missing project id');
+
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        const current = await execution!.gitlab.getProject(forkId);
+        const importStatus = safeTrim((current as any)?.import_status).toLowerCase();
+        if (!importStatus || importStatus === 'finished') {
+          return {
+            slug: safeTrim(current.path_with_namespace),
+            webUrl: safeTrim((current as any)?.web_url) || undefined,
+            cloneUrl: safeTrim((current as any)?.http_url_to_repo) || undefined
+          };
+        }
+        await sleep(1500);
+      }
+      throw new Error(`fork not ready after timeout: gitlab project ${forkId}`);
+    };
+
+    const configureGitWorkflow = async () => {
+      const repoCredentialSource = inferRobotRepoProviderCredentialSource(execution!.robot);
+      const auth = resolveGitCloneAuth({
+        provider: execution!.provider,
+        robot: execution!.robot,
+        userCredentials: execution!.userCredentials,
+        repoCredentials: execution!.repoScopedCredentials?.repoProvider ?? null,
+        source: repoCredentialSource
+      });
+
+      const upstream: {
+        slug?: string;
+        webUrl?: string;
+        cloneUrl?: string;
+        github?: { owner: string; repo: string } | null;
+        gitlabProject?: string | number | null;
+      } = (() => {
+        if (execution!.provider === 'github') {
+          const slug = getGithubRepoSlugFromPayload(payload);
+          const full = slug ? `${slug.owner}/${slug.repo}` : '';
+          return {
+            slug: full || undefined,
+            webUrl: safeTrim(payload?.repository?.html_url) || undefined,
+            cloneUrl: safeTrim(payload?.repository?.clone_url) || safeTrim(repoUrl) || undefined,
+            github: slug ? { owner: slug.owner, repo: slug.repo } : null,
+            gitlabProject: null
+          };
+        }
+
+        const pathWithNamespace = getGitlabProjectPathWithNamespaceFromPayload(payload) ?? '';
+        const projectId = getGitlabProjectIdFromPayload(task, payload);
+        const projectIdentity = projectId ?? (pathWithNamespace ? pathWithNamespace : null);
+        const cloneUrl =
+          safeTrim(payload?.project?.git_http_url || payload?.project?.http_url || payload?.project?.http_url_to_repo) ||
+          safeTrim(repoUrl) ||
+          undefined;
+        return {
+          slug: pathWithNamespace ? pathWithNamespace : undefined,
+          webUrl: safeTrim(payload?.project?.web_url) || undefined,
+          cloneUrl,
+          github: null,
+          gitlabProject: projectIdentity
+        };
+      })();
+
+      const upstreamInjected = injectBasicAuth(repoUrl, auth);
+      await streamCommand(
+        `cd ${repoDir} && git remote set-url origin ${shDoubleQuote(upstreamInjected.execUrl)}`,
+        appendRawLog,
+        { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
+      );
+
+      const writeEnabled = execution!.robot.permission === 'write';
+      const upstreamCanPush = canTokenPushToUpstream(execution!.provider, execution!.robot.repoTokenRepoRole);
+
+      if (!writeEnabled) {
+        repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
+        await persistLogsBestEffort();
+        return;
+      }
+
+      const expectedUpstreamUrl = upstream.cloneUrl || repoUrl;
+      // Always reset origin push URL first to avoid stale fork pushUrl when fork setup is skipped/fails. 24yz61mdik7tqdgaa152
+      await streamCommand(
+        `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(upstreamInjected.execUrl)}`,
+        appendRawLog,
+        { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
+      );
+      await installGitPrePushGuard({ expectedUpstream: expectedUpstreamUrl, expectedPush: expectedUpstreamUrl });
+
+      if (upstreamCanPush) {
+        repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
+        await persistLogsBestEffort();
+        return;
+      }
+
+      if (execution!.provider === 'github' && upstream.github) {
+        const fork = await ensureGithubForkRepo({ upstream: upstream.github });
+        const forkCloneUrl = safeTrim(fork?.cloneUrl);
+        if (!fork || !forkCloneUrl) {
+          await appendLog('Fork workflow skipped: fork repository clone URL is missing');
+          repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
+          await persistLogsBestEffort();
+          return;
+        }
+
+        const forkInjected = injectBasicAuth(forkCloneUrl, auth);
+        await streamCommand(
+          `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
+          appendRawLog,
+          { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
+        );
+        await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
+        repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
+        await appendLog(`Fork workflow enabled: upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug}`);
+        await persistLogsBestEffort();
+        return;
+      }
+
+      if (execution!.provider === 'gitlab' && upstream.gitlabProject) {
+        const fork = await ensureGitlabForkProject({ upstreamProject: upstream.gitlabProject });
+        const forkCloneUrl = safeTrim(fork?.cloneUrl) || (safeTrim(fork?.webUrl) ? `${safeTrim(fork?.webUrl)}.git` : '');
+        if (!fork || !forkCloneUrl) {
+          await appendLog('Fork workflow skipped: fork project clone URL is missing');
+          repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
+          await persistLogsBestEffort();
+          return;
+        }
+
+        const forkInjected = injectBasicAuth(forkCloneUrl, auth);
+        await streamCommand(
+          `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
+          appendRawLog,
+          { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
+        );
+        await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
+        repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
+        await appendLog(`Fork workflow enabled: upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug}`);
+        await persistLogsBestEffort();
+        return;
+      }
+
+      repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
+      await persistLogsBestEffort();
+    };
+
+    try {
+      await configureGitWorkflow();
+    } catch (err: any) {
+      await appendLog(`Git workflow setup failed (continuing): ${err?.message || err}`);
     }
 
     // Build prompt based on robot type.

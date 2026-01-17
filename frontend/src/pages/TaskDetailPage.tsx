@@ -150,6 +150,27 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     return { inputTokens, outputTokens, totalTokens };
   }, [task?.result?.tokenUsage]);
 
+  const repoWorkflow = useMemo(() => {
+    // Display direct-vs-fork repo workflow metadata from the agent for debugging and clarity. 24yz61mdik7tqdgaa152
+    const raw = (task?.result as any)?.repoWorkflow;
+    if (!raw || typeof raw !== 'object') return null;
+    const mode = typeof (raw as any).mode === 'string' ? String((raw as any).mode).trim() : '';
+    if (mode !== 'direct' && mode !== 'fork') return null;
+
+    const upstream = (raw as any).upstream && typeof (raw as any).upstream === 'object' ? (raw as any).upstream : null;
+    const fork = (raw as any).fork && typeof (raw as any).fork === 'object' ? (raw as any).fork : null;
+    const upstreamWebUrl = upstream && typeof upstream.webUrl === 'string' ? upstream.webUrl.trim() : '';
+    const forkWebUrl = fork && typeof fork.webUrl === 'string' ? fork.webUrl.trim() : '';
+
+    return {
+      mode,
+      upstreamSlug: upstream && typeof upstream.slug === 'string' ? upstream.slug.trim() : '',
+      forkSlug: fork && typeof fork.slug === 'string' ? fork.slug.trim() : '',
+      upstreamWebUrl: upstreamWebUrl || '',
+      forkWebUrl: forkWebUrl || ''
+    };
+  }, [task?.result]);
+
   const resultText = useMemo(() => extractTaskResultText(task), [task]);
   const showResult = Boolean(task && isTerminalStatus(task.status));
 
@@ -559,6 +580,34 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                       <Typography.Text type="secondary">-</Typography.Text>
                     )}
                   </Descriptions.Item>
+
+                  {repoWorkflow ? (
+                    <Descriptions.Item label={t('tasks.field.repoWorkflow')}>
+                      <Space size={8} wrap>
+                        <Tag color={repoWorkflow.mode === 'fork' ? 'purple' : 'green'}>
+                          {repoWorkflow.mode === 'fork' ? t('tasks.repoWorkflow.fork') : t('tasks.repoWorkflow.direct')}
+                        </Tag>
+
+                        {repoWorkflow.upstreamWebUrl ? (
+                          <Typography.Link href={repoWorkflow.upstreamWebUrl} target="_blank" rel="noreferrer">
+                            {repoWorkflow.upstreamSlug || repoWorkflow.upstreamWebUrl}
+                          </Typography.Link>
+                        ) : repoWorkflow.upstreamSlug ? (
+                          <Typography.Text>{repoWorkflow.upstreamSlug}</Typography.Text>
+                        ) : null}
+
+                        {repoWorkflow.mode === 'fork' ? (
+                          repoWorkflow.forkWebUrl ? (
+                            <Typography.Link href={repoWorkflow.forkWebUrl} target="_blank" rel="noreferrer">
+                              {repoWorkflow.forkSlug || repoWorkflow.forkWebUrl}
+                            </Typography.Link>
+                          ) : repoWorkflow.forkSlug ? (
+                            <Typography.Text type="secondary">{repoWorkflow.forkSlug}</Typography.Text>
+                          ) : null
+                        ) : null}
+                      </Space>
+                    </Descriptions.Item>
+                  ) : null}
 
                   <Descriptions.Item label={t('tasks.field.author')}>
                     {user ? (

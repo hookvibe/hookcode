@@ -2,6 +2,8 @@ import type { Task } from '../types/task';
 import type { RepoProvider } from '../types/repository';
 import type { GitlabService } from '../services/gitlabService';
 import type { GithubService } from '../services/githubService';
+// Reuse shared payload parsers to keep provider targeting logic consistent. 24yz61mdik7tqdgaa152
+import { getGithubRepoSlugFromPayload, getGitlabProjectIdFromPayload } from '../utils/repoPayload';
 
 /**
  * Post task results back to code hosting platforms (GitLab/GitHub):
@@ -9,27 +11,9 @@ import type { GithubService } from '../services/githubService';
  * - Chooses the appropriate API based on the task target (Issue/Commit, etc.).
  */
 
-const getGithubRepoSlug = (payload: any): { owner: string; repo: string } | null => {
-  const full = String(payload?.repository?.full_name ?? '').trim();
-  if (full.includes('/')) {
-    const [owner, repo] = full.split('/');
-    if (owner && repo) return { owner, repo };
-  }
-  const owner = String(payload?.repository?.owner?.login ?? '').trim();
-  const repo = String(payload?.repository?.name ?? '').trim();
-  if (owner && repo) return { owner, repo };
-  return null;
-};
-
 const getGithubCommitSha = (payload: any): string | null => {
   const sha = String(payload?.after ?? payload?.head_commit?.id ?? '').trim();
   return sha ? sha : null;
-};
-
-const getGitlabProjectId = (task: Task, payload: any): string | number | null => {
-  const id = payload?.project?.id ?? task.projectId;
-  if (id === undefined || id === null || id === '') return null;
-  return id;
 };
 
 export interface PostToProviderInput {
@@ -82,7 +66,7 @@ export const postToProvider = async (input: PostToProviderInput): Promise<PostTo
       return null;
     };
 
-    const projectId = getGitlabProjectId(input.task, input.payload);
+    const projectId = getGitlabProjectIdFromPayload(input.task, input.payload);
 
     // Fallback: some legacy/abnormal tasks may have mistakenly written note.id into task.issueId/task.mrId;
     // for the "commented" subtype, issue/mr i(i)d from the payload is more reliable.
@@ -198,7 +182,7 @@ export const postToProvider = async (input: PostToProviderInput): Promise<PostTo
 
   if (input.provider === 'github') {
     if (!input.github) throw new Error('github client not configured');
-    const slug = getGithubRepoSlug(input.payload);
+    const slug = getGithubRepoSlugFromPayload(input.payload);
     if (!slug) throw new Error('missing github repo slug');
 
     if (input.task.issueId) {

@@ -108,6 +108,10 @@ export const enUS: Record<MessageKey, string> = {
   'tasks.field.title': 'Title',
   'tasks.field.repo': 'Repository',
   'tasks.field.robot': 'Robot',
+  // Surface direct-vs-fork workflow to reduce PR/MR targeting mistakes. 24yz61mdik7tqdgaa152
+  'tasks.field.repoWorkflow': 'Repo workflow',
+  'tasks.repoWorkflow.direct': 'Direct',
+  'tasks.repoWorkflow.fork': 'Fork',
   'tasks.field.group': 'Task group',
   'tasks.field.target': 'Target',
   'tasks.field.ref': 'Ref',
