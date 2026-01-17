@@ -126,8 +126,9 @@ write_kv GITHUB_PERSONAL_ACCESS_TOKEN "${GITHUB_PERSONAL_ACCESS_TOKEN:-dummy-tok
 # ------------------------------------------------------------------------------
 # Feature toggles (keep CI fast & predictable)
 # ------------------------------------------------------------------------------
-# Enable task log capture in CI deployments so the Live logs SSE UI works out of the box. 0nazpc53wnvljv5yh7c6
-write_kv TASK_LOGS_ENABLED "${TASK_LOGS_ENABLED:-false}"
+# In CI we persist task logs for debugging while keeping them hidden from user-facing APIs/UI by default. nykx5svtlgh050cstyht
+write_kv TASK_LOGS_DB_ENABLED "${TASK_LOGS_DB_ENABLED:-true}"
+write_kv TASK_LOGS_VISIBLE_ENABLED "${TASK_LOGS_VISIBLE_ENABLED:-false}"
 write_kv ADMIN_TOOLS_ENABLED "${ADMIN_TOOLS_ENABLED:-false}"
 write_kv INLINE_WORKER_ENABLED "${INLINE_WORKER_ENABLED:-false}"
 write_kv WORKER_POLL_INTERVAL_MS "${WORKER_POLL_INTERVAL_MS:-2000}"

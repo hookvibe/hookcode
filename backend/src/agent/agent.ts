@@ -32,7 +32,7 @@ import {
   normalizeGeminiCliRobotProviderConfig,
   runGeminiCliExecWithCli
 } from '../modelProviders/geminiCli';
-import { isTaskLogsEnabled } from '../config/features';
+import { isTaskLogsDbEnabled } from '../config/features';
 import { isTruthy } from '../utils/env';
 import type { UserModelCredentials } from '../modules/users/user.service';
 import {
@@ -420,7 +420,7 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
   let logsSeq = 0;
   let execution: ResolvedExecution | null = null;
   let tokenUsage: TaskTokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-  const taskLogsEnabled = isTaskLogsEnabled();
+  const taskLogsDbEnabled = isTaskLogsDbEnabled(); // Persist task logs based on DB toggle even when user visibility is disabled. nykx5svtlgh050cstyht
   let taskGroupId: string | null = typeof task.groupId === 'string' ? task.groupId.trim() : null;
   let threadIdBound = false;
 
@@ -441,7 +441,7 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     if (lastPersistErrorAt > 0 && now - lastPersistErrorAt < 5000) return;
     try {
       const patch: any = { tokenUsage };
-      if (taskLogsEnabled) {
+      if (taskLogsDbEnabled) {
         patch.logs = logs;
         patch.logsSeq = logsSeq;
       }
@@ -456,7 +456,7 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
   };
 
   const appendLine = async (line: string) => {
-    if (!taskLogsEnabled) return;
+    if (!taskLogsDbEnabled) return;
     logsSeq += 1;
     logs.push(line);
     if (logs.length > MAX_LOG_LINES) {
@@ -493,7 +493,7 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     if (delta) {
       tokenUsage = addTaskTokenUsage(tokenUsage, delta);
     }
-    if (!taskLogsEnabled) {
+    if (!taskLogsDbEnabled) {
       await persistLogsBestEffort();
       return;
     }
