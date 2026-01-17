@@ -5,61 +5,81 @@
   WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md.
 -->
 
-<!-- Keep phase status updates in sync with task_plan.md for this session. [SESSION_HASH] -->
+<!-- Keep phase status updates in sync with task_plan.md for this session. nykx5svtlgh050cstyht -->
 
 ## Session Metadata
-- **Session Title:** [SESSION_TITLE]
-- **Session Hash:** [SESSION_HASH]
+- **Session Title:** Split task logs config (DB vs visibility)
+- **Session Hash:** nykx5svtlgh050cstyht
 
-## Session: [DATE]
+## Session: 2026-01-17
 <!-- 
   WHAT: The date of this work session.
   WHY: Helps track when work happened, useful for resuming after time gaps.
   EXAMPLE: 2026-01-15
 -->
 
-### Phase 1: [Title]
+### Phase 1: Requirements & Discovery
 <!-- 
   WHAT: Detailed log of actions taken during this phase.
   WHY: Provides context for what was done, making it easier to resume or debug.
   WHEN: Update as you work through the phase, or at least when you complete it.
 -->
-- **Status:** in_progress
-- **Started:** [timestamp]
+- **Status:** complete
+- **Started:** 2026-01-17 11:00 CST
 <!-- 
   STATUS: Same as task_plan.md (pending, in_progress, complete)
   TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00")
 -->
 - Actions taken:
-  <!-- 
-    WHAT: List of specific actions you performed.
-    EXAMPLE:
-      - Created todo.py with basic structure
-      - Implemented add functionality
-      - Fixed FileNotFoundError
-  -->
-  -
+  - Searched for `TASK_LOGS_ENABLED` usages across backend/frontend/CI scripts.
+  - Confirmed the single toggle currently gates both DB persistence (agent patch) and user-facing APIs/UI.
 - Files created/modified:
-  <!-- 
-    WHAT: Which files you created or changed.
-    WHY: Quick reference for what was touched. Helps with debugging and review.
-    EXAMPLE:
-      - todo.py (created)
-      - todos.json (created by app)
-      - task_plan.md (updated)
-  -->
-  -
+  - `docs/en/developer/plans/nykx5svtlgh050cstyht/task_plan.md` (updated)
+  - `docs/en/developer/plans/nykx5svtlgh050cstyht/findings.md` (updated)
 
-### Phase 2: [Title]
+### Phase 2: Planning & Structure
 <!-- 
   WHAT: Same structure as Phase 1, for the next phase.
   WHY: Keep a separate log entry for each phase to track progress clearly.
 -->
-- **Status:** pending
+- **Status:** complete
 - Actions taken:
-  -
+  - Decided new env vars: `TASK_LOGS_DB_ENABLED` + `TASK_LOGS_VISIBLE_ENABLED` (defaults: true).
+  - Decided effective visibility rule: `enabled = db && visible` with `TASK_LOGS_ENABLED` as legacy fallback.
 - Files created/modified:
-  -
+  - `docs/en/developer/plans/nykx5svtlgh050cstyht/task_plan.md` (updated)
+  - `docs/en/developer/plans/nykx5svtlgh050cstyht/findings.md` (updated)
+
+### Phase 3: Implementation
+- **Status:** complete
+- Actions taken:
+  - Implemented new toggles in backend config and updated agent persistence gating.
+  - Updated CI env generation and env example files to use the new vars.
+  - Updated frontend i18n strings to avoid referencing the legacy env var name.
+- Files created/modified:
+  - `backend/src/config/features.ts`
+  - `backend/src/agent/agent.ts`
+  - `docker/ci/write-ci-env.sh`
+  - `backend/.env.example`
+  - `docker/.env.example`
+  - `frontend/src/i18n/messages/en-US.ts`
+  - `frontend/src/i18n/messages/zh-CN.ts`
+
+### Phase 4: Testing & Verification
+- **Status:** complete
+- Actions taken:
+  - Updated backend unit tests to cover the new split toggles + legacy fallback.
+  - Ran backend and frontend test suites.
+- Files created/modified:
+  - `backend/src/tests/unit/taskLogsFeatureToggle.test.ts`
+
+### Phase 5: Delivery
+- **Status:** complete
+- Actions taken:
+  - Updated `docs/en/change-log/0.0.0.md` with the session link.
+  - Ran the planning completion checker (`check-complete.sh`) and verified all phases are complete.
+- Files created/modified:
+  - `docs/en/change-log/0.0.0.md`
 
 ## Test Results
 <!-- 
@@ -72,7 +92,8 @@
 -->
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-|      |       |          |        |        |
+| Backend unit tests | `pnpm --filter hookcode-backend test` | Pass | Pass | ✓ |
+| Frontend unit tests | `pnpm --filter hookcode-frontend test` | Pass | Pass | ✓ |
 
 ## Error Log
 <!-- 
@@ -104,9 +125,9 @@
 <!-- If you can answer these, context is solid -->
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase X |
-| Where am I going? | Remaining phases |
-| What's the goal? | [goal statement] |
+| Where am I? | Phase 5 (Delivery) |
+| Where am I going? | Update change log + final review |
+| What's the goal? | Split task logs toggles into DB vs visibility (defaults true; CI hides visibility). |
 | What have I learned? | See findings.md |
 | What have I done? | See above |
 

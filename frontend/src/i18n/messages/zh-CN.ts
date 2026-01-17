@@ -594,6 +594,8 @@ export const zhCN = {
   'logViewer.actions.copy': '复制',
   'logViewer.actions.clear': '清空',
   'logViewer.error.autoReconnect': '连接异常，正在自动重连…',
+  // Display a stable message when task logs are hidden by server configuration. nykx5svtlgh050cstyht
+  'logViewer.disabled': '服务端已关闭任务日志展示。',
   'logViewer.empty': '暂无日志',
   'logViewer.copySuccess': '已复制',
   'logViewer.copyFailed': '复制失败',

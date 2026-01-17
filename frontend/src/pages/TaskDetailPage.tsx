@@ -30,11 +30,12 @@ import { eventTag, extractTargetLink, extractUser, extractTaskResultText, format
 export interface TaskDetailPageProps {
   taskId: string;
   userPanel?: ReactNode;
+  taskLogsEnabled?: boolean | null;
 }
 
 const providerLabel = (provider: string) => (provider === 'github' ? 'GitHub' : 'GitLab');
 
-export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel }) => {
+export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, taskLogsEnabled }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -80,6 +81,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel }) =
   const canManageTask = Boolean(task?.permissions?.canManage);
   const canOpenRepo = Boolean(task?.repo?.id ?? task?.repoId);
   const canOpenGroup = Boolean(task?.groupId);
+  const effectiveTaskLogsEnabled = taskLogsEnabled === undefined ? true : taskLogsEnabled; // Guard Live logs rendering with backend feature flags to avoid 404 reconnect loops. 0nazpc53wnvljv5yh7c6
 
   const repoSummary = useMemo<TaskRepoSummary | null>(() => {
     if (!task) return null;
@@ -448,7 +450,19 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel }) =
             </Card>
 
             <Card size="small" title={t('task.page.logsTitle')} className="hc-card">
-              <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} height={360} tail={800} />
+              {/* Render the logs viewer only when logs are enabled to prevent endless SSE reconnects. 0nazpc53wnvljv5yh7c6 */}
+              {effectiveTaskLogsEnabled === false ? (
+                <Alert type="info" showIcon message={t('logViewer.disabled')} />
+              ) : effectiveTaskLogsEnabled === null ? (
+                <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+              ) : (
+                <TaskLogViewer
+                  taskId={task.id}
+                  canManage={Boolean(task.permissions?.canManage)}
+                  height={360}
+                  tail={800}
+                />
+              )}
             </Card>
 
             <Card size="small" title={t('task.page.resultTitle')} className="hc-card">

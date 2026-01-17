@@ -1,15 +1,15 @@
-# Findings & Decisions: [SESSION_TITLE]
+# Findings & Decisions: Refactor planning-with-files skill
 <!-- 
   WHAT: Your knowledge base for the task. Stores everything you discover and decide.
   WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited.
   WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule).
 -->
 
-<!-- Link discoveries to code changes via this session hash. [SESSION_HASH] -->
+<!-- Link discoveries to code changes via this session hash. sddsa89612jk4hbwas678 -->
 
 ## Session Metadata
-- **Session Hash:** [SESSION_HASH]
-- **Created:** [DATE]
+- **Session Hash:** sddsa89612jk4hbwas678
+- **Created:** 2026-01-17
 
 ## Requirements
 <!-- 
@@ -24,7 +24,12 @@
     - Python implementation
 -->
 <!-- Captured from user request -->
--
+- Create a hash-based session folder: `docs/en/developer/plans/<session-hash>/`
+- The folder must contain: `task_plan.md`, `progress.md`, `findings.md`
+- Plan file contents must be updated during the work (not left as empty templates)
+- During code edits, add inline comments: `<one sentence in English> <session-hash>`
+- After completing part of the plan, update statuses back in the session folder (task_plan/progress)
+- After completion, update `docs/en/change-log/0.0.0.md` with: hash + one-line intro + relative link to the plan
 
 ## Research Findings
 <!-- 
@@ -37,7 +42,8 @@
     - Standard pattern: python script.py <command> [args]
 -->
 <!-- Key discoveries during exploration -->
--
+- The existing skill (v3.x) stored `task_plan.md/findings.md/progress.md` in the repo root, which is hard to trace and clutters the workspace.
+- The skill already ships templates + helper scripts, so the cleanest refactor is to update those assets instead of duplicating new utilities elsewhere.
 
 ## Technical Decisions
 <!-- 
@@ -51,7 +57,9 @@
 <!-- Decisions made with rationale -->
 | Decision | Rationale |
 |----------|-----------|
-|          |           |
+| Use `docs/en/developer/plans/<session-hash>/` as the canonical storage | Keeps planning docs versionable + linkable, and separates them from code |
+| Embed `[SESSION_HASH]` into templates and hydrate on init | Makes traceability automatic and prevents manual copy mistakes |
+| Add a changelog append script | Ensures every session ends with a stable backlink from the release notes |
 
 ## Issues Encountered
 <!-- 
@@ -76,7 +84,11 @@
     - Project structure: src/main.py, src/utils.py
 -->
 <!-- URLs, file paths, API references -->
--
+- `.codex/skills/planning-with-files/SKILL.md`
+- `.codex/skills/planning-with-files/scripts/init-session.sh`
+- `.codex/skills/planning-with-files/scripts/check-complete.sh`
+- `.codex/skills/planning-with-files/scripts/append-changelog.sh`
+- `docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md`
 
 ## Visual/Browser Findings
 <!-- 

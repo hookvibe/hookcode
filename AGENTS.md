@@ -14,11 +14,26 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 
 ## Working workflow
 
-1. Analyze the given request/context
-2. Locate related files (both frontend and backend)
-3. Implement the change
-4. Add or update inline code comments for every change (see "Inline comment requirements" below)
-5. Add or update test cases, and run tests
+<!-- Enforce planning-with-files workflow on every invocation for traceability. 0lldjnbw5qxdhw4wwftz -->
+
+1. Start a `planning-with-files` session (NON-NEGOTIABLE)
+   - Decide the `SESSION_HASH` (use user-provided hash; otherwise generate one).
+   - Run `bash .codex/skills/planning-with-files/scripts/init-session.sh "<SESSION_HASH>" "<SESSION_TITLE>"` (or run without args to auto-generate a hash).
+   - The only source of truth for the plan is: `docs/en/developer/plans/<SESSION_HASH>/`
+2. Before ANY implementation, fill the session docs
+   - Update `docs/en/developer/plans/<SESSION_HASH>/task_plan.md` (goal, phases, key questions).
+   - Capture requirements/discoveries in `docs/en/developer/plans/<SESSION_HASH>/findings.md`.
+3. Locate related files (both frontend and backend) and continuously update findings (2-Action Rule)
+4. Implement the change
+   - Re-read `docs/en/developer/plans/<SESSION_HASH>/task_plan.md` before major decisions.
+   - Add/adjust inline comments for every code change (see "Inline comment requirements").
+5. After completing each phase or meaningful milestone, return to the session folder and update
+   - `task_plan.md`: phase status (pending → in_progress → complete)
+   - `progress.md`: actions, touched files, test results, error log
+6. Add or update test cases, run tests, and record results in `docs/en/developer/plans/<SESSION_HASH>/progress.md`
+7. Delivery checklist (NON-NEGOTIABLE)
+   - Ensure all phases are complete (optional helper: `bash .codex/skills/planning-with-files/scripts/check-complete.sh <SESSION_HASH>`).
+   - Update `docs/en/change-log/0.0.0.md` with: `SESSION_HASH` + one-line summary + relative link to the plan.
 
 ## Inline comment requirements
 
@@ -27,6 +42,13 @@ Goal: Maintain the codebase like an encyclopedia — code and comments evolve to
 Mandatory rules:
 - Write comments inline at the exact code location they describe (do NOT create new `.md` documentation as a substitute for code comments).
 - After EVERY code change (add / modify / refactor / bugfix), you MUST also add or update the corresponding inline comments.
+- Traceability (NON-NEGOTIABLE): every changed area MUST include a 1-sentence English inline comment that ends with the active `SESSION_HASH`.
+  - Format: `<one sentence in English> <SESSION_HASH>`
+  - Examples:
+    - JS/TS/Go: `// Add input validation for webhook payload. <SESSION_HASH>`
+    - Python/Shell/YAML: `# Explain retry backoff behavior. <SESSION_HASH>`
+    - SQL: `-- Prevent duplicate inserts via unique key. <SESSION_HASH>`
+    - Markdown: `<!-- Update workflow rules to enforce plan sessions. <SESSION_HASH> -->`
 - Comments must match the complexity level of the code (simple vs. medium vs. complex), and include the required content below.
 - Backend Swagger-related documentation MUST follow Swagger comment format (e.g., OpenAPI/Swagger annotations). Non-Swagger areas follow the rules below.
 - All edited code comments and console output MUST be in English.

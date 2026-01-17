@@ -587,6 +587,8 @@ export const enUS: Record<MessageKey, string> = {
   'logViewer.actions.copy': 'Copy',
   'logViewer.actions.clear': 'Clear',
   'logViewer.error.autoReconnect': 'Connection error. Auto reconnecting…',
+  // Display a stable message when task logs are hidden by server configuration. nykx5svtlgh050cstyht
+  'logViewer.disabled': 'Task logs are disabled on server.',
   'logViewer.empty': 'No logs',
   'logViewer.copySuccess': 'Copied',
   'logViewer.copyFailed': 'Copy failed',

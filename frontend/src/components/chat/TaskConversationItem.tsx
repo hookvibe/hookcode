@@ -1,5 +1,5 @@
 import { FC, useMemo, useState } from 'react';
-import { Button, Card, Space, Typography } from 'antd';
+import { Alert, Button, Card, Space, Typography } from 'antd';
 import { DownOutlined, FileTextOutlined, UpOutlined } from '@ant-design/icons';
 import type { Task } from '../../api';
 import { useT } from '../../i18n';
@@ -23,13 +23,15 @@ interface Props {
   task: Task;
   taskDetail?: Task | null;
   onOpenTask?: (task: Task) => void;
+  taskLogsEnabled?: boolean | null;
 }
 
-export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask }) => {
+export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, taskLogsEnabled }) => {
   const t = useT();
   const [logsExpanded, setLogsExpanded] = useState(() => task.status === 'queued' || task.status === 'processing');
 
   const mergedTask = taskDetail ?? task;
+  const effectiveTaskLogsEnabled = taskLogsEnabled === undefined ? true : taskLogsEnabled; // Keep chat UI consistent with backend log feature gating to avoid confusing errors. 0nazpc53wnvljv5yh7c6
   const userText = useMemo(() => extractTaskUserText(task) || t('chat.message.userTextFallback'), [t, task]);
   const title = useMemo(() => getTaskTitle(mergedTask), [mergedTask]);
   const resultText = useMemo(() => extractTaskResultText(mergedTask), [mergedTask]);
@@ -88,7 +90,18 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask }
         </div>
         {logsExpanded ? (
           <Card size="small" className="hc-chat-logs-card" styles={{ body: { padding: 0 } }}>
-            <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} height={240} tail={400} />
+            {/* Guard SSE logs viewer when backend task logs are disabled. 0nazpc53wnvljv5yh7c6 */}
+            {effectiveTaskLogsEnabled === false ? (
+              <div style={{ padding: 12 }}>
+                <Alert type="info" showIcon message={t('logViewer.disabled')} />
+              </div>
+            ) : effectiveTaskLogsEnabled === null ? (
+              <div style={{ padding: 12 }}>
+                <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+              </div>
+            ) : (
+              <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} height={240} tail={400} />
+            )}
           </Card>
         ) : null}
       </div>

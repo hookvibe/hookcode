@@ -29,12 +29,15 @@ import { isTerminalStatus } from '../utils/task';
 export interface TaskGroupChatPageProps {
   taskGroupId?: string;
   userPanel?: ReactNode;
+  taskLogsEnabled?: boolean | null;
 }
 
-export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, userPanel }) => {
+export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, userPanel, taskLogsEnabled }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
+
+  const effectiveTaskLogsEnabled = taskLogsEnabled === undefined ? true : taskLogsEnabled; // Reuse `/auth/me` feature toggles to avoid repeated SSE 404 retries when logs are disabled. 0nazpc53wnvljv5yh7c6
 
   const [reposLoading, setReposLoading] = useState(false);
   const [repos, setRepos] = useState<Repository[]>([]);
@@ -464,6 +467,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                 task={task}
                 taskDetail={taskDetailsById[task.id] ?? null}
                 onOpenTask={openTask}
+                taskLogsEnabled={effectiveTaskLogsEnabled}
               />
             ))}
           </div>
