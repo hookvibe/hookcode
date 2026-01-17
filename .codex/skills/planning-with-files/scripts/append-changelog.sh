@@ -29,7 +29,7 @@ if [ ! -f "${CHANGELOG_FILE}" ]; then
 fi
 
 PLAN_REL_LINK="../developer/plans/${SESSION_HASH}/task_plan.md"
-ENTRY="- ${SESSION_HASH}: ${SUMMARY} ([plan](${PLAN_REL_LINK}))"
+ENTRY="- ${SUMMARY} ([${SESSION_HASH}](${PLAN_REL_LINK}))"
 
 if rg -n --fixed-strings "${SESSION_HASH}" "${CHANGELOG_FILE}" >/dev/null 2>&1; then
     echo "Changelog already contains session hash: ${SESSION_HASH}"

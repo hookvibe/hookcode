@@ -1,4 +1,4 @@
-import { Table } from 'antd';
+import { Skeleton, Table } from 'antd';
 import type { TableProps } from 'antd';
 
 /**
@@ -26,8 +26,22 @@ export const ScrollableTable = <RecordType extends object>({
   scroll,
   ...props
 }: ScrollableTableProps<RecordType>) => {
+  // Prefer a skeleton placeholder on the first load to avoid showing a spinner-only table. ro3ln7zex8d0wyynfj0m
   const mergedScroll = scroll ? { ...scroll, x: scroll.x ?? 'max-content' } : { x: 'max-content' };
   const className = ['table-wrapper', wrapperClassName].filter(Boolean).join(' ');
+
+  const isLoading =
+    typeof props.loading === 'boolean' ? props.loading : Boolean((props.loading as any)?.spinning ?? true);
+  const dataSize = Array.isArray(props.dataSource) ? props.dataSource.length : 0;
+  if (isLoading && dataSize === 0) {
+    return (
+      <div className={className} aria-busy="true" data-testid="hc-table-skeleton">
+        <div style={{ padding: 12 }}>
+          <Skeleton active title={false} paragraph={{ rows: 8, width: ['96%', '92%', '90%', '88%', '86%', '80%', '72%', '60%'] }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={className}>
@@ -35,4 +49,3 @@ export const ScrollableTable = <RecordType extends object>({
     </div>
   );
 };
-

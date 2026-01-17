@@ -7,6 +7,7 @@ import { useLocale, useT } from '../i18n';
 import { buildTaskHash } from '../router';
 import { clampText, getTaskTitle, statusTag } from '../utils/task';
 import { PageNav } from '../components/nav/PageNav';
+import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 
 /**
  * TasksPage:
@@ -141,6 +142,14 @@ export const TasksPage: FC<TasksPageProps> = ({ status, userPanel }) => {
               ))}
             </Space>
           </div>
+        ) : loading ? (
+          // Use skeleton cards instead of an Empty+icon while the task list is loading. ro3ln7zex8d0wyynfj0m
+          <CardListSkeleton
+            count={6}
+            cardClassName="hc-task-card"
+            testId="hc-tasks-skeleton"
+            ariaLabel={t('common.loading')}
+          />
         ) : (
           <div className="hc-empty">
             <Empty description={loading ? t('common.loading') : t('tasks.page.empty')} />

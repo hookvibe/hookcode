@@ -834,6 +834,112 @@ body {
   margin-top: 4px;
 }
 
+/* =============================================================================
+ * Task detail full-width layout
+ * - Business context: Frontend Chat / Tasks / Task detail.
+ * - Purpose: remove the global max-width constraint and introduce summary strip + sidebar/workflow layout.
+ * - Change record: 2026-01-17 - Redesign the task detail page layout. tdlayout20260117k8p3
+ * ========================================================================== */
+
+.hc-task-detail-page .hc-page__body {
+  /* Layout intent: this page is a split-pane layout and should use the full available width. */
+  align-items: stretch;
+}
+
+.hc-task-detail-page .hc-page__body > * {
+  /* Override `.hc-page__body > * { max-width: var(--hc-page-max) }` for this page only. */
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.hc-task-summary-strip {
+  padding: 0 18px 14px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-task-summary-strip__scroller {
+  /* Show all summary cards without horizontal scrolling by allowing responsive wrapping. tdstripwrap20260117b5m7 */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  align-items: stretch; /* Keep summary cards equal-height per row. tdsummaryequalh20260117v2n9 */
+  gap: 12px;
+}
+
+.hc-task-summary-strip__card {
+  height: 100%; /* Ensure each summary card fills the grid row height for visual consistency. tdsummaryequalh20260117v2n9 */
+  min-width: 0;
+}
+
+.hc-task-detail-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hc-task-detail-sidebar {
+  flex: 0 0 clamp(280px, 30%, 420px);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  min-width: 0;
+}
+
+.hc-task-detail-workflow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-task-workflow .ant-steps-item-content,
+.hc-task-workflow .ant-steps-item-description {
+  max-width: none;
+  min-width: 0;
+}
+
+.hc-task-workflow .hc-step-index {
+  /* Display reversed step indices for bottom-up workflow numbering on task detail. tdstepsreverse20260117k1p6 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.hc-task-code-block {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 992px) {
+  .hc-task-summary-strip {
+    padding: 0 14px 12px;
+  }
+
+  .hc-task-detail-layout {
+    flex-direction: column;
+  }
+
+  .hc-task-detail-sidebar {
+    flex: 0 0 auto;
+    position: static;
+    width: 100%;
+  }
+}
+
 .hc-inner-card {
   background: transparent !important;
   border-color: var(--hc-border) !important;

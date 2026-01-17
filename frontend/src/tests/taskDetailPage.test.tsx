@@ -61,17 +61,23 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     await waitFor(() => expect(api.fetchTask).toHaveBeenCalled());
     expect(await screen.findByText('Task t1', { selector: '.hc-page__title' })).toBeInTheDocument();
 
-    // Regression: ensure the legacy "Repository / Robot / Author" top cards exist after the migration to frontend-chat.
-    const meta = document.querySelector('.hc-task-meta');
-    expect(meta).toBeTruthy();
-    const metaScope = within(meta as HTMLElement);
-    expect(metaScope.getByText('Repository')).toBeInTheDocument();
-    expect(metaScope.getByText('Robot')).toBeInTheDocument();
-    expect(metaScope.getByText('Author')).toBeInTheDocument();
-    expect(metaScope.getByText('Repo r1')).toBeInTheDocument();
-    expect(metaScope.getByText('Robot bot1')).toBeInTheDocument();
-    expect(metaScope.getByText('Alice')).toBeInTheDocument();
-    expect(metaScope.getByText(/@alice/i)).toBeInTheDocument();
+    // Regression: ensure the full-width task summary strip still surfaces key fields for quick scanning. tdlayout20260117k8p3
+    const strip = document.querySelector('.hc-task-summary-strip');
+    expect(strip).toBeTruthy();
+    const stripScope = within(strip as HTMLElement);
+    expect(stripScope.getByText('Repository')).toBeInTheDocument();
+    expect(stripScope.getByText('Robot')).toBeInTheDocument();
+    expect(stripScope.getByText('Author')).toBeInTheDocument();
+    expect(stripScope.getByText('Repo r1')).toBeInTheDocument();
+    expect(stripScope.getByText('Robot bot1')).toBeInTheDocument();
+    expect(stripScope.getByText('Alice')).toBeInTheDocument();
+    expect(stripScope.getByText(/@alice/i)).toBeInTheDocument();
+
+    // Regression: ensure workflow step numbers count bottom-up (1 at the bottom). tdstepsreverse20260117k1p6
+    const stepIndices = Array.from(document.querySelectorAll('.hc-task-workflow .hc-step-index')).map((el) =>
+      String(el.textContent || '').trim()
+    );
+    expect(stepIndices).toEqual(['4', '3', '2', '1']);
 
     await ui.click(screen.getByRole('button', { name: /Retry/i }));
     await waitFor(() => expect(api.retryTask).toHaveBeenCalledWith('t1', undefined));

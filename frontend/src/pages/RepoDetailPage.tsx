@@ -57,6 +57,7 @@ import { TemplateEditor } from '../components/TemplateEditor';
 import { ScrollableTable } from '../components/ScrollableTable';
 import { PageNav } from '../components/nav/PageNav';
 import { buildWebhookUrl } from '../utils/webhook';
+import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
 
 /**
  * RepoDetailPage:
@@ -1545,9 +1546,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                 ]}
               />
             </Space>
+          ) : loading ? (
+            // Render a repo-detail skeleton instead of a generic Empty+icon while loading. ro3ln7zex8d0wyynfj0m
+            <RepoDetailSkeleton testId="hc-repo-detail-skeleton" ariaLabel={t('common.loading')} />
           ) : (
             <div className="hc-empty">
-              <Empty description={loading ? t('common.loading') : t('repos.detail.notFound')} />
+              <Empty description={t('repos.detail.notFound')} />
             </div>
           )}
         </div>

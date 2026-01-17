@@ -1,5 +1,5 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Empty, Layout, Menu, Space, Typography } from 'antd';
+import { Button, Layout, Menu, Space, Typography } from 'antd';
 import {
   BugOutlined,
   CheckCircleFilled,
@@ -33,6 +33,7 @@ import { navigateFromSidebar } from '../navHistory';
 import { clampText, getTaskTitle } from '../utils/task';
 import type { AccentPreset } from '../theme/accent';
 import { UserPanelPopover } from '../components/UserPanelPopover';
+import { LoginCardSkeleton } from '../components/skeletons/LoginCardSkeleton';
 import { LoginPage } from './LoginPage';
 import { RepoDetailPage } from './RepoDetailPage';
 import { ReposPage } from './ReposPage';
@@ -409,7 +410,8 @@ export const AppShell: FC<AppShellProps> = ({
   if (authChecking || authEnabled === null) {
     return (
       <div className="hc-login">
-        <Empty description={t('common.loading')} />
+        {/* Show a login-shaped skeleton while resolving auth capability. ro3ln7zex8d0wyynfj0m */}
+        <LoginCardSkeleton testId="hc-auth-skeleton" ariaLabel={t('common.loading')} />
       </div>
     );
   }

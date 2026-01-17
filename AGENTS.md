@@ -16,9 +16,15 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 
 <!-- Enforce planning-with-files workflow on every invocation for traceability. 0lldjnbw5qxdhw4wwftz -->
 
-1. Start a `planning-with-files` session (NON-NEGOTIABLE)
-   - Decide the `SESSION_HASH` (use user-provided hash; otherwise generate one).
-   - Run `bash .codex/skills/planning-with-files/scripts/init-session.sh "<SESSION_HASH>" "<SESSION_TITLE>"` (or run without args to auto-generate a hash).
+1. Determine the active session (NON-NEGOTIABLE)
+   - **Check conversation history first**: if this conversation already has an active `SESSION_HASH` and the current request is a continuation/refinement of that task, **reuse the existing SESSION_HASH** (do NOT create a new session).
+   - **Only start a new session** if:
+     - This is a completely new, unrelated task, OR
+     - The previous session is explicitly marked as complete and the user requests a new feature.
+   - To start a new session:
+     - Start a `planning-with-files` 
+     - Decide the `SESSION_HASH` (use user-provided hash; otherwise generate one).
+     - Run `bash .codex/skills/planning-with-files/scripts/init-session.sh "<SESSION_HASH>" "<SESSION_TITLE>"` (or run without args to auto-generate a hash).
    - The only source of truth for the plan is: `docs/en/developer/plans/<SESSION_HASH>/`
 2. Before ANY implementation, fill the session docs
    - Update `docs/en/developer/plans/<SESSION_HASH>/task_plan.md` (goal, phases, key questions).

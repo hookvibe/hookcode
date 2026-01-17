@@ -8,6 +8,7 @@ import { buildRepoHash } from '../router';
 import { PageNav } from '../components/nav/PageNav';
 import { buildWebhookUrl } from '../utils/webhook';
 import { WebhookIntroModal } from '../components/repos/WebhookIntroModal';
+import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 
 /**
  * ReposPage:
@@ -243,6 +244,14 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
               })}
             </Space>
           </div>
+        ) : loading ? (
+          // Use skeleton cards instead of an Empty+icon while the repo list is loading. ro3ln7zex8d0wyynfj0m
+          <CardListSkeleton
+            count={6}
+            cardClassName="hc-repo-card"
+            testId="hc-repos-skeleton"
+            ariaLabel={t('common.loading')}
+          />
         ) : (
           <div className="hc-empty">
             <Empty description={loading ? t('common.loading') : t('repos.page.empty')} />

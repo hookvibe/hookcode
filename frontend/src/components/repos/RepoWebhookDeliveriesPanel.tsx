@@ -1,6 +1,6 @@
 import { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { ReloadOutlined } from '@ant-design/icons';
-import { Button, Empty, Modal, Space, Tag, Typography } from 'antd';
+import { Button, Empty, Modal, Skeleton, Space, Tag, Typography } from 'antd';
 import type { RepoWebhookDeliveryDetail, RepoWebhookDeliveryResult, RepoWebhookDeliverySummary } from '../../api';
 import { fetchRepoWebhookDelivery, listRepoWebhookDeliveries } from '../../api';
 import { useT } from '../../i18n';
@@ -197,7 +197,10 @@ export const RepoWebhookDeliveriesPanel: FC<RepoWebhookDeliveriesPanelProps> = (
         width={900}
       >
         {detailLoading ? (
-          <Typography.Text type="secondary">{t('repos.webhookDeliveries.loadingDetail')}</Typography.Text>
+          <>
+            {/* Show a detail-shaped skeleton instead of plain text while loading delivery detail. ro3ln7zex8d0wyynfj0m */}
+            <Skeleton active title={false} paragraph={{ rows: 10, width: ['92%', '88%', '96%', '86%', '90%', '82%', '96%', '78%', '88%', '60%'] }} />
+          </>
         ) : detail ? (
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <Space size={12} wrap>
@@ -252,4 +255,3 @@ export const RepoWebhookDeliveriesPanel: FC<RepoWebhookDeliveriesPanelProps> = (
     </>
   );
 };
-
