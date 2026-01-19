@@ -6,9 +6,8 @@ import { createRepo, fetchRepo, listRepos } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildRepoHash } from '../router';
 import { PageNav } from '../components/nav/PageNav';
-import { buildWebhookUrl } from '../utils/webhook';
-import { WebhookIntroModal } from '../components/repos/WebhookIntroModal';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
+import { parseRepoUrl } from '../utils/repoUrl';
 
 /**
  * ReposPage:
@@ -62,12 +61,7 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
-  const [createForm] = Form.useForm<{ provider: RepoProvider; name: string }>();
-  // Webhook quickstart modal state (create flow). (Change record: 2026-01-15)
-  const [webhookIntroOpen, setWebhookIntroOpen] = useState(false);
-  const [webhookIntroProvider, setWebhookIntroProvider] = useState<RepoProvider>('gitlab');
-  const [webhookIntroUrl, setWebhookIntroUrl] = useState('');
-  const [webhookIntroSecret, setWebhookIntroSecret] = useState<string | null>(null);
+  const [createForm] = Form.useForm<{ provider: RepoProvider; repoUrl: string }>(); // Collect provider + repo URL for repo identity parsing. 58w1q3n5nr58flmempxe
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -277,19 +271,29 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
           onFinish={async (values) => {
             setCreateSubmitting(true);
             try {
-              const created = await createRepo({ provider: values.provider, name: values.name });
+              const parsed = parseRepoUrl(values.provider, values.repoUrl);
+              if (!parsed.ok) {
+                // Provide actionable validation errors (owner/repo or provider mismatch) before creating the repo. 58w1q3n5nr58flmempxe
+                message.error(
+                  parsed.code === 'MISSING_OWNER_REPO'
+                    ? t('repos.form.repoUrlOwnerRepoRequired')
+                    : parsed.code === 'PROVIDER_MISMATCH'
+                      ? t('repos.form.repoUrlProviderMismatch')
+                      : t('repos.form.repoUrlInvalid')
+                );
+                return;
+              }
+
+              const created = await createRepo({
+                provider: values.provider,
+                name: parsed.value.name,
+                externalId: parsed.value.externalId || null,
+                apiBaseUrl: parsed.value.apiBaseUrl || null
+              });
               setCreateOpen(false);
               createForm.resetFields();
-              await refresh();
-
-              // Business intent: show the full webhook URL so users can tell which API base to use. (Change record: 2026-01-15)
-              const webhookUrl = buildWebhookUrl(created.webhookPath || '');
-
-              // Business intent: reuse the Webhook quickstart dialog instead of a one-off "Created" modal. (Change record: 2026-01-15)
-              setWebhookIntroProvider(created.repo.provider || values.provider);
-              setWebhookIntroUrl(webhookUrl || created.webhookPath || '');
-              setWebhookIntroSecret(created.webhookSecret ?? null);
-              setWebhookIntroOpen(true);
+              // Navigate to the repo detail onboarding wizard after creation (no webhook popup). 58w1q3n5nr58flmempxe
+              window.location.hash = buildRepoHash(created.repo.id);
             } catch (err: any) {
               console.error(err);
               message.error(err?.response?.data?.error || t('repos.createModal.failed'));
@@ -301,22 +305,14 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
           <Form.Item label={t('common.platform')} name="provider" rules={[{ required: true, message: t('repos.form.providerRequired') }]}>
             <Select options={providerOptions} />
           </Form.Item>
-          <Form.Item label={t('common.name')} name="name" rules={[{ required: true, message: t('repos.form.nameRequired') }]}>
-            <Input placeholder={t('repos.form.namePlaceholder')} />
+          <Form.Item label={t('repos.form.repoUrl')} name="repoUrl" rules={[{ required: true, message: t('repos.form.repoUrlRequired') }]}>
+            <Input placeholder={t('repos.form.repoUrlPlaceholder')} />
           </Form.Item>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
             {t('repos.createModal.tip')}
           </Typography.Paragraph>
         </Form>
       </Modal>
-
-      <WebhookIntroModal
-        open={webhookIntroOpen}
-        provider={webhookIntroProvider}
-        webhookUrl={webhookIntroUrl}
-        webhookSecret={webhookIntroSecret}
-        onClose={() => setWebhookIntroOpen(false)}
-      />
     </div>
   );
 };

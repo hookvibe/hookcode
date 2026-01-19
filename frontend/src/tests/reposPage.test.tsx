@@ -5,7 +5,8 @@ import { App as AntdApp, Modal } from 'antd';
 import { setLocale } from '../i18n';
 import { ReposPage } from '../pages/ReposPage';
 import * as api from '../api';
-import { buildWebhookUrl } from '../utils/webhook';
+
+// Keep tests aligned with the create-repo form's new "repo URL" input and parsing behavior. 58w1q3n5nr58flmempxe
 
 vi.mock('../api', () => {
   return {
@@ -49,18 +50,23 @@ describe('ReposPage (frontend-chat migration)', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Create repository')).toBeInTheDocument();
 
-    const nameInput = screen.getByPlaceholderText('e.g. my-org/my-repo');
-    await ui.type(nameInput, 'my-org/my-repo');
+    const repoUrlInput = screen.getByPlaceholderText('e.g. https://github.com/my-org/my-repo');
+    await ui.type(repoUrlInput, 'https://gitlab.com/my-org/my-repo');
 
     // Use the modal primary "Create" button.
     await ui.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() =>
-      expect(api.createRepo).toHaveBeenCalledWith({ provider: 'gitlab', name: 'my-org/my-repo' })
+      expect(api.createRepo).toHaveBeenCalledWith({
+        provider: 'gitlab',
+        name: 'my-org/my-repo',
+        externalId: 'my-org/my-repo',
+        apiBaseUrl: 'https://gitlab.com'
+      })
     );
   });
 
-  test('shows webhook URL in the quickstart modal after creation', async () => {
+  test('navigates to repo detail after creation', async () => {
     const ui = userEvent.setup();
     renderPage();
 
@@ -70,19 +76,13 @@ describe('ReposPage (frontend-chat migration)', () => {
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Create repository')).toBeInTheDocument();
 
-    const nameInput = screen.getByPlaceholderText('e.g. my-org/my-repo');
-    await ui.type(nameInput, 'my-org/my-repo');
+    const repoUrlInput = screen.getByPlaceholderText('e.g. https://github.com/my-org/my-repo');
+    await ui.type(repoUrlInput, 'https://gitlab.com/my-org/my-repo');
 
     await ui.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => expect(api.createRepo).toHaveBeenCalled());
-
-    await waitFor(() => {
-      const expectedWebhookUrl = buildWebhookUrl('/api/webhook/gitlab/r_new');
-      // Business intent: assert against the same URL builder the UI uses so CI-specific API base ports stay aligned. (Change record: 2026-01-16)
-      expect(screen.getByText(/Webhook quickstart/i)).toBeInTheDocument();
-      expect(screen.getByText(/Webhook URL/i)).toBeInTheDocument();
-      expect(screen.getByText(expectedWebhookUrl)).toBeInTheDocument();
-    });
+    // Repo create should route to repo detail so onboarding shows first (no webhook modal). 58w1q3n5nr58flmempxe
+    await waitFor(() => expect(window.location.hash).toBe('#/repos/r_new'));
   });
 });

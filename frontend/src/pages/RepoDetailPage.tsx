@@ -52,6 +52,7 @@ import { RepoAutomationPanel } from '../components/repoAutomation/RepoAutomation
 import { RepoBranchesCard } from '../components/repos/RepoBranchesCard';
 import { RepoWebhookDeliveriesPanel } from '../components/repos/RepoWebhookDeliveriesPanel';
 import { WebhookIntroModal } from '../components/repos/WebhookIntroModal';
+import { RepoOnboardingWizard } from '../components/repos/RepoOnboardingWizard';
 import { ResponsiveDialog } from '../components/dialogs/ResponsiveDialog';
 import { TemplateEditor } from '../components/TemplateEditor';
 import { ScrollableTable } from '../components/ScrollableTable';
@@ -71,8 +72,8 @@ import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
  * - Edit automation config with auto-save.
  * - Inspect webhook deliveries.
  *
- * Important constraints:
- * - Robot + automation operations require `repo.webhookVerifiedAt` (backend enforces this with 409/REPO_WEBHOOK_NOT_VERIFIED).
+ * Important notes:
+ * - Webhook verification is optional; it enables provider-triggered automation and delivery troubleshooting. 58w1q3n5nr58flmempxe
  *
  * Change record:
  * - 2026-01-12: Expanded the initial `frontend-chat` stub into a feature-complete migration from legacy `frontend`.
@@ -112,6 +113,26 @@ type RobotFormValues = {
 };
 
 const providerLabel = (provider: string) => (provider === 'github' ? 'GitHub' : 'GitLab');
+
+const ONBOARDING_STORAGE_PREFIX = 'hookcode-repo-onboarding:'; // Persist per-repo onboarding completion in localStorage. 58w1q3n5nr58flmempxe
+
+const getOnboardingKey = (repoId: string): string => `${ONBOARDING_STORAGE_PREFIX}${repoId}`;
+
+const getOnboardingDone = (repoId: string): boolean => {
+  try {
+    return Boolean(typeof window !== 'undefined' && window.localStorage?.getItem(getOnboardingKey(repoId)));
+  } catch {
+    return false;
+  }
+};
+
+const markOnboardingDone = (repoId: string, mode: 'skipped' | 'completed'): void => {
+  try {
+    window.localStorage?.setItem(getOnboardingKey(repoId), mode);
+  } catch {
+    // ignore: storage may be unavailable (private mode, disabled). 58w1q3n5nr58flmempxe
+  }
+};
 
 const parseHashQuery = (hash: string): URLSearchParams => {
   const idx = hash.indexOf('?');
@@ -174,6 +195,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
   const [webhookIntroOpen, setWebhookIntroOpen] = useState(false);
   const [showWebhookSecretInline, setShowWebhookSecretInline] = useState(false);
+
+  const [onboardingOpen, setOnboardingOpen] = useState(() => !getOnboardingDone(repoId)); // Show onboarding wizard on first entry. 58w1q3n5nr58flmempxe
 
   const [basicSaving, setBasicSaving] = useState(false);
   const [credentialsSaving, setCredentialsSaving] = useState(false);
@@ -281,6 +304,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    // Keep onboarding visibility aligned with the current repo id (hash route may change without a full reload). 58w1q3n5nr58flmempxe
+    setOnboardingOpen(!getOnboardingDone(repoId));
+  }, [repoId]);
 
   useEffect(() => {
     // Business intent: hide the webhook secret after reloads or secret rotations unless the user re-opens it. (Change record: 2026-01-15)
@@ -520,7 +548,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   );
 
   useEffect(() => {
-    if (!robotModalOpen) return;
+    // Preload account credentials for both the onboarding wizard and the robot editor modal. 58w1q3n5nr58flmempxe
+    if (!robotModalOpen && !onboardingOpen) return;
     let cancelled = false;
     setUserModelCredentialsLoading(true);
     setUserModelCredentialsError(false);
@@ -542,7 +571,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     return () => {
       cancelled = true;
     };
-  }, [robotModalOpen]);
+  }, [onboardingOpen, robotModalOpen]);
 
   useEffect(() => {
     // UX: auto-pick a usable provider profile when users choose `repoCredentialSource=user/repo`.
@@ -751,10 +780,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const handleSubmitRobot = useCallback(
     async (values: RobotFormValues) => {
       if (!repo) return;
-      if (!webhookVerified) {
-        message.warning(t('repos.webhookIntro.notVerified'));
-        return;
-      }
+      // Allow configuring robots without requiring webhook verification (webhooks are optional). 58w1q3n5nr58flmempxe
 
       setRobotSubmitting(true);
       try {
@@ -948,18 +974,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       robotChangingModelApiKey,
       robotChangingToken,
       t,
-      userModelCredentials,
-      webhookVerified
+      userModelCredentials
     ]
   );
 
   const handleTestRobot = useCallback(
     async (robot: RepoRobot) => {
       if (!repo) return;
-      if (!webhookVerified) {
-        message.warning(t('repos.webhookIntro.notVerified'));
-        return;
-      }
+      // Allow robot activation tests even when webhooks are not configured yet. 58w1q3n5nr58flmempxe
       setRobotTestingId(robot.id);
       try {
         const result = await testRepoRobot(repo.id, robot.id);
@@ -976,16 +998,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         setRobotTestingId(null);
       }
     },
-    [message, repo, t, webhookVerified]
+    [message, repo, t]
   );
 
   const handleToggleRobotEnabled = useCallback(
     async (robot: RepoRobot) => {
       if (!repo) return;
-      if (!webhookVerified) {
-        message.warning(t('repos.webhookIntro.notVerified'));
-        return;
-      }
+      // Allow enabling/disabling robots without requiring webhook verification. 58w1q3n5nr58flmempxe
       setRobotTogglingId(robot.id);
       try {
         const saved = await updateRepoRobot(repo.id, robot.id, { enabled: !robot.enabled });
@@ -998,16 +1017,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         setRobotTogglingId(null);
       }
     },
-    [message, repo, t, webhookVerified]
+    [message, repo, t]
   );
 
   const handleDeleteRobot = useCallback(
     async (robot: RepoRobot) => {
       if (!repo) return;
-      if (!webhookVerified) {
-        message.warning(t('repos.webhookIntro.notVerified'));
-        return;
-      }
+      // Allow deleting robots without requiring webhook verification. 58w1q3n5nr58flmempxe
 
       setRobotDeletingId(robot.id);
       try {
@@ -1031,7 +1047,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         setRobotDeletingId(null);
       }
     },
-    [message, repo, t, webhookVerified]
+    [message, repo, t]
   );
 
   const openedRobotIdRef = useRef<string>('');
@@ -1103,7 +1119,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
   return (
     <>
-      <div className="hc-page">
+      <div className="hc-page hc-repo-detail-page">
         <PageNav
           back={headerBack}
           title={title}
@@ -1120,22 +1136,33 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
         <div className="hc-page__body">
           {repo ? (
-            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-              {!webhookVerified ? (
-                <Alert
-                  type="warning"
-                  showIcon
-                  message={t('repos.webhookIntro.notVerified')}
-                  description={t('repos.webhookIntro.notVerifiedDesc')}
-                  action={
-                    <Button size="small" onClick={() => setWebhookIntroOpen(true)}>
-                      {t('repos.webhookIntro.open')}
-                    </Button>
-                  }
-                />
-              ) : null}
-
-              <Tabs
+            onboardingOpen ? (
+              <RepoOnboardingWizard
+                repo={repo}
+                robots={robotsSorted}
+                repoScopedCredentials={repoScopedCredentials}
+                userModelCredentials={userModelCredentials}
+                userModelCredentialsLoading={userModelCredentialsLoading}
+                userModelCredentialsError={userModelCredentialsError}
+                webhookUrl={webhookFullUrl || webhookPath}
+                webhookSecret={webhookSecret}
+                webhookVerifiedAt={repo.webhookVerifiedAt ?? null}
+                onOpenRepoProviderCredential={() => startEditRepoProviderProfile(null)}
+                onOpenCreateRobot={openCreateRobot}
+                onOpenWebhookIntro={() => setWebhookIntroOpen(true)}
+                onRefreshRepo={() => void refresh()}
+                onSkip={() => {
+                  markOnboardingDone(repo.id, 'skipped');
+                  setOnboardingOpen(false);
+                }}
+                onFinish={() => {
+                  markOnboardingDone(repo.id, 'completed');
+                  setOnboardingOpen(false);
+                }}
+              />
+            ) : (
+              <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+                <Tabs
                 activeKey={activeTab}
                 onChange={(key) => setActiveTab(key as RepoTabKey)}
                 items={[
@@ -1355,7 +1382,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                         title={t('repos.robots.title')}
                         className="hc-card"
                         extra={
-                          <Button icon={<PlusOutlined />} onClick={openCreateRobot} disabled={!webhookVerified}>
+                          <Button icon={<PlusOutlined />} onClick={openCreateRobot}>
                             {t('repos.robots.createRobot')}
                           </Button>
                         }
@@ -1430,7 +1457,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                       size="small"
                                       onClick={() => void handleTestRobot(r)}
                                       loading={robotTestingId === r.id}
-                                      disabled={!webhookVerified}
                                     >
                                       {t('repos.robots.test')}
                                     </Button>
@@ -1438,7 +1464,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                       size="small"
                                       onClick={() => void handleToggleRobotEnabled(r)}
                                       loading={robotTogglingId === r.id}
-                                      disabled={!webhookVerified}
                                     >
                                       {r.enabled ? t('repos.robots.disable') : t('repos.robots.enable')}
                                     </Button>
@@ -1449,7 +1474,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                       cancelText={t('common.cancel')}
                                       onConfirm={() => void handleDeleteRobot(r)}
                                     >
-                                      <Button size="small" danger loading={robotDeletingId === r.id} disabled={!webhookVerified}>
+                                      <Button size="small" danger loading={robotDeletingId === r.id}>
                                         {t('common.delete')}
                                       </Button>
                                     </Popconfirm>
@@ -1474,9 +1499,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                           robots={robotsSorted}
                           value={automationConfig ?? defaultAutomationConfig()}
                           onChange={(next) => setAutomationConfig(next)}
-                          readOnly={!webhookVerified}
                           onSave={async (next) => {
-                            if (!webhookVerified) return;
+                            // Allow saving automation config even before webhook verification. 58w1q3n5nr58flmempxe
                             const saved = await updateRepoAutomation(repo.id, next);
                             setAutomationConfig(saved);
                           }}
@@ -1546,6 +1570,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                 ]}
               />
             </Space>
+            )
           ) : loading ? (
             // Render a repo-detail skeleton instead of a generic Empty+icon while loading. ro3ln7zex8d0wyynfj0m
             <RepoDetailSkeleton testId="hc-repo-detail-skeleton" ariaLabel={t('common.loading')} />
@@ -1713,17 +1738,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         confirmLoading={robotSubmitting}
         onOk={() => void robotForm.submit()}
         drawerWidth="min(980px, 92vw)"
-      >
-        <Form<RobotFormValues>
-          form={robotForm}
-          layout="vertical"
-          requiredMark={false}
-          disabled={robotSubmitting}
-          onFinish={(values) => void handleSubmitRobot(values)}
-          initialValues={buildRobotInitialValues(editingRobot)}
         >
-          {!webhookVerified ? <Alert type="warning" showIcon message={t('repos.webhookIntro.notVerified')} style={{ marginBottom: 12 }} /> : null}
-
+          <Form<RobotFormValues>
+            form={robotForm}
+            layout="vertical"
+            requiredMark={false}
+            disabled={robotSubmitting}
+            onFinish={(values) => void handleSubmitRobot(values)}
+            initialValues={buildRobotInitialValues(editingRobot)}
+          >
           {userModelCredentialsError ? (
             <Alert type="warning" showIcon message={t('repos.robotForm.userCredentialsLoadFailed')} style={{ marginBottom: 12 }} />
           ) : null}

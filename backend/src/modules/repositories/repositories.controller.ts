@@ -248,6 +248,109 @@ export class RepositoriesController {
     }
   }
 
+  @Get(':id/provider-meta')
+  @ApiOperation({
+    summary: 'Get provider metadata (visibility)',
+    description: 'Fetch repository visibility (public/private/internal) from the Git provider using a selected credential token (or anonymous mode for public repos).',
+    operationId: 'repos_get_provider_meta'
+  })
+  @ApiOkResponse({ description: 'OK' })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async getProviderMeta(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('credentialSource') credentialSourceRaw: string | undefined,
+    @Query('credentialProfileId') credentialProfileIdRaw: string | undefined
+  ) {
+    try {
+      // Provide provider visibility metadata to drive the repo onboarding wizard. 58w1q3n5nr58flmempxe
+      const repoId = id;
+      const repo = await this.repositoryService.getById(repoId);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+
+      const repoIdentity = (repo.externalId ?? '').trim() || (repo.name ?? '').trim();
+      if (!repoIdentity) {
+        throw new BadRequestException({ error: 'repo identity is required (externalId or name)' });
+      }
+
+      const credentialSource = (() => {
+        const raw = String(credentialSourceRaw ?? '').trim().toLowerCase();
+        if (raw === 'repo') return 'repo';
+        if (raw === 'user') return 'user';
+        if (raw === 'anonymous') return 'anonymous';
+        return 'user';
+      })();
+      const credentialProfileId = typeof credentialProfileIdRaw === 'string' ? credentialProfileIdRaw.trim() : '';
+
+      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+
+      const token =
+        credentialSource === 'anonymous'
+          ? ''
+          : resolveRobotProviderToken({
+              provider: repo.provider,
+              robot: { repoCredentialProfileId: credentialProfileId || null },
+              userCredentials,
+              repoCredentials: repoScopedCredentials?.repoProvider ?? null,
+              source: credentialSource === 'repo' ? 'repo' : 'user'
+            });
+      if (credentialSource !== 'anonymous' && !token) {
+        throw new BadRequestException({
+          error: 'repo provider token is required to fetch visibility',
+          code: 'REPO_PROVIDER_TOKEN_REQUIRED'
+        });
+      }
+
+      const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
+
+      if (repo.provider === 'gitlab') {
+        try {
+          const gitlab = new GitlabService({ token, baseUrl: apiBaseUrl });
+          const project: any = await gitlab.getProject(repoIdentity);
+          const rawVisibility = String(project?.visibility ?? '').trim().toLowerCase();
+          const visibility = rawVisibility === 'public' ? 'public' : rawVisibility === 'internal' ? 'internal' : 'private';
+          const webUrl = String(project?.web_url ?? '').trim();
+          return { provider: repo.provider, visibility, webUrl: webUrl || undefined };
+        } catch (err) {
+          // Anonymous mode cannot distinguish private vs not-found; return `unknown` so onboarding can guide credentials. 58w1q3n5nr58flmempxe
+          if (credentialSource === 'anonymous') return { provider: repo.provider, visibility: 'unknown' };
+          throw err;
+        }
+      }
+
+      if (repo.provider === 'github') {
+        try {
+          const github = new GithubService({ token, apiBaseUrl });
+          const repoIdOrSlug = repoIdentity;
+          const repoInfo: any = await (async () => {
+            if (!repoIdOrSlug.includes('/')) return github.getRepositoryById(repoIdOrSlug);
+            const [owner, repoName] = repoIdOrSlug.split('/');
+            if (!owner || !repoName) {
+              throw new BadRequestException({ error: 'invalid github externalId (expected owner/repo)' });
+            }
+            return github.getRepository(owner, repoName);
+          })();
+          const visibility = Boolean(repoInfo?.private) ? 'private' : 'public';
+          const webUrl = String(repoInfo?.html_url ?? '').trim();
+          return { provider: repo.provider, visibility, webUrl: webUrl || undefined };
+        } catch (err) {
+          // Anonymous mode cannot distinguish private vs not-found; return `unknown` so onboarding can guide credentials. 58w1q3n5nr58flmempxe
+          if (credentialSource === 'anonymous') return { provider: repo.provider, visibility: 'unknown' };
+          throw err;
+        }
+      }
+
+      throw new BadRequestException({ error: `unsupported provider: ${repo.provider}` });
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] get provider meta failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch provider metadata' });
+    }
+  }
+
   @Get(':id/webhook-deliveries')
   @ApiOperation({
     summary: 'List webhook deliveries',
@@ -456,9 +559,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
-      if (!repo.webhookVerifiedAt) {
-        throw new ConflictException({ error: 'repo webhook has not been verified yet', code: 'REPO_WEBHOOK_NOT_VERIFIED' });
-      }
+      // Allow configuring robots without requiring webhook verification (webhooks are optional). 58w1q3n5nr58flmempxe
 
       const name = typeof body?.name === 'string' ? body.name.trim() : '';
       const token = normalizeNullableTrimmedString(body?.token, 'token');
@@ -651,9 +752,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
-      if (!repo.webhookVerifiedAt) {
-        throw new ConflictException({ error: 'repo webhook has not been verified yet', code: 'REPO_WEBHOOK_NOT_VERIFIED' });
-      }
+      // Keep robot updates available before webhook verification to support manual chat workflows. 58w1q3n5nr58flmempxe
 
       const existing = await this.repoRobotService.getByIdWithToken(robotId);
       if (!existing || existing.repoId !== repoId) {
@@ -892,9 +991,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
-      if (!repo.webhookVerifiedAt) {
-        throw new ConflictException({ error: 'repo webhook has not been verified yet', code: 'REPO_WEBHOOK_NOT_VERIFIED' });
-      }
+      // Support robot token activation tests without depending on webhook verification. 58w1q3n5nr58flmempxe
 
       const existing = await this.repoRobotService.getByIdWithToken(robotId);
       if (!existing || existing.repoId !== repoId) {
@@ -1083,9 +1180,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
-      if (!repo.webhookVerifiedAt) {
-        throw new ConflictException({ error: 'repo webhook has not been verified yet', code: 'REPO_WEBHOOK_NOT_VERIFIED' });
-      }
+      // Permit robot deletion even when webhooks are not configured yet. 58w1q3n5nr58flmempxe
 
       const existing = await this.repoRobotService.getById(robotId);
       if (!existing || existing.repoId !== repoId) {
@@ -1152,9 +1247,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
-      if (!repo.webhookVerifiedAt) {
-        throw new ConflictException({ error: 'repo webhook has not been verified yet', code: 'REPO_WEBHOOK_NOT_VERIFIED' });
-      }
+      // Allow editing automation rules before webhooks are enabled so users can pre-configure triggers. 58w1q3n5nr58flmempxe
 
       const config = body?.config;
       if (!config || typeof config !== 'object') {

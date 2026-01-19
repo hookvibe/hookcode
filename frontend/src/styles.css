@@ -835,6 +835,25 @@ body {
 }
 
 /* =============================================================================
+ * Repo detail full-width layout
+ * - Business context: Frontend Chat / Repos / Repo detail.
+ * - Purpose: remove the global max-width constraint so repo detail content can use the full screen width.
+ * - Change record: 2026-01-17 - Make repo detail page full-width. 58w1q3n5nr58flmempxe
+ * ========================================================================== */
+
+.hc-repo-detail-page .hc-page__body {
+  /* Layout intent: repo detail contains wide tables/editors and should use the full available width. */
+  align-items: stretch;
+}
+
+.hc-repo-detail-page .hc-page__body > * {
+  /* Override `.hc-page__body > * { max-width: var(--hc-page-max) }` for this page only. */
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* =============================================================================
  * Task detail full-width layout
  * - Business context: Frontend Chat / Tasks / Task detail.
  * - Purpose: remove the global max-width constraint and introduce summary strip + sidebar/workflow layout.

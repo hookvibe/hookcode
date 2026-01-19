@@ -616,6 +616,20 @@ export const fetchRepo = async (
   return data;
 };
 
+export type RepoProviderVisibility = 'public' | 'private' | 'internal' | 'unknown';
+
+export const fetchRepoProviderMeta = async (
+  repoId: string,
+  params?: { credentialSource?: 'user' | 'repo' | 'anonymous'; credentialProfileId?: string }
+): Promise<{ provider: RepoProvider; visibility: RepoProviderVisibility; webUrl?: string }> => {
+  // Fetch provider metadata for repo onboarding (visibility, links) without leaking any credentials. 58w1q3n5nr58flmempxe
+  const { data } = await api.get<{ provider: RepoProvider; visibility: RepoProviderVisibility; webUrl?: string }>(
+    `/repos/${repoId}/provider-meta`,
+    { params }
+  );
+  return data;
+};
+
 export const listRepoWebhookDeliveries = async (
   repoId: string,
   params?: { limit?: number; cursor?: string }

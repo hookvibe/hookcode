@@ -103,6 +103,8 @@ const defaultTasksByStatus: Record<SidebarTaskSectionKey, Task[]> = {
 
 const SIDEBAR_POLL_ACTIVE_MS = 10_000;
 const SIDEBAR_POLL_IDLE_MS = 30_000; // Slow down when no tasks are queued/processing. 7bqwou6abx4ste96ikhv
+const SIDEBAR_SSE_RECONNECT_BASE_MS = 2_000;
+const SIDEBAR_SSE_RECONNECT_MAX_MS = 30_000; // Cap SSE reconnect backoff to reduce dev proxy spam when backend is down. 58w1q3n5nr58flmempxe
 
 export const AppShell: FC<AppShellProps> = ({
   route,
@@ -116,6 +118,8 @@ export const AppShell: FC<AppShellProps> = ({
   const refreshSidebarPromiseRef = useRef<Promise<TaskStatusStats | null> | null>(null); // Deduplicate sidebar refresh calls to avoid overlapping polling bursts. 7bqwou6abx4ste96ikhv
   const sidebarSseRefreshTimerRef = useRef<number | null>(null); // Coalesce SSE-driven refresh bursts to avoid thundering herds. kxthpiu4eqrmu0c6bboa
   const refreshSidebarQueuedRef = useRef(false); // Avoid dropping refresh signals when a refresh is already in-flight. kxthpiu4eqrmu0c6bboa
+  const sidebarSseReconnectTimerRef = useRef<number | null>(null); // Retry SSE with backoff to avoid hammering the dev proxy. 58w1q3n5nr58flmempxe
+  const sidebarSseReconnectBackoffRef = useRef<number>(SIDEBAR_SSE_RECONNECT_BASE_MS); // Persist backoff across reconnect attempts. 58w1q3n5nr58flmempxe
 
   const [authToken, setAuthToken] = useState<string | null>(() => getToken());
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
@@ -266,6 +270,10 @@ export const AppShell: FC<AppShellProps> = ({
         window.clearTimeout(sidebarSseRefreshTimerRef.current);
         sidebarSseRefreshTimerRef.current = null;
       }
+      if (sidebarSseReconnectTimerRef.current !== null) {
+        window.clearTimeout(sidebarSseReconnectTimerRef.current);
+        sidebarSseReconnectTimerRef.current = null;
+      }
     };
 
     const scheduleRefresh = () => {
@@ -279,6 +287,21 @@ export const AppShell: FC<AppShellProps> = ({
       }, jitterMs);
     };
 
+    const scheduleReconnect = () => {
+      if (sidebarSseReconnectTimerRef.current !== null) return;
+      const base = Math.max(SIDEBAR_SSE_RECONNECT_BASE_MS, sidebarSseReconnectBackoffRef.current || 0);
+      const jitterMs = Math.floor(Math.random() * 300);
+      const delayMs = Math.min(base, SIDEBAR_SSE_RECONNECT_MAX_MS) + jitterMs;
+      // Exponential backoff reduces noisy `/api/events/stream` proxy errors when backend is down. 58w1q3n5nr58flmempxe
+      sidebarSseReconnectBackoffRef.current = Math.min(base * 2, SIDEBAR_SSE_RECONNECT_MAX_MS);
+      sidebarSseReconnectTimerRef.current = window.setTimeout(() => {
+        sidebarSseReconnectTimerRef.current = null;
+        if (disposed) return;
+        if (document.visibilityState === 'hidden') return;
+        connect();
+      }, delayMs);
+    };
+
     const connect = () => {
       if (eventSource) return;
       if (document.visibilityState === 'hidden') return;
@@ -286,11 +309,13 @@ export const AppShell: FC<AppShellProps> = ({
       eventSource = createAuthedEventSource('/events/stream', { topics: 'dashboard' });
       eventSource.addEventListener('open', () => {
         if (disposed) return;
+        sidebarSseReconnectBackoffRef.current = SIDEBAR_SSE_RECONNECT_BASE_MS;
         setSidebarSseConnected(true);
       });
       eventSource.addEventListener('error', () => {
         if (disposed) return;
-        setSidebarSseConnected(false);
+        close();
+        scheduleReconnect();
       });
       eventSource.addEventListener('dashboard.sidebar.changed', () => {
         if (disposed) return;

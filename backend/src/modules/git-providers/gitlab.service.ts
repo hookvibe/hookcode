@@ -147,7 +147,7 @@ export class GitlabService {
     const url = `${this.baseUrl}/api/v4/${path.replace(/^\//, '')}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Private-Token': this.token,
+      ...(this.token ? { 'Private-Token': this.token } : {}), // Only send auth header when configured so anonymous metadata checks can still succeed. 58w1q3n5nr58flmempxe
       ...(init.headers as Record<string, string> | undefined)
     };
 
