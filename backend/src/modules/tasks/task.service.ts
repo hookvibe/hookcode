@@ -2,9 +2,20 @@ import { randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { db } from '../../db';
-import { Task, TaskEventType, TaskRepoSummary, TaskResult, TaskRobotSummary, TaskStatus, TaskWithMeta } from '../../types/task';
+import {
+  Task,
+  TaskEventType,
+  type TaskQueueDiagnosis,
+  type TaskQueueReasonCode,
+  TaskRepoSummary,
+  TaskResult,
+  TaskRobotSummary,
+  TaskStatus,
+  TaskWithMeta
+} from '../../types/task';
 import type { TaskGroup, TaskGroupWithMeta } from '../../types/taskGroup';
 import type { RepoProvider } from '../../types/repository';
+import { isTruthy } from '../../utils/env';
 
 /**
  * tasks table access layer (the "source of truth" for the queue/task state machine):
@@ -344,6 +355,86 @@ export class TaskService {
       if (task.repoId && repoMap.has(task.repoId)) next.repo = repoMap.get(task.repoId);
       if (task.robotId && robotMap.has(task.robotId)) next.robot = robotMap.get(task.robotId);
       return next;
+    });
+  }
+
+  private resolveQueueReasonCode(params: {
+    ahead: number;
+    processing: number;
+    inlineWorkerEnabled: boolean;
+  }): TaskQueueReasonCode {
+    // Pick a single primary reason code so the UI can render a concise queued hint. f3a9c2d8e1b7f4a0c6d1
+    if (!params.inlineWorkerEnabled && params.processing === 0) return 'inline_worker_disabled';
+    if (params.processing === 0) return 'no_active_worker';
+    if (params.processing > 0 || params.ahead > 0) return 'queue_backlog';
+    return 'unknown';
+  }
+
+  private async attachQueueDiagnosis(tasks: TaskWithMeta[]): Promise<TaskWithMeta[]> {
+    // Attach best-effort queue diagnosis fields for queued tasks in list/detail APIs. f3a9c2d8e1b7f4a0c6d1
+    const queued = tasks.filter((t) => t.status === 'queued');
+    if (!queued.length) return tasks;
+
+    const queuedIds = queued.map((t) => t.id);
+    type QueuePosRow = { id: string; ahead: number; total: number };
+    type ProcessingCountsRow = { processing: number; stale_processing: number };
+
+    const staleMs = Number(process.env.PROCESSING_STALE_MS || 30 * 60 * 1000);
+    const staleBefore = new Date(Date.now() - (Number.isFinite(staleMs) && staleMs > 0 ? staleMs : 30 * 60 * 1000));
+
+    const inlineWorkerEnabled = isTruthy(process.env.INLINE_WORKER_ENABLED, true);
+
+    const [posRows, processingRows] = await Promise.all([
+      db.$queryRaw<QueuePosRow[]>`
+        WITH q AS (
+          SELECT id,
+                 row_number() OVER (ORDER BY created_at ASC) AS pos,
+                 count(*) OVER () AS total
+          FROM tasks
+          WHERE status = 'queued'
+        )
+        SELECT id::text AS id,
+               (pos - 1)::int AS ahead,
+               total::int AS total
+        FROM q
+        WHERE id = ANY(${queuedIds}::uuid[]);
+      `,
+      db.$queryRaw<ProcessingCountsRow[]>`
+        SELECT COUNT(*)::int AS processing,
+               COUNT(*) FILTER (WHERE updated_at < ${staleBefore})::int AS stale_processing
+        FROM tasks
+        WHERE status = 'processing';
+      `
+    ]);
+
+    const posMap = new Map<string, { ahead: number; total: number }>(
+      (posRows ?? []).map((row) => [
+        String(row.id),
+        {
+          ahead: Number(row.ahead ?? 0) || 0,
+          total: Number(row.total ?? 0) || 0
+        }
+      ])
+    );
+
+    const processing = Number(processingRows?.[0]?.processing ?? 0) || 0;
+    const staleProcessing = Number(processingRows?.[0]?.stale_processing ?? 0) || 0;
+
+    return tasks.map((task) => {
+      if (task.status !== 'queued') return task;
+      const pos = posMap.get(task.id);
+      const ahead = pos ? pos.ahead : 0;
+      const queuedTotal = pos ? pos.total : queued.length;
+      const reasonCode = this.resolveQueueReasonCode({ ahead, processing, inlineWorkerEnabled });
+      const queue: TaskQueueDiagnosis = {
+        reasonCode,
+        ahead,
+        queuedTotal,
+        processing,
+        staleProcessing,
+        inlineWorkerEnabled
+      };
+      return { ...task, queue };
     });
   }
 
@@ -690,7 +781,8 @@ export class TaskService {
     const rows = await db.task.findMany({ where: { groupId: id }, orderBy: { createdAt: 'desc' }, take });
     const tasks = rows.map(taskRecordToTask) as TaskWithMeta[];
     if (!options?.includeMeta) return tasks;
-    return this.attachMeta(tasks);
+    const withMeta = await this.attachMeta(tasks);
+    return this.attachQueueDiagnosis(withMeta);
   }
 
   async listTasks(options?: TaskListOptions): Promise<TaskWithMeta[]> {
@@ -878,7 +970,8 @@ export class TaskService {
     }
 
     if (!options?.includeMeta) return tasks;
-    return this.attachMeta(tasks);
+    const withMeta = await this.attachMeta(tasks);
+    return this.attachQueueDiagnosis(withMeta);
   }
 
   async getTaskStats(options?: TaskStatsOptions): Promise<TaskStatusStats> {
@@ -972,7 +1065,8 @@ export class TaskService {
     if (!task) return undefined;
     if (!options?.includeMeta) return task;
     const [withMeta] = await this.attachMeta([task]);
-    return withMeta;
+    const [withQueue] = await this.attachQueueDiagnosis([withMeta]);
+    return withQueue;
   }
 
   async updateStatus(id: string, status: TaskStatus): Promise<Task | undefined> {

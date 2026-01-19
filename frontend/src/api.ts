@@ -21,6 +21,17 @@ export const api = axios.create({
 });
 
 export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
+export type TaskQueueReasonCode = 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
+
+export interface TaskQueueDiagnosis {
+  // Surface queued-task diagnosis so the UI can explain long-waiting tasks. f3a9c2d8e1b7f4a0c6d1
+  reasonCode: TaskQueueReasonCode;
+  ahead: number;
+  queuedTotal: number;
+  processing: number;
+  staleProcessing: number;
+  inlineWorkerEnabled: boolean;
+}
 
 export type TaskEventType =
   | 'issue'
@@ -65,6 +76,7 @@ export interface Task {
   mrId?: number;
   issueId?: number;
   retries: number;
+  queue?: TaskQueueDiagnosis;
   result?: TaskResult;
   createdAt: string;
   updatedAt: string;

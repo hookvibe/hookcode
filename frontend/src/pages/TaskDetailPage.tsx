@@ -19,7 +19,17 @@ import { MarkdownViewer } from '../components/MarkdownViewer';
 import { TaskLogViewer } from '../components/TaskLogViewer';
 import { PageNav } from '../components/nav/PageNav';
 import { getPrevHashForBack, isInAppHash } from '../navHistory';
-import { eventTag, extractTargetLink, extractUser, extractTaskResultText, formatRef, getTaskTitle, isTerminalStatus, statusTag } from '../utils/task';
+import {
+  eventTag,
+  extractTargetLink,
+  extractUser,
+  extractTaskResultText,
+  formatRef,
+  getTaskTitle,
+  isTerminalStatus,
+  queuedHintText,
+  statusTag
+} from '../utils/task';
 import { LogViewerSkeleton } from '../components/skeletons/LogViewerSkeleton';
 import { TaskDetailSkeleton } from '../components/skeletons/TaskDetailSkeleton';
 
@@ -173,6 +183,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
 
   const resultText = useMemo(() => extractTaskResultText(task), [task]);
   const showResult = Boolean(task && isTerminalStatus(task.status));
+  const queueHint = useMemo(() => queuedHintText(t, task), [t, task]); // Show a queued-state explanation instead of a silent detail page. f3a9c2d8e1b7f4a0c6d1
 
   const payloadPretty = useMemo(() => {
     // Format raw payload for display without assuming the payload is always JSON-serializable. tdlayout20260117k8p3
@@ -319,6 +330,12 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
 
   const headerActions = task ? (
     <Space size={8}>
+      {task.status === 'queued' && canManageTask ? (
+        <Button icon={<PlayCircleOutlined />} onClick={() => void handleRetry()} loading={retrying}>
+          {t('tasks.retry')}
+        </Button>
+      ) : null}
+
       {task.status === 'failed' && canManageTask ? (
         <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => void handleRetry()} loading={retrying}>
           {t('tasks.retry')}
@@ -548,6 +565,10 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
       ) : null}
 
       <div className="hc-page__body">
+        {task?.status === 'queued' && queueHint ? (
+          /* Display queue diagnosis so the detail page is not silent while waiting. f3a9c2d8e1b7f4a0c6d1 */
+          <Alert type="info" showIcon title={t('tasks.queue.hintTitle')} description={queueHint} style={{ marginBottom: 12 }} />
+        ) : null}
         {task ? (
           <div className="hc-task-detail-layout">
             <div className="hc-task-detail-sidebar">

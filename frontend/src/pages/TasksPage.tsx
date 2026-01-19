@@ -1,11 +1,11 @@
 import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { App, Card, Empty, Input, Space, Typography } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { App, Button, Card, Empty, Input, Space, Tooltip, Typography } from 'antd';
+import { PlayCircleOutlined, SearchOutlined } from '@ant-design/icons';
 import type { Task, TaskStatus } from '../api';
-import { fetchTasks } from '../api';
+import { fetchTasks, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildTaskHash } from '../router';
-import { clampText, getTaskTitle, statusTag } from '../utils/task';
+import { clampText, getTaskTitle, queuedHintText, statusTag } from '../utils/task';
 import { PageNav } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 
@@ -45,6 +45,7 @@ export const TasksPage: FC<TasksPageProps> = ({ status, userPanel }) => {
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [search, setSearch] = useState('');
+  const [retryingTaskId, setRetryingTaskId] = useState<string | null>(null);
 
   const statusFilter = useMemo(() => normalizeStatusFilter(status), [status]);
 
@@ -82,6 +83,29 @@ export const TasksPage: FC<TasksPageProps> = ({ status, userPanel }) => {
   const openTask = useCallback((task: Task) => {
     window.location.hash = buildTaskHash(task.id);
   }, []);
+
+  const handleRetry = useCallback(
+    async (task: Task) => {
+      // Allow retrying queued tasks directly from the task list top-right action. f3a9c2d8e1b7f4a0c6d1
+      if (!task?.id) return;
+      if (!task.permissions?.canManage) {
+        message.warning(t('tasks.empty.noPermission'));
+        return;
+      }
+      setRetryingTaskId(task.id);
+      try {
+        await retryTask(task.id);
+        message.success(t('toast.task.retrySuccess'));
+        await refresh();
+      } catch (err) {
+        console.error(err);
+        message.error(t('toast.task.retryFailedTasksFailed'));
+      } finally {
+        setRetryingTaskId((prev) => (prev === task.id ? null : prev));
+      }
+    },
+    [message, refresh, t]
+  );
 
   const formatTime = useCallback(
     (iso: string): string => {
@@ -130,13 +154,37 @@ export const TasksPage: FC<TasksPageProps> = ({ status, userPanel }) => {
                       <Typography.Text strong style={{ minWidth: 0 }}>
                         {clampText(getTaskTitle(task), 80)}
                       </Typography.Text>
-                      {statusTag(t, task.status)}
+                      <Space size={6} wrap>
+                        {statusTag(t, task.status)}
+                        {task.status === 'queued' && task.permissions?.canManage ? (
+                          /* Render a retry affordance beside the queued status tag. f3a9c2d8e1b7f4a0c6d1 */
+                          <Tooltip title={t('tasks.retry')}>
+                            <Button
+                              size="small"
+                              type="text"
+                              icon={<PlayCircleOutlined />}
+                              aria-label={t('tasks.retry')}
+                              loading={retryingTaskId === task.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleRetry(task);
+                              }}
+                            />
+                          </Tooltip>
+                        ) : null}
+                      </Space>
                     </Space>
                     <Space size={12} wrap>
                       <Typography.Text type="secondary">{task.repo?.name ?? task.repoId ?? '-'}</Typography.Text>
                       <Typography.Text type="secondary">{formatTime(task.updatedAt)}</Typography.Text>
                       <Typography.Text type="secondary">{task.id}</Typography.Text>
                     </Space>
+                    {task.status === 'queued' ? (
+                      /* Show a short queued diagnosis hint under queued tasks (best-effort). f3a9c2d8e1b7f4a0c6d1 */
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {queuedHintText(t, task)}
+                      </Typography.Text>
+                    ) : null}
                   </Space>
                 </Card>
               ))}

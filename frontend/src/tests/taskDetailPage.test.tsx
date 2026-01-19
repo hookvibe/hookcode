@@ -88,4 +88,34 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     await waitFor(() => expect(api.deleteTask).toHaveBeenCalledWith('t1'));
     expect(window.location.hash).toBe('#/tasks');
   });
+
+  // Ensure queued tasks show a diagnosis hint and a retry button in the page header actions. f3a9c2d8e1b7f4a0c6d1
+  test('shows queue hint + retry when task is queued', async () => {
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchTask).mockResolvedValueOnce({
+      id: 'tq1',
+      eventType: 'chat',
+      title: 'Task tq1',
+      status: 'queued',
+      retries: 0,
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+      permissions: { canManage: true },
+      queue: { reasonCode: 'no_active_worker', ahead: 0, queuedTotal: 1, processing: 0, staleProcessing: 0, inlineWorkerEnabled: true },
+      repoId: 'r1',
+      repoProvider: 'gitlab',
+      repo: { id: 'r1', provider: 'gitlab', name: 'Repo r1', enabled: true },
+      robotId: 'bot1',
+      robot: { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true },
+      payload: { user_name: 'Alice', user_username: 'alice' }
+    } as any);
+
+    renderPage({ taskId: 'tq1' });
+
+    await waitFor(() => expect(api.fetchTask).toHaveBeenCalled());
+    expect(await screen.findByText('No running tasks detected; worker may be offline or not triggered')).toBeInTheDocument();
+
+    await ui.click(screen.getByRole('button', { name: /Retry/i }));
+    await waitFor(() => expect(api.retryTask).toHaveBeenCalledWith('tq1', undefined));
+  });
 });

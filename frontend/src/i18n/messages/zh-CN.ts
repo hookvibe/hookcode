@@ -103,6 +103,12 @@ export const zhCN = {
   'tasks.detailTitle': '任务详情',
   'tasks.empty.noPermission': '无权限访问该页面',
   'tasks.retry': '重试',
+  // Add queued task diagnosis hints for better "stuck in queue" UX. f3a9c2d8e1b7f4a0c6d1
+  'tasks.queue.hintTitle': '队列等待中',
+  'tasks.queue.hint.backlog': '队列前面 {{ahead}} 个 · 执行中 {{processing}} 个',
+  'tasks.queue.hint.noActiveWorker': '暂无执行中的任务，可能 worker 未启动或未触发',
+  'tasks.queue.hint.inlineWorkerDisabled': '未启用内联 worker，请启动独立 worker 消费队列',
+  'tasks.queue.hint.unknown': '已入队，等待执行',
   'tasks.forceRetry': '强制重试',
   'tasks.forceRetry.confirmTitle': '确认强制重试该任务？',
   'tasks.delete.confirmTitle': '确认删除该任务？',

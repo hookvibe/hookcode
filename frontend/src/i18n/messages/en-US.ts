@@ -103,6 +103,12 @@ export const enUS: Record<MessageKey, string> = {
   'tasks.detailTitle': 'Task detail',
   'tasks.empty.noPermission': 'No permission to access this page',
   'tasks.retry': 'Retry',
+  // Add queued task diagnosis hints for better "stuck in queue" UX. f3a9c2d8e1b7f4a0c6d1
+  'tasks.queue.hintTitle': 'Queued',
+  'tasks.queue.hint.backlog': '{{ahead}} ahead · {{processing}} processing',
+  'tasks.queue.hint.noActiveWorker': 'No running tasks detected; worker may be offline or not triggered',
+  'tasks.queue.hint.inlineWorkerDisabled': 'Inline worker is disabled; start the standalone worker to consume the queue',
+  'tasks.queue.hint.unknown': 'Task is queued and waiting to be picked up',
   'tasks.forceRetry': 'Force retry',
   'tasks.forceRetry.confirmTitle': 'Force retry this task?',
   'tasks.delete.confirmTitle': 'Delete this task?',

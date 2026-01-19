@@ -28,6 +28,21 @@ export const statusTag = (t: TFunction, status: TaskStatus) => {
   return <Tag color={item.color}>{item.text}</Tag>;
 };
 
+export const queuedHintText = (t: TFunction, task?: Task | null): string | null => {
+  // Derive a short, i18n-friendly hint for queued tasks from backend queue diagnosis. f3a9c2d8e1b7f4a0c6d1
+  if (!task || task.status !== 'queued') return null;
+  const q = task.queue;
+  if (!q) return t('tasks.queue.hint.unknown');
+
+  const ahead = typeof q.ahead === 'number' && Number.isFinite(q.ahead) ? q.ahead : 0;
+  const processing = typeof q.processing === 'number' && Number.isFinite(q.processing) ? q.processing : 0;
+
+  if (q.reasonCode === 'queue_backlog') return t('tasks.queue.hint.backlog', { ahead, processing });
+  if (q.reasonCode === 'inline_worker_disabled') return t('tasks.queue.hint.inlineWorkerDisabled');
+  if (q.reasonCode === 'no_active_worker') return t('tasks.queue.hint.noActiveWorker');
+  return t('tasks.queue.hint.unknown');
+};
+
 export const getTaskTitle = (task: Task): string => {
   const title = String(task.title ?? '').trim();
   if (title) return title;
