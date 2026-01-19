@@ -14,10 +14,10 @@ vi.mock('../api', () => {
   };
 });
 
-const renderPage = (props?: { status?: string }) =>
+const renderPage = (props?: { status?: string; repoId?: string }) =>
   render(
     <AntdApp>
-      <TasksPage status={props?.status} />
+      <TasksPage status={props?.status} repoId={props?.repoId} />
     </AntdApp>
   );
 
@@ -33,6 +33,13 @@ describe('TasksPage (frontend-chat migration)', () => {
 
     await waitFor(() => expect(api.fetchTasks).toHaveBeenCalled());
     expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, status: 'success' });
+  });
+
+  test('passes repoId filter to fetchTasks when provided', async () => {
+    // Ensure repo dashboards can deep-link into a repo-scoped task list. aw85xyfsp5zfg6ihq3jr
+    renderPage({ status: 'processing', repoId: 'r1' });
+    await waitFor(() => expect(api.fetchTasks).toHaveBeenCalled());
+    expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, status: 'processing', repoId: 'r1' });
   });
 
   test('filters tasks by search and navigates to detail on click', async () => {

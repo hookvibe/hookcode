@@ -424,6 +424,33 @@ body {
 .hc-sider-section__count {
   color: var(--muted);
   font-size: 12px;
+  min-width: 36px;
+  text-align: center;
+}
+
+.hc-sider-section__navBtn.ant-btn {
+  /* Hover UX: count ↔ arrow navigation control for status headers. kwq0evw438cxawea0lcj */
+  color: var(--muted);
+  min-width: 36px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 10px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.hc-sider-section__header:hover .hc-sider-section__count {
+  display: none;
+}
+
+.hc-sider-section__header:hover .hc-sider-section__navBtn {
+  display: inline-flex;
+}
+
+.hc-sider-section__navBtn.ant-btn:hover {
+  background: var(--hc-hover) !important;
+  color: var(--text);
 }
 
 .hc-sider-section__toggle.ant-btn {
@@ -501,6 +528,42 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.hc-sider-taskItem.ant-btn {
+  /* Support 2-line task labels (event+identifier on line 1, repo on line 2) in expanded sidebar mode. mks8pr4r3m1fo9oqx9av */
+  height: auto;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  align-items: flex-start;
+}
+
+.hc-sider-taskItem.ant-btn .hc-sider-item__icon {
+  margin-top: 2px;
+}
+
+.hc-sider-item__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hc-sider-item__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.hc-sider-item__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .hc-sider-empty {
@@ -1001,6 +1064,34 @@ body {
   font-weight: 600;
 }
 
+/* Show the latest tasks inside the repo dashboard metric tiles without breaking the grid layout. aw85xyfsp5zfg6ihq3jr */
+.hc-repo-activity__metric-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hc-repo-activity__metric-tasks {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hc-repo-activity__metric-taskBtn.ant-btn {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.hc-repo-activity__metric-taskBtn.ant-btn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .hc-repo-activity__block {
   border: 1px solid var(--hc-border);
   background: var(--hc-hover);
@@ -1241,7 +1332,7 @@ body {
   word-break: break-word;
 }
 
-@media (max-width: 992px) {
+@media (max-width: 1200px) {
   .hc-task-summary-strip {
     padding: 0 14px 12px;
   }

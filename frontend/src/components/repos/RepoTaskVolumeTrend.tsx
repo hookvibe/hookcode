@@ -1,4 +1,4 @@
-import { FC, useEffect, useMemo, useState } from 'react';
+import { FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button, DatePicker, Skeleton, Typography } from 'antd';
 import type { TaskVolumePoint } from '../../api';
 import { fetchTaskVolumeByDay } from '../../api';
@@ -22,6 +22,8 @@ export interface RepoTaskVolumeTrendProps {
 export const RepoTaskVolumeTrend: FC<RepoTaskVolumeTrendProps> = ({ repoId, refreshSeq }) => {
   const t = useT();
   const locale = useLocale();
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  const [chartWidth, setChartWidth] = useState(0);
   const [preset, setPreset] = useState<PresetKey>('7d');
   const [customRange, setCustomRange] = useState<{ startDay: string; endDay: string } | null>(null);
   const [pickerValue, setPickerValue] = useState<any>(null);
@@ -29,6 +31,24 @@ export const RepoTaskVolumeTrend: FC<RepoTaskVolumeTrendProps> = ({ repoId, refr
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [rawPoints, setRawPoints] = useState<TaskVolumePoint[]>([]);
+
+  useLayoutEffect(() => {
+    const el = chartRef.current;
+    if (!el) return;
+
+    // Measure the container so the SVG viewBox matches the real row width (no horizontal whitespace). ofjpj2euygyvp2k5b8m2
+    const measure = () => setChartWidth(el.clientWidth || 0);
+    measure();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }
+
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const resolvedRange = useMemo(() => {
     if (customRange) return customRange;
@@ -83,7 +103,7 @@ export const RepoTaskVolumeTrend: FC<RepoTaskVolumeTrendProps> = ({ repoId, refr
     const max = series.max || 1;
     if (!points.length) return null;
 
-    const width = 640;
+    const width = Math.max(320, chartWidth || 640);
     const height = 150;
     const paddingX = 10;
     const paddingTop = 10;
@@ -149,7 +169,7 @@ export const RepoTaskVolumeTrend: FC<RepoTaskVolumeTrendProps> = ({ repoId, refr
         ))}
       </svg>
     );
-  }, [locale, series.max, series.points]);
+  }, [chartWidth, locale, series.max, series.points]);
 
   const handlePreset = (key: PresetKey) => {
     setPreset(key);
@@ -213,7 +233,7 @@ export const RepoTaskVolumeTrend: FC<RepoTaskVolumeTrendProps> = ({ repoId, refr
 
       {loadFailed ? <Typography.Text type="danger">{t('repos.dashboard.activity.tasks.volumeLoadFailed')}</Typography.Text> : null}
 
-      <div className="hc-repo-activity__trend-chart" role="img" aria-label={t('repos.dashboard.activity.tasks.volume')}>
+      <div ref={chartRef} className="hc-repo-activity__trend-chart" role="img" aria-label={t('repos.dashboard.activity.tasks.volume')}>
         {svg}
       </div>
     </div>

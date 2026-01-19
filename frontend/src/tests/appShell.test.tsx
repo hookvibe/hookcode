@@ -7,15 +7,29 @@ import { setLocale } from '../i18n';
 import * as api from '../api';
 
 vi.mock('../api', () => {
-  const makeTask = (id: string, title: string, status: any, updatedAt?: string) => {
+  const makeTask = (params: {
+    id: string;
+    title: string;
+    status: any;
+    when?: string;
+    eventType?: any;
+    issueId?: number;
+    mrId?: number;
+    payload?: any;
+    repo?: any;
+  }) => {
     // Test helper:
     // - Use "recent" timestamps by default so the sidebar auto-expands the status sections.
-    const when = updatedAt ?? new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const when = params.when ?? new Date(Date.now() - 60 * 60 * 1000).toISOString();
     return {
-      id,
-      eventType: 'chat',
-      title,
-      status,
+      id: params.id,
+      eventType: params.eventType ?? 'issue',
+      title: params.title,
+      status: params.status,
+      issueId: params.issueId,
+      mrId: params.mrId,
+      payload: params.payload,
+      repo: params.repo ?? { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true },
       retries: 0,
       createdAt: when,
       updatedAt: when
@@ -33,9 +47,21 @@ vi.mock('../api', () => {
     fetchDashboardSidebar: vi.fn(async () => ({
       stats: { total: 7, queued: 5, processing: 1, success: 1, failed: 0 },
       tasksByStatus: {
-        queued: [makeTask('t_q1', 'Queued task 1', 'queued'), makeTask('t_q2', 'Queued task 2', 'queued'), makeTask('t_q3', 'Queued task 3', 'queued')],
-        processing: [makeTask('t_p1', 'Processing task 1', 'processing')],
-        success: [makeTask('t_s1', 'Done task 1', 'succeeded')],
+        queued: [
+          makeTask({ id: 't_q1', title: 'Queued task 1', status: 'queued', eventType: 'issue', issueId: 1 }),
+          makeTask({ id: 't_q2', title: 'Queued task 2', status: 'queued', eventType: 'issue', issueId: 2 }),
+          makeTask({ id: 't_q3', title: 'Queued task 3', status: 'queued', eventType: 'issue', issueId: 3 })
+        ],
+        processing: [
+          makeTask({
+            id: 't_p1',
+            title: 'Processing task 1',
+            status: 'processing',
+            eventType: 'commit',
+            payload: { after: 'abcdef1234567890abcdef1234567890abcdef12' }
+          })
+        ],
+        success: [makeTask({ id: 't_s1', title: 'Done task 1', status: 'succeeded', eventType: 'merge_request', mrId: 7 })],
         failed: []
       },
       taskGroups: [
@@ -49,16 +75,25 @@ vi.mock('../api', () => {
       const status = options?.status;
       if (status === 'queued')
         return [
-          makeTask('t_q1', 'Queued task 1', 'queued'),
-          makeTask('t_q2', 'Queued task 2', 'queued'),
-          makeTask('t_q3', 'Queued task 3', 'queued'),
-          makeTask('t_q4', 'Queued task 4', 'queued'),
-          makeTask('t_q5', 'Queued task 5', 'queued')
+          makeTask({ id: 't_q1', title: 'Queued task 1', status: 'queued', eventType: 'issue', issueId: 1 }),
+          makeTask({ id: 't_q2', title: 'Queued task 2', status: 'queued', eventType: 'issue', issueId: 2 }),
+          makeTask({ id: 't_q3', title: 'Queued task 3', status: 'queued', eventType: 'issue', issueId: 3 }),
+          makeTask({ id: 't_q4', title: 'Queued task 4', status: 'queued', eventType: 'issue', issueId: 4 }),
+          makeTask({ id: 't_q5', title: 'Queued task 5', status: 'queued', eventType: 'issue', issueId: 5 })
         ];
-      if (status === 'processing') return [makeTask('t_p1', 'Processing task 1', 'processing')];
-      if (status === 'success') return [makeTask('t_s1', 'Done task 1', 'succeeded')];
+      if (status === 'processing')
+        return [
+          makeTask({
+            id: 't_p1',
+            title: 'Processing task 1',
+            status: 'processing',
+            eventType: 'commit',
+            payload: { after: 'abcdef1234567890abcdef1234567890abcdef12' }
+          })
+        ];
+      if (status === 'success') return [makeTask({ id: 't_s1', title: 'Done task 1', status: 'succeeded', eventType: 'merge_request', mrId: 7 })];
       if (status === 'failed') return [];
-      return [makeTask('t_all', 'Any task', 'queued')];
+      return [makeTask({ id: 't_all', title: 'Any task', status: 'queued', eventType: 'issue', issueId: 99 })];
     }),
     fetchTaskGroups: vi.fn(async () => [
       { id: 'g1', kind: 'chat', bindingKey: 'b1', title: 'Group 1', createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' }
@@ -107,7 +142,7 @@ vi.mock('../api', () => {
       github: { profiles: [], defaultProfileId: null }
     })),
     fetchAdminToolsMeta: vi.fn(async () => ({ enabled: true, ports: { prisma: 7215, swagger: 7216 } })),
-    fetchTask: vi.fn(async (id: string) => makeTask(id, `Task ${id}`, 'succeeded')),
+    fetchTask: vi.fn(async (id: string) => makeTask({ id, title: `Task ${id}`, status: 'succeeded', eventType: 'issue', issueId: 1 })),
     fetchTaskGroup: vi.fn(async (id: string) => ({
       id,
       kind: 'chat',
@@ -119,7 +154,7 @@ vi.mock('../api', () => {
     fetchTaskGroupTasks: vi.fn(async () => []),
     executeChat: vi.fn(async () => ({
       taskGroup: { id: 'g_new', kind: 'chat', bindingKey: 'b1', title: 'Group new', createdAt: '', updatedAt: '' },
-      task: makeTask('t_new', 'New task', 'queued')
+      task: makeTask({ id: 't_new', title: 'New task', status: 'queued', eventType: 'issue', issueId: 123 })
     })),
     login: vi.fn(async () => ({ token: 't', expiresAt: '', user: { id: 'u', username: 'u' } }))
   };
@@ -153,17 +188,22 @@ describe('AppShell (frontend-chat migration)', () => {
     expect(queuedHeader.querySelector('.ant-btn-icon')).toBeNull();
 
     expect(screen.getByText('Tasks')).toBeInTheDocument();
-    expect(await screen.findByText('Queued task 1')).toBeInTheDocument();
-    expect(await screen.findByText('Processing task 1')).toBeInTheDocument();
-    expect(await screen.findByText('Done task 1')).toBeInTheDocument();
+    expect(await screen.findByText('Issue #1')).toBeInTheDocument();
+    expect(await screen.findByText('Commit abcdef1')).toBeInTheDocument();
+    expect(await screen.findByText('Merge request !7')).toBeInTheDocument();
     // Business intent: show top 3 tasks per status section by default.
-    expect(screen.queryByText('Queued task 4')).not.toBeInTheDocument();
+    expect(screen.queryByText('Issue #4')).not.toBeInTheDocument();
 
-    const queuedItemButton = await screen.findByRole('button', { name: /Queued task 1/ });
+    const queuedItemButton = await screen.findByRole('button', { name: /Issue #1/ });
     expect(queuedItemButton.querySelector('.hc-sider-item__icon')).toBeTruthy();
+    // Sidebar task rows should render a 2-line label (event+marker, then repo). mks8pr4r3m1fo9oqx9av
+    expect(within(queuedItemButton).getByText('Repo 1')).toBeInTheDocument();
     // UX: when a status has > 3 tasks, render a "View all" entry at the end of the preview list.
-    const viewAllButton = await screen.findByRole('button', { name: /View all/i });
-    expect(viewAllButton.querySelector('.hc-sider-item__icon')).toBeTruthy();
+    // Test note: locate the "View all" button via its label (icon aria-label may be included in the accessible name). kwq0evw438cxawea0lcj
+    const viewAllLabel = await screen.findByText('View all');
+    const viewAllButton = viewAllLabel.closest('button');
+    expect(viewAllButton).toBeTruthy();
+    expect(viewAllButton?.querySelector('.hc-sider-item__icon')).toBeTruthy();
     // UX: empty sections should start collapsed so the "No tasks" hint does not show unless expanded.
     await waitFor(() => expect(screen.queryByText('No tasks')).not.toBeInTheDocument());
 
@@ -197,7 +237,7 @@ describe('AppShell (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     renderApp();
 
-    expect(await screen.findByText('Processing task 1')).toBeInTheDocument();
+    expect(await screen.findByText('Commit abcdef1')).toBeInTheDocument();
 
     const collapseButton = await screen.findByRole('button', { name: 'Collapse sidebar' });
     await ui.click(collapseButton);
@@ -235,26 +275,55 @@ describe('AppShell (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     renderApp();
 
-    const viewAllButton = await screen.findByRole('button', { name: /View all/i });
-    await ui.click(viewAllButton);
+    // Clicking the per-section "View all" item should route to a filtered Tasks list. kwq0evw438cxawea0lcj
+    const viewAllLabel = await screen.findByText('View all');
+    const viewAllButton = viewAllLabel.closest('button');
+    expect(viewAllButton).toBeTruthy();
+    await ui.click(viewAllButton as HTMLElement);
 
     expect(window.location.hash).toBe('#/tasks?status=queued');
     window.dispatchEvent(new Event('hashchange'));
     expect(await screen.findByPlaceholderText('Search tasks (title/repo/id)')).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: /View all/i })).toHaveClass('hc-sider-item--active');
+    const activeLabel = await screen.findByText('View all');
+    const activeButton = activeLabel.closest('button');
+    expect(activeButton).toBeTruthy();
+    expect(activeButton).toHaveClass('hc-sider-item--active');
+  });
+
+  test('navigates to tasks list when clicking the status header nav button', async () => {
+    const ui = userEvent.setup();
+    renderApp();
+
+    // Hover UX: status header count swaps to a nav arrow that routes to the filtered list. kwq0evw438cxawea0lcj
+    const navButton = await screen.findByRole('button', { name: 'View all Queued' });
+    await ui.click(navButton);
+
+    expect(window.location.hash).toBe('#/tasks?status=queued');
+    window.dispatchEvent(new Event('hashchange'));
+    expect(await screen.findByPlaceholderText('Search tasks (title/repo/id)')).toBeInTheDocument();
+  });
+
+  test('shows task title tooltip on hover', async () => {
+    const ui = userEvent.setup();
+    renderApp();
+
+    // Hover UX: sidebar task rows show the full task title via Tooltip. kwq0evw438cxawea0lcj
+    const taskButton = await screen.findByRole('button', { name: /Issue #1/ });
+    await ui.hover(taskButton);
+    expect(await screen.findByText('Queued task 1')).toBeInTheDocument();
   });
 
   test('navigates to task detail when clicking a task item', async () => {
     const ui = userEvent.setup();
     renderApp();
 
-    const taskButton = await screen.findByRole('button', { name: /Queued task 1/ });
+    const taskButton = await screen.findByRole('button', { name: /Issue #1/ });
     await ui.click(taskButton);
 
     expect(window.location.hash).toBe('#/tasks/t_q1');
     window.dispatchEvent(new Event('hashchange'));
     expect(await screen.findByText('Task t_q1', { selector: '.hc-page__title' })).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: /Queued task 1/ })).toHaveClass('hc-sider-item--active');
+    expect(await screen.findByRole('button', { name: /Issue #1/ })).toHaveClass('hc-sider-item--active');
   });
 
   test('navigates to task group chat when clicking a task group item', async () => {
@@ -273,14 +342,14 @@ describe('AppShell (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     renderApp();
 
-    expect(await screen.findByText('Queued task 1')).toBeInTheDocument();
-    expect(await screen.findByText('Processing task 1')).toBeInTheDocument();
+    expect(await screen.findByText('Issue #1')).toBeInTheDocument();
+    expect(await screen.findByText('Commit abcdef1')).toBeInTheDocument();
 
     const queuedHeader = await screen.findByRole('button', { name: 'Queued' });
     await ui.click(queuedHeader);
 
-    expect(screen.queryByText('Queued task 1')).not.toBeInTheDocument();
-    expect(screen.getByText('Processing task 1')).toBeInTheDocument();
+    expect(screen.queryByText('Issue #1')).not.toBeInTheDocument();
+    expect(screen.getByText('Commit abcdef1')).toBeInTheDocument();
   });
 
   test('keeps a status collapsed when only old tasks exist', async () => {
@@ -290,10 +359,12 @@ describe('AppShell (frontend-chat migration)', () => {
     const now = Date.now();
     const recent = new Date(now - 60 * 60 * 1000).toISOString();
     const old = new Date(now - 25 * 60 * 60 * 1000).toISOString();
-    const makeTask = (id: string, title: string, status: any, when: string) => ({
+    const makeTask = (id: string, status: any, issueId: number, when: string) => ({
       id,
-      eventType: 'chat',
-      title,
+      eventType: 'issue',
+      title: `Task ${id}`,
+      issueId,
+      repo: { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true },
       status,
       retries: 0,
       createdAt: when,
@@ -305,8 +376,8 @@ describe('AppShell (frontend-chat migration)', () => {
     fetchDashboardSidebarMock.mockResolvedValueOnce({
       stats: { total: 2, queued: 1, processing: 1, success: 0, failed: 0 },
       tasksByStatus: {
-        queued: [makeTask('t_q1', 'Queued task 1', 'queued', recent)],
-        processing: [makeTask('t_p1', 'Processing task 1', 'processing', old)],
+        queued: [makeTask('t_q1', 'queued', 1, recent)],
+        processing: [makeTask('t_p1', 'processing', 2, old)],
         success: [],
         failed: []
       },
@@ -315,12 +386,86 @@ describe('AppShell (frontend-chat migration)', () => {
 
     renderApp();
 
-    expect(await screen.findByText('Queued task 1')).toBeInTheDocument();
-    expect(screen.queryByText('Processing task 1')).not.toBeInTheDocument();
+    expect(await screen.findByText('Issue #1')).toBeInTheDocument();
+    expect(screen.queryByText('Issue #2')).not.toBeInTheDocument();
 
     const processingHeader = await screen.findByRole('button', { name: 'Processing' });
     await ui.click(processingHeader);
-    expect(await screen.findByText('Processing task 1')).toBeInTheDocument();
+    expect(await screen.findByText('Issue #2')).toBeInTheDocument();
+  });
+
+  test('auto-expands when recent tasks appear after the initial old snapshot', async () => {
+    // Regression guard: do not lock the auto-expand initializer when the first refresh has no recent tasks. mks8pr4r3m1fo9oqx9av
+    const fetchDashboardSidebarMock = vi.mocked(api.fetchDashboardSidebar);
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0); // Make SSE jitter deterministic for the test. kxthpiu4eqrmu0c6bboa
+
+    const now = Date.now();
+    const old = new Date(now - 25 * 60 * 60 * 1000).toISOString();
+    const recent = new Date(now - 60 * 60 * 1000).toISOString();
+
+    fetchDashboardSidebarMock.mockResolvedValueOnce({
+      stats: { total: 1, queued: 1, processing: 0, success: 0, failed: 0 },
+      tasksByStatus: {
+        queued: [
+          {
+            id: 't_old_q1',
+            eventType: 'issue',
+            issueId: 1,
+            repo: { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true },
+            title: 'Old queued task',
+            status: 'queued',
+            retries: 0,
+            createdAt: old,
+            updatedAt: old
+          }
+        ],
+        processing: [],
+        success: [],
+        failed: []
+      },
+      taskGroups: []
+    } as any);
+
+    fetchDashboardSidebarMock.mockResolvedValueOnce({
+      stats: { total: 1, queued: 1, processing: 0, success: 0, failed: 0 },
+      tasksByStatus: {
+        queued: [
+          {
+            id: 't_recent_q1',
+            eventType: 'issue',
+            issueId: 2,
+            repo: { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true },
+            title: 'Recent queued task',
+            status: 'queued',
+            retries: 0,
+            createdAt: recent,
+            updatedAt: recent
+          }
+        ],
+        processing: [],
+        success: [],
+        failed: []
+      },
+      taskGroups: []
+    } as any);
+
+    renderApp();
+    await waitFor(() => expect(fetchDashboardSidebarMock).toHaveBeenCalled());
+    expect(screen.queryByText('Issue #1')).not.toBeInTheDocument();
+
+    const sources = (globalThis as any).__eventSourceInstances as any[];
+    await waitFor(() =>
+      expect(Array.isArray(sources) && sources.some((s) => String(s?.url ?? '').includes('/events/stream'))).toBe(true)
+    );
+    const matching = sources.filter((s) => String(s?.url ?? '').includes('/events/stream'));
+    const eventsSource = matching[matching.length - 1];
+    expect(eventsSource).toBeTruthy();
+    eventsSource.emit('dashboard.sidebar.changed', { data: JSON.stringify({ token: 't' }) });
+
+    await waitFor(() => expect(fetchDashboardSidebarMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Issue #2')).toBeInTheDocument();
+
+    randomSpy.mockRestore();
   });
 
   test('refreshes sidebar after receiving dashboard change SSE event', async () => {
@@ -328,7 +473,7 @@ describe('AppShell (frontend-chat migration)', () => {
     const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0); // Make SSE jitter deterministic for the test. kxthpiu4eqrmu0c6bboa
 
     renderApp();
-    expect(await screen.findByText('Queued task 1')).toBeInTheDocument();
+    expect(await screen.findByText('Issue #1')).toBeInTheDocument();
 
     const now = new Date().toISOString();
     // Reset call tracking so we only assert the SSE-triggered refresh behavior. kxthpiu4eqrmu0c6bboa
@@ -336,7 +481,19 @@ describe('AppShell (frontend-chat migration)', () => {
     fetchDashboardSidebarMock.mockResolvedValueOnce({
       stats: { total: 1, queued: 1, processing: 0, success: 0, failed: 0 },
       tasksByStatus: {
-        queued: [{ id: 't_sse_q1', eventType: 'chat', title: 'Queued task SSE', status: 'queued', retries: 0, createdAt: now, updatedAt: now }],
+        queued: [
+          {
+            id: 't_sse_q1',
+            eventType: 'issue',
+            issueId: 99,
+            repo: { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true },
+            title: 'Queued task SSE',
+            status: 'queued',
+            retries: 0,
+            createdAt: now,
+            updatedAt: now
+          }
+        ],
         processing: [],
         success: [],
         failed: []
@@ -354,7 +511,7 @@ describe('AppShell (frontend-chat migration)', () => {
     eventsSource.emit('dashboard.sidebar.changed', { data: JSON.stringify({ token: 't' }) });
 
     await waitFor(() => expect(fetchDashboardSidebarMock).toHaveBeenCalled());
-    expect(await screen.findByText('Queued task SSE')).toBeInTheDocument();
+    expect(await screen.findByText('Issue #99')).toBeInTheDocument();
 
     randomSpy.mockRestore();
   });
@@ -416,8 +573,10 @@ describe('AppShell (frontend-chat migration)', () => {
 
     expect(window.location.hash).toBe('#/repos');
     window.dispatchEvent(new Event('hashchange'));
-    expect(await screen.findByPlaceholderText('Search repositories (name/id/platform)')).toBeInTheDocument();
-    expect(await screen.findByText('Repo 1')).toBeInTheDocument();
+    const searchInput = await screen.findByPlaceholderText('Search repositories (name/id/platform)');
+    const reposPage = searchInput.closest('.hc-page');
+    expect(reposPage).toBeTruthy();
+    expect(within(reposPage as HTMLElement).getByText('Repo 1')).toBeInTheDocument();
   });
 
   test('cuts off header back chain when navigating to task detail from sidebar', async () => {
@@ -432,7 +591,7 @@ describe('AppShell (frontend-chat migration)', () => {
     window.dispatchEvent(new Event('hashchange'));
     expect(await screen.findByPlaceholderText('Search repositories (name/id/platform)')).toBeInTheDocument();
 
-    const taskButton = await screen.findByRole('button', { name: /Queued task 1/ });
+    const taskButton = await screen.findByRole('button', { name: /Issue #1/ });
     await ui.click(taskButton);
 
     expect(window.location.hash).toBe('#/tasks/t_q1');
@@ -465,7 +624,7 @@ describe('AppShell (frontend-chat migration)', () => {
     window.dispatchEvent(new Event('hashchange'));
     expect(await screen.findByText('Task t_q1', { selector: '.hc-page__title' })).toBeInTheDocument();
 
-    const sidebarTask = await screen.findByRole('button', { name: /Queued task 1/ });
+    const sidebarTask = await screen.findByRole('button', { name: /Issue #1/ });
     await ui.click(sidebarTask);
 
     const backButton = await screen.findByRole('button', { name: 'Back to list' });
@@ -481,8 +640,11 @@ describe('AppShell (frontend-chat migration)', () => {
     const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {});
     renderApp();
 
-    const viewAllButton = await screen.findByRole('button', { name: /View all/i });
-    await ui.click(viewAllButton);
+    // Test note: click the sidebar "View all" entry by its visible label so icon text doesn't affect the query. kwq0evw438cxawea0lcj
+    const viewAllLabel = await screen.findByText('View all');
+    const viewAllButton = viewAllLabel.closest('button');
+    expect(viewAllButton).toBeTruthy();
+    await ui.click(viewAllButton as HTMLElement);
     expect(window.location.hash).toBe('#/tasks?status=queued');
     window.dispatchEvent(new Event('hashchange'));
 
@@ -508,7 +670,7 @@ describe('AppShell (frontend-chat migration)', () => {
     const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {});
     renderApp();
 
-    const taskButton = await screen.findByRole('button', { name: /Queued task 1/ });
+    const taskButton = await screen.findByRole('button', { name: /Issue #1/ });
     await ui.click(taskButton);
     expect(window.location.hash).toBe('#/tasks/t_q1');
     window.dispatchEvent(new Event('hashchange'));

@@ -70,6 +70,36 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     window.localStorage.clear();
   });
 
+  test('shows recent tasks per status in Task activity and supports navigation', async () => {
+    // Surface repo triage shortcuts (latest tasks + view-all links) inside the Task activity card. aw85xyfsp5zfg6ihq3jr
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    vi.mocked(api.fetchTaskStats).mockResolvedValueOnce({ total: 6, queued: 0, processing: 3, success: 2, failed: 1 });
+    vi.mocked(api.fetchTasks).mockResolvedValueOnce([
+      { id: 't_p1', eventType: 'issue', status: 'processing', retries: 0, createdAt: '2026-01-19T10:00:00.000Z', updatedAt: '2026-01-19T10:00:00.000Z' } as any,
+      { id: 't_p2', eventType: 'push', status: 'processing', retries: 0, createdAt: '2026-01-18T10:00:00.000Z', updatedAt: '2026-01-18T10:00:00.000Z' } as any,
+      { id: 't_p3', eventType: 'merge_request', status: 'processing', retries: 0, createdAt: '2026-01-17T10:00:00.000Z', updatedAt: '2026-01-17T10:00:00.000Z' } as any,
+      { id: 't_f1', eventType: 'commit', status: 'failed', retries: 0, createdAt: '2026-01-16T10:00:00.000Z', updatedAt: '2026-01-16T10:00:00.000Z' } as any,
+      { id: 't_s1', eventType: 'issue_comment', status: 'succeeded', retries: 0, createdAt: '2026-01-15T10:00:00.000Z', updatedAt: '2026-01-15T10:00:00.000Z' } as any,
+      { id: 't_s2', eventType: 'chat', status: 'commented', retries: 0, createdAt: '2026-01-14T10:00:00.000Z', updatedAt: '2026-01-14T10:00:00.000Z' } as any
+    ]);
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+    await waitFor(() => expect(api.fetchTaskStats).toHaveBeenCalled());
+
+    expect(screen.queryByText('Last task')).not.toBeInTheDocument();
+
+    await ui.click(screen.getByRole('button', { name: 'View all Processing' }));
+    expect(window.location.hash).toBe('#/tasks?status=processing&repoId=r1');
+
+    const processingTile = screen.getByTestId('hc-repo-activity-processing');
+    await ui.click(within(processingTile).getByRole('button', { name: 'View t_p1' }));
+    expect(window.location.hash).toBe('#/tasks/t_p1');
+  });
+
   test('saves basic info via updateRepo', async () => {
     const ui = userEvent.setup();
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');

@@ -17,6 +17,7 @@ export interface RouteState {
   taskGroupId?: string;
   repoId?: string;
   tasksStatus?: string;
+  tasksRepoId?: string;
 }
 
 const safeDecode = (value: string): string => {
@@ -57,7 +58,10 @@ export const parseRoute = (hash: string): RouteState => {
 
   if (parts[0] === 'tasks') {
     if (parts.length === 2 && parts[1]) return { page: 'task', taskId: parts[1] };
-    return { page: 'tasks', tasksStatus: query.status };
+    // Allow repo-scoped task lists via hash query (e.g. `#/tasks?status=processing&repoId=...`). aw85xyfsp5zfg6ihq3jr
+    const state: RouteState = { page: 'tasks', tasksStatus: query.status };
+    if (query.repoId) state.tasksRepoId = query.repoId;
+    return state;
   }
 
   if (parts[0] === 'task-groups') {
@@ -78,9 +82,13 @@ export const parseRoute = (hash: string): RouteState => {
 
 export const buildHomeHash = (): string => '#/';
 
-export const buildTasksHash = (options?: { status?: string }): string => {
+export const buildTasksHash = (options?: { status?: string; repoId?: string }): string => {
   const status = String(options?.status ?? '').trim();
-  return status ? `#/tasks?status=${encodeURIComponent(status)}` : '#/tasks';
+  const repoId = String(options?.repoId ?? '').trim();
+  const query: string[] = [];
+  if (status) query.push(`status=${encodeURIComponent(status)}`);
+  if (repoId) query.push(`repoId=${encodeURIComponent(repoId)}`);
+  return query.length ? `#/tasks?${query.join('&')}` : '#/tasks';
 };
 
 export const buildTaskHash = (taskId: string): string => `#/tasks/${encodeURIComponent(taskId)}`;

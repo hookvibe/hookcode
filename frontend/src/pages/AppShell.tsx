@@ -1,10 +1,11 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Layout, Menu, Space, Typography } from 'antd';
+import { Button, Layout, Menu, Space, Tooltip, Typography } from 'antd';
 import {
   BugOutlined,
   CheckCircleFilled,
   CloseCircleFilled,
   CodeOutlined,
+  RightOutlined,
   FileTextOutlined,
   HourglassOutlined,
   LoadingOutlined,
@@ -14,7 +15,9 @@ import {
   PlusOutlined,
   ProjectOutlined,
   PullRequestOutlined,
-  UnorderedListOutlined
+  UnorderedListOutlined,
+  EllipsisOutlined,
+  CaretRightOutlined
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Task, TaskGroup, TaskStatusStats } from '../api';
@@ -30,7 +33,7 @@ import {
   type RouteState
 } from '../router';
 import { navigateFromSidebar } from '../navHistory';
-import { clampText, getTaskTitle } from '../utils/task';
+import { clampText, getTaskSidebarPrimaryText, getTaskSidebarSecondaryText, getTaskTitle } from '../utils/task';
 import { createAuthedEventSource } from '../utils/sse';
 import type { AccentPreset } from '../theme/accent';
 import { UserPanelPopover } from '../components/UserPanelPopover';
@@ -231,24 +234,30 @@ export const AppShell: FC<AppShellProps> = ({
         setTaskSectionExpanded((prev) => {
           // UX:
           // - Default collapsed, but auto-expand when there are tasks updated within the last 24 hours.
-          // - Apply only once per auth session to avoid overriding user's manual expand/collapse preference.
+          // - Apply once, when recent tasks first appear (do not lock the initializer when there are no recent tasks yet). mks8pr4r3m1fo9oqx9av
           if (taskSectionAutoInitRef.current) return prev;
-          taskSectionAutoInitRef.current = true;
           const now = Date.now();
           const recentWindowMs = 24 * 60 * 60 * 1000;
           const isRecent = (task: Task): boolean => {
-            const ts = new Date(task.updatedAt).getTime();
-            if (!Number.isFinite(ts)) return false;
+            const updatedMs = new Date(task.updatedAt).getTime();
+            const createdMs = new Date(task.createdAt).getTime();
+            const ts = Number.isFinite(updatedMs) ? updatedMs : createdMs;
+            // Be tolerant of malformed timestamps (e.g. non-ISO strings) so recent tasks still auto-expand. mks8pr4r3m1fo9oqx9av
+            if (!Number.isFinite(ts)) return true;
             // Note: use absolute delta to tolerate minor server/client clock skew.
             return Math.abs(now - ts) <= recentWindowMs;
           };
           const hasRecentTasks = (list: Task[]): boolean => list.some(isRecent);
-          return {
+          const next = {
             queued: hasRecentTasks(queued),
             processing: hasRecentTasks(processing),
             success: hasRecentTasks(success),
             failed: hasRecentTasks(failed)
           };
+          const shouldAutoExpand = Object.values(next).some(Boolean);
+          if (!shouldAutoExpand) return prev;
+          taskSectionAutoInitRef.current = true;
+          return next;
         });
 
         const sorted = [...groups].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -518,12 +527,28 @@ export const AppShell: FC<AppShellProps> = ({
             >
               {!siderCollapsed ? (
                 <span className="hc-sider-section__title">
-                  {/* UX: keep the count right-aligned so users can scan labels quickly across sections. */}
                   <span className="hc-sider-section__label">{t(section.labelKey)}</span>
-                  <span className="hc-sider-section__count">{count}</span>
                 </span>
               ) : null}
             </Button>
+
+            {!siderCollapsed ? (
+              <>
+                <span className="hc-sider-section__count">{count}</span>
+                <Button
+                  type="text"
+                  className="hc-sider-section__navBtn"
+                  // Hover UX: replace the count with a nav arrow that routes to the filtered Tasks list. kwq0evw438cxawea0lcj
+                  aria-label={`${t('sidebar.tasks.viewAll')} ${t(section.labelKey)}`}
+                  icon={<CaretRightOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Navigation rule: treat status header nav clicks as sidebar navigation (clears back chain). kwq0evw438cxawea0lcj
+                    navigateFromSidebar(buildTasksHash({ status: section.statusFilter }));
+                  }}
+                />
+              </>
+            ) : null}
           </div>
 
           {!siderCollapsed && expanded ? (
@@ -531,18 +556,31 @@ export const AppShell: FC<AppShellProps> = ({
               {items.length ? (
                 <>
                   {items.map((task) => (
-                    <Button
+                    <Tooltip
                       key={task.id}
-                      type="text"
-                      block
-                      // UX: highlight the active task so the sidebar location stays in sync with the content pane.
-                      className={`hc-sider-item${activeTaskId === task.id ? ' hc-sider-item--active' : ''}`}
-                      aria-current={activeTaskId === task.id ? 'page' : undefined}
-                      onClick={() => openTask(task)}
+                      placement="right"
+                      // Hover UX: show the full task title without widening the sidebar. kwq0evw438cxawea0lcj
+                      title={getTaskTitle(task)}
+                      mouseEnterDelay={0}
                     >
-                      <span className={`hc-sider-item__icon hc-sider-item__icon--${sectionKey}`}>{section.icon}</span>
-                      <span className="hc-sider-item__text">{clampText(getTaskTitle(task), 32)}</span>
-                    </Button>
+                      <Button
+                        type="text"
+                        block
+                        // UX: highlight the active task so the sidebar location stays in sync with the content pane.
+                        className={`hc-sider-item hc-sider-taskItem${activeTaskId === task.id ? ' hc-sider-item--active' : ''}`}
+                        aria-current={activeTaskId === task.id ? 'page' : undefined}
+                        onClick={() => openTask(task)}
+                      >
+                        <span className={`hc-sider-item__icon hc-sider-item__icon--${sectionKey}`}>{section.icon}</span>
+                        {/* Render 2-line task labels (event+marker, then repo) to surface more context in the sidebar. mks8pr4r3m1fo9oqx9av */}
+                        <span className="hc-sider-item__content">
+                          <span className="hc-sider-item__title">
+                            {clampText(getTaskSidebarPrimaryText(t, task), 44)}
+                          </span>
+                          <span className="hc-sider-item__meta">{clampText(getTaskSidebarSecondaryText(task), 44)}</span>
+                        </span>
+                      </Button>
+                    </Tooltip>
                   ))}
                   {count > 3 ? (
                     <Button
@@ -557,7 +595,7 @@ export const AppShell: FC<AppShellProps> = ({
                       }}
                     >
                       <span className="hc-sider-item__icon">
-                        <UnorderedListOutlined />
+                        <EllipsisOutlined />
                       </span>
                       <span className="hc-sider-item__text">{t('sidebar.tasks.viewAll')}</span>
                     </Button>
@@ -698,7 +736,8 @@ export const AppShell: FC<AppShellProps> = ({
       <Content className="hc-content">
         {route.page === 'repos' ? <ReposPage userPanel={userPanel} /> : null}
         {route.page === 'repo' && route.repoId ? <RepoDetailPage repoId={route.repoId} userPanel={userPanel} /> : null}
-        {route.page === 'tasks' ? <TasksPage status={route.tasksStatus} userPanel={userPanel} /> : null}
+        {/* Pass repoId query to TasksPage so repo dashboards can deep-link into scoped task lists. aw85xyfsp5zfg6ihq3jr */}
+        {route.page === 'tasks' ? <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} /> : null}
         {/* Pass backend feature toggles to pages that mount log streaming components. 0nazpc53wnvljv5yh7c6 */}
         {route.page === 'task' && route.taskId ? (
           <TaskDetailPage taskId={route.taskId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} />

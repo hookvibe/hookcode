@@ -13,6 +13,7 @@ import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
  * TasksPage:
  * - Business context: list tasks for quick navigation from the Home sidebar.
  * - Scope (migration step 1): support status filter via hash query (`#/tasks?status=...`) and navigation to task detail.
+ * - Extension: support repo-scoped lists via `#/tasks?repoId=...` for deep-links from repo dashboards. aw85xyfsp5zfg6ihq3jr
  *
  * Change record:
  * - 2026-01-11: Added for `frontend-chat` to replace legacy task list navigation.
@@ -21,6 +22,7 @@ import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 
 export interface TasksPageProps {
   status?: string;
+  repoId?: string;
   userPanel?: ReactNode;
 }
 
@@ -37,7 +39,7 @@ const normalizeStatusFilter = (value: string | undefined): StatusFilter => {
   return 'all';
 };
 
-export const TasksPage: FC<TasksPageProps> = ({ status, userPanel }) => {
+export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -48,14 +50,21 @@ export const TasksPage: FC<TasksPageProps> = ({ status, userPanel }) => {
   const [retryingTaskId, setRetryingTaskId] = useState<string | null>(null);
 
   const statusFilter = useMemo(() => normalizeStatusFilter(status), [status]);
+  const repoIdFilter = useMemo(() => {
+    // Keep the Tasks page compatible with both global and repo-scoped entry points. aw85xyfsp5zfg6ihq3jr
+    const trimmed = String(repoId ?? '').trim();
+    return trimmed || undefined;
+  }, [repoId]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await fetchTasks({
+      const params: { limit: number; status?: StatusFilter; repoId?: string } = {
         limit: 50,
         status: statusFilter === 'all' ? undefined : statusFilter
-      });
+      };
+      if (repoIdFilter) params.repoId = repoIdFilter;
+      const list = await fetchTasks(params);
       setTasks(list);
     } catch (err) {
       console.error(err);
@@ -64,7 +73,7 @@ export const TasksPage: FC<TasksPageProps> = ({ status, userPanel }) => {
     } finally {
       setLoading(false);
     }
-  }, [message, statusFilter, t]);
+  }, [message, repoIdFilter, statusFilter, t]);
 
   useEffect(() => {
     void refresh();

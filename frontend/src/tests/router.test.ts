@@ -10,6 +10,8 @@ describe('router (hash routes)', () => {
   test('parses tasks list route with status filter', () => {
     expect(parseRoute('#/tasks')).toEqual({ page: 'tasks', tasksStatus: undefined });
     expect(parseRoute('#/tasks?status=queued')).toEqual({ page: 'tasks', tasksStatus: 'queued' });
+    // Support repo-scoped task list parsing for repo dashboard deep-links. aw85xyfsp5zfg6ihq3jr
+    expect(parseRoute('#/tasks?status=processing&repoId=repo_1')).toEqual({ page: 'tasks', tasksStatus: 'processing', tasksRepoId: 'repo_1' });
   });
 
   test('parses task detail route', () => {

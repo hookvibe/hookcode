@@ -3,8 +3,9 @@ import { BarChartOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Button, Card, Empty, Progress, Skeleton, Space, Typography } from 'antd';
 import type { Task, TaskStatusStats } from '../../api';
 import { fetchTaskStats, fetchTasks } from '../../api';
-import { useLocale, useT } from '../../i18n';
-import { formatDateTime } from '../../utils/dateUtc';
+import { useT } from '../../i18n';
+import { buildTaskHash, buildTasksHash } from '../../router';
+import { clampText, getTaskEventText } from '../../utils/task';
 import { RepoTaskVolumeTrend } from './RepoTaskVolumeTrend';
 
 type TaskStatKey = 'queued' | 'processing' | 'success' | 'failed';
@@ -24,7 +25,6 @@ export interface RepoTaskActivityCardProps {
 
 export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) => {
   const t = useT();
-  const locale = useLocale();
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [stats, setStats] = useState<TaskStatusStats | null>(null);
@@ -63,11 +63,13 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
     const successRate = total ? (s.success ?? 0) / total : 0;
     const successPercent = Math.round(successRate * 100);
 
-    let lastAt = '';
-    for (const task of recentTasks) {
-      const createdAt = String(task?.createdAt ?? '').trim();
-      if (createdAt && (!lastAt || createdAt > lastAt)) lastAt = createdAt;
-    }
+    const sorted = Array.isArray(recentTasks)
+      ? [...recentTasks].sort((a, b) => String(b?.createdAt ?? '').localeCompare(String(a?.createdAt ?? '')))
+      : [];
+    const latestTotal = sorted.slice(0, 3);
+    const latestProcessing = sorted.filter((task) => task.status === 'processing').slice(0, 3);
+    const latestFailed = sorted.filter((task) => task.status === 'failed').slice(0, 3);
+    const latestSuccess = sorted.filter((task) => task.status === 'succeeded' || task.status === 'commented').slice(0, 3);
 
     const distTotal = (s.queued ?? 0) + (s.processing ?? 0) + (s.success ?? 0) + (s.failed ?? 0);
     const distribution = TASK_STAT_KEYS.map((k) => ({
@@ -78,14 +80,90 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
 
     return {
       total,
+      processing: s.processing ?? 0,
+      failed: s.failed ?? 0,
+      success: s.success ?? 0,
       successPercent,
-      lastAt,
+      latestTotal,
+      latestProcessing,
+      latestFailed,
+      latestSuccess,
       distribution
     };
   }, [recentTasks, stats]);
 
   const hasAnyTasks = Boolean(
     stats && ((stats.total ?? 0) > 0 || (stats.queued ?? 0) > 0 || (stats.processing ?? 0) > 0 || (stats.success ?? 0) > 0 || (stats.failed ?? 0) > 0)
+  );
+
+  const openTask = useCallback((taskId: string) => {
+    window.location.hash = buildTaskHash(taskId);
+  }, []);
+
+  const openAll = useCallback(
+    (status?: string) => {
+      // Use repo-scoped Tasks page query so "View all" stays within the current repository. aw85xyfsp5zfg6ihq3jr
+      window.location.hash = buildTasksHash({ status, repoId });
+    },
+    [repoId]
+  );
+
+  const taskButtonLabel = useCallback(
+    (task: Task): string => {
+      const eventText = getTaskEventText(t, task.eventType);
+      const shortId = clampText(String(task.id ?? ''), 10);
+      return `${eventText} · ${shortId}`;
+    },
+    [t]
+  );
+
+  const renderMetric = (options: {
+    label: string;
+    count: number;
+    status?: string;
+    tasks: Task[];
+    testId: string;
+  }) => (
+    <div className="hc-repo-activity__metric" data-testid={options.testId}>
+      {/* Render recent task shortcuts + "View all" per status to speed up repo triage. aw85xyfsp5zfg6ihq3jr */}
+      <div className="hc-repo-activity__metric-head">
+        <Typography.Text type="secondary" className="hc-repo-activity__metric-label">
+          {options.label}
+        </Typography.Text>
+        <Button
+          type="link"
+          size="small"
+          style={{ padding: 0 }}
+          aria-label={`${t('sidebar.tasks.viewAll')} ${options.label}`}
+          onClick={() => openAll(options.status)}
+        >
+          {t('sidebar.tasks.viewAll')}
+        </Button>
+      </div>
+
+      <Typography.Text className="hc-repo-activity__metric-value">{options.count}</Typography.Text>
+
+      <div className="hc-repo-activity__metric-tasks">
+        {options.tasks.length ? (
+          options.tasks.map((task) => (
+            <Button
+              key={task.id}
+              type="link"
+              size="small"
+              className="hc-repo-activity__metric-taskBtn"
+              style={{ padding: 0 }}
+              onClick={() => openTask(task.id)}
+              aria-label={`${t('common.view')} ${task.id}`}
+              title={task.id}
+            >
+              {taskButtonLabel(task)}
+            </Button>
+          ))
+        ) : (
+          <Typography.Text type="secondary">-</Typography.Text>
+        )}
+      </div>
+    </div>
   );
 
   return (
@@ -126,32 +204,33 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
             </div>
 
             <div className="hc-repo-activity__metrics">
-              <div className="hc-repo-activity__metric">
-                <Typography.Text type="secondary" className="hc-repo-activity__metric-label">
-                  {t('repos.dashboard.activity.tasks.total')}
-                </Typography.Text>
-                <Typography.Text className="hc-repo-activity__metric-value">{stats.total}</Typography.Text>
-              </div>
-              <div className="hc-repo-activity__metric">
-                <Typography.Text type="secondary" className="hc-repo-activity__metric-label">
-                  {t('sidebar.tasks.processing')}
-                </Typography.Text>
-                <Typography.Text className="hc-repo-activity__metric-value">{stats.processing}</Typography.Text>
-              </div>
-              <div className="hc-repo-activity__metric">
-                <Typography.Text type="secondary" className="hc-repo-activity__metric-label">
-                  {t('sidebar.tasks.failed')}
-                </Typography.Text>
-                <Typography.Text className="hc-repo-activity__metric-value">{stats.failed}</Typography.Text>
-              </div>
-              <div className="hc-repo-activity__metric">
-                <Typography.Text type="secondary" className="hc-repo-activity__metric-label">
-                  {t('repos.dashboard.activity.tasks.lastTask')}
-                </Typography.Text>
-                <Typography.Text className="hc-repo-activity__metric-value">
-                  {derived.lastAt ? formatDateTime(locale, derived.lastAt) : '-'}
-                </Typography.Text>
-              </div>
+              {renderMetric({
+                label: t('repos.dashboard.activity.tasks.total'),
+                count: derived.total,
+                tasks: derived.latestTotal,
+                testId: 'hc-repo-activity-total'
+              })}
+              {renderMetric({
+                label: t('repos.dashboard.activity.tasks.status.processing'),
+                count: derived.processing,
+                status: 'processing',
+                tasks: derived.latestProcessing,
+                testId: 'hc-repo-activity-processing'
+              })}
+              {renderMetric({
+                label: t('repos.dashboard.activity.tasks.status.failed'),
+                count: derived.failed,
+                status: 'failed',
+                tasks: derived.latestFailed,
+                testId: 'hc-repo-activity-failed'
+              })}
+              {renderMetric({
+                label: t('repos.dashboard.activity.tasks.status.success'),
+                count: derived.success,
+                status: 'success',
+                tasks: derived.latestSuccess,
+                testId: 'hc-repo-activity-success'
+              })}
             </div>
           </div>
 
