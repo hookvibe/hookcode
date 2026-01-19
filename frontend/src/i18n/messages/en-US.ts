@@ -218,6 +218,32 @@ export const enUS: Record<MessageKey, string> = {
   'repos.detail.credentials.modelProvider': 'Model provider',
   'repos.detail.credentials.tip': 'Only shows configuration status. Tokens/keys are never returned.',
 
+  // --- Repo detail dashboard (no tabs) ---
+  // Add KPI strip + webhook activity charts to the repo detail page. u55e45ffi8jng44erdzp
+  'repos.dashboard.kpi.rules': 'Rules',
+  'repos.dashboard.kpi.eventsEnabled': '{{enabled}}/{{total}} events enabled',
+  'repos.dashboard.activity.webhook.title': 'Webhook activity',
+  'repos.dashboard.activity.webhook.acceptedRate': 'Accepted rate',
+  'repos.dashboard.activity.webhook.total': 'Total',
+  'repos.dashboard.activity.webhook.lastDelivery': 'Last delivery',
+  'repos.dashboard.activity.webhook.distribution': 'Result distribution',
+  'repos.dashboard.activity.webhook.volume7d': 'Volume (7d)',
+  'repos.dashboard.activity.webhook.empty': 'No deliveries yet',
+
+  // Task-first repo overview cards. u55e45ffi8jng44erdzp
+  'repos.dashboard.activity.tasks.title': 'Task activity',
+  'repos.dashboard.activity.tasks.successRate': 'Success rate',
+  'repos.dashboard.activity.tasks.total': 'Total tasks',
+  'repos.dashboard.activity.tasks.lastTask': 'Last task',
+  'repos.dashboard.activity.tasks.distribution': 'Status distribution',
+  'repos.dashboard.activity.tasks.volume7d': 'Volume (7d)',
+  'repos.dashboard.activity.tasks.empty': 'No tasks yet',
+  'repos.dashboard.activity.tasks.loadFailed': 'Failed to load task activity',
+  'repos.dashboard.activity.tasks.status.queued': 'Queued',
+  'repos.dashboard.activity.tasks.status.processing': 'Processing',
+  'repos.dashboard.activity.tasks.status.success': 'Success',
+  'repos.dashboard.activity.tasks.status.failed': 'Failed',
+
   // --- Repo detail (tabs) ---
   'repos.detail.tabs.basic': 'Basic',
   'repos.detail.tabs.branches': 'Branches',
@@ -358,6 +384,10 @@ export const enUS: Record<MessageKey, string> = {
   'repos.webhookDeliveries.detailPayload': 'Received payload',
   'repos.webhookDeliveries.detailResponse': 'Server response',
   'repos.webhookDeliveries.detailLoadFailed': 'Failed to load detail',
+  'repos.webhookDeliveries.result.accepted': 'accepted',
+  'repos.webhookDeliveries.result.skipped': 'skipped',
+  'repos.webhookDeliveries.result.rejected': 'rejected',
+  'repos.webhookDeliveries.result.error': 'error',
 
   // --- Repo robots ---
   'repos.robots.title': 'Robots',

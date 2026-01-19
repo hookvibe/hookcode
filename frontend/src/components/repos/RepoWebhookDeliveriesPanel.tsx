@@ -15,11 +15,12 @@ import { ScrollableTable } from '../ScrollableTable';
  * - 2026-01-12: Ported from legacy `frontend` to `frontend-chat`.
  */
 
-const resultTag = (result: RepoWebhookDeliveryResult) => {
-  if (result === 'accepted') return <Tag color="green">accepted</Tag>;
-  if (result === 'skipped') return <Tag>skipped</Tag>;
-  if (result === 'rejected') return <Tag color="orange">rejected</Tag>;
-  return <Tag color="red">error</Tag>;
+const resultTag = (t: ReturnType<typeof useT>, result: RepoWebhookDeliveryResult) => {
+  // Use i18n keys for webhook delivery result labels so the dashboard charts and table stay consistent. u55e45ffi8jng44erdzp
+  if (result === 'accepted') return <Tag color="green">{t('repos.webhookDeliveries.result.accepted')}</Tag>;
+  if (result === 'skipped') return <Tag>{t('repos.webhookDeliveries.result.skipped')}</Tag>;
+  if (result === 'rejected') return <Tag color="orange">{t('repos.webhookDeliveries.result.rejected')}</Tag>;
+  return <Tag color="red">{t('repos.webhookDeliveries.result.error')}</Tag>;
 };
 
 const safeJson = (value: unknown): string => {
@@ -109,7 +110,7 @@ export const RepoWebhookDeliveriesPanel: FC<RepoWebhookDeliveriesPanelProps> = (
         dataIndex: 'result',
         key: 'result',
         width: 110,
-        render: (v: RepoWebhookDeliveryResult) => resultTag(v)
+        render: (v: RepoWebhookDeliveryResult) => resultTag(t, v)
       },
       {
         title: t('repos.webhookDeliveries.column.status'),
@@ -183,7 +184,8 @@ export const RepoWebhookDeliveriesPanel: FC<RepoWebhookDeliveriesPanelProps> = (
         loading={loading}
         dataSource={deliveries}
         columns={columns as any}
-        pagination={false}
+        // Paginate deliveries to keep the repo dashboard layout compact while still allowing drill-down via the detail modal. u55e45ffi8jng44erdzp
+        pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'], hideOnSinglePage: true }}
         locale={{ emptyText: <Empty description={t('repos.webhookDeliveries.empty')} /> }}
       />
 
@@ -205,7 +207,7 @@ export const RepoWebhookDeliveriesPanel: FC<RepoWebhookDeliveriesPanelProps> = (
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
             <Space size={12} wrap>
               <Typography.Text code>{detail.createdAt}</Typography.Text>
-              {resultTag(detail.result)}
+              {resultTag(t, detail.result)}
               <Typography.Text type="secondary">
                 {detail.provider === 'github' ? 'GitHub' : 'GitLab'} {detail.eventName ? `· ${detail.eventName}` : ''}
               </Typography.Text>

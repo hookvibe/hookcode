@@ -218,6 +218,31 @@ export const zhCN = {
   'repos.detail.credentials.modelProvider': '模型 Provider',
   'repos.detail.credentials.tip': '这里仅展示是否已配置，不会泄露 Token/Key。',
 
+  // Repo detail dashboard strings (KPI + charts). u55e45ffi8jng44erdzp
+  'repos.dashboard.kpi.rules': '规则',
+  'repos.dashboard.kpi.eventsEnabled': '事件启用 {{enabled}}/{{total}}',
+  'repos.dashboard.activity.webhook.title': 'Webhook 活动',
+  'repos.dashboard.activity.webhook.acceptedRate': '接受率',
+  'repos.dashboard.activity.webhook.total': '总数',
+  'repos.dashboard.activity.webhook.lastDelivery': '最近一次投递',
+  'repos.dashboard.activity.webhook.distribution': '结果分布',
+  'repos.dashboard.activity.webhook.volume7d': '近 7 天次数',
+  'repos.dashboard.activity.webhook.empty': '暂无投递记录',
+
+  // Task-first repo overview cards. u55e45ffi8jng44erdzp
+  'repos.dashboard.activity.tasks.title': '任务活动',
+  'repos.dashboard.activity.tasks.successRate': '成功率',
+  'repos.dashboard.activity.tasks.total': '任务总数',
+  'repos.dashboard.activity.tasks.lastTask': '最近一次任务',
+  'repos.dashboard.activity.tasks.distribution': '状态分布',
+  'repos.dashboard.activity.tasks.volume7d': '近 7 天次数',
+  'repos.dashboard.activity.tasks.empty': '暂无任务记录',
+  'repos.dashboard.activity.tasks.loadFailed': '加载任务活动失败',
+  'repos.dashboard.activity.tasks.status.queued': '排队中',
+  'repos.dashboard.activity.tasks.status.processing': '处理中',
+  'repos.dashboard.activity.tasks.status.success': '成功',
+  'repos.dashboard.activity.tasks.status.failed': '失败',
+
   // --- Repo detail (tabs) ---
   'repos.detail.tabs.basic': '基础',
   'repos.detail.tabs.branches': '分支',
@@ -358,6 +383,10 @@ export const zhCN = {
   'repos.webhookDeliveries.detailPayload': '接收到的内容（payload）',
   'repos.webhookDeliveries.detailResponse': '服务端响应（response）',
   'repos.webhookDeliveries.detailLoadFailed': '详情加载失败',
+  'repos.webhookDeliveries.result.accepted': '接受',
+  'repos.webhookDeliveries.result.skipped': '跳过',
+  'repos.webhookDeliveries.result.rejected': '拒绝',
+  'repos.webhookDeliveries.result.error': '错误',
 
   // --- Repo robots ---
   'repos.robots.title': '机器人',

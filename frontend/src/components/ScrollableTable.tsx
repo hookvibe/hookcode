@@ -30,8 +30,13 @@ export const ScrollableTable = <RecordType extends object>({
   const mergedScroll = scroll ? { ...scroll, x: scroll.x ?? 'max-content' } : { x: 'max-content' };
   const className = ['table-wrapper', wrapperClassName].filter(Boolean).join(' ');
 
+  // Treat `loading` as false when omitted so empty tables do not render a never-ending skeleton. u55e45ffi8jng44erdzp
   const isLoading =
-    typeof props.loading === 'boolean' ? props.loading : Boolean((props.loading as any)?.spinning ?? true);
+    typeof props.loading === 'boolean'
+      ? props.loading
+      : props.loading
+        ? Boolean((props.loading as any)?.spinning ?? true)
+        : false;
   const dataSize = Array.isArray(props.dataSource) ? props.dataSource.length : 0;
   if (isLoading && dataSize === 0) {
     return (

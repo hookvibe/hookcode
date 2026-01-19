@@ -103,6 +103,7 @@ const defaultTasksByStatus: Record<SidebarTaskSectionKey, Task[]> = {
 
 const SIDEBAR_POLL_ACTIVE_MS = 10_000;
 const SIDEBAR_POLL_IDLE_MS = 30_000; // Slow down when no tasks are queued/processing. 7bqwou6abx4ste96ikhv
+const SIDEBAR_POLL_ERROR_MS = 2_000; // Retry faster while backend is starting to avoid SSE/proxy spam. 58w1q3n5nr58flmempxe
 const SIDEBAR_SSE_RECONNECT_BASE_MS = 2_000;
 const SIDEBAR_SSE_RECONNECT_MAX_MS = 30_000; // Cap SSE reconnect backoff to reduce dev proxy spam when backend is down. 58w1q3n5nr58flmempxe
 
@@ -139,6 +140,7 @@ export const AppShell: FC<AppShellProps> = ({
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [sidebarSseConnected, setSidebarSseConnected] = useState(false);
+  const [sidebarSseReady, setSidebarSseReady] = useState(false); // Gate SSE until the backend is reachable to prevent startup proxy errors. 58w1q3n5nr58flmempxe
 
   const refreshAuthState = useCallback(async () => {
     setAuthChecking(true);

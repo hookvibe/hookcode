@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
@@ -37,6 +37,11 @@ vi.mock('../api', () => {
       }
     })),
     updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null })),
+    // Mock task stats fetch used by the repo detail dashboard overview to keep tests deterministic. u55e45ffi8jng44erdzp
+    fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 })),
+    fetchTasks: vi.fn(async () => []),
+    // Mock webhook deliveries list fetch used by both the dashboard charts and deliveries table. u55e45ffi8jng44erdzp
+    listRepoWebhookDeliveries: vi.fn(async () => ({ deliveries: [], nextCursor: undefined })),
     fetchMyModelCredentials: vi.fn(async () => ({
       gitlab: { profiles: [], defaultProfileId: null },
       github: { profiles: [], defaultProfileId: null },
@@ -75,7 +80,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await ui.type(nameInput, 'Repo 1 new');
 
     // Ant Design buttons with icons include the icon name in the accessible name (e.g. "save Save").
-    await ui.click(screen.getByRole('button', { name: /Save/i }));
+    const basicCard = nameInput.closest('.ant-card') ?? document.body;
+    await ui.click(within(basicCard).getByRole('button', { name: /Save/i }));
 
     await waitFor(() =>
       expect(api.updateRepo).toHaveBeenCalledWith('r1', {
