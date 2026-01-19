@@ -136,6 +136,9 @@ export const zhCN = {
   'tasks.repoMissing': '该任务未绑定仓库，无法跳转仓库详情。',
   'tasks.payloadTitle': '请求内容',
   'tasks.promptCustom': '提示词片段（仓库配置）',
+  // Add raw vs rendered labels for the prompt patch preview on task detail. x0kprszlsorw9vi8jih9
+  'tasks.promptCustom.raw': '原始模板',
+  'tasks.promptCustom.rendered': '渲染后',
   'tasks.payloadRaw': 'Webhook 原始内容（点击展开）',
 
   // --- Login ---

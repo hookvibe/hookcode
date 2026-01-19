@@ -136,6 +136,9 @@ export const enUS: Record<MessageKey, string> = {
   'tasks.repoMissing': 'This task is not bound to a repository; cannot open repo detail.',
   'tasks.payloadTitle': 'Payload',
   'tasks.promptCustom': 'Prompt patch (repo config)',
+  // Add raw vs rendered labels for the prompt patch preview on task detail. x0kprszlsorw9vi8jih9
+  'tasks.promptCustom.raw': 'Template',
+  'tasks.promptCustom.rendered': 'Rendered',
   'tasks.payloadRaw': 'Raw webhook payload (expand)',
 
   // --- Login ---

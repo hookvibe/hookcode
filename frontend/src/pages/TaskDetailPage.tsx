@@ -1,5 +1,5 @@
 import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Alert, App, Avatar, Button, Card, Descriptions, Empty, Popconfirm, Space, Steps, Tag, Typography } from 'antd';
+import { Alert, App, Avatar, Button, Card, Col, Descriptions, Empty, Popconfirm, Row, Space, Steps, Tag, Typography } from 'antd';
 import {
   ClockCircleOutlined,
   CodeOutlined,
@@ -30,6 +30,7 @@ import {
   queuedHintText,
   statusTag
 } from '../utils/task';
+import { buildTaskTemplateContext, renderTemplate } from '../utils/template';
 import { LogViewerSkeleton } from '../components/skeletons/LogViewerSkeleton';
 import { TaskDetailSkeleton } from '../components/skeletons/TaskDetailSkeleton';
 
@@ -206,6 +207,12 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     return raw.trim();
   }, [task?.promptCustom]);
 
+  const promptPatchRendered = useMemo(() => {
+    // Render prompt patch variables against the task payload so users can debug templates. x0kprszlsorw9vi8jih9
+    if (!task || !promptPatch) return '';
+    return renderTemplate(promptPatch, buildTaskTemplateContext(task));
+  }, [promptPatch, task]);
+
   const workflowSteps = useMemo(() => {
     // Render the workflow as Steps with bottom-up numbering while keeping Result at the top. tdstepsreverse20260117k1p6
     const items = [
@@ -250,7 +257,20 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
         title: t('tasks.promptCustom'),
         content: (
           <Card size="small" className="hc-card">
-            {promptPatch ? <pre className="hc-task-code-block">{promptPatch}</pre> : <Typography.Text type="secondary">-</Typography.Text>}
+            {promptPatch ? (
+              <Row gutter={[12, 12]}>
+                <Col xs={24} lg={12} style={{ minWidth: 0 }}>
+                  <Typography.Text type="secondary">{t('tasks.promptCustom.raw')}</Typography.Text>
+                  <pre className="hc-task-code-block">{promptPatch}</pre>
+                </Col>
+                <Col xs={24} lg={12} style={{ minWidth: 0 }}>
+                  <Typography.Text type="secondary">{t('tasks.promptCustom.rendered')}</Typography.Text>
+                  <pre className="hc-task-code-block">{promptPatchRendered}</pre>
+                </Col>
+              </Row>
+            ) : (
+              <Typography.Text type="secondary">-</Typography.Text>
+            )}
           </Card>
         )
       },
@@ -269,7 +289,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
       ...item,
       icon: <span className="hc-step-index">{items.length - idx}</span>
     }));
-  }, [effectiveTaskLogsEnabled, payloadPretty, promptPatch, resultText, showResult, t, task]);
+  }, [effectiveTaskLogsEnabled, payloadPretty, promptPatch, promptPatchRendered, resultText, showResult, t, task]);
 
   const handleRetry = useCallback(
     async (options?: { force?: boolean }) => {

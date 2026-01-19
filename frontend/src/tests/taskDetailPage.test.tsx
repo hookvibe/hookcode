@@ -118,4 +118,34 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     await ui.click(screen.getByRole('button', { name: /Retry/i }));
     await waitFor(() => expect(api.retryTask).toHaveBeenCalledWith('tq1', undefined));
   });
+
+  test('shows prompt patch template + rendered preview side-by-side', async () => {
+    // Ensure the task detail prompt patch shows both raw template and rendered preview. x0kprszlsorw9vi8jih9
+    vi.mocked(api.fetchTask).mockResolvedValueOnce({
+      id: 'tp1',
+      eventType: 'issue',
+      title: 'Task tp1',
+      status: 'succeeded',
+      retries: 0,
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+      permissions: { canManage: true },
+      issueId: 42,
+      promptCustom: 'Issue={{issue.number}} Repo={{repo.name}} Robot={{robot.name}}',
+      repoId: 'r1',
+      repoProvider: 'gitlab',
+      repo: { id: 'r1', provider: 'gitlab', name: 'Repo r1', enabled: true },
+      robotId: 'bot1',
+      robot: { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true },
+      payload: { project: { path_with_namespace: 'demo/repo' } }
+    } as any);
+
+    renderPage({ taskId: 'tp1' });
+    await waitFor(() => expect(api.fetchTask).toHaveBeenCalled());
+
+    expect(await screen.findByText('Template')).toBeInTheDocument();
+    expect(screen.getByText('Rendered')).toBeInTheDocument();
+    expect(screen.getByText('Issue={{issue.number}} Repo={{repo.name}} Robot={{robot.name}}')).toBeInTheDocument();
+    expect(screen.getByText('Issue=42 Repo=Repo r1 Robot=Robot bot1')).toBeInTheDocument();
+  });
 });
