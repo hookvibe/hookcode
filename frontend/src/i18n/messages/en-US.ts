@@ -89,6 +89,11 @@ export const enUS: Record<MessageKey, string> = {
   'tasks.page.subtitle': '{{count}} items',
   'tasks.page.searchPlaceholder': 'Search tasks (title/repo/id)',
   'tasks.page.empty': 'No tasks',
+  // Add visible filter labels for the redesigned Tasks page (status summary strip + header tags). 3iz4jx8bsy7q7d6b3jr3
+  'tasks.filter.all': 'All',
+  'tasks.filter.success': 'Success',
+  'tasks.page.filter.statusTag': 'Status: {{status}}',
+  'tasks.page.filter.repoTag': 'Repo: {{repo}}',
 
   // --- Task detail page ---
   'task.page.title': 'Task detail',

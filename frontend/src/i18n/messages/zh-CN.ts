@@ -89,6 +89,11 @@ export const zhCN = {
   'tasks.page.subtitle': '共 {{count}} 条',
   'tasks.page.searchPlaceholder': '搜索任务（标题/仓库/ID）',
   'tasks.page.empty': '暂无任务',
+  // Add visible filter labels for the redesigned Tasks page (status summary strip + header tags). 3iz4jx8bsy7q7d6b3jr3
+  'tasks.filter.all': '全部',
+  'tasks.filter.success': '成功',
+  'tasks.page.filter.statusTag': '状态：{{status}}',
+  'tasks.page.filter.repoTag': '仓库：{{repo}}',
 
   // --- Task detail page ---
   'task.page.title': '任务详情',

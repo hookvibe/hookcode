@@ -111,7 +111,7 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
   const taskButtonLabel = useCallback(
     (task: Task): string => {
       const eventText = getTaskEventText(t, task.eventType);
-      const shortId = clampText(String(task.id ?? ''), 10);
+      const shortId = String(task.id ?? '')
       return `${eventText} · ${shortId}`;
     },
     [t]

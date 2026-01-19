@@ -9,6 +9,7 @@ import * as api from '../api';
 vi.mock('../api', () => {
   return {
     __esModule: true,
+    fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 })),
     fetchTasks: vi.fn(async () => []),
     retryTask: vi.fn(async () => ({ id: 't_alpha', status: 'queued', eventType: 'chat', retries: 1, createdAt: '', updatedAt: '' }))
   };
@@ -26,6 +27,25 @@ describe('TasksPage (frontend-chat migration)', () => {
     vi.clearAllMocks();
     setLocale('en-US');
     window.location.hash = '#/tasks';
+  });
+
+  test('shows current status filter in the UI', async () => {
+    // Make deep-linked filters (e.g. `#/tasks?status=success`) visible without reading the URL. 3iz4jx8bsy7q7d6b3jr3
+    renderPage({ status: 'success' });
+    expect(await screen.findAllByText('Status: Success')).not.toHaveLength(0);
+  });
+
+  test('updates hash when switching status from the summary strip', async () => {
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchTaskStats).mockResolvedValueOnce({ total: 10, queued: 1, processing: 2, success: 3, failed: 4 } as any);
+
+    renderPage({ status: 'success', repoId: 'r1' });
+
+    const successBtn = await screen.findByRole('button', { name: /Success/ });
+    expect(successBtn).toHaveAttribute('aria-pressed', 'true');
+
+    await ui.click(screen.getByRole('button', { name: /Failed/ }));
+    expect(window.location.hash).toBe('#/tasks?status=failed&repoId=r1');
   });
 
   test('normalizes legacy "completed" filter to "success"', async () => {

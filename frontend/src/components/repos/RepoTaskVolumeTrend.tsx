@@ -1,9 +1,13 @@
-import { FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { FC, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, DatePicker, Skeleton, Typography } from 'antd';
 import type { TaskVolumePoint } from '../../api';
 import { fetchTaskVolumeByDay } from '../../api';
 import { useLocale, useT } from '../../i18n';
 import { addDaysUtc, enumerateDaysUtcInclusive, formatDayLabel, utcTodayDay } from '../../utils/dateUtc';
+import * as echarts from 'echarts/core';
+import { LineChart } from 'echarts/charts';
+import { GridComponent, TooltipComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 
 type PresetKey = '7d' | '30d' | '6m' | '1y';
 
@@ -12,6 +16,41 @@ const PRESET_DAYS: Record<PresetKey, number> = {
   '30d': 30,
   '6m': 183,
   '1y': 365
+};
+
+// Register the minimal ECharts modules used by the repo task volume trend chart. nn62s3ci1xhpr7ublh51
+echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
+
+type TrendThemeTokens = {
+  accent: string;
+  accentBorder: string;
+  border: string;
+  muted: string;
+  surface: string;
+  text: string;
+};
+
+// Read CSS variables for theme-aware chart styling without hardcoded colors. nn62s3ci1xhpr7ublh51
+const readThemeTokens = (el: HTMLElement): TrendThemeTokens => {
+  const read = (name: string, fallback: string): string => {
+    try {
+      const local = getComputedStyle(el).getPropertyValue(name).trim();
+      if (local) return local;
+      const root = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return root || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  return {
+    accent: read('--accent', '#2563eb'),
+    accentBorder: read('--hc-accent-border', 'rgba(37, 99, 235, 0.34)'),
+    border: read('--hc-border', '#e2e8f0'),
+    muted: read('--muted', '#475569'),
+    surface: read('--hc-surface', 'rgba(255, 255, 255, 0.92)'),
+    text: read('--text', '#0f172a')
+  };
 };
 
 export interface RepoTaskVolumeTrendProps {
@@ -23,7 +62,16 @@ export const RepoTaskVolumeTrend: FC<RepoTaskVolumeTrendProps> = ({ repoId, refr
   const t = useT();
   const locale = useLocale();
   const chartRef = useRef<HTMLDivElement | null>(null);
-  const [chartWidth, setChartWidth] = useState(0);
+  const chartInstanceRef = useRef<ReturnType<typeof echarts.init> | null>(null);
+  // Store theme tokens derived from CSS variables for ECharts rendering. nn62s3ci1xhpr7ublh51
+  const [themeTokens, setThemeTokens] = useState<TrendThemeTokens>(() => ({
+    accent: '#2563eb',
+    accentBorder: 'rgba(37, 99, 235, 0.34)',
+    border: '#e2e8f0',
+    muted: '#475569',
+    surface: 'rgba(255, 255, 255, 0.92)',
+    text: '#0f172a'
+  }));
   const [preset, setPreset] = useState<PresetKey>('7d');
   const [customRange, setCustomRange] = useState<{ startDay: string; endDay: string } | null>(null);
   const [pickerValue, setPickerValue] = useState<any>(null);
@@ -32,22 +80,54 @@ export const RepoTaskVolumeTrend: FC<RepoTaskVolumeTrendProps> = ({ repoId, refr
   const [loadFailed, setLoadFailed] = useState(false);
   const [rawPoints, setRawPoints] = useState<TaskVolumePoint[]>([]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const el = chartRef.current;
-    if (!el) return;
+    if (!el || typeof window === 'undefined') return;
 
-    // Measure the container so the SVG viewBox matches the real row width (no horizontal whitespace). ofjpj2euygyvp2k5b8m2
-    const measure = () => setChartWidth(el.clientWidth || 0);
-    measure();
+    // Keep ECharts colors in sync with CSS variables (light/dark + configurable accent). nn62s3ci1xhpr7ublh51
+    const syncTheme = () => setThemeTokens(readThemeTokens(el));
+    syncTheme();
+
+    if (typeof MutationObserver === 'undefined') return;
+    const mo = new MutationObserver(() => syncTheme());
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'class'] });
+    return () => mo.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const el = chartRef.current;
+    if (!el || typeof window === 'undefined') return;
+
+    // Initialize and dispose the ECharts instance tied to the chart container. nn62s3ci1xhpr7ublh51
+    const chart = echarts.init(el, undefined, { renderer: 'canvas' });
+    chartInstanceRef.current = chart;
+
+    const handleResize = () => {
+      try {
+        chart.resize();
+      } catch {
+        // ignore
+      }
+    };
+
+    handleResize();
 
     if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', measure);
-      return () => window.removeEventListener('resize', measure);
+      window.addEventListener('resize', handleResize);
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        chartInstanceRef.current = null;
+        chart.dispose();
+      };
     }
 
-    const ro = new ResizeObserver(() => measure());
+    const ro = new ResizeObserver(() => handleResize());
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      chartInstanceRef.current = null;
+      chart.dispose();
+    };
   }, []);
 
   const resolvedRange = useMemo(() => {
@@ -93,83 +173,91 @@ export const RepoTaskVolumeTrend: FC<RepoTaskVolumeTrendProps> = ({ repoId, refr
       if (!day) continue;
       perDay.set(day, Number((p as any)?.count ?? 0) || 0);
     }
-    const points = days.map((day) => ({ day, count: perDay.get(day) ?? 0 }));
-    const max = points.reduce((m, p) => Math.max(m, p.count), 0);
-    return { points, max };
+    // Provide a dense UTC-day series for ECharts even when the API returns sparse points. nn62s3ci1xhpr7ublh51
+    return days.map((day) => ({ day, count: perDay.get(day) ?? 0 }));
   }, [rawPoints, resolvedRange.endDay, resolvedRange.startDay]);
 
-  const svg = useMemo(() => {
-    const points = series.points;
-    const max = series.max || 1;
+  const option = useMemo(() => {
+    // Translate the UTC-day series into an ECharts line+area option with locale-aware labels. nn62s3ci1xhpr7ublh51
+    const points = series;
     if (!points.length) return null;
 
-    const width = Math.max(320, chartWidth || 640);
-    const height = 150;
-    const paddingX = 10;
-    const paddingTop = 10;
-    const paddingBottom = 22;
-    const innerW = width - paddingX * 2;
-    const innerH = height - paddingTop - paddingBottom;
-
-    const xy = points.map((p, idx) => {
-      const t = points.length <= 1 ? 0 : idx / (points.length - 1);
-      const x = paddingX + t * innerW;
-      const y = paddingTop + innerH - (p.count / max) * innerH;
-      return { ...p, x, y };
-    });
-
-    const line = xy.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
-    const area = `M ${xy[0].x.toFixed(2)} ${(height - paddingBottom).toFixed(2)} L ${line.replaceAll(',', ' ')} L ${xy[
-      xy.length - 1
-    ].x.toFixed(2)} ${(height - paddingBottom).toFixed(2)} Z`;
-
-    const tickTarget = points.length <= 10 ? points.length : 6;
-    const tickCount = Math.max(2, Math.min(7, tickTarget));
-    const tickStep = Math.max(1, Math.floor((points.length - 1) / (tickCount - 1)));
-    const tickIdx = new Set<number>();
-    for (let i = 0; i < tickCount - 1; i += 1) tickIdx.add(i * tickStep);
-    tickIdx.add(points.length - 1);
-    const ticks = Array.from(tickIdx)
-      .filter((i) => i >= 0 && i < points.length)
-      .sort((a, b) => a - b)
-      .map((i) => ({ idx: i, day: points[i].day, x: xy[i].x }));
-
     const showDots = points.length <= 60;
+    const days = points.map((p) => p.day);
+    const counts = points.map((p) => p.count);
 
-    return (
-      <svg viewBox={`0 0 ${width} ${height}`} className="hc-repo-activity__trend-svg" aria-hidden>
-        <path d={area} className="hc-repo-activity__trend-area" />
-        <polyline points={line} className="hc-repo-activity__trend-line" fill="none" />
-        {showDots
-          ? xy.map((p) => (
-              <circle key={p.day} cx={p.x} cy={p.y} r={2.4} className="hc-repo-activity__trend-dot">
-                <title>
-                  {formatDayLabel(locale, p.day)}: {p.count}
-                </title>
-              </circle>
-            ))
-          : null}
-        <line
-          x1={paddingX}
-          x2={width - paddingX}
-          y1={height - paddingBottom}
-          y2={height - paddingBottom}
-          className="hc-repo-activity__trend-axis"
-        />
-        {ticks.map((tick) => (
-          <text
-            key={tick.day}
-            x={tick.x}
-            y={height - 6}
-            textAnchor={tick.idx === 0 ? 'start' : tick.idx === points.length - 1 ? 'end' : 'middle'}
-            className="hc-repo-activity__trend-tick"
-          >
-            {formatDayLabel(locale, tick.day)}
-          </text>
-        ))}
-      </svg>
-    );
-  }, [chartWidth, locale, series.max, series.points]);
+    return {
+      backgroundColor: 'transparent',
+      animation: false,
+      grid: { left: 10, right: 10, top: 10, bottom: 22 },
+      tooltip: {
+        trigger: 'axis',
+        confine: true,
+        backgroundColor: themeTokens.surface,
+        borderColor: themeTokens.border,
+        borderWidth: 1,
+        textStyle: { color: themeTokens.text, fontSize: 12 },
+        axisPointer: { type: 'line', lineStyle: { color: themeTokens.border, width: 1 } },
+        formatter: (params: any) => {
+          const first = Array.isArray(params) ? params[0] : params;
+          const day = String(first?.axisValue ?? '').trim();
+          const count = Number(first?.data ?? 0) || 0;
+          return `${formatDayLabel(locale, day)}: ${count}`;
+        }
+      },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: days,
+        axisTick: { show: false },
+        axisLine: { lineStyle: { color: themeTokens.border } },
+        axisLabel: {
+          color: themeTokens.muted,
+          fontSize: 11,
+          // Prevent the first/last tick labels from being clipped by anchoring them inward. nn62s3ci1xhpr7ublh51
+          showMinLabel: true,
+          showMaxLabel: true,
+          alignMinLabel: 'left',
+          alignMaxLabel: 'right',
+          hideOverlap: true,
+          formatter: (value: string) => formatDayLabel(locale, String(value))
+        }
+      },
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+        axisLabel: { show: false },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: false }
+      },
+      series: [
+        {
+          type: 'line',
+          data: counts,
+          showSymbol: showDots,
+          symbol: showDots ? 'circle' : 'none',
+          symbolSize: 6,
+          lineStyle: { color: themeTokens.accent, width: 2.25 },
+          itemStyle: { color: themeTokens.accent, borderColor: themeTokens.accentBorder, borderWidth: 1 },
+          areaStyle: { color: themeTokens.accent, opacity: 0.14 }
+        }
+      ]
+    } as any;
+  }, [locale, series, themeTokens]);
+
+  useEffect(() => {
+    const chart = chartInstanceRef.current;
+    if (!chart) return;
+
+    // Keep the ECharts option in sync with fetched points and UI locale. nn62s3ci1xhpr7ublh51
+    if (!option) {
+      chart.clear();
+      return;
+    }
+
+    chart.setOption(option, { notMerge: true, lazyUpdate: true });
+  }, [option]);
 
   const handlePreset = (key: PresetKey) => {
     setPreset(key);
@@ -200,9 +288,8 @@ export const RepoTaskVolumeTrend: FC<RepoTaskVolumeTrendProps> = ({ repoId, refr
     { key: '1y', label: t('repos.dashboard.activity.tasks.range.1y') }
   ];
 
-  if (loading && !rawPoints.length) {
-    return <Skeleton active title={false} paragraph={{ rows: 4, width: ['92%', '86%', '94%', '70%'] }} />;
-  }
+  // Keep the chart container mounted during the initial fetch to avoid reinitializing ECharts. nn62s3ci1xhpr7ublh51
+  const showInitialSkeleton = loading && !rawPoints.length;
 
   return (
     <div className="hc-repo-activity__trend">
@@ -234,7 +321,12 @@ export const RepoTaskVolumeTrend: FC<RepoTaskVolumeTrendProps> = ({ repoId, refr
       {loadFailed ? <Typography.Text type="danger">{t('repos.dashboard.activity.tasks.volumeLoadFailed')}</Typography.Text> : null}
 
       <div ref={chartRef} className="hc-repo-activity__trend-chart" role="img" aria-label={t('repos.dashboard.activity.tasks.volume')}>
-        {svg}
+        {showInitialSkeleton ? (
+          <div className="hc-repo-activity__trend-skeleton">
+            <Skeleton active title={false} paragraph={{ rows: 3, width: ['92%', '86%', '70%'] }} />
+          </div>
+        ) : null}
+        {/* ECharts renders into this container div. nn62s3ci1xhpr7ublh51 */}
       </div>
     </div>
   );

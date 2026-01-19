@@ -1,10 +1,10 @@
 import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { App, Button, Card, Empty, Input, Space, Tooltip, Typography } from 'antd';
-import { PlayCircleOutlined, SearchOutlined } from '@ant-design/icons';
-import type { Task, TaskStatus } from '../api';
-import { fetchTasks, retryTask } from '../api';
+import { App, Button, Card, Empty, Input, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
+import { PlayCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import type { Task, TaskStatus, TaskStatusStats } from '../api';
+import { fetchTaskStats, fetchTasks, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
-import { buildTaskHash } from '../router';
+import { buildTaskHash, buildTasksHash } from '../router';
 import { clampText, getTaskTitle, queuedHintText, statusTag } from '../utils/task';
 import { PageNav } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
@@ -27,6 +27,7 @@ export interface TasksPageProps {
 }
 
 type StatusFilter = 'all' | TaskStatus | 'success';
+type StatusSummaryKey = 'all' | 'queued' | 'processing' | 'success' | 'failed';
 
 const normalizeStatusFilter = (value: string | undefined): StatusFilter => {
   const raw = String(value ?? '').trim();
@@ -45,7 +46,9 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
   const { message } = App.useApp();
 
   const [loading, setLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [stats, setStats] = useState<TaskStatusStats | null>(null);
   const [search, setSearch] = useState('');
   const [retryingTaskId, setRetryingTaskId] = useState<string | null>(null);
 
@@ -55,6 +58,15 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     const trimmed = String(repoId ?? '').trim();
     return trimmed || undefined;
   }, [repoId]);
+
+  const statusSummaryKey = useMemo<StatusSummaryKey>(() => {
+    // Group terminal success-like statuses under `success` for summary/UI selection. 3iz4jx8bsy7q7d6b3jr3
+    if (statusFilter === 'queued') return 'queued';
+    if (statusFilter === 'processing') return 'processing';
+    if (statusFilter === 'failed') return 'failed';
+    if (statusFilter === 'all') return 'all';
+    return 'success';
+  }, [statusFilter]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -75,9 +87,27 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     }
   }, [message, repoIdFilter, statusFilter, t]);
 
+  const refreshStats = useCallback(async () => {
+    // Load status totals for the summary strip so users can see the current filter at a glance. 3iz4jx8bsy7q7d6b3jr3
+    setStatsLoading(true);
+    try {
+      const next = await fetchTaskStats(repoIdFilter ? { repoId: repoIdFilter } : undefined);
+      setStats(next);
+    } catch (err) {
+      console.error(err);
+      setStats(null);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [repoIdFilter]);
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void refreshStats();
+  }, [refreshStats]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -92,6 +122,21 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
   const openTask = useCallback((task: Task) => {
     window.location.hash = buildTaskHash(task.id);
   }, []);
+
+  const setStatusFilterInHash = useCallback(
+    (next: StatusSummaryKey) => {
+      // Keep filter state shareable by encoding it in the hash query (`#/tasks?status=...`). 3iz4jx8bsy7q7d6b3jr3
+      const nextStatus = next === 'all' ? '' : next;
+      window.location.hash = buildTasksHash({ status: nextStatus, repoId: repoIdFilter });
+    },
+    [repoIdFilter]
+  );
+
+  const clearRepoScopeInHash = useCallback(() => {
+    // Allow leaving a repo-scoped list while preserving the current status filter. 3iz4jx8bsy7q7d6b3jr3
+    const nextStatus = statusFilter === 'all' ? '' : String(statusFilter);
+    window.location.hash = buildTasksHash({ status: nextStatus });
+  }, [statusFilter]);
 
   const handleRetry = useCallback(
     async (task: Task) => {
@@ -116,6 +161,11 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     [message, refresh, t]
   );
 
+  const refreshAll = useCallback(async () => {
+    // Refresh both list and stats to keep the summary strip consistent with the loaded tasks. 3iz4jx8bsy7q7d6b3jr3
+    await Promise.all([refresh(), refreshStats()]);
+  }, [refresh, refreshStats]);
+
   const formatTime = useCallback(
     (iso: string): string => {
       try {
@@ -127,23 +177,118 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     [locale]
   );
 
+  const activeStatusText = useMemo(() => {
+    // Provide a single user-visible status label for the active filter (including the virtual `success`). 3iz4jx8bsy7q7d6b3jr3
+    if (statusFilter === 'all') return t('tasks.filter.all');
+    if (statusFilter === 'success') return t('tasks.filter.success');
+    if (statusFilter === 'queued') return t('task.status.queued');
+    if (statusFilter === 'processing') return t('task.status.processing');
+    if (statusFilter === 'succeeded') return t('task.status.succeeded');
+    if (statusFilter === 'failed') return t('task.status.failed');
+    if (statusFilter === 'commented') return t('task.status.commented');
+    return String(statusFilter);
+  }, [statusFilter, t]);
+
+  const activeStatusTagColor = useMemo(() => {
+    // Align filter tag colors with `statusTag()` so the UI stays consistent across task views. 3iz4jx8bsy7q7d6b3jr3
+    if (statusFilter === 'queued') return 'blue';
+    if (statusFilter === 'processing') return 'gold';
+    if (statusFilter === 'failed') return 'red';
+    if (statusFilter === 'commented') return 'purple';
+    if (statusFilter === 'succeeded' || statusFilter === 'success') return 'green';
+    return undefined;
+  }, [statusFilter]);
+
+  const statusStripItems = useMemo(() => {
+    const base: Array<{ key: StatusSummaryKey; label: string; count?: number }> = [
+      { key: 'all', label: t('tasks.filter.all'), count: stats?.total ?? undefined },
+      { key: 'queued', label: t('task.status.queued'), count: stats?.queued ?? undefined },
+      { key: 'processing', label: t('task.status.processing'), count: stats?.processing ?? undefined },
+      { key: 'success', label: t('tasks.filter.success'), count: stats?.success ?? undefined },
+      { key: 'failed', label: t('task.status.failed'), count: stats?.failed ?? undefined }
+    ];
+    return base;
+  }, [stats, t]);
+
   return (
     <div className="hc-page">
       <PageNav
         title={t('tasks.page.title')}
-        meta={<Typography.Text type="secondary">{t('tasks.page.subtitle', { count: filtered.length })}</Typography.Text>}
+        meta={
+          <Space size={8}>
+            {/* Surface the active filter state in the header so deep-linked URLs are self-explanatory. 3iz4jx8bsy7q7d6b3jr3 */}
+            <Tag color={activeStatusTagColor}>{t('tasks.page.filter.statusTag', { status: activeStatusText })}</Tag>
+            {repoIdFilter ? (
+              <Tooltip title={repoIdFilter}>
+                <Tag>{t('tasks.page.filter.repoTag', { repo: clampText(repoIdFilter, 18) })}</Tag>
+              </Tooltip>
+            ) : null}
+            <Typography.Text type="secondary">{t('tasks.page.subtitle', { count: filtered.length })}</Typography.Text>
+          </Space>
+        }
+        actions={
+          <Button icon={<ReloadOutlined />} onClick={() => void refreshAll()} loading={loading || statsLoading}>
+            {t('common.refresh')}
+          </Button>
+        }
         userPanel={userPanel}
       />
 
       <div className="hc-page__body">
-        <div className="hc-toolbar">
-          <Input
-            allowClear
-            prefix={<SearchOutlined />}
-            placeholder={t('tasks.page.searchPlaceholder')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="hc-tasks-controls">
+          <div className="hc-tasks-status-strip" role="group" aria-label={t('common.status')}>
+            {statsLoading && !stats
+              ? // Use skeleton blocks to prevent layout jump while loading status totals. ro3ln7zex8d0wyynfj0m
+                statusStripItems.map((item) => (
+                  <Skeleton.Button key={item.key} active block className="hc-tasks-status-tile hc-tasks-status-tile--skeleton" />
+                ))
+              : statusStripItems.map((item) => {
+                  const active = statusSummaryKey === item.key;
+                  const countText = typeof item.count === 'number' ? String(item.count) : stats ? '0' : '—';
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={`hc-tasks-status-tile${active ? ' hc-tasks-status-tile--active' : ''}`}
+                      aria-pressed={active}
+                      onClick={() => setStatusFilterInHash(item.key)}
+                      title={`${item.label} ${countText}`}
+                    >
+                      <span className="hc-tasks-status-tile__label">{item.label}</span>
+                      <span className="hc-tasks-status-tile__value">{countText}</span>
+                    </button>
+                  );
+                })}
+          </div>
+
+          <div className="hc-tasks-filters">
+            {/* Repeat active filters inside the scrollable body because header meta is hidden on mobile. 3iz4jx8bsy7q7d6b3jr3 */}
+            <Tag color={activeStatusTagColor}>{t('tasks.page.filter.statusTag', { status: activeStatusText })}</Tag>
+            {repoIdFilter ? (
+              <Tooltip title={repoIdFilter}>
+                <Tag
+                  closable
+                  onClose={(e) => {
+                    e.preventDefault();
+                    clearRepoScopeInHash();
+                  }}
+                >
+                  {t('tasks.page.filter.repoTag', { repo: clampText(repoIdFilter, 26) })}
+                </Tag>
+              </Tooltip>
+            ) : null}
+          </div>
+
+          {/* Layout: keep the search input on its own full-width row for faster scanning. 3iz4jx8bsy7q7d6b3jr3 */}
+          <div className="hc-tasks-search">
+            <Input
+              allowClear
+              prefix={<SearchOutlined />}
+              placeholder={t('tasks.page.searchPlaceholder')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
         {filtered.length ? (

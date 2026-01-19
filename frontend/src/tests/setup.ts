@@ -1,7 +1,27 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { resetNavHistoryForTests } from '../navHistory';
+
+// Mock ECharts in JSDOM to avoid Canvas API requirements during unit tests. nn62s3ci1xhpr7ublh51
+vi.mock('echarts/core', () => {
+  const makeInstance = () => ({
+    clear: vi.fn(),
+    dispose: vi.fn(),
+    resize: vi.fn(),
+    setOption: vi.fn()
+  });
+
+  return {
+    __esModule: true,
+    use: vi.fn(),
+    init: vi.fn(() => makeInstance())
+  };
+});
+
+vi.mock('echarts/charts', () => ({ __esModule: true, LineChart: {} }));
+vi.mock('echarts/components', () => ({ __esModule: true, GridComponent: {}, TooltipComponent: {} }));
+vi.mock('echarts/renderers', () => ({ __esModule: true, CanvasRenderer: {} }));
 
 afterEach(() => {
   // Test isolation: keep module-level navigation state from leaking across test files.
