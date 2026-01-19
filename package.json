@@ -8,7 +8,7 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently \"pnpm dev:backend\" \"pnpm dev:tools\" \"pnpm dev:frontend\"",
+    "dev": "concurrently  \"pnpm dev:backend\" \"pnpm dev:frontend\"",
     "dev:backend": "ADMIN_TOOLS_EMBEDDED=false pnpm --filter hookcode-backend dev",
     "dev:tools": "pnpm --filter hookcode-backend dev:tools",
     "dev:worker": "pnpm --filter hookcode-backend dev:worker",

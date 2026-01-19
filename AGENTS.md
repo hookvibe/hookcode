@@ -16,9 +16,15 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 
 <!-- Enforce planning-with-files workflow on every invocation for traceability. 0lldjnbw5qxdhw4wwftz -->
 
-1. Start a `planning-with-files` session (NON-NEGOTIABLE)
-   - Decide the `SESSION_HASH` (use user-provided hash; otherwise generate one).
-   - Run `bash .codex/skills/planning-with-files/scripts/init-session.sh "<SESSION_HASH>" "<SESSION_TITLE>"` (or run without args to auto-generate a hash).
+1. Determine the active session (NON-NEGOTIABLE)
+   - **Check conversation history first**: if this conversation already has an active `SESSION_HASH` and the current request is a continuation/refinement of that task, **reuse the existing SESSION_HASH** (do NOT create a new session).
+   - **Only start a new session** if:
+     - This is a completely new, unrelated task, OR
+     - The previous session is explicitly marked as complete and the user requests a new feature.
+   - To start a new session:
+     - Start a `planning-with-files` 
+     - Decide the `SESSION_HASH` (use user-provided hash; otherwise generate one).
+     - Run `bash .codex/skills/planning-with-files/scripts/init-session.sh "<SESSION_HASH>" "<SESSION_TITLE>"` (or run without args to auto-generate a hash).
    - The only source of truth for the plan is: `docs/en/developer/plans/<SESSION_HASH>/`
 2. Before ANY implementation, fill the session docs
    - Update `docs/en/developer/plans/<SESSION_HASH>/task_plan.md` (goal, phases, key questions).
@@ -34,6 +40,8 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 7. Delivery checklist (NON-NEGOTIABLE)
    - Ensure all phases are complete (optional helper: `bash .codex/skills/planning-with-files/scripts/check-complete.sh <SESSION_HASH>`).
    - Update `docs/en/change-log/0.0.0.md` with: `SESSION_HASH` + one-line summary + relative link to the plan.
+   <!-- Keep changelog entries clean by avoiding redundant HTML comment lines. l290bb7v758opd6uxu6r -->
+   - Do NOT add an extra `<!-- ... -->` line above changelog bullets; the bullet (hash + plan link) is enough traceability.
 
 ## Inline comment requirements
 
@@ -49,6 +57,8 @@ Mandatory rules:
     - Python/Shell/YAML: `# Explain retry backoff behavior. <SESSION_HASH>`
     - SQL: `-- Prevent duplicate inserts via unique key. <SESSION_HASH>`
     - Markdown: `<!-- Update workflow rules to enforce plan sessions. <SESSION_HASH> -->`
+<!-- Changelog entries are already self-traceable via the session hash link, so avoid redundant HTML comments there. l290bb7v758opd6uxu6r -->
+- Exception: For `docs/en/change-log/*.md` entries, do not add a separate `<!-- ... -->` comment line; keep only the bullet summary + plan link.
 - Comments must match the complexity level of the code (simple vs. medium vs. complex), and include the required content below.
 - Backend Swagger-related documentation MUST follow Swagger comment format (e.g., OpenAPI/Swagger annotations). Non-Swagger areas follow the rules below.
 - All edited code comments and console output MUST be in English.

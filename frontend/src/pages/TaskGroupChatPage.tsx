@@ -1,5 +1,5 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { App, Button, Card, Empty, Input, Select, Space, Typography } from 'antd';
+import { App, Button, Card, Input, Select, Space, Typography } from 'antd';
 import { LockOutlined, SendOutlined } from '@ant-design/icons';
 import type { RepoRobot, Repository, Task, TaskGroup } from '../api';
 import { executeChat, fetchTask, fetchTaskGroup, fetchTaskGroupTasks, listRepoRobots, listRepos } from '../api';
@@ -8,6 +8,7 @@ import { buildTaskGroupHash, buildTaskHash } from '../router';
 import { TaskConversationItem } from '../components/chat/TaskConversationItem';
 import { PageNav } from '../components/nav/PageNav';
 import { isTerminalStatus } from '../utils/task';
+import { ChatTimelineSkeleton } from '../components/skeletons/ChatTimelineSkeleton';
 
 /**
  * TaskGroupChatPage:
@@ -444,9 +445,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
 
       <div className="hc-chat-body">
         {groupLoading && taskGroupId ? (
-          <div className="hc-chat-welcome">
-            <Empty description={t('common.loading')} />
-          </div>
+          // Render skeleton chat items instead of a generic Empty+icon while the group is loading. ro3ln7zex8d0wyynfj0m
+          <ChatTimelineSkeleton testId="hc-chat-group-skeleton" ariaLabel={t('common.loading')} />
         ) : isCentered ? (
           <div className="hc-chat-centered-view">
             <div className="hc-chat-hero">

@@ -21,6 +21,17 @@ export const api = axios.create({
 });
 
 export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
+export type TaskQueueReasonCode = 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
+
+export interface TaskQueueDiagnosis {
+  // Surface queued-task diagnosis so the UI can explain long-waiting tasks. f3a9c2d8e1b7f4a0c6d1
+  reasonCode: TaskQueueReasonCode;
+  ahead: number;
+  queuedTotal: number;
+  processing: number;
+  staleProcessing: number;
+  inlineWorkerEnabled: boolean;
+}
 
 export type TaskEventType =
   | 'issue'
@@ -65,6 +76,7 @@ export interface Task {
   mrId?: number;
   issueId?: number;
   retries: number;
+  queue?: TaskQueueDiagnosis;
   result?: TaskResult;
   createdAt: string;
   updatedAt: string;
@@ -163,6 +175,46 @@ export const fetchTaskStats = async (options?: {
 }): Promise<TaskStatusStats> => {
   const { data } = await api.get<{ stats: TaskStatusStats }>('/tasks/stats', { params: options });
   return data.stats;
+};
+
+export interface TaskVolumePoint {
+  day: string;
+  count: number;
+}
+
+export const fetchTaskVolumeByDay = async (options: {
+  repoId: string;
+  startDay: string;
+  endDay: string;
+  robotId?: string;
+  eventType?: string;
+}): Promise<TaskVolumePoint[]> => {
+  // Fetch per-day task volume for the repo dashboard trend chart (UTC buckets). dashtrendline20260119m9v2
+  const { data } = await api.get<{ points: TaskVolumePoint[] }>('/tasks/volume', { params: options });
+  return data.points;
+};
+
+export interface DashboardSidebarSnapshot {
+  stats: TaskStatusStats;
+  tasksByStatus: {
+    queued: Task[];
+    processing: Task[];
+    success: Task[];
+    failed: Task[];
+  };
+  taskGroups: TaskGroup[];
+}
+
+export const fetchDashboardSidebar = async (options?: {
+  tasksLimit?: number;
+  taskGroupsLimit?: number;
+  repoId?: string;
+  robotId?: string;
+  eventType?: string;
+}): Promise<DashboardSidebarSnapshot> => {
+  // Reduce redundant sidebar polling calls by fetching a consistent snapshot in one request. 7bqwou6abx4ste96ikhv
+  const { data } = await api.get<DashboardSidebarSnapshot>('/dashboard/sidebar', { params: options });
+  return data;
 };
 
 export const fetchTask = async (taskId: string): Promise<Task> => {
@@ -590,6 +642,20 @@ export const fetchRepo = async (
     webhookPath?: string;
     repoScopedCredentials?: RepoScopedCredentialsPublic;
   }>(`/repos/${id}`);
+  return data;
+};
+
+export type RepoProviderVisibility = 'public' | 'private' | 'internal' | 'unknown';
+
+export const fetchRepoProviderMeta = async (
+  repoId: string,
+  params?: { credentialSource?: 'user' | 'repo' | 'anonymous'; credentialProfileId?: string }
+): Promise<{ provider: RepoProvider; visibility: RepoProviderVisibility; webUrl?: string }> => {
+  // Fetch provider metadata for repo onboarding (visibility, links) without leaking any credentials. 58w1q3n5nr58flmempxe
+  const { data } = await api.get<{ provider: RepoProvider; visibility: RepoProviderVisibility; webUrl?: string }>(
+    `/repos/${repoId}/provider-meta`,
+    { params }
+  );
   return data;
 };
 

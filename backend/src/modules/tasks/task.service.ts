@@ -2,9 +2,20 @@ import { randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { db } from '../../db';
-import { Task, TaskEventType, TaskRepoSummary, TaskResult, TaskRobotSummary, TaskStatus, TaskWithMeta } from '../../types/task';
+import {
+  Task,
+  TaskEventType,
+  type TaskQueueDiagnosis,
+  type TaskQueueReasonCode,
+  TaskRepoSummary,
+  TaskResult,
+  TaskRobotSummary,
+  TaskStatus,
+  TaskWithMeta
+} from '../../types/task';
 import type { TaskGroup, TaskGroupWithMeta } from '../../types/taskGroup';
 import type { RepoProvider } from '../../types/repository';
+import { isTruthy } from '../../utils/env';
 
 /**
  * tasks table access layer (the "source of truth" for the queue/task state machine):
@@ -73,6 +84,12 @@ export interface TaskStatusStats {
   processing: number;
   success: number;
   failed: number;
+}
+
+// Add a daily volume aggregation shape used by the repo dashboard trend chart. dashtrendline20260119m9v2
+export interface TaskVolumeByDayPoint {
+  day: string;
+  count: number;
 }
 
 const toIso = (value: unknown): string => {
@@ -338,6 +355,86 @@ export class TaskService {
       if (task.repoId && repoMap.has(task.repoId)) next.repo = repoMap.get(task.repoId);
       if (task.robotId && robotMap.has(task.robotId)) next.robot = robotMap.get(task.robotId);
       return next;
+    });
+  }
+
+  private resolveQueueReasonCode(params: {
+    ahead: number;
+    processing: number;
+    inlineWorkerEnabled: boolean;
+  }): TaskQueueReasonCode {
+    // Pick a single primary reason code so the UI can render a concise queued hint. f3a9c2d8e1b7f4a0c6d1
+    if (!params.inlineWorkerEnabled && params.processing === 0) return 'inline_worker_disabled';
+    if (params.processing === 0) return 'no_active_worker';
+    if (params.processing > 0 || params.ahead > 0) return 'queue_backlog';
+    return 'unknown';
+  }
+
+  private async attachQueueDiagnosis(tasks: TaskWithMeta[]): Promise<TaskWithMeta[]> {
+    // Attach best-effort queue diagnosis fields for queued tasks in list/detail APIs. f3a9c2d8e1b7f4a0c6d1
+    const queued = tasks.filter((t) => t.status === 'queued');
+    if (!queued.length) return tasks;
+
+    const queuedIds = queued.map((t) => t.id);
+    type QueuePosRow = { id: string; ahead: number; total: number };
+    type ProcessingCountsRow = { processing: number; stale_processing: number };
+
+    const staleMs = Number(process.env.PROCESSING_STALE_MS || 30 * 60 * 1000);
+    const staleBefore = new Date(Date.now() - (Number.isFinite(staleMs) && staleMs > 0 ? staleMs : 30 * 60 * 1000));
+
+    const inlineWorkerEnabled = isTruthy(process.env.INLINE_WORKER_ENABLED, true);
+
+    const [posRows, processingRows] = await Promise.all([
+      db.$queryRaw<QueuePosRow[]>`
+        WITH q AS (
+          SELECT id,
+                 row_number() OVER (ORDER BY created_at ASC) AS pos,
+                 count(*) OVER () AS total
+          FROM tasks
+          WHERE status = 'queued'
+        )
+        SELECT id::text AS id,
+               (pos - 1)::int AS ahead,
+               total::int AS total
+        FROM q
+        WHERE id = ANY(${queuedIds}::uuid[]);
+      `,
+      db.$queryRaw<ProcessingCountsRow[]>`
+        SELECT COUNT(*)::int AS processing,
+               COUNT(*) FILTER (WHERE updated_at < ${staleBefore})::int AS stale_processing
+        FROM tasks
+        WHERE status = 'processing';
+      `
+    ]);
+
+    const posMap = new Map<string, { ahead: number; total: number }>(
+      (posRows ?? []).map((row) => [
+        String(row.id),
+        {
+          ahead: Number(row.ahead ?? 0) || 0,
+          total: Number(row.total ?? 0) || 0
+        }
+      ])
+    );
+
+    const processing = Number(processingRows?.[0]?.processing ?? 0) || 0;
+    const staleProcessing = Number(processingRows?.[0]?.stale_processing ?? 0) || 0;
+
+    return tasks.map((task) => {
+      if (task.status !== 'queued') return task;
+      const pos = posMap.get(task.id);
+      const ahead = pos ? pos.ahead : 0;
+      const queuedTotal = pos ? pos.total : queued.length;
+      const reasonCode = this.resolveQueueReasonCode({ ahead, processing, inlineWorkerEnabled });
+      const queue: TaskQueueDiagnosis = {
+        reasonCode,
+        ahead,
+        queuedTotal,
+        processing,
+        staleProcessing,
+        inlineWorkerEnabled
+      };
+      return { ...task, queue };
     });
   }
 
@@ -684,7 +781,8 @@ export class TaskService {
     const rows = await db.task.findMany({ where: { groupId: id }, orderBy: { createdAt: 'desc' }, take });
     const tasks = rows.map(taskRecordToTask) as TaskWithMeta[];
     if (!options?.includeMeta) return tasks;
-    return this.attachMeta(tasks);
+    const withMeta = await this.attachMeta(tasks);
+    return this.attachQueueDiagnosis(withMeta);
   }
 
   async listTasks(options?: TaskListOptions): Promise<TaskWithMeta[]> {
@@ -872,7 +970,8 @@ export class TaskService {
     }
 
     if (!options?.includeMeta) return tasks;
-    return this.attachMeta(tasks);
+    const withMeta = await this.attachMeta(tasks);
+    return this.attachQueueDiagnosis(withMeta);
   }
 
   async getTaskStats(options?: TaskStatsOptions): Promise<TaskStatusStats> {
@@ -913,13 +1012,61 @@ export class TaskService {
     return stats;
   }
 
+  async getTaskVolumeByDay(options: {
+    repoId: string;
+    start: Date;
+    endExclusive: Date;
+    robotId?: string;
+    eventType?: TaskEventType;
+    allowedRepoIds?: string[];
+  }): Promise<TaskVolumeByDayPoint[]> {
+    // Aggregate task volume per UTC day for the repo dashboard chart without loading full task lists. dashtrendline20260119m9v2
+    const repoId = String(options?.repoId ?? '').trim();
+    if (!repoId || !isUuidLike(repoId)) return [];
+
+    const robotId = options?.robotId ? String(options.robotId).trim() : null;
+    if (robotId && !isUuidLike(robotId)) return [];
+
+    const eventType = options?.eventType ? String(options.eventType).trim() : null;
+
+    if (options?.allowedRepoIds) {
+      if (options.allowedRepoIds.length === 0) return [];
+      if (!options.allowedRepoIds.includes(repoId)) return [];
+    }
+
+    const start = options.start;
+    const endExclusive = options.endExclusive;
+    if (!(start instanceof Date) || Number.isNaN(start.getTime())) return [];
+    if (!(endExclusive instanceof Date) || Number.isNaN(endExclusive.getTime())) return [];
+    if (endExclusive.getTime() <= start.getTime()) return [];
+
+    const rows = await db.$queryRaw<any[]>`
+      SELECT to_char((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
+             COUNT(*)::int AS count
+      FROM tasks
+      WHERE repo_id = ${repoId}::uuid
+        AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
+        AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+        AND created_at >= ${start}
+        AND created_at < ${endExclusive}
+      GROUP BY 1
+      ORDER BY 1 ASC;
+    `;
+
+    return rows.map((row) => ({
+      day: String(row?.day ?? ''),
+      count: Number(row?.count ?? 0) || 0
+    }));
+  }
+
   async getTask(id: string, options?: { includeMeta?: boolean }): Promise<TaskWithMeta | undefined> {
     const row = await db.task.findUnique({ where: { id } });
     const task = row ? (taskRecordToTask(row) as TaskWithMeta) : undefined;
     if (!task) return undefined;
     if (!options?.includeMeta) return task;
     const [withMeta] = await this.attachMeta([task]);
-    return withMeta;
+    const [withQueue] = await this.attachQueueDiagnosis([withMeta]);
+    return withQueue;
   }
 
   async updateStatus(id: string, status: TaskStatus): Promise<Task | undefined> {

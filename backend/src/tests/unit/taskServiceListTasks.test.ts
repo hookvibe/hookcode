@@ -72,6 +72,97 @@ describe('taskService.listTasks', () => {
     expect(sql).not.toContain('ORDER BY created_at DESC');
   });
 
+  // Validate queued task diagnosis attachment and reason code selection. f3a9c2d8e1b7f4a0c6d1
+  test('includeMeta=true 时 queued 任务会附带 queue diagnosis（reasonCode + ahead/processing 等）', async () => {
+    const prevInlineWorkerEnabled = process.env.INLINE_WORKER_ENABLED;
+    delete process.env.INLINE_WORKER_ENABLED;
+
+    (db.$queryRaw as any)
+      // listTasks raw SQL query result
+      .mockResolvedValueOnce([
+        {
+          id: '00000000-0000-0000-0000-000000000001',
+          event_type: 'issue',
+          status: 'queued',
+          title: 'tq1',
+          project_id: null,
+          repo_provider: null,
+          repo_id: null,
+          robot_id: null,
+          ref: null,
+          mr_id: null,
+          issue_id: null,
+          retries: 0,
+          result_json: null,
+          created_at: new Date('2026-01-19T00:00:00.000Z'),
+          updated_at: new Date('2026-01-19T00:00:00.000Z')
+        }
+      ])
+      // attachQueueDiagnosis: queue position query
+      .mockResolvedValueOnce([{ id: '00000000-0000-0000-0000-000000000001', ahead: 2, total: 5 }])
+      // attachQueueDiagnosis: processing counts query
+      .mockResolvedValueOnce([{ processing: 0, stale_processing: 0 }]);
+
+    (db.repository.findMany as any).mockResolvedValue([]);
+    (db.repoRobot.findMany as any).mockResolvedValue([]);
+
+    const tasks = await taskService.listTasks({ status: 'queued', includeMeta: true, limit: 10 });
+
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].queue).toEqual(
+      expect.objectContaining({
+        reasonCode: 'no_active_worker',
+        ahead: 2,
+        queuedTotal: 5,
+        processing: 0,
+        staleProcessing: 0,
+        inlineWorkerEnabled: true
+      })
+    );
+
+    if (prevInlineWorkerEnabled === undefined) delete process.env.INLINE_WORKER_ENABLED;
+    else process.env.INLINE_WORKER_ENABLED = prevInlineWorkerEnabled;
+  });
+
+  test('INLINE_WORKER_ENABLED=false 且 processing=0 时 queued diagnosis 的 reasonCode=inline_worker_disabled', async () => {
+    const prevInlineWorkerEnabled = process.env.INLINE_WORKER_ENABLED;
+    process.env.INLINE_WORKER_ENABLED = 'false';
+
+    (db.$queryRaw as any)
+      .mockResolvedValueOnce([
+        {
+          id: '00000000-0000-0000-0000-000000000002',
+          event_type: 'issue',
+          status: 'queued',
+          title: 'tq2',
+          project_id: null,
+          repo_provider: null,
+          repo_id: null,
+          robot_id: null,
+          ref: null,
+          mr_id: null,
+          issue_id: null,
+          retries: 0,
+          result_json: null,
+          created_at: new Date('2026-01-19T00:00:00.000Z'),
+          updated_at: new Date('2026-01-19T00:00:00.000Z')
+        }
+      ])
+      .mockResolvedValueOnce([{ id: '00000000-0000-0000-0000-000000000002', ahead: 0, total: 1 }])
+      .mockResolvedValueOnce([{ processing: 0, stale_processing: 0 }]);
+
+    (db.repository.findMany as any).mockResolvedValue([]);
+    (db.repoRobot.findMany as any).mockResolvedValue([]);
+
+    const tasks = await taskService.listTasks({ status: 'queued', includeMeta: true, limit: 10 });
+
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].queue?.reasonCode).toBe('inline_worker_disabled');
+
+    if (prevInlineWorkerEnabled === undefined) delete process.env.INLINE_WORKER_ENABLED;
+    else process.env.INLINE_WORKER_ENABLED = prevInlineWorkerEnabled;
+  });
+
   test('getTaskStats 会聚合状态计数，并将 succeeded+commented 归为 success', async () => {
     (db.task.groupBy as any).mockResolvedValue([
       { status: 'queued', _count: { _all: 2 } },

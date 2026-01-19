@@ -82,6 +82,27 @@ export class TaskPermissionsDto {
   canManage!: boolean;
 }
 
+export class TaskQueueDiagnosisDto {
+  // Describe queued task diagnosis for the console UI. f3a9c2d8e1b7f4a0c6d1
+  @ApiProperty({ enum: ['queue_backlog', 'no_active_worker', 'inline_worker_disabled', 'unknown'] })
+  reasonCode!: 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
+
+  @ApiProperty()
+  ahead!: number;
+
+  @ApiProperty()
+  queuedTotal!: number;
+
+  @ApiProperty()
+  processing!: number;
+
+  @ApiProperty()
+  staleProcessing!: number;
+
+  @ApiProperty()
+  inlineWorkerEnabled!: boolean;
+}
+
 export class TaskWithMetaDto {
   @ApiProperty()
   id!: string;
@@ -121,6 +142,9 @@ export class TaskWithMetaDto {
 
   @ApiProperty()
   retries!: number;
+
+  @ApiPropertyOptional({ type: TaskQueueDiagnosisDto })
+  queue?: TaskQueueDiagnosisDto;
 
   @ApiPropertyOptional({ type: TaskResultDto })
   result?: TaskResultDto;
@@ -183,3 +207,16 @@ export class TaskLogsResponseDto {
   logs!: string[];
 }
 
+export class TaskVolumePointDto {
+  // Describe daily task volume points for the repo dashboard trend chart. dashtrendline20260119m9v2
+  @ApiProperty({ example: '2026-01-19', description: 'UTC day bucket in YYYY-MM-DD format.' })
+  day!: string;
+
+  @ApiProperty({ example: 12 })
+  count!: number;
+}
+
+export class TaskVolumeByDayResponseDto {
+  @ApiProperty({ type: TaskVolumePointDto, isArray: true })
+  points!: TaskVolumePointDto[];
+}

@@ -35,9 +35,14 @@ export interface GitlabProjectMember {
 export interface GitlabProject {
   id: number;
   name: string;
+  path?: string;
   path_with_namespace: string;
   default_branch?: string;
   web_url: string;
+  http_url_to_repo?: string;
+  ssh_url_to_repo?: string;
+  import_status?: string | null;
+  forked_from_project?: { id: number; path_with_namespace?: string; web_url?: string } | null;
 }
 
 export interface GitlabMergeRequest {
@@ -142,7 +147,7 @@ export class GitlabService {
     const url = `${this.baseUrl}/api/v4/${path.replace(/^\//, '')}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Private-Token': this.token,
+      ...(this.token ? { 'Private-Token': this.token } : {}), // Only send auth header when configured so anonymous metadata checks can still succeed. 58w1q3n5nr58flmempxe
       ...(init.headers as Record<string, string> | undefined)
     };
 
@@ -174,6 +179,41 @@ export class GitlabService {
    */
   async getProject(project: ProjectIdentifier): Promise<GitlabProject> {
     return this.request<GitlabProject>(`projects/${this.encodeProject(project)}`);
+  }
+
+  async listProjectForks(
+    project: ProjectIdentifier,
+    options?: { owned?: boolean; search?: string; perPage?: number; page?: number }
+  ): Promise<GitlabProject[]> {
+    // List forks to detect/reuse an existing fork before attempting to fork again. 24yz61mdik7tqdgaa152
+    const query = buildQuery({
+      owned: options?.owned,
+      search: options?.search,
+      per_page: options?.perPage ?? 100,
+      page: options?.page ?? 1
+    });
+    return this.request<GitlabProject[]>(`projects/${this.encodeProject(project)}/forks${query}`);
+  }
+
+  async forkProject(
+    project: ProjectIdentifier,
+    options?: { namespaceId?: number; namespacePath?: string; mrDefaultTargetSelf?: boolean }
+  ): Promise<GitlabProject> {
+    // Fork projects via API tokens (no interactive login) to enable upstream-target merge requests. 24yz61mdik7tqdgaa152
+    const payload: Record<string, unknown> = {};
+    if (typeof options?.namespaceId === 'number' && Number.isFinite(options.namespaceId)) {
+      payload.namespace_id = options.namespaceId;
+    }
+    const namespacePath = typeof options?.namespacePath === 'string' ? options.namespacePath.trim() : '';
+    if (namespacePath) payload.namespace_path = namespacePath;
+    if (typeof options?.mrDefaultTargetSelf === 'boolean') {
+      payload.mr_default_target_self = options.mrDefaultTargetSelf;
+    }
+
+    return this.request<GitlabProject>(`projects/${this.encodeProject(project)}/fork`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   }
 
   /**
@@ -343,4 +383,3 @@ export class GitlabService {
     return this.request<GitlabCommit>(`projects/${this.encodeProject(project)}/repository/commits/${commitSha}`);
   }
 }
-

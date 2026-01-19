@@ -6,6 +6,7 @@ import { useT } from '../../i18n';
 import { MarkdownViewer } from '../MarkdownViewer';
 import { TaskLogViewer } from '../TaskLogViewer';
 import { clampText, extractTaskResultText, extractTaskUserText, getTaskTitle, isTerminalStatus, statusTag } from '../../utils/task';
+import { LogViewerSkeleton } from '../skeletons/LogViewerSkeleton';
 
 /**
  * TaskConversationItem:
@@ -97,7 +98,8 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
               </div>
             ) : effectiveTaskLogsEnabled === null ? (
               <div style={{ padding: 12 }}>
-                <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+                {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
+                <LogViewerSkeleton lines={8} ariaLabel={t('common.loading')} />
               </div>
             ) : (
               <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} height={240} tail={400} />

@@ -253,7 +253,8 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
 
     const view = renderPage({ taskGroupId: 'g1' });
 
-    expect(await screen.findByText('Loading…')).toBeInTheDocument();
+    // Assert on skeleton presence instead of a plain loading text placeholder. ro3ln7zex8d0wyynfj0m
+    expect(await screen.findByTestId('hc-chat-group-skeleton')).toBeInTheDocument();
 
     // Simulate route switch to Home (no group selected).
     view.rerender(
@@ -263,7 +264,7 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
     );
 
     expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
-    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
 
     // Even if the previous request resolves late, it must not overwrite the current Home view.
     resolveGroup(group);

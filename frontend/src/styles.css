@@ -287,6 +287,11 @@ body {
   margin-bottom: 12px;
 }
 
+.hc-sider__brandRow--collapsed {
+  /* Center the sidebar toggle when collapsed so the top row only shows the trigger. l7pvyrepxb0mx2ipdh2y */
+  justify-content: center;
+}
+
 .hc-sider__brand {
   overflow: hidden;
   white-space: nowrap;
@@ -357,6 +362,12 @@ body {
   padding: 0;
 }
 
+/* Stop the Processing spinner when there are no processing tasks in collapsed sidebar mode. l7pvyrepxb0mx2ipdh2y */
+.hc-sider-processingIcon--idle.anticon-spin,
+.hc-sider-processingIcon--idle.anticon-spin svg {
+  animation: none !important;
+}
+
 .hc-sider__sectionLabel {
   display: block;
   padding: 8px 10px 6px;
@@ -413,6 +424,33 @@ body {
 .hc-sider-section__count {
   color: var(--muted);
   font-size: 12px;
+  min-width: 36px;
+  text-align: center;
+}
+
+.hc-sider-section__navBtn.ant-btn {
+  /* Hover UX: count ↔ arrow navigation control for status headers. kwq0evw438cxawea0lcj */
+  color: var(--muted);
+  min-width: 36px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 10px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.hc-sider-section__header:hover .hc-sider-section__count {
+  display: none;
+}
+
+.hc-sider-section__header:hover .hc-sider-section__navBtn {
+  display: inline-flex;
+}
+
+.hc-sider-section__navBtn.ant-btn:hover {
+  background: var(--hc-hover) !important;
+  color: var(--text);
 }
 
 .hc-sider-section__toggle.ant-btn {
@@ -490,6 +528,42 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.hc-sider-taskItem.ant-btn {
+  /* Support 2-line task labels (event+identifier on line 1, repo on line 2) in expanded sidebar mode. mks8pr4r3m1fo9oqx9av */
+  height: auto;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  align-items: center;
+}
+
+.hc-sider-taskItem.ant-btn .hc-sider-item__icon {
+  margin-top: 2px;
+}
+
+.hc-sider-item__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hc-sider-item__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.hc-sider-item__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .hc-sider-empty {
@@ -757,6 +831,84 @@ body {
   margin-bottom: 12px;
 }
 
+/* =============================================================================
+ * Tasks page: status summary strip + filter visibility
+ * - Purpose: show active deep-link filters (e.g. `#/tasks?status=success`) directly in the UI. 3iz4jx8bsy7q7d6b3jr3
+ * ========================================================================== */
+
+.hc-tasks-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* Layout: place status filters above a full-width search row. 3iz4jx8bsy7q7d6b3jr3 */
+.hc-tasks-search {
+  width: 100%;
+}
+
+.hc-tasks-status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+button.hc-tasks-status-tile {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+button.hc-tasks-status-tile:hover {
+  background: var(--hc-accent-soft-hover);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+button.hc-tasks-status-tile:focus-visible {
+  outline: none;
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-focus-ring);
+}
+
+button.hc-tasks-status-tile--active {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-tasks-status-tile__label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-tasks-status-tile__value {
+  display: block;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.hc-tasks-status-tile--skeleton.ant-skeleton-button {
+  height: 58px;
+  border-radius: 12px;
+}
+
+.hc-tasks-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .hc-card-list {
   max-width: var(--hc-page-max);
   margin: 0 auto;
@@ -832,6 +984,457 @@ body {
 
 .hc-task-meta__value {
   margin-top: 4px;
+}
+
+/* =============================================================================
+ * Repo detail full-width layout
+ * - Business context: Frontend Chat / Repos / Repo detail.
+ * - Purpose: remove the global max-width constraint so repo detail content can use the full screen width.
+ * - Change record: 2026-01-17 - Make repo detail page full-width. 58w1q3n5nr58flmempxe
+ * ========================================================================== */
+
+.hc-repo-detail-page .hc-page__body {
+  /* Layout intent: repo detail contains wide tables/editors and should use the full available width. */
+  align-items: stretch;
+}
+
+.hc-repo-detail-page .hc-page__body > * {
+  /* Override `.hc-page__body > * { max-width: var(--hc-page-max) }` for this page only. */
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* =============================================================================
+ * Repo detail dashboard
+ * - Business context: Frontend Chat / Repos / Repo detail.
+ * - Purpose: replace the tabbed repo detail with a board-style dashboard layout.
+ * - Change record: 2026-01-18 - Remove top-level tab switching and add KPI + charts. u55e45ffi8jng44erdzp
+ * ========================================================================== */
+
+.hc-repo-summary-strip {
+  padding: 0 0 14px; /* Keep KPI strip aligned with page body padding (strip now renders inside `.hc-page__body`). u55e45ffi8jng44erdzp */
+  border-bottom: 1px solid var(--hc-border);
+}
+
+/* Keep dashboard regions visually stable by reserving space for empty/minimal modules. u55e45ffi8jng44erdzp */
+.hc-repo-dashboard__region {
+  width: 100%;
+}
+
+.hc-repo-dashboard__slot {
+  width: 100%;
+  min-height: var(--hc-repo-dashboard-min-h, 320px);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.hc-repo-dashboard__slot > .ant-card {
+  flex: 1 1 auto;
+}
+
+.hc-repo-dashboard__slot--sm {
+  --hc-repo-dashboard-min-h: 260px;
+}
+
+.hc-repo-dashboard__slot--md {
+  --hc-repo-dashboard-min-h: 320px;
+}
+
+.hc-repo-dashboard__slot--lg {
+  --hc-repo-dashboard-min-h: 360px;
+}
+
+.hc-repo-dashboard__slot--xl {
+  --hc-repo-dashboard-min-h: 420px;
+}
+
+@media (max-width: 768px) {
+  .hc-repo-dashboard__slot--lg {
+    --hc-repo-dashboard-min-h: 320px;
+  }
+
+  .hc-repo-dashboard__slot--xl {
+    --hc-repo-dashboard-min-h: 360px;
+  }
+}
+
+.hc-repo-summary-strip__scroller {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  align-items: stretch; /* Keep summary tiles equal-height per row. u55e45ffi8jng44erdzp */
+  gap: 12px;
+}
+
+.hc-repo-summary-strip__card {
+  height: 100%;
+  min-width: 0;
+}
+
+.hc-repo-summary-strip__card--interactive {
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-repo-summary-strip__card--interactive:hover {
+  background: var(--hc-accent-soft-hover);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-repo-summary-strip__card--interactive:focus-visible {
+  outline: none;
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-repo-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hc-repo-activity__top {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.hc-repo-activity__gauge {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-repo-activity__metrics {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 10px;
+}
+
+.hc-repo-activity__metric {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.hc-repo-activity__metric-label {
+  font-size: 12px;
+}
+
+.hc-repo-activity__metric-value {
+  display: block;
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+/* Show the latest tasks inside the repo dashboard metric tiles without breaking the grid layout. aw85xyfsp5zfg6ihq3jr */
+.hc-repo-activity__metric-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hc-repo-activity__metric-tasks {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hc-repo-activity__metric-taskBtn.ant-btn {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.hc-repo-activity__metric-taskBtn.ant-btn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-repo-activity__block {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.hc-repo-activity__block-title {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.hc-repo-activity__dist-bar {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  background: var(--hc-surface);
+}
+
+.hc-repo-activity__dist-seg {
+  height: 100%;
+}
+
+.hc-repo-activity__legend {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.hc-repo-activity__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-repo-activity__legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc-border) 70%, transparent);
+}
+
+.hc-repo-activity__bars {
+  height: 140px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+.hc-repo-activity__bar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hc-repo-activity__bar-area {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-end;
+}
+
+.hc-repo-activity__bar-fill {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 72%, #ffffff) 0%, var(--accent) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc-accent-border) 70%, transparent);
+  transition: opacity 0.2s ease;
+}
+
+.hc-repo-activity__bar-fill:hover {
+  opacity: 0.92;
+}
+
+.hc-repo-activity__bar-label {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Add a lightweight SVG line chart style for the repo task volume trend. dashtrendline20260119m9v2 */
+
+.hc-repo-activity__trend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-repo-activity__trend-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-repo-activity__trend-range {
+  display: block;
+  font-size: 11px;
+}
+
+.hc-repo-activity__trend-chart {
+  /* Allow overlaying a Skeleton during the initial chart fetch without unmounting the chart container. nn62s3ci1xhpr7ublh51 */
+  position: relative;
+  height: 150px;
+  border-radius: 12px;
+  background: var(--hc-surface);
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  overflow: hidden;
+  padding: 10px;
+}
+
+.hc-repo-activity__trend-skeleton {
+  /* Keep loading states consistent with other pages while the ECharts canvas is initializing. nn62s3ci1xhpr7ublh51 */
+  position: absolute;
+  inset: 0;
+  padding: 12px 12px 6px;
+  pointer-events: none;
+}
+
+.hc-repo-activity__trend-svg {
+  display: block;
+  width: 100%;
+  height: 150px;
+}
+
+.hc-repo-activity__trend-area {
+  fill: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.hc-repo-activity__trend-line {
+  stroke: var(--accent);
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hc-repo-activity__trend-dot {
+  fill: var(--accent);
+  stroke: color-mix(in srgb, var(--hc-accent-border) 70%, transparent);
+  stroke-width: 1;
+}
+
+.hc-repo-activity__trend-axis {
+  stroke: color-mix(in srgb, var(--hc-border) 65%, transparent);
+  stroke-width: 1;
+}
+
+.hc-repo-activity__trend-tick {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+/* =============================================================================
+ * Task detail full-width layout
+ * - Business context: Frontend Chat / Tasks / Task detail.
+ * - Purpose: remove the global max-width constraint and introduce summary strip + sidebar/workflow layout.
+ * - Change record: 2026-01-17 - Redesign the task detail page layout. tdlayout20260117k8p3
+ * ========================================================================== */
+
+.hc-task-detail-page .hc-page__body {
+  /* Layout intent: this page is a split-pane layout and should use the full available width. */
+  align-items: stretch;
+}
+
+.hc-task-detail-page .hc-page__body > * {
+  /* Override `.hc-page__body > * { max-width: var(--hc-page-max) }` for this page only. */
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.hc-task-summary-strip {
+  padding: 0 18px 14px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-task-summary-strip__scroller {
+  /* Show all summary cards without horizontal scrolling by allowing responsive wrapping. tdstripwrap20260117b5m7 */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  align-items: stretch; /* Keep summary cards equal-height per row. tdsummaryequalh20260117v2n9 */
+  gap: 12px;
+}
+
+.hc-task-summary-strip__card {
+  height: 100%; /* Ensure each summary card fills the grid row height for visual consistency. tdsummaryequalh20260117v2n9 */
+  min-width: 0;
+}
+
+.hc-task-detail-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hc-task-detail-sidebar {
+  flex: 0 0 clamp(280px, 30%, 420px);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  min-width: 0;
+}
+
+.hc-task-detail-workflow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-task-workflow .ant-steps-item-content,
+.hc-task-workflow .ant-steps-item-description {
+  max-width: none;
+  min-width: 0;
+}
+
+.hc-task-workflow .hc-step-index {
+  /* Display reversed step indices for bottom-up workflow numbering on task detail. tdstepsreverse20260117k1p6 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.hc-task-code-block {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 1200px) {
+  .hc-task-summary-strip {
+    padding: 0 14px 12px;
+  }
+
+  .hc-task-detail-layout {
+    flex-direction: column;
+  }
+
+  .hc-task-detail-sidebar {
+    flex: 0 0 auto;
+    position: static;
+    width: 100%;
+  }
 }
 
 .hc-inner-card {

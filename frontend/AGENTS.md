@@ -5,6 +5,7 @@
 - The frontend supports light/dark themes (via `data-theme` and CSS variables in `styles.css`); new pages/components must work in both themes.
 - When adapting colors, consider the accent color. The accent color is configurable in settings; the UI should adapt to different accent colors.
 - The frontend must support i18n. All newly added user-facing text must be internationalized.
+- <!-- Require skeleton UIs for content waiting states. ro3ln7zex8d0wyynfj0m -->When rendering "waiting for data" states (initial fetch / empty while loading / detail fetch), use Skeleton (AntD `Skeleton`) instead of spinner-only icons or `Empty` loading placeholders.
 - Prefer a componentized approach: split features into separate components and avoid overloading a single file.
 - The layout must support both wide-screen desktop browsers and mobile browsers.
 - Back navigation:

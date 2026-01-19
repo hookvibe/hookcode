@@ -1,8 +1,9 @@
 import { FC, useEffect, useState } from 'react';
-import { Button, Space, Typography } from 'antd';
+import { Alert, Button, Space, Typography } from 'antd';
 import type { RepoProvider } from '../../api';
 import { useT } from '../../i18n';
 import { ResponsiveDialog } from '../dialogs/ResponsiveDialog';
+import { isLocalhostUrl } from '../../utils/url';
 
 /**
  * WebhookIntroModal:
@@ -26,6 +27,7 @@ const providerLabel = (provider: RepoProvider) => (provider === 'github' ? 'GitH
 export const WebhookIntroModal: FC<WebhookIntroModalProps> = ({ open, provider, webhookUrl, webhookSecret, onClose }) => {
   const t = useT();
   const [showWebhookSecret, setShowWebhookSecret] = useState(false);
+  const isLocalWebhookUrl = isLocalhostUrl(webhookUrl); // Warn users that localhost URLs cannot be reached by SaaS providers. 58w1q3n5nr58flmempxe
 
   useEffect(() => {
     if (!open) setShowWebhookSecret(false);
@@ -41,6 +43,7 @@ export const WebhookIntroModal: FC<WebhookIntroModalProps> = ({ open, provider, 
       modalWidth={720}
     >
       <Space direction="vertical" size={8} style={{ width: '100%' }}>
+        {isLocalWebhookUrl ? <Alert type="warning" showIcon message={t('repos.webhookIntro.localhostWarning')} /> : null}
         <Typography.Paragraph style={{ marginBottom: 0 }}>
           {t('repos.webhookIntro.step1', { provider: providerLabel(provider) })}
         </Typography.Paragraph>
@@ -92,4 +95,3 @@ export const WebhookIntroModal: FC<WebhookIntroModalProps> = ({ open, provider, 
     </ResponsiveDialog>
   );
 };
-

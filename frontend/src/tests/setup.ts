@@ -1,7 +1,27 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { resetNavHistoryForTests } from '../navHistory';
+
+// Mock ECharts in JSDOM to avoid Canvas API requirements during unit tests. nn62s3ci1xhpr7ublh51
+vi.mock('echarts/core', () => {
+  const makeInstance = () => ({
+    clear: vi.fn(),
+    dispose: vi.fn(),
+    resize: vi.fn(),
+    setOption: vi.fn()
+  });
+
+  return {
+    __esModule: true,
+    use: vi.fn(),
+    init: vi.fn(() => makeInstance())
+  };
+});
+
+vi.mock('echarts/charts', () => ({ __esModule: true, LineChart: {} }));
+vi.mock('echarts/components', () => ({ __esModule: true, GridComponent: {}, TooltipComponent: {} }));
+vi.mock('echarts/renderers', () => ({ __esModule: true, CanvasRenderer: {} }));
 
 afterEach(() => {
   // Test isolation: keep module-level navigation state from leaking across test files.
@@ -19,6 +39,8 @@ afterEach(() => {
     }
     window.location.hash = '';
   }
+  // Keep SSE tests isolated: clear created EventSource instances between test cases. kxthpiu4eqrmu0c6bboa
+  (globalThis as any).__eventSourceInstances = [];
 });
 
 if (typeof window !== 'undefined') {
@@ -114,6 +136,8 @@ if (typeof window !== 'undefined') {
 
     constructor(url: string) {
       this.url = url;
+      const store = ((globalThis as any).__eventSourceInstances ??= []);
+      store.push(this);
     }
 
     addEventListener(type: string, listener: (ev: any) => void) {
@@ -129,6 +153,11 @@ if (typeof window !== 'undefined') {
 
     close() {
       this.readyState = 2;
+    }
+
+    emit(type: string, ev: any = {}) {
+      const list = this.listeners[type] ?? [];
+      for (const fn of list) fn(ev);
     }
   }
 

@@ -240,7 +240,8 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
     }
 
     const normalizedBranches = branches.map((v) => v.trim()).filter(Boolean);
-    if (normalizedBranches.length) {
+    // Hide branch filters for Issue rules because Issue webhooks have no branch/ref context. b7x1k3m9p2r5t8n0q6s4
+    if (normalizedBranches.length && eventKey !== 'issue') {
       clauses.push({ field: 'branch.name', op: 'matchesAny', values: normalizedBranches });
     }
 
@@ -356,18 +357,21 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
             />
           </div>
 
-          <div>
-            <Typography.Text>{t('repoAutomation.rule.match.branches')}</Typography.Text>
-            <Select
-              mode="multiple"
-              style={{ width: '100%', marginTop: 6 }}
-              disabled={readOnly}
-              value={branches}
-              onChange={(v) => setBranches(Array.isArray(v) ? (v as any) : [])}
-              options={branchOptions}
-              placeholder={t('repoAutomation.rule.match.branchesPlaceholder')}
-            />
-          </div>
+          {eventKey !== 'issue' ? (
+            <div>
+              {/* Hide branch filters for Issue rules because Issue webhooks have no branch/ref context. b7x1k3m9p2r5t8n0q6s4 */}
+              <Typography.Text>{t('repoAutomation.rule.match.branches')}</Typography.Text>
+              <Select
+                mode="multiple"
+                style={{ width: '100%', marginTop: 6 }}
+                disabled={readOnly}
+                value={branches}
+                onChange={(v) => setBranches(Array.isArray(v) ? (v as any) : [])}
+                options={branchOptions}
+                placeholder={t('repoAutomation.rule.match.branchesPlaceholder')}
+              />
+            </div>
+          ) : null}
 
           <div>
             <Typography.Text>{t('repoAutomation.rule.match.includeKeywords')}</Typography.Text>
@@ -533,4 +537,3 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
     </ResponsiveDialog>
   );
 };
-

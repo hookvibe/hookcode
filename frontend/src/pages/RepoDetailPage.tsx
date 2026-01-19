@@ -11,13 +11,13 @@ import {
   Form,
   Input,
   Modal,
+  Pagination,
   Popconfirm,
   Radio,
   Row,
   Select,
   Space,
   Switch,
-  Tabs,
   Tag,
   Typography
 } from 'antd';
@@ -52,11 +52,16 @@ import { RepoAutomationPanel } from '../components/repoAutomation/RepoAutomation
 import { RepoBranchesCard } from '../components/repos/RepoBranchesCard';
 import { RepoWebhookDeliveriesPanel } from '../components/repos/RepoWebhookDeliveriesPanel';
 import { WebhookIntroModal } from '../components/repos/WebhookIntroModal';
+import { RepoOnboardingWizard } from '../components/repos/RepoOnboardingWizard';
 import { ResponsiveDialog } from '../components/dialogs/ResponsiveDialog';
 import { TemplateEditor } from '../components/TemplateEditor';
 import { ScrollableTable } from '../components/ScrollableTable';
 import { PageNav } from '../components/nav/PageNav';
 import { buildWebhookUrl } from '../utils/webhook';
+import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
+import { RepoDetailDashboardSummaryStrip, type RepoDetailSectionKey } from '../components/repos/RepoDetailDashboardSummaryStrip';
+import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
+import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
 
 /**
  * RepoDetailPage:
@@ -70,8 +75,8 @@ import { buildWebhookUrl } from '../utils/webhook';
  * - Edit automation config with auto-save.
  * - Inspect webhook deliveries.
  *
- * Important constraints:
- * - Robot + automation operations require `repo.webhookVerifiedAt` (backend enforces this with 409/REPO_WEBHOOK_NOT_VERIFIED).
+ * Important notes:
+ * - Webhook verification is optional; it enables provider-triggered automation and delivery troubleshooting. 58w1q3n5nr58flmempxe
  *
  * Change record:
  * - 2026-01-12: Expanded the initial `frontend-chat` stub into a feature-complete migration from legacy `frontend`.
@@ -85,8 +90,6 @@ export interface RepoDetailPageProps {
   repoId: string;
   userPanel?: ReactNode;
 }
-
-type RepoTabKey = 'basic' | 'branches' | 'credentials' | 'robots' | 'automation' | 'webhooks';
 
 type ModelProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
 
@@ -111,6 +114,28 @@ type RobotFormValues = {
 };
 
 const providerLabel = (provider: string) => (provider === 'github' ? 'GitHub' : 'GitLab');
+
+const ONBOARDING_STORAGE_PREFIX = 'hookcode-repo-onboarding:'; // Persist per-repo onboarding completion in localStorage. 58w1q3n5nr58flmempxe
+
+const CREDENTIAL_PROFILE_PAGE_SIZE = 4; // Limit credential profile list height so the dashboard board stays visually dense. u55e45ffi8jng44erdzp
+
+const getOnboardingKey = (repoId: string): string => `${ONBOARDING_STORAGE_PREFIX}${repoId}`;
+
+const getOnboardingDone = (repoId: string): boolean => {
+  try {
+    return Boolean(typeof window !== 'undefined' && window.localStorage?.getItem(getOnboardingKey(repoId)));
+  } catch {
+    return false;
+  }
+};
+
+const markOnboardingDone = (repoId: string, mode: 'skipped' | 'completed'): void => {
+  try {
+    window.localStorage?.setItem(getOnboardingKey(repoId), mode);
+  } catch {
+    // ignore: storage may be unavailable (private mode, disabled). 58w1q3n5nr58flmempxe
+  }
+};
 
 const parseHashQuery = (hash: string): URLSearchParams => {
   const idx = hash.indexOf('?');
@@ -161,8 +186,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     };
   }, [currentHash]);
 
-  const [activeTab, setActiveTab] = useState<RepoTabKey>(() => (fromRobotId ? 'robots' : 'basic'));
-
   const [loading, setLoading] = useState(false);
   const [repo, setRepo] = useState<Repository | null>(null);
   const [robots, setRobots] = useState<RepoRobot[]>([]);
@@ -174,8 +197,40 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [webhookIntroOpen, setWebhookIntroOpen] = useState(false);
   const [showWebhookSecretInline, setShowWebhookSecretInline] = useState(false);
 
+  const [onboardingOpen, setOnboardingOpen] = useState(() => !getOnboardingDone(repoId)); // Show onboarding wizard on first entry. 58w1q3n5nr58flmempxe
+
   const [basicSaving, setBasicSaving] = useState(false);
   const [credentialsSaving, setCredentialsSaving] = useState(false);
+
+  const [repoProviderProfilesPage, setRepoProviderProfilesPage] = useState(1);
+  const [modelProviderProfilesPage, setModelProviderProfilesPage] = useState<Record<ModelProviderKey, number>>({
+    codex: 1,
+    claude_code: 1,
+    gemini_cli: 1
+  });
+
+  useEffect(() => {
+    // Reset credentials pagination on repo switch to avoid blank pages when profile counts change. u55e45ffi8jng44erdzp
+    setRepoProviderProfilesPage(1);
+    setModelProviderProfilesPage({ codex: 1, claude_code: 1, gemini_cli: 1 });
+  }, [repoId]);
+
+  useEffect(() => {
+    // Clamp credential pagination when profiles are added/removed so the current page always has content when possible. u55e45ffi8jng44erdzp
+    const repoProfilesTotal = (repoScopedCredentials?.repoProvider?.profiles ?? []).length;
+    const repoMaxPage = Math.max(1, Math.ceil(repoProfilesTotal / CREDENTIAL_PROFILE_PAGE_SIZE));
+    setRepoProviderProfilesPage((p) => Math.min(p, repoMaxPage));
+
+    setModelProviderProfilesPage((prev) => {
+      const next = { ...prev };
+      for (const provider of ['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]) {
+        const profiles = ((repoScopedCredentials as any)?.modelProvider?.[provider]?.profiles ?? []) as any[];
+        const maxPage = Math.max(1, Math.ceil(profiles.length / CREDENTIAL_PROFILE_PAGE_SIZE));
+        next[provider] = Math.min(prev[provider] ?? 1, maxPage);
+      }
+      return next;
+    });
+  }, [repoScopedCredentials]);
 
   const [repoProviderProfileModalOpen, setRepoProviderProfileModalOpen] = useState(false);
   const [repoProviderProfileEditing, setRepoProviderProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
@@ -280,6 +335,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    // Keep onboarding visibility aligned with the current repo id (hash route may change without a full reload). 58w1q3n5nr58flmempxe
+    setOnboardingOpen(!getOnboardingDone(repoId));
+  }, [repoId]);
 
   useEffect(() => {
     // Business intent: hide the webhook secret after reloads or secret rotations unless the user re-opens it. (Change record: 2026-01-15)
@@ -519,7 +579,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   );
 
   useEffect(() => {
-    if (!robotModalOpen) return;
+    // Preload account credentials for both the onboarding wizard and the robot editor modal. 58w1q3n5nr58flmempxe
+    if (!robotModalOpen && !onboardingOpen) return;
     let cancelled = false;
     setUserModelCredentialsLoading(true);
     setUserModelCredentialsError(false);
@@ -541,7 +602,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     return () => {
       cancelled = true;
     };
-  }, [robotModalOpen]);
+  }, [onboardingOpen, robotModalOpen]);
 
   useEffect(() => {
     // UX: auto-pick a usable provider profile when users choose `repoCredentialSource=user/repo`.
@@ -750,10 +811,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const handleSubmitRobot = useCallback(
     async (values: RobotFormValues) => {
       if (!repo) return;
-      if (!webhookVerified) {
-        message.warning(t('repos.webhookIntro.notVerified'));
-        return;
-      }
+      // Allow configuring robots without requiring webhook verification (webhooks are optional). 58w1q3n5nr58flmempxe
 
       setRobotSubmitting(true);
       try {
@@ -947,18 +1005,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       robotChangingModelApiKey,
       robotChangingToken,
       t,
-      userModelCredentials,
-      webhookVerified
+      userModelCredentials
     ]
   );
 
   const handleTestRobot = useCallback(
     async (robot: RepoRobot) => {
       if (!repo) return;
-      if (!webhookVerified) {
-        message.warning(t('repos.webhookIntro.notVerified'));
-        return;
-      }
+      // Allow robot activation tests even when webhooks are not configured yet. 58w1q3n5nr58flmempxe
       setRobotTestingId(robot.id);
       try {
         const result = await testRepoRobot(repo.id, robot.id);
@@ -975,16 +1029,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         setRobotTestingId(null);
       }
     },
-    [message, repo, t, webhookVerified]
+    [message, repo, t]
   );
 
   const handleToggleRobotEnabled = useCallback(
     async (robot: RepoRobot) => {
       if (!repo) return;
-      if (!webhookVerified) {
-        message.warning(t('repos.webhookIntro.notVerified'));
-        return;
-      }
+      // Allow enabling/disabling robots without requiring webhook verification. 58w1q3n5nr58flmempxe
       setRobotTogglingId(robot.id);
       try {
         const saved = await updateRepoRobot(repo.id, robot.id, { enabled: !robot.enabled });
@@ -997,16 +1048,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         setRobotTogglingId(null);
       }
     },
-    [message, repo, t, webhookVerified]
+    [message, repo, t]
   );
 
   const handleDeleteRobot = useCallback(
     async (robot: RepoRobot) => {
       if (!repo) return;
-      if (!webhookVerified) {
-        message.warning(t('repos.webhookIntro.notVerified'));
-        return;
-      }
+      // Allow deleting robots without requiring webhook verification. 58w1q3n5nr58flmempxe
 
       setRobotDeletingId(robot.id);
       try {
@@ -1030,7 +1078,20 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         setRobotDeletingId(null);
       }
     },
-    [message, repo, t, webhookVerified]
+    [message, repo, t]
+  );
+
+  // Provide section-based navigation for the repo detail dashboard without using tab switching. u55e45ffi8jng44erdzp
+  const sectionDomId = useCallback((key: RepoDetailSectionKey) => `hc-repo-section-${key}`, []);
+
+  const scrollToSection = useCallback(
+    (key: RepoDetailSectionKey) => {
+      if (typeof window === 'undefined') return;
+      const el = document.getElementById(sectionDomId(key));
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+    [sectionDomId]
   );
 
   const openedRobotIdRef = useRef<string>('');
@@ -1045,9 +1106,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     const target = robotsSorted.find((r) => r.id === fromRobotId);
     if (!target) return;
     openedRobotIdRef.current = fromRobotId;
-    setActiveTab('robots');
     openEditRobot(target);
-  }, [fromRobotId, openEditRobot, robotsSorted]);
+    scrollToSection('robots');
+  }, [fromRobotId, openEditRobot, robotsSorted, scrollToSection]);
 
   if (!repoId) {
     return (
@@ -1059,7 +1120,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     );
   }
 
-  // UX: keep PageNav actions minimal; tab-level actions (save/test/create) should live inside each tab.
+  // UX: keep PageNav actions minimal; section-level actions (save/test/create) should live inside each dashboard card. u55e45ffi8jng44erdzp
   const headerActions = undefined;
 
   const headerBack = useMemo(() => {
@@ -1102,10 +1163,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
   return (
     <>
-      <div className="hc-page">
-        <PageNav
-          back={headerBack}
-          title={title}
+      <div className="hc-page hc-repo-detail-page">
+	        <PageNav
+	          back={headerBack}
+	          title={title}
           meta={
             <Typography.Text type="secondary">
               {repo ? `${providerLabel(repo.provider)} · ${repo.id}` : repoId}
@@ -1113,32 +1174,41 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               {repo?.webhookVerifiedAt ? ` · ${t('repos.webhookIntro.verifiedAt', { time: formatTime(repo.webhookVerifiedAt) })}` : ''}
             </Typography.Text>
           }
-          actions={headerActions}
-          userPanel={userPanel}
-        />
+	          actions={headerActions}
+	          userPanel={userPanel}
+	        />
 
-        <div className="hc-page__body">
+	        <div className="hc-page__body">
           {repo ? (
-            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-              {!webhookVerified ? (
-                <Alert
-                  type="warning"
-                  showIcon
-                  message={t('repos.webhookIntro.notVerified')}
-                  description={t('repos.webhookIntro.notVerifiedDesc')}
-                  action={
-                    <Button size="small" onClick={() => setWebhookIntroOpen(true)}>
-                      {t('repos.webhookIntro.open')}
-                    </Button>
-                  }
-                />
-              ) : null}
-
-              <Tabs
-                activeKey={activeTab}
-                onChange={(key) => setActiveTab(key as RepoTabKey)}
-                items={[
-                  {
+            onboardingOpen ? (
+              <RepoOnboardingWizard
+                repo={repo}
+                robots={robotsSorted}
+                repoScopedCredentials={repoScopedCredentials}
+                userModelCredentials={userModelCredentials}
+                userModelCredentialsLoading={userModelCredentialsLoading}
+                userModelCredentialsError={userModelCredentialsError}
+                webhookUrl={webhookFullUrl || webhookPath}
+                webhookSecret={webhookSecret}
+                webhookVerifiedAt={repo.webhookVerifiedAt ?? null}
+                onOpenRepoProviderCredential={() => startEditRepoProviderProfile(null)}
+                onOpenCreateRobot={openCreateRobot}
+                onOpenWebhookIntro={() => setWebhookIntroOpen(true)}
+                onRefreshRepo={() => void refresh()}
+                onSkip={() => {
+                  markOnboardingDone(repo.id, 'skipped');
+                  setOnboardingOpen(false);
+                }}
+                onFinish={() => {
+                  markOnboardingDone(repo.id, 'completed');
+                  setOnboardingOpen(false);
+                }}
+              />
+            ) : (
+              <div className="hc-repo-dashboard">
+                {(() => {
+                  const items = [
+                    {
                     key: 'basic',
                     label: t('repos.detail.tabs.basic'),
                     children: (
@@ -1185,164 +1255,223 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                     key: 'credentials',
                     label: t('repos.detail.tabs.credentials'),
                     children: (
-                      <Card size="small" title={t('repos.detail.credentialsTitle')} className="hc-card">
-                        <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-                          {t('repos.detail.credentials.tip')}
-                        </Typography.Paragraph>
-
-                        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-                          <Card
-                            size="small"
-                            title={
-                              <Space size={8}>
-                                <GlobalOutlined />
-                                <span>{t('repos.detail.credentials.repoProvider')}</span>
-                              </Space>
-                            }
-                            className="hc-inner-card"
-                            styles={{ body: { padding: 12 } }}
-                            extra={
-                              <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving}>
-                                {t('panel.credentials.profile.add')}
-                              </Button>
-                            }
-                          >
-                            <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                              <Typography.Text type="secondary">{t('repos.detail.credentials.repoProviderTip')}</Typography.Text>
-
-                              <div>
-                                <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
-                                <div style={{ marginTop: 6 }}>
-                                  <Select
-                                    value={(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '') || undefined}
-                                    style={{ width: '100%' }}
-                                    placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                                    onChange={(value) => void setRepoProviderDefault(value ? String(value) : null)}
-                                    options={(repoScopedCredentials?.repoProvider?.profiles ?? []).map((p) => ({ value: p.id, label: p.remark || p.id }))}
-                                    allowClear
-                                    disabled={credentialsSaving}
-                                  />
-                                </div>
-                              </div>
-
-                              {(repoScopedCredentials?.repoProvider?.profiles ?? []).length ? (
-                                <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                                  {(repoScopedCredentials?.repoProvider?.profiles ?? []).map((p) => {
-                                    const defaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
-                                    return (
-                                      <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                        <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                          <Space size={8} wrap>
-                                            <Typography.Text strong>{p.remark || p.id}</Typography.Text>
-                                            {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                                            <Tag color={p.hasToken ? 'green' : 'default'}>
-                                              {p.hasToken ? t('common.configured') : t('common.notConfigured')}
-                                            </Tag>
-                                          </Space>
-                                          <Typography.Text type="secondary">{p.cloneUsername || '-'}</Typography.Text>
-                                        </Space>
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                          <Button size="small" onClick={() => startEditRepoProviderProfile(p)} disabled={credentialsSaving}>
-                                            {t('common.manage')}
-                                          </Button>
-                                          <Button size="small" danger onClick={() => removeRepoProviderProfile(p.id)} disabled={credentialsSaving}>
-                                            {t('panel.credentials.profile.remove')}
-                                          </Button>
-                                        </div>
-                                      </Card>
-                                    );
-                                  })}
+                      <Row gutter={[12, 12]}>
+                        {/* Region 3: split repo credentials and model credentials into a single row with min-height guards. u55e45ffi8jng44erdzp */}
+                        <Col xs={24} lg={12} style={{ display: 'flex' }}>
+                          <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
+                            <Card
+                              size="small"
+                              title={
+                                <Space size={8}>
+                                  <GlobalOutlined />
+                                  <span>{t('repos.detail.credentials.repoProvider')}</span>
                                 </Space>
-                              ) : (
-                                <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
-                              )}
-                            </Space>
-                          </Card>
+                              }
+                              className="hc-card"
+                              extra={
+                                <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving}>
+                                  {t('panel.credentials.profile.add')}
+                                </Button>
+                              }
+                            >
+                              <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                                <Typography.Text type="secondary">{t('repos.detail.credentials.repoProviderTip')}</Typography.Text>
 
-                          <Card
-                            size="small"
-                            title={
-                              <Space size={8}>
-                                <KeyOutlined />
-                                <span>{t('repos.detail.credentials.modelProvider')}</span>
-                              </Space>
-                            }
-                            className="hc-inner-card"
-                            styles={{ body: { padding: 12 } }}
-                          >
-                            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-                              <Typography.Text type="secondary">{t('repos.detail.credentials.modelProviderTip')}</Typography.Text>
+                                <div>
+                                  <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
+                                  <div style={{ marginTop: 6 }}>
+                                    <Select
+                                      value={(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '') || undefined}
+                                      style={{ width: '100%' }}
+                                      placeholder={t('panel.credentials.profile.defaultPlaceholder')}
+                                      onChange={(value) => void setRepoProviderDefault(value ? String(value) : null)}
+                                      options={(repoScopedCredentials?.repoProvider?.profiles ?? []).map((p) => ({ value: p.id, label: p.remark || p.id }))}
+                                      allowClear
+                                      disabled={credentialsSaving}
+                                    />
+                                  </div>
+                                </div>
 
-                              {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
-                                const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[provider] as any;
-                                const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
-                                const defaultId = String(providerCredentials?.defaultProfileId ?? '').trim();
+                                {(() => {
+                                  const profiles = repoScopedCredentials?.repoProvider?.profiles ?? [];
+                                  const total = profiles.length;
+                                  const defaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
+                                  const start = (repoProviderProfilesPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
+                                  const paged = profiles.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
 
-                                return (
-                                  <Card
-                                    key={provider}
-                                    size="small"
-                                    className="hc-inner-card"
-                                    title={t(`repos.robotForm.modelProvider.${provider}` as any)}
-                                    extra={
-                                      <Button size="small" onClick={() => startEditModelProfile(provider, null)} disabled={credentialsSaving}>
-                                        {t('panel.credentials.profile.add')}
-                                      </Button>
-                                    }
-                                    styles={{ body: { padding: 12 } }}
-                                  >
-                                    <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                                      <div>
-                                        <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
-                                        <div style={{ marginTop: 6 }}>
-                                          <Select
-                                            value={defaultId || undefined}
-                                            style={{ width: '100%' }}
-                                            placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                                            onChange={(value) => void setModelProviderDefault(provider, value ? String(value) : null)}
-                                            options={profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id }))}
-                                            allowClear
-                                            disabled={credentialsSaving}
+                                  if (!total) {
+                                    return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
+                                  }
+
+                                  return (
+                                    <>
+                                      {/* Paginate credential profiles to prevent extremely tall cards that create empty gaps in the dashboard layout. u55e45ffi8jng44erdzp */}
+                                      <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                                        {paged.map((p) => (
+                                          <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                            <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                              <Space size={8} wrap>
+                                                <Typography.Text strong>{p.remark || p.id}</Typography.Text>
+                                                {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                                                <Tag color={p.hasToken ? 'green' : 'default'}>
+                                                  {p.hasToken ? t('common.configured') : t('common.notConfigured')}
+                                                </Tag>
+                                              </Space>
+                                              <Typography.Text type="secondary">{p.cloneUsername || '-'}</Typography.Text>
+                                            </Space>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                                              <Button size="small" onClick={() => startEditRepoProviderProfile(p)} disabled={credentialsSaving}>
+                                                {t('common.manage')}
+                                              </Button>
+                                              <Button size="small" danger onClick={() => removeRepoProviderProfile(p.id)} disabled={credentialsSaving}>
+                                                {t('panel.credentials.profile.remove')}
+                                              </Button>
+                                            </div>
+                                          </Card>
+                                        ))}
+                                      </Space>
+
+                                      {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                          <Pagination
+                                            size="small"
+                                            current={repoProviderProfilesPage}
+                                            pageSize={CREDENTIAL_PROFILE_PAGE_SIZE}
+                                            total={total}
+                                            showSizeChanger={false}
+                                            onChange={(page) => setRepoProviderProfilesPage(page)}
                                           />
                                         </div>
-                                      </div>
+                                      ) : null}
+                                    </>
+                                  );
+                                })()}
+                              </Space>
+                            </Card>
+                          </div>
+                        </Col>
 
-                                      {profiles.length ? (
-                                        <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                                          {profiles.map((p: any) => (
-                                            <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                              <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                                <Space size={8} wrap>
-                                                  <Typography.Text strong>{p.remark || p.id}</Typography.Text>
-                                                  {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                                                  <Tag color={p.hasApiKey ? 'green' : 'default'}>
-                                                    {p.hasApiKey ? t('common.configured') : t('common.notConfigured')}
-                                                  </Tag>
-                                                </Space>
-                                                <Typography.Text type="secondary">{p.apiBaseUrl || '-'}</Typography.Text>
+                        <Col xs={24} lg={12} style={{ display: 'flex' }}>
+                          <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
+                            <Card
+                              size="small"
+                              title={
+                                <Space size={8}>
+                                  <KeyOutlined />
+                                  <span>{t('repos.detail.credentials.modelProvider')}</span>
+                                </Space>
+                              }
+                              className="hc-card"
+                            >
+                              <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+                                <Typography.Text type="secondary">{t('repos.detail.credentials.modelProviderTip')}</Typography.Text>
+
+                                {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
+                                  const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[provider] as any;
+                                  const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
+                                  const defaultId = String(providerCredentials?.defaultProfileId ?? '').trim();
+
+                                  return (
+                                    <Card
+                                      key={provider}
+                                      size="small"
+                                      className="hc-inner-card"
+                                      title={t(`repos.robotForm.modelProvider.${provider}` as any)}
+                                      extra={
+                                        <Button size="small" onClick={() => startEditModelProfile(provider, null)} disabled={credentialsSaving}>
+                                          {t('panel.credentials.profile.add')}
+                                        </Button>
+                                      }
+                                      styles={{ body: { padding: 12 } }}
+                                    >
+                                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                                        <div>
+                                          <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
+                                          <div style={{ marginTop: 6 }}>
+                                            <Select
+                                              value={defaultId || undefined}
+                                              style={{ width: '100%' }}
+                                              placeholder={t('panel.credentials.profile.defaultPlaceholder')}
+                                              onChange={(value) => void setModelProviderDefault(provider, value ? String(value) : null)}
+                                              options={profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id }))}
+                                              allowClear
+                                              disabled={credentialsSaving}
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {(() => {
+                                          const total = profiles.length;
+                                          const currentPage = modelProviderProfilesPage[provider] ?? 1;
+                                          const start = (currentPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
+                                          const paged = profiles.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
+
+                                          if (!total) {
+                                            return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
+                                          }
+
+                                          return (
+                                            <>
+                                              {/* Paginate model provider profiles to keep the credential panel height stable in the dashboard layout. u55e45ffi8jng44erdzp */}
+                                              <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                                                {paged.map((p: any) => (
+                                                  <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                                    <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                                      <Space size={8} wrap>
+                                                        <Typography.Text strong>{p.remark || p.id}</Typography.Text>
+                                                        {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                                                        <Tag color={p.hasApiKey ? 'green' : 'default'}>
+                                                          {p.hasApiKey ? t('common.configured') : t('common.notConfigured')}
+                                                        </Tag>
+                                                      </Space>
+                                                      <Typography.Text type="secondary">{p.apiBaseUrl || '-'}</Typography.Text>
+                                                    </Space>
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                                                      <Button size="small" onClick={() => startEditModelProfile(provider, p)} disabled={credentialsSaving}>
+                                                        {t('common.manage')}
+                                                      </Button>
+                                                      <Button
+                                                        size="small"
+                                                        danger
+                                                        onClick={() => removeModelProviderProfile(provider, p.id)}
+                                                        disabled={credentialsSaving}
+                                                      >
+                                                        {t('panel.credentials.profile.remove')}
+                                                      </Button>
+                                                    </div>
+                                                  </Card>
+                                                ))}
                                               </Space>
-                                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                                <Button size="small" onClick={() => startEditModelProfile(provider, p)} disabled={credentialsSaving}>
-                                                  {t('common.manage')}
-                                                </Button>
-                                                <Button size="small" danger onClick={() => removeModelProviderProfile(provider, p.id)} disabled={credentialsSaving}>
-                                                  {t('panel.credentials.profile.remove')}
-                                                </Button>
-                                              </div>
-                                            </Card>
-                                          ))}
-                                        </Space>
-                                      ) : (
-                                        <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
-                                      )}
-                                    </Space>
-                                  </Card>
-                                );
-                              })}
-                            </Space>
-                          </Card>
-                        </Space>
-                      </Card>
+
+                                              {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                                  <Pagination
+                                                    size="small"
+                                                    current={currentPage}
+                                                    pageSize={CREDENTIAL_PROFILE_PAGE_SIZE}
+                                                    total={total}
+                                                    showSizeChanger={false}
+                                                    onChange={(page) =>
+                                                      setModelProviderProfilesPage((prev) => ({
+                                                        ...prev,
+                                                        [provider]: page
+                                                      }))
+                                                    }
+                                                  />
+                                                </div>
+                                              ) : null}
+                                            </>
+                                          );
+                                        })()}
+                                      </Space>
+                                    </Card>
+                                  );
+                                })}
+                              </Space>
+                            </Card>
+                          </div>
+                        </Col>
+                      </Row>
                     )
                   },
                   {
@@ -1354,16 +1483,18 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                         title={t('repos.robots.title')}
                         className="hc-card"
                         extra={
-                          <Button icon={<PlusOutlined />} onClick={openCreateRobot} disabled={!webhookVerified}>
+                          <Button icon={<PlusOutlined />} onClick={openCreateRobot}>
                             {t('repos.robots.createRobot')}
                           </Button>
                         }
                       >
                         {robotsSorted.length ? (
                           <ScrollableTable<RepoRobot>
+                            // Paginate robots to avoid extremely tall tables that break the dashboard board density. u55e45ffi8jng44erdzp
+                            size="small"
                             rowKey="id"
                             dataSource={robotsSorted}
-                            pagination={false}
+                            pagination={{ pageSize: 8, showSizeChanger: true, pageSizeOptions: ['8', '16', '32'], hideOnSinglePage: true }}
                             columns={[
                               {
                                 title: t('common.name'),
@@ -1429,7 +1560,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                       size="small"
                                       onClick={() => void handleTestRobot(r)}
                                       loading={robotTestingId === r.id}
-                                      disabled={!webhookVerified}
                                     >
                                       {t('repos.robots.test')}
                                     </Button>
@@ -1437,7 +1567,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                       size="small"
                                       onClick={() => void handleToggleRobotEnabled(r)}
                                       loading={robotTogglingId === r.id}
-                                      disabled={!webhookVerified}
                                     >
                                       {r.enabled ? t('repos.robots.disable') : t('repos.robots.enable')}
                                     </Button>
@@ -1448,7 +1577,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                       cancelText={t('common.cancel')}
                                       onConfirm={() => void handleDeleteRobot(r)}
                                     >
-                                      <Button size="small" danger loading={robotDeletingId === r.id} disabled={!webhookVerified}>
+                                      <Button size="small" danger loading={robotDeletingId === r.id}>
                                         {t('common.delete')}
                                       </Button>
                                     </Popconfirm>
@@ -1473,9 +1602,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                           robots={robotsSorted}
                           value={automationConfig ?? defaultAutomationConfig()}
                           onChange={(next) => setAutomationConfig(next)}
-                          readOnly={!webhookVerified}
                           onSave={async (next) => {
-                            if (!webhookVerified) return;
+                            // Allow saving automation config even before webhook verification. 58w1q3n5nr58flmempxe
                             const saved = await updateRepoAutomation(repo.id, next);
                             setAutomationConfig(saved);
                           }}
@@ -1487,67 +1615,151 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                     key: 'webhooks',
                     label: t('repos.detail.tabs.webhooks'),
                     children: (
-                      <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                        <Card
-                          size="small"
-                          title={t('repos.detail.webhookTitle')}
-                          className="hc-card"
-                          extra={
-                            <Button type="link" size="small" onClick={() => setWebhookIntroOpen(true)}>
-                              {t('repos.webhookIntro.open')}
-                            </Button>
-                          }
-                        >
-                          <Descriptions column={1} size="small" styles={{ label: { width: 180 } }}>
-                            {/* Webhook path is intentionally omitted here; the full URL is sufficient for provider setup. (Change record: 2026-01-15) */}
-                            <Descriptions.Item label={t('repos.webhookIntro.webhookUrl')}>
-                              {webhookFullUrl ? (
-                                <Typography.Text code copyable style={{ wordBreak: 'break-all' }}>
-                                  {webhookFullUrl}
+                      <Card
+                        size="small"
+                        title={t('repos.detail.webhookTitle')}
+                        className="hc-card"
+                        extra={
+                          <Button type="link" size="small" onClick={() => setWebhookIntroOpen(true)}>
+                            {t('repos.webhookIntro.open')}
+                          </Button>
+                        }
+                      >
+                        <Descriptions column={1} size="small" styles={{ label: { width: 180 } }}>
+                          {/* Webhook path is intentionally omitted here; the full URL is sufficient for provider setup. (Change record: 2026-01-15) */}
+                          <Descriptions.Item label={t('repos.webhookIntro.webhookUrl')}>
+                            {webhookFullUrl ? (
+                              <Typography.Text code copyable style={{ wordBreak: 'break-all' }}>
+                                {webhookFullUrl}
+                              </Typography.Text>
+                            ) : (
+                              <Typography.Text type="secondary">-</Typography.Text>
+                            )}
+                          </Descriptions.Item>
+                          <Descriptions.Item label={t('repos.detail.webhookSecret')}>
+                            {webhookSecret ? (
+                              <Space size={8}>
+                                <Typography.Text
+                                  code
+                                  copyable={showWebhookSecretInline ? { text: webhookSecret } : false}
+                                  style={{ wordBreak: 'break-all' }}
+                                >
+                                  {showWebhookSecretInline ? webhookSecret : '••••••••••••••••'}
                                 </Typography.Text>
-                              ) : (
-                                <Typography.Text type="secondary">-</Typography.Text>
-                              )}
-                            </Descriptions.Item>
-                            <Descriptions.Item label={t('repos.detail.webhookSecret')}>
-                              {webhookSecret ? (
-                                <Space size={8}>
-                                  <Typography.Text
-                                    code
-                                    copyable={showWebhookSecretInline ? { text: webhookSecret } : false}
-                                    style={{ wordBreak: 'break-all' }}
-                                  >
-                                    {showWebhookSecretInline ? webhookSecret : '••••••••••••••••'}
-                                  </Typography.Text>
-                                  <Button type="link" size="small" onClick={() => setShowWebhookSecretInline((v) => !v)}>
-                                    {showWebhookSecretInline ? t('repos.webhookIntro.hide') : t('repos.webhookIntro.show')}
-                                  </Button>
-                                </Space>
-                              ) : (
-                                <Typography.Text type="secondary">-</Typography.Text>
-                              )}
-                            </Descriptions.Item>
-                            <Descriptions.Item label={t('repos.webhookIntro.verified')}>
-                              {webhookVerified ? <Tag color="green">{t('repos.webhookIntro.verifiedYes')}</Tag> : <Tag color="gold">{t('repos.webhookIntro.verifiedNo')}</Tag>}
-                            </Descriptions.Item>
-                          </Descriptions>
-                          <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
-                            {t('repos.detail.webhookTip')}
-                          </Typography.Paragraph>
-                        </Card>
-
-                        <Card size="small" title={t('repos.webhookDeliveries.title')} className="hc-card">
-                          <RepoWebhookDeliveriesPanel repoId={repo.id} />
-                        </Card>
-                      </Space>
+                                <Button type="link" size="small" onClick={() => setShowWebhookSecretInline((v) => !v)}>
+                                  {showWebhookSecretInline ? t('repos.webhookIntro.hide') : t('repos.webhookIntro.show')}
+                                </Button>
+                              </Space>
+                            ) : (
+                              <Typography.Text type="secondary">-</Typography.Text>
+                            )}
+                          </Descriptions.Item>
+                          <Descriptions.Item label={t('repos.webhookIntro.verified')}>
+                            {webhookVerified ? <Tag color="green">{t('repos.webhookIntro.verifiedYes')}</Tag> : <Tag color="gold">{t('repos.webhookIntro.verifiedNo')}</Tag>}
+                          </Descriptions.Item>
+                        </Descriptions>
+                        <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
+                          {t('repos.detail.webhookTip')}
+                        </Typography.Paragraph>
+                      </Card>
                     )
                   }
-                ]}
-              />
-            </Space>
+                  ] as const;
+
+                  const section = (key: RepoDetailSectionKey) => items.find((i) => i.key === key)?.children ?? null;
+
+	                  return (
+	                    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+	                      <div className="hc-repo-dashboard__region">
+	                        {/* Restore the KPI summary strip inside the scrollable dashboard body instead of fixing it above the content. u55e45ffi8jng44erdzp */}
+	                        <RepoDetailDashboardSummaryStrip
+	                          repo={repo}
+	                          robots={robotsSorted}
+	                          automationConfig={automationConfig}
+	                          repoScopedCredentials={repoScopedCredentials}
+	                          webhookVerified={webhookVerified}
+	                          webhookUrl={webhookFullUrl || webhookPath}
+	                          formatTime={formatTime}
+	                          providerLabel={providerLabel}
+	                          onJumpToSection={scrollToSection}
+	                        />
+	                      </div>
+
+	                      <div className="hc-repo-dashboard__region">
+	                        {/* Region 1: icon + stats based on repo-scoped task activity (not webhook deliveries). u55e45ffi8jng44erdzp */}
+	                        <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--sm">
+	                          <RepoTaskActivityCard repoId={repo.id} />
+	                        </div>
+	                      </div>
+
+                      <div className="hc-repo-dashboard__region">
+                        {/* Region 2: left Basic, right Branches. u55e45ffi8jng44erdzp */}
+                        <Row gutter={[12, 12]}>
+                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
+                            <div id={sectionDomId('basic')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
+                              {section('basic')}
+                            </div>
+                          </Col>
+                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
+                            <div id={sectionDomId('branches')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
+                              {section('branches')}
+                            </div>
+                          </Col>
+                        </Row>
+                      </div>
+
+	                      <div id={sectionDomId('credentials')} className="hc-repo-dashboard__region">
+	                        {section('credentials')}
+	                      </div>
+
+	                      <div className="hc-repo-dashboard__region">
+	                        {/* Region 4: robots as a standalone row to avoid narrow/short panels. u55e45ffi8jng44erdzp */}
+	                        <div id={sectionDomId('robots')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+	                          {section('robots')}
+	                        </div>
+	                      </div>
+
+	                      <div className="hc-repo-dashboard__region">
+	                        {/* Region 5: triggers/automation as a standalone row. u55e45ffi8jng44erdzp */}
+	                        <div id={sectionDomId('automation')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+	                          {section('automation')}
+	                        </div>
+	                      </div>
+
+	                      <div className="hc-repo-dashboard__region">
+	                        {/* Region 6: webhook records (config + activity + deliveries) in a single row. u55e45ffi8jng44erdzp */}
+	                        <Row gutter={[12, 12]}>
+	                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
+	                            <Space orientation="vertical" size={12} style={{ width: '100%', flex: 1 }}>
+	                              <div id={sectionDomId('webhooks')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
+	                                {section('webhooks')}
+                              </div>
+                              <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
+                                <RepoWebhookActivityCard repoId={repo.id} />
+                              </div>
+                            </Space>
+                          </Col>
+
+                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
+                            <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+                              <Card size="small" title={t('repos.webhookDeliveries.title')} className="hc-card">
+                                <RepoWebhookDeliveriesPanel repoId={repo.id} />
+                              </Card>
+                            </div>
+                          </Col>
+                        </Row>
+                      </div>
+                    </Space>
+                  );
+                })()}
+              </div>
+            )
+          ) : loading ? (
+            // Render a repo-detail skeleton instead of a generic Empty+icon while loading. ro3ln7zex8d0wyynfj0m
+            <RepoDetailSkeleton testId="hc-repo-detail-skeleton" ariaLabel={t('common.loading')} />
           ) : (
             <div className="hc-empty">
-              <Empty description={loading ? t('common.loading') : t('repos.detail.notFound')} />
+              <Empty description={t('repos.detail.notFound')} />
             </div>
           )}
         </div>
@@ -1709,17 +1921,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         confirmLoading={robotSubmitting}
         onOk={() => void robotForm.submit()}
         drawerWidth="min(980px, 92vw)"
-      >
-        <Form<RobotFormValues>
-          form={robotForm}
-          layout="vertical"
-          requiredMark={false}
-          disabled={robotSubmitting}
-          onFinish={(values) => void handleSubmitRobot(values)}
-          initialValues={buildRobotInitialValues(editingRobot)}
         >
-          {!webhookVerified ? <Alert type="warning" showIcon message={t('repos.webhookIntro.notVerified')} style={{ marginBottom: 12 }} /> : null}
-
+          <Form<RobotFormValues>
+            form={robotForm}
+            layout="vertical"
+            requiredMark={false}
+            disabled={robotSubmitting}
+            onFinish={(values) => void handleSubmitRobot(values)}
+            initialValues={buildRobotInitialValues(editingRobot)}
+          >
           {userModelCredentialsError ? (
             <Alert type="warning" showIcon message={t('repos.robotForm.userCredentialsLoadFailed')} style={{ marginBottom: 12 }} />
           ) : null}

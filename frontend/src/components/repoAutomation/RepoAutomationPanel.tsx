@@ -258,9 +258,11 @@ export const RepoAutomationPanel: FC<Props> = ({ repo, robots, value, onChange, 
         </Space>
 
         <ScrollableTable<AutomationRule>
+          // Paginate automation rules so the board layout stays dense even when a repo has many triggers. u55e45ffi8jng44erdzp
+          size="small"
           rowKey="id"
           dataSource={event.rules ?? []}
-          pagination={false}
+          pagination={{ pageSize: 8, showSizeChanger: true, pageSizeOptions: ['8', '16', '32'], hideOnSinglePage: true }}
           columns={[
             {
               title: t('common.rule'),
@@ -360,4 +362,3 @@ export const RepoAutomationPanel: FC<Props> = ({ repo, robots, value, onChange, 
     </>
   );
 };
-

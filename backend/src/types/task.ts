@@ -57,6 +57,29 @@ export interface TaskResult {
    * - Used as a quick entry in the console for "view posted comment / jump to logs"
    */
   providerCommentUrl?: string;
+  /**
+   * Repository workflow metadata for UI/debugging (direct clone vs fork-based PR/MR). 24yz61mdik7tqdgaa152
+   */
+  repoWorkflow?: {
+    mode: 'direct' | 'fork';
+    provider?: RepoProvider;
+    upstream?: { slug?: string; webUrl?: string; cloneUrl?: string };
+    fork?: { slug?: string; webUrl?: string; cloneUrl?: string };
+  };
+}
+
+export type TaskQueueReasonCode = 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
+
+export interface TaskQueueDiagnosis {
+  reasonCode: TaskQueueReasonCode;
+  /**
+   * Number of queued tasks ahead of this task (FIFO by `created_at`).
+   */
+  ahead: number;
+  queuedTotal: number;
+  processing: number;
+  staleProcessing: number;
+  inlineWorkerEnabled: boolean;
 }
 
 export interface Task {
@@ -80,6 +103,8 @@ export interface Task {
   mrId?: number;
   issueId?: number;
   retries: number;
+  // Provide a best-effort explanation for long-waiting queued tasks in the console UI. f3a9c2d8e1b7f4a0c6d1
+  queue?: TaskQueueDiagnosis;
   result?: TaskResult;
   createdAt: string;
   updatedAt: string;

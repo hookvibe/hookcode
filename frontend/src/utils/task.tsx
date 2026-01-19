@@ -28,10 +28,130 @@ export const statusTag = (t: TFunction, status: TaskStatus) => {
   return <Tag color={item.color}>{item.text}</Tag>;
 };
 
+export const queuedHintText = (t: TFunction, task?: Task | null): string | null => {
+  // Derive a short, i18n-friendly hint for queued tasks from backend queue diagnosis. f3a9c2d8e1b7f4a0c6d1
+  if (!task || task.status !== 'queued') return null;
+  const q = task.queue;
+  if (!q) return t('tasks.queue.hint.unknown');
+
+  const ahead = typeof q.ahead === 'number' && Number.isFinite(q.ahead) ? q.ahead : 0;
+  const processing = typeof q.processing === 'number' && Number.isFinite(q.processing) ? q.processing : 0;
+
+  if (q.reasonCode === 'queue_backlog') return t('tasks.queue.hint.backlog', { ahead, processing });
+  if (q.reasonCode === 'inline_worker_disabled') return t('tasks.queue.hint.inlineWorkerDisabled');
+  if (q.reasonCode === 'no_active_worker') return t('tasks.queue.hint.noActiveWorker');
+  return t('tasks.queue.hint.unknown');
+};
+
 export const getTaskTitle = (task: Task): string => {
   const title = String(task.title ?? '').trim();
   if (title) return title;
   return task.id;
+};
+
+const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
+const toFiniteNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return undefined;
+};
+
+const shortSha = (sha: string, len = 7): string => {
+  const trimmed = sha.trim();
+  if (!trimmed) return '';
+  return trimmed.length <= len ? trimmed : trimmed.slice(0, len);
+};
+
+const inferRepoProvider = (task: Task): string => {
+  const provider = safeTrim(task.repo?.provider ?? task.repoProvider);
+  if (provider) return provider;
+  const payload: any = task.payload ?? {};
+  if (payload?.repository) return 'github';
+  if (payload?.project) return 'gitlab';
+  return '';
+};
+
+export const getTaskRepoName = (task: Task): string => {
+  const payload: any = task.payload ?? {};
+  return (
+    safeTrim(task.repo?.name) ||
+    safeTrim(task.repoId) ||
+    safeTrim(payload?.project?.path_with_namespace) ||
+    safeTrim(payload?.repository?.full_name) ||
+    safeTrim(payload?.repository?.name)
+  );
+};
+
+const guessIssueNumber = (task: Task): number | undefined => {
+  const payload: any = task.payload ?? {};
+  return (
+    toFiniteNumber(task.issueId) ??
+    toFiniteNumber(payload?.issue?.iid) ??
+    toFiniteNumber(payload?.issue?.number) ??
+    toFiniteNumber(payload?.object_attributes?.iid)
+  );
+};
+
+const guessMrNumber = (task: Task): number | undefined => {
+  const payload: any = task.payload ?? {};
+  return (
+    toFiniteNumber(task.mrId) ??
+    toFiniteNumber(payload?.merge_request?.iid) ??
+    toFiniteNumber(payload?.pull_request?.number) ??
+    toFiniteNumber(payload?.object_attributes?.iid)
+  );
+};
+
+const guessCommitSha = (task: Task): string => {
+  const payload: any = task.payload ?? {};
+  const raw =
+    payload?.after ||
+    payload?.checkout_sha ||
+    payload?.head_commit?.id ||
+    payload?.head_commit?.sha ||
+    payload?.commit?.id ||
+    payload?.commit?.sha ||
+    payload?.comment?.commit_id ||
+    payload?.object_attributes?.commit_id;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : '';
+};
+
+export const getTaskEventMarker = (task: Task): string => {
+  // Build event identifier markers for the sidebar 2-line task titles. mks8pr4r3m1fo9oqx9av
+  const provider = inferRepoProvider(task);
+  const issueNumber = guessIssueNumber(task);
+  const mrNumber = guessMrNumber(task);
+  const sha = guessCommitSha(task);
+
+  const issueMarker = issueNumber !== undefined ? `#${issueNumber}` : '';
+  const mrMarker = mrNumber !== undefined ? `${provider === 'gitlab' ? '!' : '#'}${mrNumber}` : '';
+  const commitMarker = sha ? shortSha(sha) : '';
+
+  switch (task.eventType) {
+    case 'issue':
+    case 'issue_created':
+    case 'issue_comment':
+    case 'note':
+      return issueMarker;
+    case 'merge_request':
+    case 'pull_request':
+      return mrMarker;
+    case 'commit':
+    case 'commit_review':
+      return commitMarker;
+    case 'push': {
+      const payload: any = task.payload ?? {};
+      const ref = formatRef(task.ref || payload?.ref);
+      if (ref) return `@${ref}`;
+      return commitMarker;
+    }
+  }
+
+  if (issueMarker) return issueMarker;
+  if (mrMarker) return mrMarker;
+  if (commitMarker) return commitMarker;
+  return shortSha(String(task.id ?? ''), 8);
 };
 
 export const clampText = (value: string, maxLen: number): string => {
@@ -40,6 +160,44 @@ export const clampText = (value: string, maxLen: number): string => {
   if (text.length <= maxLen) return text;
   return `${text.slice(0, Math.max(0, maxLen - 1))}…`;
 };
+
+export const getTaskEventText = (t: TFunction, eventType: Task['eventType']): string => {
+  // Centralize i18n event labels so compact task UIs (sidebar/cards) stay consistent. aw85xyfsp5zfg6ihq3jr
+  switch (eventType) {
+    case 'commit_review':
+      return t('task.event.commit_review');
+    case 'commit':
+      return t('task.event.commit');
+    case 'push':
+      return t('task.event.push');
+    case 'merge_request':
+      return t('task.event.merge_request');
+    case 'issue_created':
+      return t('task.event.issue_created');
+    case 'issue':
+      return t('task.event.issue');
+    case 'issue_comment':
+      return t('task.event.issue_comment');
+    case 'note':
+      return t('task.event.note');
+    case 'unknown':
+      return t('task.event.unknown');
+    case 'chat':
+      return t('task.event.chat');
+    default:
+      return String(eventType);
+  }
+};
+
+export const getTaskSidebarPrimaryText = (t: TFunction, task: Task): string => {
+  // Prefer event + identifier as the sidebar primary line to surface more context in limited space. mks8pr4r3m1fo9oqx9av
+  const marker = getTaskEventMarker(task);
+  const eventText = getTaskEventText(t, task.eventType); // Reuse centralized event labels across task UIs. aw85xyfsp5zfg6ihq3jr
+
+  return marker ? `${eventText} ${marker}` : eventText;
+};
+
+export const getTaskSidebarSecondaryText = (task: Task): string => getTaskRepoName(task);
 
 export const extractTaskUserText = (task: Task): string => {
   // Business intent:
@@ -96,20 +254,20 @@ export const projectWebUrl = (payload: any): string | undefined => {
 };
 
 export const eventTag = (t: TFunction, eventType: Task['eventType']) => {
-  const map: Record<string, { color: string; text: string }> = {
-    commit_review: { color: 'cyan', text: t('task.event.commit_review') },
-    commit: { color: 'cyan', text: t('task.event.commit') },
-    push: { color: 'cyan', text: t('task.event.push') },
-    merge_request: { color: 'geekblue', text: t('task.event.merge_request') },
-    issue_created: { color: 'volcano', text: t('task.event.issue_created') },
-    issue: { color: 'volcano', text: t('task.event.issue') },
-    issue_comment: { color: 'purple', text: t('task.event.issue_comment') },
-    note: { color: 'purple', text: t('task.event.note') },
-    unknown: { color: 'default', text: t('task.event.unknown') },
-    chat: { color: 'blue', text: t('task.event.chat') }
+  const map: Record<string, { color: string }> = {
+    commit_review: { color: 'cyan' },
+    commit: { color: 'cyan' },
+    push: { color: 'cyan' },
+    merge_request: { color: 'geekblue' },
+    issue_created: { color: 'volcano' },
+    issue: { color: 'volcano' },
+    issue_comment: { color: 'purple' },
+    note: { color: 'purple' },
+    unknown: { color: 'default' },
+    chat: { color: 'blue' }
   };
-  const item = map[eventType] ?? { color: 'default', text: String(eventType) };
-  return <Tag color={item.color}>{item.text}</Tag>;
+  const item = map[eventType] ?? { color: 'default' };
+  return <Tag color={item.color}>{getTaskEventText(t, eventType)}</Tag>;
 };
 
 export const extractUser = (payload: any) => {
