@@ -173,6 +173,64 @@ describe('AppShell (frontend-chat migration)', () => {
     expect(groupItem?.querySelector('.ant-menu-item-icon, .anticon')).toBeTruthy();
   });
 
+  test('persists sidebar collapsed state across refresh', async () => {
+    // Persist the sidebar collapsed preference via localStorage so it survives a remount. l7pvyrepxb0mx2ipdh2y
+    const ui = userEvent.setup();
+    const first = renderApp();
+
+    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+
+    const collapseButton = await screen.findByRole('button', { name: 'Collapse sidebar' });
+    await ui.click(collapseButton);
+
+    await waitFor(() => expect(window.localStorage.getItem('hookcode-sider-collapsed')).toBe('1'));
+    expect(await screen.findByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+    expect(document.querySelector('.hc-sider__brand')).toBeNull();
+
+    first.unmount();
+    renderApp();
+    expect(await screen.findByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+  });
+
+  test('spins processing icon in collapsed sidebar only when processing tasks exist', async () => {
+    // Ensure the collapsed-mode Processing indicator does not animate when processing count is 0. l7pvyrepxb0mx2ipdh2y
+    const ui = userEvent.setup();
+    renderApp();
+
+    expect(await screen.findByText('Processing task 1')).toBeInTheDocument();
+
+    const collapseButton = await screen.findByRole('button', { name: 'Collapse sidebar' });
+    await ui.click(collapseButton);
+    expect(await screen.findByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+
+    const processingHeader = await screen.findByRole('button', { name: 'Processing' });
+    await waitFor(() => expect(processingHeader.querySelector('.hc-sider-processingIcon--idle')).toBeNull());
+  });
+
+  test('keeps processing icon static in collapsed sidebar when there are no processing tasks', async () => {
+    // Regression guard: LoadingOutlined spins by default; disable it when processing === 0 in collapsed mode. l7pvyrepxb0mx2ipdh2y
+    const ui = userEvent.setup();
+    const fetchDashboardSidebarMock = vi.mocked(api.fetchDashboardSidebar);
+
+    fetchDashboardSidebarMock.mockResolvedValue({
+      stats: { total: 0, queued: 0, processing: 0, success: 0, failed: 0 },
+      tasksByStatus: { queued: [], processing: [], success: [], failed: [] },
+      taskGroups: []
+    } as any);
+
+    renderApp();
+    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+
+    const collapseButton = await screen.findByRole('button', { name: 'Collapse sidebar' });
+    await ui.click(collapseButton);
+    expect(await screen.findByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+
+    const processingHeader = await screen.findByRole('button', { name: 'Processing' });
+    await waitFor(() =>
+      expect(processingHeader.querySelector('.hc-sider-processingIcon--idle')).toBeInTheDocument()
+    );
+  });
+
   test('navigates to tasks list when clicking "View all" in a status section', async () => {
     const ui = userEvent.setup();
     renderApp();

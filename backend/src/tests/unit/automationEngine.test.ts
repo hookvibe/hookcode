@@ -90,6 +90,43 @@ describe('automationEngine.resolveAutomationActions', () => {
     expect(actions[0].promptCustom).toBe('BASE_A {{repo.name}} {{robot.name}}\n\nPATCH_A');
   });
 
+  test('issue（created）：branch.name 条件不会阻断（Issue 无分支上下文）', () => {
+    const config = baseConfig();
+    config.events.issue!.rules = [
+      {
+        id: 'rule-a',
+        name: 'main + assignee',
+        enabled: true,
+        match: {
+          all: [
+            { field: 'event.subType', op: 'in', values: ['created'] },
+            { field: 'branch.name', op: 'matchesAny', values: ['main'] },
+            { field: 'issue.assignees', op: 'containsAny', values: ['robot-a'] }
+          ]
+        },
+        actions: [{ id: 'act-a', robotId: robotA.id, enabled: true }]
+      }
+    ];
+
+    const payload = {
+      __subType: 'created',
+      object_attributes: {
+        assignees: [{ username: 'robot-a' }]
+      }
+    };
+
+    const actions = resolveAutomationActions({
+      eventType: 'issue',
+      payload,
+      robots: [robotA],
+      config,
+      repo: null
+    });
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0].robotId).toBe(robotA.id);
+  });
+
   test('issue（commented）：按 @mention 匹配多个机器人', () => {
     const config = baseConfig();
     config.events.issue!.rules = [

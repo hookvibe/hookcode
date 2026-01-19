@@ -58,6 +58,12 @@ const globToRegExp = (pattern: string): RegExp => {
 };
 
 const clauseMatch = (clause: AutomationClause, ctx: unknown): boolean => {
+  // Ignore branch-based filters for Issue events because Issue webhooks have no branch/ref context. b7x1k3m9p2r5t8n0q6s4
+  const ctxEventType = normalizeString(getByPath(ctx, 'event.type'))?.toLowerCase();
+  if (ctxEventType === 'issue' && (clause.field === 'push.branch' || clause.field === 'branch.name' || clause.field.startsWith('branch.'))) {
+    return true;
+  }
+
   const value = getByPath(ctx, clause.field);
 
   const op = clause.op;

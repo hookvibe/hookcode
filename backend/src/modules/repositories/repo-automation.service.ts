@@ -97,6 +97,17 @@ const normalizeRule = (value: unknown): AutomationRule | null => {
   };
 };
 
+const stripIssueUnsupportedClauses = (rule: AutomationRule): AutomationRule => {
+  // Strip branch-based filters for Issue rules because Issue webhooks have no branch/ref context. b7x1k3m9p2r5t8n0q6s4
+  const match = rule.match;
+  if (!match) return rule;
+  const keep = (c: AutomationClause) => !(c.field === 'push.branch' || c.field === 'branch.name' || c.field.startsWith('branch.'));
+  const all = (match.all ?? []).filter(keep);
+  const any = (match.any ?? []).filter(keep);
+  const nextMatch = all.length || any.length ? { all: all.length ? all : undefined, any: any.length ? any : undefined } : undefined;
+  return { ...rule, match: nextMatch };
+};
+
 const buildDefaultConfig = (): RepoAutomationConfig => ({
   version: 2,
   events: {
@@ -144,7 +155,13 @@ const migrateV1ToV2 = (raw: unknown): RepoAutomationConfig => {
 const normalizeConfig = (raw: unknown): RepoAutomationConfig => {
   if (!isRecord(raw)) return buildDefaultConfig();
   const version = raw.version === 2 ? 2 : raw.version === 1 ? 1 : 2;
-  if (version === 1) return migrateV1ToV2(raw);
+  if (version === 1) {
+    const migrated = migrateV1ToV2(raw);
+    if (migrated.events.issue) {
+      migrated.events.issue = { ...migrated.events.issue, rules: (migrated.events.issue.rules ?? []).map(stripIssueUnsupportedClauses) };
+    }
+    return migrated;
+  }
   const eventsRaw = isRecord(raw.events) ? raw.events : {};
   const events: RepoAutomationConfig['events'] = {};
   for (const [key, value] of Object.entries(eventsRaw)) {
@@ -152,13 +169,17 @@ const normalizeConfig = (raw: unknown): RepoAutomationConfig => {
   }
   const base = buildDefaultConfig();
   // Merge default events to avoid missing keys.
-  return {
+  const merged: RepoAutomationConfig = {
     version: 2,
     events: {
       ...base.events,
       ...events
     }
   };
+  if (merged.events.issue) {
+    merged.events.issue = { ...merged.events.issue, rules: (merged.events.issue.rules ?? []).map(stripIssueUnsupportedClauses) };
+  }
+  return merged;
 };
 
 export class RepoAutomationConfigValidationError extends Error {

@@ -107,6 +107,17 @@ const SIDEBAR_POLL_ERROR_MS = 2_000; // Retry faster while backend is starting t
 const SIDEBAR_SSE_RECONNECT_BASE_MS = 2_000;
 const SIDEBAR_SSE_RECONNECT_MAX_MS = 30_000; // Cap SSE reconnect backoff to reduce dev proxy spam when backend is down. 58w1q3n5nr58flmempxe
 
+const SIDER_COLLAPSED_STORAGE_KEY = 'hookcode-sider-collapsed';
+
+const getInitialSiderCollapsed = (): boolean => {
+  // Persist sidebar collapsed preference in localStorage across refresh. l7pvyrepxb0mx2ipdh2y
+  if (typeof window === 'undefined') return false;
+  const stored = window.localStorage?.getItem(SIDER_COLLAPSED_STORAGE_KEY) ?? '';
+  if (stored === '1' || stored === 'true') return true;
+  if (stored === '0' || stored === 'false') return false;
+  return false;
+};
+
 export const AppShell: FC<AppShellProps> = ({
   route,
   themePreference,
@@ -126,7 +137,7 @@ export const AppShell: FC<AppShellProps> = ({
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
   const [taskLogsEnabled, setTaskLogsEnabled] = useState<boolean | null>(null); // Cache backend feature toggles from `/auth/me` for downstream UI guards. 0nazpc53wnvljv5yh7c6
   const [authChecking, setAuthChecking] = useState(true);
-  const [siderCollapsed, setSiderCollapsed] = useState(false);
+  const [siderCollapsed, setSiderCollapsed] = useState(() => getInitialSiderCollapsed()); // Initialize from localStorage to keep collapsed state across refresh. l7pvyrepxb0mx2ipdh2y
   const [taskSectionExpanded, setTaskSectionExpanded] = useState<Record<SidebarTaskSectionKey, boolean>>(defaultExpanded);
 
   const [taskStats, setTaskStats] = useState<TaskStatusStats>({
@@ -141,6 +152,12 @@ export const AppShell: FC<AppShellProps> = ({
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [sidebarSseConnected, setSidebarSseConnected] = useState(false);
   const [sidebarSseReady, setSidebarSseReady] = useState(false); // Gate SSE until the backend is reachable to prevent startup proxy errors. 58w1q3n5nr58flmempxe
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    // Persist siderCollapsed updates so refresh keeps the user's sidebar preference. l7pvyrepxb0mx2ipdh2y
+    window.localStorage?.setItem(SIDER_COLLAPSED_STORAGE_KEY, siderCollapsed ? '1' : '0');
+  }, [siderCollapsed]);
 
   const refreshAuthState = useCallback(async () => {
     setAuthChecking(true);
@@ -466,6 +483,13 @@ export const AppShell: FC<AppShellProps> = ({
               : taskStats.failed;
 
       const viewAllActive = Boolean(activeTasksStatus && activeTasksStatus === section.statusFilter);
+      const headerIcon =
+        !siderCollapsed
+          ? undefined
+          : sectionKey === 'processing' && count === 0
+            ? // Disable the Processing spinner when there are no processing tasks in collapsed sidebar mode. l7pvyrepxb0mx2ipdh2y
+              <LoadingOutlined className="hc-sider-processingIcon--idle" />
+            : section.icon;
 
       return (
         <div key={sectionKey} className="hc-sider-section">
@@ -490,7 +514,7 @@ export const AppShell: FC<AppShellProps> = ({
                 }));
               }}
               // UX note: keep icons on section headers only in collapsed sidebar mode; expanded mode uses item-level icons.
-              icon={siderCollapsed ? section.icon : undefined}
+              icon={headerIcon}
             >
               {!siderCollapsed ? (
                 <span className="hc-sider-section__title">
@@ -604,8 +628,9 @@ export const AppShell: FC<AppShellProps> = ({
       >
         <div className="hc-sider__inner">
           <div className="hc-sider__top">
-            <div className="hc-sider__brandRow">
-              <Typography.Text className="hc-sider__brand">{!siderCollapsed ? t('app.brand') : 'H'}</Typography.Text>
+            <div className={`hc-sider__brandRow${siderCollapsed ? ' hc-sider__brandRow--collapsed' : ''}`}>
+              {/* Hide the collapsed brand label so only the sidebar toggle remains. l7pvyrepxb0mx2ipdh2y */}
+              {!siderCollapsed ? <Typography.Text className="hc-sider__brand">{t('app.brand')}</Typography.Text> : null}
               <Button
                 type="text"
                 size="small"

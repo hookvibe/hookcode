@@ -287,6 +287,11 @@ body {
   margin-bottom: 12px;
 }
 
+.hc-sider__brandRow--collapsed {
+  /* Center the sidebar toggle when collapsed so the top row only shows the trigger. l7pvyrepxb0mx2ipdh2y */
+  justify-content: center;
+}
+
 .hc-sider__brand {
   overflow: hidden;
   white-space: nowrap;
@@ -355,6 +360,12 @@ body {
 .hc-sider.ant-layout-sider-collapsed .hc-sider-section__header {
   justify-content: center;
   padding: 0;
+}
+
+/* Stop the Processing spinner when there are no processing tasks in collapsed sidebar mode. l7pvyrepxb0mx2ipdh2y */
+.hc-sider-processingIcon--idle.anticon-spin,
+.hc-sider-processingIcon--idle.anticon-spin svg {
+  animation: none !important;
 }
 
 .hc-sider__sectionLabel {
