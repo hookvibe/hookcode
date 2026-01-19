@@ -43,7 +43,8 @@ import {
   ListTasksResponseDto,
   RetryTaskResponseDto,
   TaskLogsResponseDto,
-  TaskStatsResponseDto
+  TaskStatsResponseDto,
+  TaskVolumeByDayResponseDto
 } from './dto/tasks-swagger.dto';
 
 @Controller('tasks')
@@ -71,6 +72,17 @@ export class TasksController {
       ...t,
       permissions: { canManage: true }
     }));
+  }
+
+  private parseUtcDay(value: unknown): Date | null {
+    // Parse `YYYY-MM-DD` as a UTC day boundary for dashboard time series queries. dashtrendline20260119m9v2
+    const day = normalizeString(value);
+    if (!day) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+    const d = new Date(`${day}T00:00:00.000Z`);
+    if (Number.isNaN(d.getTime())) return null;
+    if (d.toISOString().slice(0, 10) !== day) return null;
+    return d;
   }
 
   @Get()
@@ -153,6 +165,66 @@ export class TasksController {
       if (err instanceof HttpException) throw err;
       console.error('[tasks] stats failed', err);
       throw new InternalServerErrorException({ error: 'Failed to fetch task stats' });
+    }
+  }
+
+  @Get('volume')
+  @ApiOperation({
+    summary: 'Task volume by day',
+    description: 'Aggregate task counts by UTC day for a given repo and date range.',
+    operationId: 'tasks_volume_by_day'
+  })
+  @ApiOkResponse({ description: 'OK', type: TaskVolumeByDayResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  async volumeByDay(
+    @Query('repoId') repoIdRaw: string | undefined,
+    @Query('startDay') startDayRaw: string | undefined,
+    @Query('endDay') endDayRaw: string | undefined,
+    @Query('robotId') robotIdRaw: string | undefined,
+    @Query('eventType') eventTypeRaw: string | undefined
+  ) {
+    try {
+      const repoId = normalizeString(repoIdRaw);
+      if (!repoId) {
+        throw new BadRequestException({ error: 'repoId is required' });
+      }
+
+      const start = this.parseUtcDay(startDayRaw);
+      const end = this.parseUtcDay(endDayRaw);
+      if (!start || !end) {
+        throw new BadRequestException({ error: 'Invalid date range' });
+      }
+      if (end.getTime() < start.getTime()) {
+        throw new BadRequestException({ error: 'Invalid date range' });
+      }
+
+      const endExclusive = new Date(end);
+      endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+      const days = Math.round((endExclusive.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+      if (days <= 0) {
+        throw new BadRequestException({ error: 'Invalid date range' });
+      }
+      if (days > 1100) {
+        throw new BadRequestException({ error: 'Date range is too large' });
+      }
+
+      const robotId = normalizeString(robotIdRaw);
+      const eventType = normalizeString(eventTypeRaw);
+
+      const points = await this.taskService.getTaskVolumeByDay({
+        repoId,
+        start,
+        endExclusive,
+        robotId,
+        eventType: eventType as any
+      });
+
+      return { points };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[tasks] volume by day failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch task volume' });
     }
   }
 

@@ -183,3 +183,16 @@ export class TaskLogsResponseDto {
   logs!: string[];
 }
 
+export class TaskVolumePointDto {
+  // Describe daily task volume points for the repo dashboard trend chart. dashtrendline20260119m9v2
+  @ApiProperty({ example: '2026-01-19', description: 'UTC day bucket in YYYY-MM-DD format.' })
+  day!: string;
+
+  @ApiProperty({ example: 12 })
+  count!: number;
+}
+
+export class TaskVolumeByDayResponseDto {
+  @ApiProperty({ type: TaskVolumePointDto, isArray: true })
+  points!: TaskVolumePointDto[];
+}

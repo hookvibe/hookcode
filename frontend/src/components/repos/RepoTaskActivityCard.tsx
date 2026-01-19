@@ -4,46 +4,8 @@ import { Button, Card, Empty, Progress, Skeleton, Space, Typography } from 'antd
 import type { Task, TaskStatusStats } from '../../api';
 import { fetchTaskStats, fetchTasks } from '../../api';
 import { useLocale, useT } from '../../i18n';
-
-const dayKeyUtc = (iso: string): string => {
-  try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '';
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return '';
-  }
-};
-
-const addDaysUtc = (day: string, delta: number): string => {
-  try {
-    const d = new Date(`${day}T00:00:00.000Z`);
-    d.setUTCDate(d.getUTCDate() + delta);
-    return d.toISOString().slice(0, 10);
-  } catch {
-    return day;
-  }
-};
-
-const formatDayLabel = (locale: string, day: string): string => {
-  try {
-    const d = new Date(`${day}T00:00:00.000Z`);
-    if (Number.isNaN(d.getTime())) return day;
-    return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(d);
-  } catch {
-    return day;
-  }
-};
-
-const formatDateTime = (locale: string, iso: string): string => {
-  try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(d);
-  } catch {
-    return iso;
-  }
-};
+import { formatDateTime } from '../../utils/dateUtc';
+import { RepoTaskVolumeTrend } from './RepoTaskVolumeTrend';
 
 type TaskStatKey = 'queued' | 'processing' | 'success' | 'failed';
 
@@ -67,14 +29,16 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
   const [loadFailed, setLoadFailed] = useState(false);
   const [stats, setStats] = useState<TaskStatusStats | null>(null);
   const [recentTasks, setRecentTasks] = useState<Task[]>([]);
+  const [volumeRefreshSeq, setVolumeRefreshSeq] = useState(0);
 
   const refresh = useCallback(async () => {
+    setVolumeRefreshSeq((seq) => seq + 1);
     setLoading(true);
     setLoadFailed(false);
     try {
       const [nextStats, nextTasks] = await Promise.all([
         fetchTaskStats({ repoId }),
-        // Fetch a bounded recent window to derive a simple 7d activity trend without adding new backend APIs. u55e45ffi8jng44erdzp
+        // Fetch a bounded recent window to compute "last task" without loading the full task history. dashtrendline20260119m9v2
         fetchTasks({ repoId, limit: 200 })
       ]);
       setStats(nextStats);
@@ -100,17 +64,10 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
     const successPercent = Math.round(successRate * 100);
 
     let lastAt = '';
-    const perDay = new Map<string, number>();
     for (const task of recentTasks) {
       const createdAt = String(task?.createdAt ?? '').trim();
       if (createdAt && (!lastAt || createdAt > lastAt)) lastAt = createdAt;
-      const day = dayKeyUtc(createdAt);
-      if (day) perDay.set(day, (perDay.get(day) ?? 0) + 1);
     }
-
-    const anchorDay = dayKeyUtc(lastAt) || dayKeyUtc(new Date().toISOString());
-    const days = anchorDay ? Array.from({ length: 7 }, (_, idx) => addDaysUtc(anchorDay, idx - 6)) : [];
-    const maxDayCount = days.reduce((m, d) => Math.max(m, perDay.get(d) ?? 0), 0);
 
     const distTotal = (s.queued ?? 0) + (s.processing ?? 0) + (s.success ?? 0) + (s.failed ?? 0);
     const distribution = TASK_STAT_KEYS.map((k) => ({
@@ -123,8 +80,6 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
       total,
       successPercent,
       lastAt,
-      days: days.map((d) => ({ day: d, count: perDay.get(d) ?? 0 })),
-      maxDayCount,
       distribution
     };
   }, [recentTasks, stats]);
@@ -233,26 +188,9 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
 
           <div className="hc-repo-activity__block">
             <Typography.Text type="secondary" className="hc-repo-activity__block-title">
-              {t('repos.dashboard.activity.tasks.volume7d')}
+              {t('repos.dashboard.activity.tasks.volume')}
             </Typography.Text>
-            <div className="hc-repo-activity__bars" role="img" aria-label={t('repos.dashboard.activity.tasks.volume7d')}>
-              {derived.days.map((d) => {
-                const max = derived.maxDayCount || 1;
-                const heightPct = Math.round((d.count / max) * 100);
-                return (
-                  <div key={d.day} className="hc-repo-activity__bar">
-                    <div className="hc-repo-activity__bar-area">
-                      <div
-                        className="hc-repo-activity__bar-fill"
-                        style={{ height: `${heightPct}%` }}
-                        title={`${formatDayLabel(locale, d.day)}: ${d.count}`}
-                      />
-                    </div>
-                    <div className="hc-repo-activity__bar-label">{formatDayLabel(locale, d.day)}</div>
-                  </div>
-                );
-              })}
-            </div>
+            <RepoTaskVolumeTrend repoId={repoId} refreshSeq={volumeRefreshSeq} />
           </div>
         </div>
       ) : (

@@ -75,6 +75,12 @@ export interface TaskStatusStats {
   failed: number;
 }
 
+// Add a daily volume aggregation shape used by the repo dashboard trend chart. dashtrendline20260119m9v2
+export interface TaskVolumeByDayPoint {
+  day: string;
+  count: number;
+}
+
 const toIso = (value: unknown): string => {
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'string') return value;
@@ -911,6 +917,53 @@ export class TaskService {
     }
 
     return stats;
+  }
+
+  async getTaskVolumeByDay(options: {
+    repoId: string;
+    start: Date;
+    endExclusive: Date;
+    robotId?: string;
+    eventType?: TaskEventType;
+    allowedRepoIds?: string[];
+  }): Promise<TaskVolumeByDayPoint[]> {
+    // Aggregate task volume per UTC day for the repo dashboard chart without loading full task lists. dashtrendline20260119m9v2
+    const repoId = String(options?.repoId ?? '').trim();
+    if (!repoId || !isUuidLike(repoId)) return [];
+
+    const robotId = options?.robotId ? String(options.robotId).trim() : null;
+    if (robotId && !isUuidLike(robotId)) return [];
+
+    const eventType = options?.eventType ? String(options.eventType).trim() : null;
+
+    if (options?.allowedRepoIds) {
+      if (options.allowedRepoIds.length === 0) return [];
+      if (!options.allowedRepoIds.includes(repoId)) return [];
+    }
+
+    const start = options.start;
+    const endExclusive = options.endExclusive;
+    if (!(start instanceof Date) || Number.isNaN(start.getTime())) return [];
+    if (!(endExclusive instanceof Date) || Number.isNaN(endExclusive.getTime())) return [];
+    if (endExclusive.getTime() <= start.getTime()) return [];
+
+    const rows = await db.$queryRaw<any[]>`
+      SELECT to_char((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
+             COUNT(*)::int AS count
+      FROM tasks
+      WHERE repo_id = ${repoId}::uuid
+        AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
+        AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+        AND created_at >= ${start}
+        AND created_at < ${endExclusive}
+      GROUP BY 1
+      ORDER BY 1 ASC;
+    `;
+
+    return rows.map((row) => ({
+      day: String(row?.day ?? ''),
+      count: Number(row?.count ?? 0) || 0
+    }));
   }
 
   async getTask(id: string, options?: { includeMeta?: boolean }): Promise<TaskWithMeta | undefined> {

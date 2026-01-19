@@ -165,6 +165,23 @@ export const fetchTaskStats = async (options?: {
   return data.stats;
 };
 
+export interface TaskVolumePoint {
+  day: string;
+  count: number;
+}
+
+export const fetchTaskVolumeByDay = async (options: {
+  repoId: string;
+  startDay: string;
+  endDay: string;
+  robotId?: string;
+  eventType?: string;
+}): Promise<TaskVolumePoint[]> => {
+  // Fetch per-day task volume for the repo dashboard trend chart (UTC buckets). dashtrendline20260119m9v2
+  const { data } = await api.get<{ points: TaskVolumePoint[] }>('/tasks/volume', { params: options });
+  return data.points;
+};
+
 export interface DashboardSidebarSnapshot {
   stats: TaskStatusStats;
   tasksByStatus: {

@@ -40,6 +40,8 @@ vi.mock('../api', () => {
     // Mock task stats fetch used by the repo detail dashboard overview to keep tests deterministic. u55e45ffi8jng44erdzp
     fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 })),
     fetchTasks: vi.fn(async () => []),
+    // Mock the daily volume API used by the task activity line chart. dashtrendline20260119m9v2
+    fetchTaskVolumeByDay: vi.fn(async () => []),
     // Mock webhook deliveries list fetch used by both the dashboard charts and deliveries table. u55e45ffi8jng44erdzp
     listRepoWebhookDeliveries: vi.fn(async () => ({ deliveries: [], nextCursor: undefined })),
     fetchMyModelCredentials: vi.fn(async () => ({

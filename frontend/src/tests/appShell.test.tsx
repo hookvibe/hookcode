@@ -43,6 +43,8 @@ vi.mock('../api', () => {
       ]
     })),
     fetchTaskStats: vi.fn(async () => ({ total: 7, queued: 5, processing: 1, success: 1, failed: 0 })),
+    // Mock the daily task volume series used by the repo dashboard line chart. dashtrendline20260119m9v2
+    fetchTaskVolumeByDay: vi.fn(async () => []),
     fetchTasks: vi.fn(async (options?: any) => {
       const status = options?.status;
       if (status === 'queued')
