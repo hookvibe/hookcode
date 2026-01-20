@@ -17,7 +17,8 @@ import {
   PullRequestOutlined,
   UnorderedListOutlined,
   EllipsisOutlined,
-  CaretRightOutlined
+  CaretRightOutlined,
+  InboxOutlined
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import type { Task, TaskGroup, TaskStatusStats } from '../api';
@@ -26,6 +27,7 @@ import { AUTH_CHANGED_EVENT, getToken } from '../auth';
 import { useT } from '../i18n';
 import {
   buildHomeHash,
+  buildArchiveHash,
   buildReposHash,
   buildTaskGroupHash,
   buildTaskHash,
@@ -44,6 +46,7 @@ import { ReposPage } from './ReposPage';
 import { TaskDetailPage } from './TaskDetailPage';
 import { TaskGroupChatPage } from './TaskGroupChatPage';
 import { TasksPage } from './TasksPage';
+import { ArchivePage } from './ArchivePage';
 
 const { Sider, Content } = Layout;
 
@@ -440,6 +443,11 @@ export const AppShell: FC<AppShellProps> = ({
     navigateFromSidebar(buildReposHash());
   }, []);
 
+  const goArchive = useCallback(() => {
+    // Navigation rule: sidebar navigation (archive) resets the header-back chain. qnp1mtxhzikhbi0xspbc
+    navigateFromSidebar(buildArchiveHash());
+  }, []);
+
   const groupMenuItems = useMemo<MenuProps['items']>(() => {
     return taskGroups.map((g) => ({
       key: g.id,
@@ -462,6 +470,7 @@ export const AppShell: FC<AppShellProps> = ({
 
   const activeGroupKey = route.page === 'taskGroup' ? route.taskGroupId : undefined;
   const reposActive = route.page === 'repos' || route.page === 'repo';
+  const archiveActive = route.page === 'archive';
   const activeTaskId = route.page === 'task' ? route.taskId : undefined;
   const activeTasksStatus =
     route.page === 'tasks'
@@ -730,12 +739,25 @@ export const AppShell: FC<AppShellProps> = ({
               }}
             />
           </div>
+
+          <div className="hc-sider__bottom">
+            <Tooltip title={t('sidebar.nav.archive')}>
+              <Button
+                type="text"
+                icon={<InboxOutlined />}
+                className={`hc-sider-bottom__item${archiveActive ? ' hc-sider-bottom__item--active' : ''}`}
+                onClick={() => goArchive()}
+                aria-label={t('sidebar.nav.archive')}
+              />
+            </Tooltip>
+          </div>
         </div>
       </Sider>
 
       <Content className="hc-content">
         {route.page === 'repos' ? <ReposPage userPanel={userPanel} /> : null}
         {route.page === 'repo' && route.repoId ? <RepoDetailPage repoId={route.repoId} userPanel={userPanel} /> : null}
+        {route.page === 'archive' ? <ArchivePage tab={route.archiveTab} userPanel={userPanel} /> : null}
         {/* Pass repoId query to TasksPage so repo dashboards can deep-link into scoped task lists. aw85xyfsp5zfg6ihq3jr */}
         {route.page === 'tasks' ? <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} /> : null}
         {/* Pass backend feature toggles to pages that mount log streaming components. 0nazpc53wnvljv5yh7c6 */}

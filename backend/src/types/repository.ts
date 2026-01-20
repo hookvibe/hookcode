@@ -32,8 +32,11 @@ export interface Repository {
    * - Used for trigger branch selection, robot default checkout branch, and prompt template variables
    */
   branches?: RepositoryBranch[];
+  /**
+   * Archived repositories are hidden from default lists and block new automation/tasks. qnp1mtxhzikhbi0xspbc
+   */
+  archivedAt?: string;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
-

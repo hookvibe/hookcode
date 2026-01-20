@@ -18,6 +18,10 @@ export interface TaskGroup {
   issueId?: number;
   mrId?: number;
   commitSha?: string;
+  /**
+   * Archived groups are excluded from default sidebar/chat lists. qnp1mtxhzikhbi0xspbc
+   */
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

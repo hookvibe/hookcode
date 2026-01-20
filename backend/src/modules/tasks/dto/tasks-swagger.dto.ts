@@ -116,6 +116,9 @@ export class TaskWithMetaDto {
   @ApiProperty({ enum: ['queued', 'processing', 'succeeded', 'failed', 'commented'] })
   status!: 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
 
+  @ApiPropertyOptional({ nullable: true, format: 'date-time' })
+  archivedAt?: string | null;
+
   @ApiPropertyOptional()
   title?: string;
 

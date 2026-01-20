@@ -325,6 +325,29 @@ body {
   padding: 12px 8px 14px;
 }
 
+.hc-sider__bottom {
+  border-top: 1px solid var(--hc-border);
+  padding: 10px 8px 14px;
+}
+
+.hc-sider-bottom__item.ant-btn {
+  width: 100%;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text);
+  justify-content: center;
+}
+
+.hc-sider-bottom__item.ant-btn:hover {
+  background: var(--hc-hover) !important;
+}
+
+.hc-sider-bottom__item--active.ant-btn {
+  /* UX: active nav should be visible even with custom accent presets. qnp1mtxhzikhbi0xspbc */
+  background: var(--hc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
 .hc-sider-nav {
   padding: 0 6px 10px;
 }

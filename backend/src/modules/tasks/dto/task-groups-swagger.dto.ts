@@ -36,6 +36,9 @@ export class TaskGroupWithMetaDto {
   @ApiPropertyOptional({ nullable: true })
   commitSha?: string | null;
 
+  @ApiPropertyOptional({ nullable: true, format: 'date-time' })
+  archivedAt?: string | null;
+
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
 

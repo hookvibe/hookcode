@@ -35,6 +35,9 @@ export class RepositorySwaggerDto {
   @ApiPropertyOptional({ nullable: true, format: 'date-time' })
   webhookVerifiedAt?: string | null;
 
+  @ApiPropertyOptional({ nullable: true, format: 'date-time' })
+  archivedAt?: string | null;
+
   @ApiPropertyOptional({ type: RepositoryBranchSwaggerDto, isArray: true })
   branches?: RepositoryBranchSwaggerDto[];
 
@@ -201,6 +204,28 @@ export class UpdateRepositoryResponseDto {
 
   @ApiPropertyOptional({ type: RepoScopedCredentialsPublicSwaggerDto })
   repoScopedCredentials?: RepoScopedCredentialsPublicSwaggerDto;
+}
+
+export class ArchiveRepositoryResponseDto {
+  @ApiProperty({ type: RepositorySwaggerDto })
+  repo!: RepositorySwaggerDto;
+
+  @ApiProperty()
+  tasksArchived!: number;
+
+  @ApiProperty()
+  taskGroupsArchived!: number;
+}
+
+export class UnarchiveRepositoryResponseDto {
+  @ApiProperty({ type: RepositorySwaggerDto })
+  repo!: RepositorySwaggerDto;
+
+  @ApiProperty()
+  tasksRestored!: number;
+
+  @ApiProperty()
+  taskGroupsRestored!: number;
 }
 
 export class ListRepoRobotsResponseDto {

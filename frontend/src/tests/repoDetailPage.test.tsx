@@ -36,6 +36,9 @@ vi.mock('../api', () => {
         }
       }
     })),
+    // Expose archive APIs in the mock so RepoDetailPage can render the archive controls safely. qnp1mtxhzikhbi0xspbc
+    archiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksArchived: 0, taskGroupsArchived: 0 })),
+    unarchiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksRestored: 0, taskGroupsRestored: 0 })),
     updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null })),
     // Mock task stats fetch used by the repo detail dashboard overview to keep tests deterministic. u55e45ffi8jng44erdzp
     fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 })),
@@ -133,5 +136,71 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     expect(await screen.findByText('Repository setup guide')).toBeInTheDocument();
     await ui.click(screen.getByRole('button', { name: 'Skip' }));
     await screen.findByLabelText('Name');
+  });
+
+  test('treats archived repositories as read-only (no write actions)', async () => {
+    // Ensure archived repositories do not expose write affordances in the repo detail page. qnp1mtxhzikhbi0xspbc
+    vi.mocked(api.fetchRepo).mockResolvedValueOnce({
+      repo: {
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'Repo 1',
+        externalId: '',
+        apiBaseUrl: '',
+        enabled: true,
+        archivedAt: '2026-01-20T00:00:00.000Z',
+        createdAt: '2026-01-11T00:00:00.000Z',
+        updatedAt: '2026-01-11T00:00:00.000Z'
+      },
+      robots: [
+        {
+          id: 'rb1',
+          repoId: 'r1',
+          name: 'Bot 1',
+          enabled: true,
+          activatedAt: null,
+          permission: 'write',
+          isDefault: true
+        } as any
+      ],
+      automationConfig: null,
+      webhookSecret: null,
+      webhookPath: null,
+      repoScopedCredentials: {
+        repoProvider: { profiles: [], defaultProfileId: null },
+        modelProvider: {
+          codex: { profiles: [], defaultProfileId: null },
+          claude_code: { profiles: [], defaultProfileId: null },
+          gemini_cli: { profiles: [], defaultProfileId: null }
+        }
+      }
+    });
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    expect(screen.queryByText('Repository setup guide')).not.toBeInTheDocument();
+
+    const nameInput = await screen.findByLabelText('Name');
+    expect(nameInput).toBeDisabled();
+
+    await waitFor(() => expect(document.getElementById('hc-repo-section-branches')).not.toBeNull());
+
+    const branchesSection = document.getElementById('hc-repo-section-branches');
+    expect(branchesSection).not.toBeNull();
+    expect(within(branchesSection as HTMLElement).queryByRole('button', { name: 'Add branch' })).not.toBeInTheDocument();
+    expect(within(branchesSection as HTMLElement).queryByRole('button', { name: 'Save branches' })).not.toBeInTheDocument();
+
+    const robotsSection = document.getElementById('hc-repo-section-robots');
+    expect(robotsSection).not.toBeNull();
+    expect(within(robotsSection as HTMLElement).queryByRole('button', { name: /New robot/i })).not.toBeInTheDocument();
+    expect(within(robotsSection as HTMLElement).getByRole('button', { name: 'View' })).toBeInTheDocument();
+    expect(within(robotsSection as HTMLElement).queryByRole('button', { name: 'Test' })).not.toBeInTheDocument();
+    expect(within(robotsSection as HTMLElement).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+
+    const automationSection = document.getElementById('hc-repo-section-automation');
+    expect(automationSection).not.toBeNull();
+    expect(within(automationSection as HTMLElement).getByRole('button', { name: 'Add rule' })).toBeDisabled();
   });
 });

@@ -4,6 +4,7 @@ import {
   ConflictException,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpException,
   InternalServerErrorException,
@@ -21,6 +22,7 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -31,12 +33,12 @@ import type { Request } from 'express';
 import { RepoAutomationService, findRobotAutomationUsages, RepoAutomationConfigValidationError } from './repo-automation.service';
 import { RepoRobotService } from './repo-robot.service';
 import { RepoWebhookDeliveryService } from './repo-webhook-delivery.service';
-import { RepositoryService } from './repository.service';
+import { RepositoryService, type ArchiveScope } from './repository.service';
 import { GitlabService } from '../../services/gitlabService';
 import { GithubService } from '../../services/githubService';
 import { UserService } from '../users/user.service';
 import { inferRobotRepoProviderCredentialSource, resolveRobotProviderToken } from '../../services/repoRobotAccess';
-import type { RepoProvider, RepositoryBranch } from '../../types/repository';
+import type { RepoProvider, Repository, RepositoryBranch } from '../../types/repository';
 import type { RobotDefaultBranchRole } from '../../types/repoRobot';
 import { CODEX_PROVIDER_KEY, normalizeCodexRobotProviderConfig } from '../../modelProviders/codex';
 import { CLAUDE_CODE_PROVIDER_KEY, normalizeClaudeCodeRobotProviderConfig } from '../../modelProviders/claudeCode';
@@ -49,6 +51,7 @@ import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { parsePositiveInt } from '../../utils/parse';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import {
+  ArchiveRepositoryResponseDto,
   AutomationConfigResponseDto,
   CreateRepoRobotResponseDto,
   CreateRepositoryResponseDto,
@@ -59,6 +62,7 @@ import {
   ListRepoWebhookDeliveriesResponseDto,
   ListRepositoriesResponseDto,
   TestRobotResponseDto,
+  UnarchiveRepositoryResponseDto,
   UpdateRepoRobotResponseDto,
   UpdateRepositoryResponseDto
 } from './dto/repositories-swagger.dto';
@@ -106,6 +110,24 @@ const normalizeRepoCredentialSource = (
   throw new Error('repoCredentialSource must be robot/user/repo or null');
 };
 
+const normalizeArchiveScope = (value: unknown): ArchiveScope => {
+  // Keep query parsing tolerant so the Archive page can use `archived=1` while future APIs can use `archived=all`. qnp1mtxhzikhbi0xspbc
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (!raw || raw === '0' || raw === 'false' || raw === 'active') return 'active';
+  if (raw === '1' || raw === 'true' || raw === 'archived') return 'archived';
+  if (raw === 'all') return 'all';
+  return 'active';
+};
+
+const assertRepoWritable = (repo: Repository): void => {
+  // Reject repo-scoped write operations when the repository is archived to enforce view-only archive semantics. qnp1mtxhzikhbi0xspbc
+  if (!repo.archivedAt) return;
+  throw new ForbiddenException({
+    error: 'Archived repositories are read-only',
+    code: 'REPO_ARCHIVED_READ_ONLY'
+  });
+};
+
 @Controller('repos')
 @ApiTags('Repos')
 @ApiBearerAuth('bearerAuth')
@@ -126,9 +148,10 @@ export class RepositoriesController {
   })
   @ApiOkResponse({ description: 'OK', type: ListRepositoriesResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
-  async list() {
+  async list(@Query('archived') archivedRaw: string | undefined) {
     try {
-      const repos = await this.repositoryService.listAll();
+      const scope = normalizeArchiveScope(archivedRaw);
+      const repos = await this.repositoryService.listByArchiveScope(scope);
       return { repos };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -245,6 +268,48 @@ export class RepositoriesController {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get failed', err);
       throw new InternalServerErrorException({ error: 'Failed to fetch repo' });
+    }
+  }
+
+  @Post(':id/archive')
+  @ApiOperation({
+    summary: 'Archive repository',
+    description: 'Archive a repository and cascade archive to its related tasks/task groups.',
+    operationId: 'repos_archive'
+  })
+  @ApiOkResponse({ description: 'OK', type: ArchiveRepositoryResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async archive(@Req() req: Request, @Param('id') id: string) {
+    try {
+      const result = await this.repositoryService.archiveRepo(id, req.user ?? null);
+      if (!result) throw new NotFoundException({ error: 'Repo not found' });
+      return result;
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] archive failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to archive repo' });
+    }
+  }
+
+  @Post(':id/unarchive')
+  @ApiOperation({
+    summary: 'Unarchive repository',
+    description: 'Restore an archived repository and cascade restore to its related tasks/task groups.',
+    operationId: 'repos_unarchive'
+  })
+  @ApiOkResponse({ description: 'OK', type: UnarchiveRepositoryResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async unarchive(@Req() req: Request, @Param('id') id: string) {
+    try {
+      const result = await this.repositoryService.unarchiveRepo(id, req.user ?? null);
+      if (!result) throw new NotFoundException({ error: 'Repo not found' });
+      return result;
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] unarchive failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to unarchive repo' });
     }
   }
 
@@ -426,6 +491,7 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: UpdateRepositoryResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async patch(@Param('id') id: string, @Body() body: UpdateRepositoryDto) {
@@ -433,6 +499,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block mutations for archived repos; the Archive area is view-only. qnp1mtxhzikhbi0xspbc
 
       const name = typeof body?.name === 'string' ? body.name : undefined;
       const externalId =
@@ -552,6 +619,7 @@ export class RepositoriesController {
   @ApiCreatedResponse({ description: 'Created', type: CreateRepoRobotResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async createRobot(@Param('id') id: string, @Req() req: Request, @Body() body: CreateRepoRobotDto) {
@@ -559,6 +627,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block robot creation for archived repos to keep archived config immutable. qnp1mtxhzikhbi0xspbc
       // Allow configuring robots without requiring webhook verification (webhooks are optional). 58w1q3n5nr58flmempxe
 
       const name = typeof body?.name === 'string' ? body.name.trim() : '';
@@ -740,6 +809,7 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: UpdateRepoRobotResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async patchRobot(
@@ -752,6 +822,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block robot updates for archived repos to enforce read-only archive behavior. qnp1mtxhzikhbi0xspbc
       // Keep robot updates available before webhook verification to support manual chat workflows. 58w1q3n5nr58flmempxe
 
       const existing = await this.repoRobotService.getByIdWithToken(robotId);
@@ -984,6 +1055,7 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: TestRobotResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async testRobot(@Param('id') id: string, @Param('robotId') robotId: string, @Req() req: Request) {
@@ -991,6 +1063,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block robot activation tests for archived repos to keep archived state stable. qnp1mtxhzikhbi0xspbc
       // Support robot token activation tests without depending on webhook verification. 58w1q3n5nr58flmempxe
 
       const existing = await this.repoRobotService.getByIdWithToken(robotId);
@@ -1173,6 +1246,7 @@ export class RepositoriesController {
   })
   @ApiOkResponse({ description: 'OK', type: DeleteRobotResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async deleteRobot(@Param('id') id: string, @Param('robotId') robotId: string) {
@@ -1180,6 +1254,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block robot deletion for archived repos to prevent modifying archived configuration. qnp1mtxhzikhbi0xspbc
       // Permit robot deletion even when webhooks are not configured yet. 58w1q3n5nr58flmempxe
 
       const existing = await this.repoRobotService.getById(robotId);
@@ -1240,6 +1315,7 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: AutomationConfigResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async updateAutomation(@Param('id') id: string, @Body() body: UpdateAutomationDto) {
@@ -1247,6 +1323,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block automation updates for archived repos (automation is view-only in Archive). qnp1mtxhzikhbi0xspbc
       // Allow editing automation rules before webhooks are enabled so users can pre-configure triggers. 58w1q3n5nr58flmempxe
 
       const config = body?.config;

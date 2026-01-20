@@ -36,10 +36,12 @@ import type {
   UserRepoProviderCredentialProfilePublic
 } from '../api';
 import {
+  archiveRepo,
   createRepoRobot,
   deleteRepoRobot,
   fetchMyModelCredentials,
   fetchRepo,
+  unarchiveRepo,
   testRepoRobot,
   updateRepo,
   updateRepoAutomation,
@@ -201,6 +203,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
   const [basicSaving, setBasicSaving] = useState(false);
   const [credentialsSaving, setCredentialsSaving] = useState(false);
+  const [repoArchiving, setRepoArchiving] = useState(false);
+  const [repoUnarchiving, setRepoUnarchiving] = useState(false);
+
+  const repoArchived = Boolean(repo?.archivedAt); // Disable edits when repo is archived (archive area is read-only). qnp1mtxhzikhbi0xspbc
 
   const [repoProviderProfilesPage, setRepoProviderProfilesPage] = useState(1);
   const [modelProviderProfilesPage, setModelProviderProfilesPage] = useState<Record<ModelProviderKey, number>>({
@@ -347,7 +353,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   }, [webhookSecret]);
 
   const handleSaveBasic = useCallback(async () => {
-    if (!repoId || basicSaving) return;
+    if (!repoId || basicSaving || repoArchived) return;
     const values = await basicForm.validateFields();
     setBasicSaving(true);
     try {
@@ -365,7 +371,38 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     } finally {
       setBasicSaving(false);
     }
-  }, [basicForm, basicSaving, message, refresh, repo?.name, repoId, t]);
+  }, [basicForm, basicSaving, message, refresh, repo?.name, repoArchived, repoId, t]);
+
+  // Archive/unarchive controls live in the repo basic panel to keep the Archive area discoverable. qnp1mtxhzikhbi0xspbc
+  const handleArchiveRepo = useCallback(async () => {
+    if (!repoId || repoArchiving) return;
+    setRepoArchiving(true);
+    try {
+      await archiveRepo(repoId);
+      message.success(t('toast.repos.archiveSuccess'));
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.repos.archiveFailed'));
+    } finally {
+      setRepoArchiving(false);
+    }
+  }, [message, refresh, repoArchiving, repoId, t]);
+
+  const handleUnarchiveRepo = useCallback(async () => {
+    if (!repoId || repoUnarchiving) return;
+    setRepoUnarchiving(true);
+    try {
+      await unarchiveRepo(repoId);
+      message.success(t('toast.repos.unarchiveSuccess'));
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.repos.unarchiveFailed'));
+    } finally {
+      setRepoUnarchiving(false);
+    }
+  }, [message, refresh, repoId, repoUnarchiving, t]);
 
   const patchRepoScopedCredentials = useCallback(
     async (patch: Parameters<typeof updateRepo>[1]) => {
@@ -790,12 +827,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   );
 
   const openCreateRobot = useCallback(() => {
+    // Block robot creation for archived repos in the UI (backend enforces this too). qnp1mtxhzikhbi0xspbc
+    if (repoArchived) return;
     setEditingRobot(null);
     setRobotChangingToken(false);
     setRobotChangingModelApiKey(false);
     setRobotModalOpen(true);
     robotForm.setFieldsValue(buildRobotInitialValues(null));
-  }, [buildRobotInitialValues, robotForm]);
+  }, [buildRobotInitialValues, repoArchived, robotForm]);
 
   const openEditRobot = useCallback(
     (robot: RepoRobot) => {
@@ -810,7 +849,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
   const handleSubmitRobot = useCallback(
     async (values: RobotFormValues) => {
-      if (!repo) return;
+      if (!repo || repoArchived) return; // Block robot mutations when repo is archived (view-only). qnp1mtxhzikhbi0xspbc
       // Allow configuring robots without requiring webhook verification (webhooks are optional). 58w1q3n5nr58flmempxe
 
       setRobotSubmitting(true);
@@ -1001,6 +1040,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       editingRobot,
       message,
       repo,
+      repoArchived,
       repoScopedCredentials,
       robotChangingModelApiKey,
       robotChangingToken,
@@ -1011,7 +1051,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
   const handleTestRobot = useCallback(
     async (robot: RepoRobot) => {
-      if (!repo) return;
+      if (!repo || repoArchived) return; // Block robot activation tests for archived repos (view-only). qnp1mtxhzikhbi0xspbc
       // Allow robot activation tests even when webhooks are not configured yet. 58w1q3n5nr58flmempxe
       setRobotTestingId(robot.id);
       try {
@@ -1029,12 +1069,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         setRobotTestingId(null);
       }
     },
-    [message, repo, t]
+    [message, repo, repoArchived, t]
   );
 
   const handleToggleRobotEnabled = useCallback(
     async (robot: RepoRobot) => {
-      if (!repo) return;
+      if (!repo || repoArchived) return; // Block enable/disable mutations for archived repos (view-only). qnp1mtxhzikhbi0xspbc
       // Allow enabling/disabling robots without requiring webhook verification. 58w1q3n5nr58flmempxe
       setRobotTogglingId(robot.id);
       try {
@@ -1048,12 +1088,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         setRobotTogglingId(null);
       }
     },
-    [message, repo, t]
+    [message, repo, repoArchived, t]
   );
 
   const handleDeleteRobot = useCallback(
     async (robot: RepoRobot) => {
-      if (!repo) return;
+      if (!repo || repoArchived) return; // Block robot deletion for archived repos (view-only). qnp1mtxhzikhbi0xspbc
       // Allow deleting robots without requiring webhook verification. 58w1q3n5nr58flmempxe
 
       setRobotDeletingId(robot.id);
@@ -1078,7 +1118,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         setRobotDeletingId(null);
       }
     },
-    [message, repo, t]
+    [message, repo, repoArchived, t]
   );
 
   // Provide section-based navigation for the repo detail dashboard without using tab switching. u55e45ffi8jng44erdzp
@@ -1180,7 +1220,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
 	        <div className="hc-page__body">
           {repo ? (
-            onboardingOpen ? (
+            // Skip onboarding wizard for archived repositories to keep archived repos strictly read-only. qnp1mtxhzikhbi0xspbc
+            onboardingOpen && !repoArchived ? (
               <RepoOnboardingWizard
                 repo={repo}
                 robots={robotsSorted}
@@ -1213,7 +1254,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                     label: t('repos.detail.tabs.basic'),
                     children: (
                       <Card size="small" title={t('repos.detail.basicTitle')} className="hc-card">
-                        <Form form={basicForm} layout="vertical" requiredMark={false}>
+                        {repoArchived ? (
+                          <Alert
+                            type="warning"
+                            showIcon
+                            message={t('repos.archive.banner')}
+                            style={{ marginBottom: 12 }}
+                          />
+                        ) : null}
+                        <Form form={basicForm} layout="vertical" requiredMark={false} disabled={repoArchived}>
                           <Form.Item label={t('common.name')} name="name" rules={[{ required: true, message: t('repos.form.nameRequired') }]}>
                             <Input />
                           </Form.Item>
@@ -1232,16 +1281,43 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                             {t('repos.detail.openedFromTask', { taskId: fromTaskId })}
                           </Typography.Paragraph>
                         ) : null}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-                          <Button
-                            type="primary"
-                            icon={<SaveOutlined />}
-                            onClick={() => void handleSaveBasic()}
-                            loading={basicSaving}
-                            disabled={loading}
-                          >
-                            {t('common.save')}
-                          </Button>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
+                          {repoArchived ? (
+                            <Popconfirm
+                              title={t('repos.unarchive.confirmTitle')}
+                              description={t('repos.unarchive.confirmDesc')}
+                              okText={t('common.restore')}
+                              cancelText={t('common.cancel')}
+                              onConfirm={() => void handleUnarchiveRepo()}
+                            >
+                              <Button type="primary" loading={repoUnarchiving} disabled={loading}>
+                                {t('common.restore')}
+                              </Button>
+                            </Popconfirm>
+                          ) : (
+                            <>
+                              <Popconfirm
+                                title={t('repos.archive.confirmTitle')}
+                                description={t('repos.archive.confirmDesc')}
+                                okText={t('repos.detail.archive')}
+                                cancelText={t('common.cancel')}
+                                onConfirm={() => void handleArchiveRepo()}
+                              >
+                                <Button danger loading={repoArchiving} disabled={loading}>
+                                  {t('repos.detail.archive')}
+                                </Button>
+                              </Popconfirm>
+                              <Button
+                                type="primary"
+                                icon={<SaveOutlined />}
+                                onClick={() => void handleSaveBasic()}
+                                loading={basicSaving}
+                                disabled={loading}
+                              >
+                                {t('common.save')}
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </Card>
                     )
@@ -1249,7 +1325,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                   {
                     key: 'branches',
                     label: t('repos.detail.tabs.branches'),
-                    children: <RepoBranchesCard repo={repo} onSaved={(next) => setRepo(next)} readOnly={false} />
+                    children: (
+                      // Render branches as read-only when the repository is archived. qnp1mtxhzikhbi0xspbc
+                      <RepoBranchesCard repo={repo} onSaved={(next) => setRepo(next)} readOnly={repoArchived} />
+                    )
                   },
                   {
                     key: 'credentials',
@@ -1269,7 +1348,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                               }
                               className="hc-card"
                               extra={
-                                <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving}>
+                                // Disable credential mutations for archived repos (archive is view-only). qnp1mtxhzikhbi0xspbc
+                                <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving || repoArchived}>
                                   {t('panel.credentials.profile.add')}
                                 </Button>
                               }
@@ -1287,7 +1367,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                       onChange={(value) => void setRepoProviderDefault(value ? String(value) : null)}
                                       options={(repoScopedCredentials?.repoProvider?.profiles ?? []).map((p) => ({ value: p.id, label: p.remark || p.id }))}
                                       allowClear
-                                      disabled={credentialsSaving}
+                                      disabled={credentialsSaving || repoArchived}
                                     />
                                   </div>
                                 </div>
@@ -1320,10 +1400,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                               <Typography.Text type="secondary">{p.cloneUsername || '-'}</Typography.Text>
                                             </Space>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                              <Button size="small" onClick={() => startEditRepoProviderProfile(p)} disabled={credentialsSaving}>
+                                              <Button size="small" onClick={() => startEditRepoProviderProfile(p)} disabled={credentialsSaving || repoArchived}>
                                                 {t('common.manage')}
                                               </Button>
-                                              <Button size="small" danger onClick={() => removeRepoProviderProfile(p.id)} disabled={credentialsSaving}>
+                                              <Button size="small" danger onClick={() => removeRepoProviderProfile(p.id)} disabled={credentialsSaving || repoArchived}>
                                                 {t('panel.credentials.profile.remove')}
                                               </Button>
                                             </div>
@@ -1378,7 +1458,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                       className="hc-inner-card"
                                       title={t(`repos.robotForm.modelProvider.${provider}` as any)}
                                       extra={
-                                        <Button size="small" onClick={() => startEditModelProfile(provider, null)} disabled={credentialsSaving}>
+                                        // Disable model credential mutations for archived repos (archive is view-only). qnp1mtxhzikhbi0xspbc
+                                        <Button size="small" onClick={() => startEditModelProfile(provider, null)} disabled={credentialsSaving || repoArchived}>
                                           {t('panel.credentials.profile.add')}
                                         </Button>
                                       }
@@ -1395,7 +1476,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                               onChange={(value) => void setModelProviderDefault(provider, value ? String(value) : null)}
                                               options={profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id }))}
                                               allowClear
-                                              disabled={credentialsSaving}
+                                              disabled={credentialsSaving || repoArchived}
                                             />
                                           </div>
                                         </div>
@@ -1427,14 +1508,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                                       <Typography.Text type="secondary">{p.apiBaseUrl || '-'}</Typography.Text>
                                                     </Space>
                                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                                      <Button size="small" onClick={() => startEditModelProfile(provider, p)} disabled={credentialsSaving}>
+                                                      <Button size="small" onClick={() => startEditModelProfile(provider, p)} disabled={credentialsSaving || repoArchived}>
                                                         {t('common.manage')}
                                                       </Button>
                                                       <Button
                                                         size="small"
                                                         danger
                                                         onClick={() => removeModelProviderProfile(provider, p.id)}
-                                                        disabled={credentialsSaving}
+                                                        disabled={credentialsSaving || repoArchived}
                                                       >
                                                         {t('panel.credentials.profile.remove')}
                                                       </Button>
@@ -1483,11 +1564,17 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                         title={t('repos.robots.title')}
                         className="hc-card"
                         extra={
-                          <Button icon={<PlusOutlined />} onClick={openCreateRobot}>
-                            {t('repos.robots.createRobot')}
-                          </Button>
+                          // Hide the create button for archived repositories to keep robot config immutable. qnp1mtxhzikhbi0xspbc
+                          repoArchived ? null : (
+                            <Button icon={<PlusOutlined />} onClick={openCreateRobot}>
+                              {t('repos.robots.createRobot')}
+                            </Button>
+                          )
                         }
                       >
+                        {repoArchived ? (
+                          <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} />
+                        ) : null}
                         {robotsSorted.length ? (
                           <ScrollableTable<RepoRobot>
                             // Paginate robots to avoid extremely tall tables that break the dashboard board density. u55e45ffi8jng44erdzp
@@ -1553,34 +1640,39 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                 width: 300,
                                 render: (_: any, r: RepoRobot) => (
                                   <Space size={8} wrap style={{ minWidth: 0 }}>
+                                    {/* Hide robot write actions for archived repositories (view-only). qnp1mtxhzikhbi0xspbc */}
                                     <Button size="small" onClick={() => openEditRobot(r)}>
-                                      {t('common.edit')}
+                                      {repoArchived ? t('common.view') : t('common.edit')}
                                     </Button>
-                                    <Button
-                                      size="small"
-                                      onClick={() => void handleTestRobot(r)}
-                                      loading={robotTestingId === r.id}
-                                    >
-                                      {t('repos.robots.test')}
-                                    </Button>
-                                    <Button
-                                      size="small"
-                                      onClick={() => void handleToggleRobotEnabled(r)}
-                                      loading={robotTogglingId === r.id}
-                                    >
-                                      {r.enabled ? t('repos.robots.disable') : t('repos.robots.enable')}
-                                    </Button>
-                                    <Popconfirm
-                                      title={t('repos.robots.deleteConfirmTitle')}
-                                      description={t('repos.robots.deleteConfirmDesc')}
-                                      okText={t('common.delete')}
-                                      cancelText={t('common.cancel')}
-                                      onConfirm={() => void handleDeleteRobot(r)}
-                                    >
-                                      <Button size="small" danger loading={robotDeletingId === r.id}>
-                                        {t('common.delete')}
-                                      </Button>
-                                    </Popconfirm>
+                                    {!repoArchived ? (
+                                      <>
+                                        <Button
+                                          size="small"
+                                          onClick={() => void handleTestRobot(r)}
+                                          loading={robotTestingId === r.id}
+                                        >
+                                          {t('repos.robots.test')}
+                                        </Button>
+                                        <Button
+                                          size="small"
+                                          onClick={() => void handleToggleRobotEnabled(r)}
+                                          loading={robotTogglingId === r.id}
+                                        >
+                                          {r.enabled ? t('repos.robots.disable') : t('repos.robots.enable')}
+                                        </Button>
+                                        <Popconfirm
+                                          title={t('repos.robots.deleteConfirmTitle')}
+                                          description={t('repos.robots.deleteConfirmDesc')}
+                                          okText={t('common.delete')}
+                                          cancelText={t('common.cancel')}
+                                          onConfirm={() => void handleDeleteRobot(r)}
+                                        >
+                                          <Button size="small" danger loading={robotDeletingId === r.id}>
+                                            {t('common.delete')}
+                                          </Button>
+                                        </Popconfirm>
+                                      </>
+                                    ) : null}
                                   </Space>
                                 )
                               }
@@ -1597,10 +1689,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                     label: t('repos.detail.tabs.automation'),
                     children: (
                       <Card size="small" title={t('repos.automation.title')} className="hc-card">
+                        {repoArchived ? (
+                          <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} />
+                        ) : null}
                         <RepoAutomationPanel
                           repo={repo}
                           robots={robotsSorted}
                           value={automationConfig ?? defaultAutomationConfig()}
+                          readOnly={repoArchived} // Propagate repo archive state so automation becomes view-only. qnp1mtxhzikhbi0xspbc
                           onChange={(next) => setAutomationConfig(next)}
                           onSave={async (next) => {
                             // Allow saving automation config even before webhook verification. 58w1q3n5nr58flmempxe
@@ -1917,16 +2013,17 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         }
         onCancel={() => setRobotModalOpen(false)}
         okText={t('common.save')}
-        cancelText={t('common.cancel')}
+        cancelText={repoArchived ? t('common.close') : t('common.cancel')}
         confirmLoading={robotSubmitting}
-        onOk={() => void robotForm.submit()}
+        onOk={repoArchived ? undefined : () => void robotForm.submit()} // Prevent robot mutations when repo is archived (view-only). qnp1mtxhzikhbi0xspbc
         drawerWidth="min(980px, 92vw)"
         >
+          {/* Disable the robot editor form when repo is archived to support view-only inspection. qnp1mtxhzikhbi0xspbc */}
           <Form<RobotFormValues>
             form={robotForm}
             layout="vertical"
             requiredMark={false}
-            disabled={robotSubmitting}
+            disabled={robotSubmitting || repoArchived}
             onFinish={(values) => void handleSubmitRobot(values)}
             initialValues={buildRobotInitialValues(editingRobot)}
           >

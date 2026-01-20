@@ -87,6 +87,10 @@ export interface Task {
   groupId?: string;
   eventType: TaskEventType;
   status: TaskStatus;
+  /**
+   * Archived tasks are excluded from the worker queue and default console lists. qnp1mtxhzikhbi0xspbc
+   */
+  archivedAt?: string;
   payload: unknown;
   /**
    * "Custom prompt snippet" used by this task (not rendered; supports `{{var}}` template variables).

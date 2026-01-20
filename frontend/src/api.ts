@@ -20,6 +20,8 @@ export const api = axios.create({
   baseURL: apiBaseUrl
 });
 
+export type ArchiveScope = 'active' | 'archived' | 'all'; // Keep archive filtering consistent with backend query params. qnp1mtxhzikhbi0xspbc
+
 export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
 export type TaskQueueReasonCode = 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
 
@@ -65,6 +67,8 @@ export interface Task {
   groupId?: string;
   eventType: TaskEventType;
   status: TaskStatus;
+  // Archived tasks are excluded from default lists and the worker queue. qnp1mtxhzikhbi0xspbc
+  archivedAt?: string;
   payload?: unknown;
   promptCustom?: string;
   title?: string;
@@ -110,6 +114,8 @@ export interface TaskGroup {
   issueId?: number;
   mrId?: number;
   commitSha?: string;
+  // Archived groups are excluded from default sidebar/chat lists. qnp1mtxhzikhbi0xspbc
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
   repo?: TaskRepoSummary;
@@ -121,6 +127,7 @@ export const fetchTaskGroups = async (options?: {
   repoId?: string;
   robotId?: string;
   kind?: TaskGroupKind;
+  archived?: ArchiveScope;
 }): Promise<TaskGroup[]> => {
   const { data } = await api.get<{ taskGroups: TaskGroup[] }>('/task-groups', { params: options });
   return data.taskGroups;
@@ -155,6 +162,7 @@ export const fetchTasks = async (options?: {
   robotId?: string;
   status?: TaskStatus | 'success';
   eventType?: string;
+  archived?: ArchiveScope;
 }): Promise<Task[]> => {
   const { data } = await api.get<{ tasks: Task[] }>('/tasks', { params: options });
   return data.tasks;
@@ -172,6 +180,7 @@ export const fetchTaskStats = async (options?: {
   repoId?: string;
   robotId?: string;
   eventType?: string;
+  archived?: ArchiveScope;
 }): Promise<TaskStatusStats> => {
   const { data } = await api.get<{ stats: TaskStatusStats }>('/tasks/stats', { params: options });
   return data.stats;
@@ -188,6 +197,7 @@ export const fetchTaskVolumeByDay = async (options: {
   endDay: string;
   robotId?: string;
   eventType?: string;
+  archived?: ArchiveScope;
 }): Promise<TaskVolumePoint[]> => {
   // Fetch per-day task volume for the repo dashboard trend chart (UTC buckets). dashtrendline20260119m9v2
   const { data } = await api.get<{ points: TaskVolumePoint[] }>('/tasks/volume', { params: options });
@@ -430,6 +440,8 @@ export interface Repository {
   externalId?: string;
   apiBaseUrl?: string;
   webhookVerifiedAt?: string;
+  // Archived repositories are hidden from default lists and block new automation/tasks. qnp1mtxhzikhbi0xspbc
+  archivedAt?: string;
   branches?: RepositoryBranch[];
   enabled: boolean;
   createdAt: string;
@@ -603,9 +615,27 @@ export interface RepoWebhookDeliveryDetail extends RepoWebhookDeliverySummary {
   response?: unknown;
 }
 
-export const listRepos = async (): Promise<Repository[]> => {
-  const { data } = await api.get<{ repos: Repository[] }>('/repos');
+export const listRepos = async (options?: { archived?: ArchiveScope }): Promise<Repository[]> => {
+  const { data } = await api.get<{ repos: Repository[] }>('/repos', { params: options });
   return data.repos;
+};
+
+export const archiveRepo = async (
+  repoId: string
+): Promise<{ repo: Repository; tasksArchived: number; taskGroupsArchived: number }> => {
+  const { data } = await api.post<{ repo: Repository; tasksArchived: number; taskGroupsArchived: number }>(
+    `/repos/${repoId}/archive`
+  );
+  return data;
+};
+
+export const unarchiveRepo = async (
+  repoId: string
+): Promise<{ repo: Repository; tasksRestored: number; taskGroupsRestored: number }> => {
+  const { data } = await api.post<{ repo: Repository; tasksRestored: number; taskGroupsRestored: number }>(
+    `/repos/${repoId}/unarchive`
+  );
+  return data;
 };
 
 export const listRepoRobots = async (repoId: string): Promise<RepoRobot[]> => {
