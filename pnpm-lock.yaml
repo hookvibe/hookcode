@@ -126,6 +126,9 @@ importers:
       axios:
         specifier: ^1.7.9
         version: 1.13.2
+      diff:
+        specifier: ^8.0.2
+        version: 8.0.3
       echarts:
         specifier: ^5.5.0
         version: 5.6.0
@@ -3587,6 +3590,10 @@ packages:
 
   diff@7.0.0:
     resolution: {integrity: sha512-PJWHUb1RFevKCwaFA9RlG5tCd+FO5iRh9A8HEtkmBH2Li03iJriB6m6JIN4rGz3K3JLawI7/veA1xzRKP6ISBw==}
+    engines: {node: '>=0.3.1'}
+
+  diff@8.0.3:
+    resolution: {integrity: sha512-qejHi7bcSD4hQAZE0tNAawRK1ZtafHDmMTMkrrIGgSLl7hTnQHmKCeB45xAcbfTqK2zowkM3j3bHt/4b/ARbYQ==}
     engines: {node: '>=0.3.1'}
 
   dom-accessibility-api@0.5.16:
@@ -11067,6 +11074,8 @@ snapshots:
   diff@4.0.2: {}
 
   diff@7.0.0: {}
+
+  diff@8.0.3: {}
 
   dom-accessibility-api@0.5.16: {}
 

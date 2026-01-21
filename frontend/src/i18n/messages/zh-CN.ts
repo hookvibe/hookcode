@@ -741,6 +741,28 @@ export const zhCN = {
   'chat.think.expand': '展开思维链',
   'chat.think.collapse': '收起思维链',
 
+  // Add i18n strings for the structured execution viewer replacing raw task logs. yjlphd6rbkrq521ny796
+  // --- Execution viewer ---
+  'execViewer.title': '执行',
+  'execViewer.actions.showRaw': '原始',
+  'execViewer.actions.showTimeline': '结构化',
+  'execViewer.toggles.reasoning': '显示推理',
+  'execViewer.toggles.wrapDiff': 'Diff 自动换行',
+  'execViewer.toggles.lineNumbers': '显示行号',
+  'execViewer.empty.timeline': '暂无可解析事件',
+  'execViewer.item.command': '命令',
+  'execViewer.item.files': '文件变更',
+  'execViewer.item.message': '输出',
+  'execViewer.item.reasoning': '推理',
+  'execViewer.item.unknown': '未知事件',
+  'execViewer.files.count': '{{count}} 个文件',
+  'execViewer.files.empty': '暂无文件变更',
+  'execViewer.diff.pending': '暂无可用 diff（等待抓取或本次执行未产生 diff）',
+  'execViewer.status.running': '运行中',
+  'execViewer.status.completed': '完成',
+  'execViewer.status.failed': '失败',
+  'execViewer.exitCode': '退出码 {{code}}',
+
   // --- Log viewer ---
   'logViewer.title': '日志',
   'logViewer.state.connecting': '连接中',

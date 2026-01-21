@@ -1640,6 +1640,167 @@ button.hc-tasks-status-tile--active {
 }
 
 /* =============================================================================
+ * Execution viewer (structured logs + diffs) yjlphd6rbkrq521ny796
+ * ========================================================================== */
+
+:root {
+  --hc-diff-added-bg: rgba(34, 197, 94, 0.12);
+  --hc-diff-removed-bg: rgba(239, 68, 68, 0.12);
+  --hc-diff-inline-added-bg: rgba(34, 197, 94, 0.22);
+  --hc-diff-inline-removed-bg: rgba(239, 68, 68, 0.22);
+}
+
+html[data-theme='dark'] {
+  --hc-diff-added-bg: rgba(34, 197, 94, 0.16);
+  --hc-diff-removed-bg: rgba(239, 68, 68, 0.16);
+  --hc-diff-inline-added-bg: rgba(34, 197, 94, 0.26);
+  --hc-diff-inline-removed-bg: rgba(239, 68, 68, 0.26);
+}
+
+.hc-exec-empty {
+  padding: 14px 0;
+  text-align: center;
+}
+
+.hc-exec-item {
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.hc-exec-code,
+.hc-exec-output {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  overflow: auto;
+}
+
+.hc-exec-output {
+  margin-top: 10px;
+  max-height: 240px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hc-exec-output--mono {
+  white-space: pre;
+  word-break: normal;
+}
+
+.hc-exec-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-exec-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-hover) 70%, transparent);
+}
+
+.hc-exec-file__path {
+  min-width: 0;
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.hc-exec-diff__file {
+  min-width: 0;
+  max-width: 52vw;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.hc-diff {
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-hover);
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.hc-diff__hunk-header {
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--hc-hover));
+  border-bottom: 1px solid var(--hc-border);
+  font-weight: 700;
+}
+
+.hc-diff__line {
+  display: flex;
+  gap: 10px;
+  padding: 0 12px;
+}
+
+.hc-diff--wrap .hc-diff__line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hc-diff--nowrap .hc-diff__line {
+  white-space: pre;
+}
+
+.hc-diff__line--add {
+  background: var(--hc-diff-added-bg);
+}
+
+.hc-diff__line--remove {
+  background: var(--hc-diff-removed-bg);
+}
+
+.hc-diff__ln {
+  width: 48px;
+  flex: none;
+  text-align: right;
+  color: var(--muted);
+  user-select: none;
+}
+
+.hc-diff__pm {
+  width: 16px;
+  flex: none;
+  color: var(--muted);
+  user-select: none;
+}
+
+.hc-diff__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.hc-diff__leading {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.hc-diff__inline-added {
+  background: var(--hc-diff-inline-added-bg);
+  border-radius: 4px;
+  padding: 0 1px;
+}
+
+.hc-diff__inline-removed {
+  background: var(--hc-diff-inline-removed-bg);
+  border-radius: 4px;
+  padding: 0 1px;
+}
+
+/* =============================================================================
  * Markdown output
  * ========================================================================== */
 

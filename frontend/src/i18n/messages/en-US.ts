@@ -735,6 +735,28 @@ export const enUS: Record<MessageKey, string> = {
   'chat.think.expand': 'Expand thought chain',
   'chat.think.collapse': 'Collapse thought chain',
 
+  // Add i18n strings for the structured execution viewer replacing raw task logs. yjlphd6rbkrq521ny796
+  // --- Execution viewer ---
+  'execViewer.title': 'Execution',
+  'execViewer.actions.showRaw': 'Raw',
+  'execViewer.actions.showTimeline': 'Timeline',
+  'execViewer.toggles.reasoning': 'Show reasoning',
+  'execViewer.toggles.wrapDiff': 'Wrap diff',
+  'execViewer.toggles.lineNumbers': 'Line numbers',
+  'execViewer.empty.timeline': 'No structured events yet',
+  'execViewer.item.command': 'Command',
+  'execViewer.item.files': 'File changes',
+  'execViewer.item.message': 'Output',
+  'execViewer.item.reasoning': 'Reasoning',
+  'execViewer.item.unknown': 'Unknown event',
+  'execViewer.files.count': '{{count}} files',
+  'execViewer.files.empty': 'No file changes',
+  'execViewer.diff.pending': 'No diff available yet',
+  'execViewer.status.running': 'Running',
+  'execViewer.status.completed': 'Completed',
+  'execViewer.status.failed': 'Failed',
+  'execViewer.exitCode': 'Exit {{code}}',
+
   // --- Log viewer ---
   'logViewer.title': 'Logs',
   'logViewer.state.connecting': 'Connecting',

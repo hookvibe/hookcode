@@ -1,4 +1,5 @@
 import { readFile, writeFile } from 'fs/promises';
+import { spawn } from 'child_process';
 import path from 'path';
 import type {
   ThreadEvent as CodexSdkThreadEvent,
@@ -62,6 +63,117 @@ const asString = (value: unknown): string => (typeof value === 'string' ? value 
 
 const asBoolean = (value: unknown, fallback: boolean): boolean =>
   typeof value === 'boolean' ? value : fallback;
+
+type CodexFileChangeKind = 'create' | 'update' | 'delete' | (string & {});
+
+type HookcodeFileDiffEvent = {
+  type: 'hookcode.file.diff';
+  item_id: string;
+  path: string;
+  kind?: CodexFileChangeKind;
+  unified_diff: string;
+  old_text?: string;
+  new_text?: string;
+};
+
+const MAX_CODEX_DIFF_CHARS = 200_000;
+const MAX_CODEX_SNAPSHOT_CHARS = 200_000;
+
+const normalizeRepoRelativePath = (params: { repoDir: string; rawPath: string }): string | null => {
+  const raw = String(params.rawPath ?? '').trim();
+  if (!raw) return null;
+  const rel = path.isAbsolute(raw) ? path.relative(params.repoDir, raw) : raw;
+  const normalized = rel.replace(/\\/g, '/').replace(/^\.\/+/, '');
+  if (!normalized) return null;
+  if (normalized.startsWith('..')) return null;
+  return normalized;
+};
+
+const runGit = async (
+  repoDir: string,
+  args: string[],
+  options?: { maxStdoutChars?: number }
+): Promise<{ ok: boolean; stdout: string }> => {
+  // Capture git output for diff artifacts without blocking the main provider loop. yjlphd6rbkrq521ny796
+  const maxStdoutChars = typeof options?.maxStdoutChars === 'number' && options.maxStdoutChars > 0 ? options.maxStdoutChars : 0;
+
+  return await new Promise((resolve) => {
+    const child = spawn('git', args, {
+      cwd: repoDir,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    child.stdout.on('data', (chunk: Buffer) => {
+      if (maxStdoutChars > 0 && stdout.length >= maxStdoutChars) return;
+      stdout += chunk.toString('utf8');
+      if (maxStdoutChars > 0 && stdout.length > maxStdoutChars) stdout = stdout.slice(0, maxStdoutChars);
+    });
+
+    // Avoid leaking git errors into logs; diff capture is best-effort. yjlphd6rbkrq521ny796
+    child.on('close', (code) => resolve({ ok: code === 0, stdout }));
+    child.on('error', () => resolve({ ok: false, stdout }));
+  });
+};
+
+const safeReadUtf8 = async (absPath: string): Promise<string | null> => {
+  try {
+    const text = await readFile(absPath, 'utf8');
+    return text;
+  } catch {
+    return null;
+  }
+};
+
+const sliceMax = (value: string | null, maxChars: number): string | undefined => {
+  if (!value) return undefined;
+  if (value.length <= maxChars) return value;
+  return value.slice(0, maxChars);
+};
+
+const captureCodexFileDiffEvents = async (params: {
+  repoDir: string;
+  itemId: string;
+  changes: Array<{ path: string; kind?: CodexFileChangeKind }>;
+  __internal?: {
+    runGit?: typeof runGit;
+    readFileUtf8?: typeof safeReadUtf8;
+  };
+}): Promise<HookcodeFileDiffEvent[]> => {
+  const runGitImpl = params.__internal?.runGit ?? runGit;
+  const readFileImpl = params.__internal?.readFileUtf8 ?? safeReadUtf8;
+
+  const events: HookcodeFileDiffEvent[] = [];
+
+  for (const change of params.changes) {
+    const relPath = normalizeRepoRelativePath({ repoDir: params.repoDir, rawPath: change.path });
+    if (!relPath) continue;
+
+    const unifiedRes = await runGitImpl(params.repoDir, ['diff', '--no-color', '--unified=3', '--', relPath], {
+      maxStdoutChars: MAX_CODEX_DIFF_CHARS
+    });
+    const unified = unifiedRes.stdout.trimEnd();
+    if (!unified) continue;
+
+    // Use snapshots (HEAD vs working tree) for richer diff rendering on the frontend. yjlphd6rbkrq521ny796
+    const oldRes = await runGitImpl(params.repoDir, ['show', `HEAD:${relPath}`], { maxStdoutChars: MAX_CODEX_SNAPSHOT_CHARS });
+    const oldText = oldRes.ok ? oldRes.stdout : null;
+    const newAbs = path.join(params.repoDir, relPath);
+    const newText = await readFileImpl(newAbs);
+
+    events.push({
+      type: 'hookcode.file.diff',
+      item_id: params.itemId,
+      path: relPath,
+      kind: change.kind,
+      unified_diff: unified,
+      old_text: sliceMax(oldText, MAX_CODEX_SNAPSHOT_CHARS),
+      new_text: sliceMax(newText, MAX_CODEX_SNAPSHOT_CHARS)
+    });
+  }
+
+  return events;
+};
 
 const normalizeCredentialProfileId = (value: unknown): string | undefined => {
   const raw = asString(value).trim();
@@ -238,6 +350,9 @@ export const runCodexExecWithSdk = async (params: {
   logLine?: (line: string) => Promise<void>;
   __internal?: {
     importCodexSdk?: () => Promise<CodexSdkModule>;
+    captureCodexFileDiffEvents?: typeof captureCodexFileDiffEvents;
+    runGit?: typeof runGit;
+    readFileUtf8?: typeof safeReadUtf8;
   };
 }): Promise<{ threadId: string | null; finalResponse: string }> => {
   const { Codex } = await (params.__internal?.importCodexSdk ? params.__internal.importCodexSdk() : importCodexSdk());
@@ -273,6 +388,7 @@ export const runCodexExecWithSdk = async (params: {
   let finalResponse = '';
   let turnFailedMessage = '';
   let streamErrorMessage = '';
+  const sideTasks: Promise<void>[] = [];
 
   // Change record: use shared async logger to avoid blocking provider execution on DB/log persistence.
   const logger = createAsyncLineLogger({ logLine: params.logLine, redact: params.redact, maxQueueSize: 500 });
@@ -304,9 +420,58 @@ export const runCodexExecWithSdk = async (params: {
           event.type === 'turn.failed' ||
           event.type === 'error'
       });
+
+      if ((event.type === 'item.updated' || event.type === 'item.completed') && event.item?.type === 'file_change') {
+        const itemId = asString(event.item?.id).trim();
+        const changesRaw = Array.isArray(event.item?.changes) ? event.item?.changes : [];
+        if (itemId && changesRaw.length > 0) {
+          const changes = changesRaw
+            .map((entry: unknown) => {
+              if (!isRecord(entry)) return null;
+              const changePath = asString(entry.path).trim();
+              if (!changePath) return null;
+              const kind = asString(entry.kind).trim() as CodexFileChangeKind;
+              return { path: changePath, kind: kind || undefined };
+            })
+            .filter((v): v is { path: string; kind: CodexFileChangeKind | undefined } => Boolean(v));
+
+          if (changes.length) {
+            const capture =
+              params.__internal?.captureCodexFileDiffEvents ??
+              ((p: Parameters<typeof captureCodexFileDiffEvents>[0]) =>
+                captureCodexFileDiffEvents({
+                  ...p,
+                  __internal: { runGit: params.__internal?.runGit, readFileUtf8: params.__internal?.readFileUtf8 }
+                }));
+
+            // Capture diffs asynchronously so we do not slow down Codex streamed execution. yjlphd6rbkrq521ny796
+            sideTasks.push(
+              capture({ repoDir: params.repoDir, itemId, changes })
+                .then((diffEvents) => {
+                  for (const diffEvent of diffEvents) {
+                    logger.enqueue(JSON.stringify(diffEvent), { important: true });
+                  }
+                })
+                .catch((err: unknown) => {
+                  if (process.env.NODE_ENV !== 'test') {
+                    console.warn('[codex] capture file diffs failed (ignored)', { error: err });
+                  }
+                })
+            );
+          }
+        }
+      }
+
       if (turnFailedMessage || streamErrorMessage) break;
     }
   } finally {
+    // Best-effort: wait for background diff capture tasks before flushing logs. yjlphd6rbkrq521ny796
+    if (sideTasks.length > 0) {
+      await Promise.race([
+        Promise.allSettled(sideTasks).then(() => undefined),
+        new Promise<void>((resolve) => setTimeout(resolve, 1500))
+      ]);
+    }
     await logger.flushBestEffort(250);
   }
 

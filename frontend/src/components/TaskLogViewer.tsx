@@ -1,9 +1,11 @@
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Space, Tag, Typography, message } from 'antd';
+import { FC, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { Alert, Button, Space, Switch, Tag, Tooltip, Typography, message } from 'antd';
 import { CopyOutlined, DeleteOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { clearTaskLogs } from '../api';
 import { useT } from '../i18n';
 import { createAuthedEventSource } from '../utils/sse';
+import { ExecutionTimeline } from './execution/ExecutionTimeline';
+import { applyExecutionLogLine, buildExecutionTimeline, createEmptyTimeline, type ExecutionTimelineState } from '../utils/executionLog';
 
 /**
  * Live task log viewer (SSE/EventSource).
@@ -60,6 +62,20 @@ interface Props {
 
 const MAX_LINES = 2000;
 
+type ViewerMode = 'timeline' | 'raw';
+
+type TimelineAction =
+  | { type: 'reset'; lines: string[] }
+  | { type: 'append'; line: string }
+  | { type: 'clear' };
+
+const timelineReducer = (state: ExecutionTimelineState, action: TimelineAction): ExecutionTimelineState => {
+  if (action.type === 'reset') return buildExecutionTimeline(action.lines);
+  if (action.type === 'append') return applyExecutionLogLine(state, action.line);
+  if (action.type === 'clear') return createEmptyTimeline();
+  return state;
+};
+
 export const TaskLogViewer: FC<Props> = ({
   taskId,
   height = 320,
@@ -82,6 +98,7 @@ export const TaskLogViewer: FC<Props> = ({
   const showReconnectButton = controls?.reconnect !== false;
 
   const [logs, setLogs] = useState<string[]>([]);
+  const [mode, setMode] = useState<ViewerMode>('timeline'); // Prefer structured JSONL rendering (fallback to raw logs). yjlphd6rbkrq521ny796
   const [connecting, setConnecting] = useState(true);
   const [pausedInternal, setPausedInternal] = useState(false);
   const paused = pausedProp ?? pausedInternal;
@@ -89,6 +106,10 @@ export const TaskLogViewer: FC<Props> = ({
   const [autoScroll, setAutoScroll] = useState(true);
   const [session, setSession] = useState(0);
   const [clearing, setClearing] = useState(false);
+  const [showReasoning, setShowReasoning] = useState(false);
+  const [wrapDiffLines, setWrapDiffLines] = useState(true);
+  const [showLineNumbers, setShowLineNumbers] = useState(true);
+  const [timeline, dispatchTimeline] = useReducer(timelineReducer, undefined, () => createEmptyTimeline());
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -106,7 +127,7 @@ export const TaskLogViewer: FC<Props> = ({
   );
 
   const lines = useMemo(() => logs.join('\n'), [logs]);
-  const buildLineId = useCallback((idx: number) => `task-log-${taskId}-${idx}`, [taskId]);
+  const buildLineId = useCallback((idx: number) => `task-log-${taskId}-${idx}`, [taskId]); // Keep stable ids for raw log mode. yjlphd6rbkrq521ny796
 
   const copyAll = useCallback(async () => {
     try {
@@ -127,6 +148,7 @@ export const TaskLogViewer: FC<Props> = ({
     try {
       await clearTaskLogs(taskId);
       setLogs([]);
+      dispatchTimeline({ type: 'clear' });
       setSession((v) => v + 1);
       messageApi.success(t('logViewer.clearSuccess'));
     } catch {
@@ -150,6 +172,8 @@ export const TaskLogViewer: FC<Props> = ({
   }, [logs.length, autoScroll]);
 
   useEffect(() => {
+    // Focus helpers remain raw-log only; the structured timeline does not have per-line anchors. yjlphd6rbkrq521ny796
+    if (mode !== 'raw') return;
     if (!focusText || focusKey === undefined || focusKey === null) return;
     if (focusedKeyRef.current === focusKey) return;
 
@@ -179,7 +203,7 @@ export const TaskLogViewer: FC<Props> = ({
         el.scrollIntoView();
       }
     });
-  }, [buildLineId, focusKey, focusText, logs]);
+  }, [buildLineId, focusKey, focusText, logs, mode]);
 
   useEffect(() => {
     if (!taskId) return;
@@ -188,6 +212,7 @@ export const TaskLogViewer: FC<Props> = ({
     let eventSource: EventSource | null = null;
 
     setLogs([]);
+    dispatchTimeline({ type: 'clear' });
     setConnecting(true);
     setError(null);
 
@@ -211,7 +236,9 @@ export const TaskLogViewer: FC<Props> = ({
         try {
           const payload = JSON.parse((ev as MessageEvent).data) as StreamInitPayload;
           const next = Array.isArray(payload.logs) ? payload.logs.filter((v) => typeof v === 'string') : [];
-          setLogs(next.slice(-MAX_LINES));
+          const sliced = next.slice(-MAX_LINES);
+          setLogs(sliced);
+          dispatchTimeline({ type: 'reset', lines: sliced });
         } catch (err) {
           console.warn('[log] init parse failed', err);
         }
@@ -224,6 +251,7 @@ export const TaskLogViewer: FC<Props> = ({
           const payload = JSON.parse((ev as MessageEvent).data) as StreamLogPayload;
           if (!payload?.line) return;
           setLogs((prev) => [...prev, payload.line].slice(-MAX_LINES));
+          dispatchTimeline({ type: 'append', line: payload.line });
         } catch (err) {
           console.warn('[log] parse failed', err);
         }
@@ -244,7 +272,7 @@ export const TaskLogViewer: FC<Props> = ({
       {messageContextHolder}
       <div className="log-viewer__header">
         <Space size={8} wrap>
-          <Typography.Text className="log-viewer__title">{t('logViewer.title')}</Typography.Text>
+          <Typography.Text className="log-viewer__title">{t('execViewer.title')}</Typography.Text>
           <Tag color={connecting ? 'processing' : error ? 'red' : 'green'} style={{ marginRight: 0 }}>
             {connecting ? t('logViewer.state.connecting') : error ? t('logViewer.state.error') : t('logViewer.state.live')}
           </Tag>
@@ -264,6 +292,22 @@ export const TaskLogViewer: FC<Props> = ({
             <Button size="small" icon={<ReloadOutlined />} onClick={() => setSession((v) => v + 1)}>
               {t('logViewer.actions.reconnect')}
             </Button>
+          ) : null}
+          <Button size="small" onClick={() => setMode((v) => (v === 'timeline' ? 'raw' : 'timeline'))}>
+            {mode === 'timeline' ? t('execViewer.actions.showRaw') : t('execViewer.actions.showTimeline')}
+          </Button>
+          {mode === 'timeline' ? (
+            <>
+              <Tooltip title={t('execViewer.toggles.reasoning')}>
+                <Switch size="small" checked={showReasoning} onChange={setShowReasoning} />
+              </Tooltip>
+              <Tooltip title={t('execViewer.toggles.wrapDiff')}>
+                <Switch size="small" checked={wrapDiffLines} onChange={setWrapDiffLines} />
+              </Tooltip>
+              <Tooltip title={t('execViewer.toggles.lineNumbers')}>
+                <Switch size="small" checked={showLineNumbers} onChange={setShowLineNumbers} />
+              </Tooltip>
+            </>
           ) : null}
           <Button size="small" icon={<CopyOutlined />} onClick={() => void copyAll()}>
             {t('logViewer.actions.copy')}
@@ -285,18 +329,22 @@ export const TaskLogViewer: FC<Props> = ({
       ) : null}
 
       <div className="log-viewer__body" style={{ height }} onScroll={onScroll} ref={boxRef}>
-        {logs.length ? (
-          <pre className="log-viewer__pre">
-            {logs.map((line, idx) => (
-              <div key={idx} id={buildLineId(idx)}>
-                {line}
-              </div>
-            ))}
-          </pre>
+        {mode === 'raw' ? (
+          logs.length ? (
+            <pre className="log-viewer__pre">
+              {logs.map((line, idx) => (
+                <div key={idx} id={buildLineId(idx)}>
+                  {line}
+                </div>
+              ))}
+            </pre>
+          ) : (
+            <div className="log-viewer__empty">
+              <Typography.Text type="secondary">{t('logViewer.empty')}</Typography.Text>
+            </div>
+          )
         ) : (
-          <div className="log-viewer__empty">
-            <Typography.Text type="secondary">{t('logViewer.empty')}</Typography.Text>
-          </div>
+          <ExecutionTimeline items={timeline.items} showReasoning={showReasoning} wrapDiffLines={wrapDiffLines} showLineNumbers={showLineNumbers} />
         )}
       </div>
     </div>
