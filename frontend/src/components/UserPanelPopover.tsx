@@ -34,12 +34,14 @@ import {
   fetchAdminToolsMeta,
   fetchMe,
   fetchMyModelCredentials,
+  listMyModelProviderModels,
   updateMe,
   updateMyModelCredentials,
   type UserModelCredentialsPublic,
   type UserModelProviderCredentialProfilePublic,
   type UserRepoProviderCredentialProfilePublic
 } from '../api';
+import { ModelProviderModelsButton } from './ModelProviderModelsButton';
 import { clearAuth, getStoredUser, getToken, setStoredUser, type AuthUser } from '../auth';
 import { setLocale, useLocale, useT } from '../i18n';
 import { getBooleanEnv } from '../utils/env';
@@ -1188,6 +1190,30 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
             {/* UX: keep "API Base URL" below the secret input to match user expectations for proxy settings. */}
             <Form.Item label={t('panel.credentials.codexApiBaseUrl')} name="apiBaseUrl">
               <Input placeholder={t('panel.credentials.codexApiBaseUrlPlaceholder')} />
+            </Form.Item>
+
+            <Form.Item label={t('modelCatalog.title')}>
+              <ModelProviderModelsButton
+                disabled={savingCred || !canUseAccountApis}
+                buttonProps={{ size: 'small' }}
+                loadModels={async ({ forceRefresh }) => {
+                  // Fetch models using either the stored key (keep mode) or the form input (set mode). b8fucnmey62u0muyn7i0
+                  const apiBaseUrl = String(modelProfileForm.getFieldValue('apiBaseUrl') ?? '').trim();
+                  const apiKey =
+                    modelProfileApiKeyMode === 'set' ? String(modelProfileForm.getFieldValue('apiKey') ?? '').trim() : '';
+                  const profileId = modelProfileApiKeyMode === 'keep' ? modelProfileEditing?.id : undefined;
+
+                  return listMyModelProviderModels({
+                    provider: modelProfileProvider,
+                    profileId: profileId || undefined,
+                    credential: {
+                      apiBaseUrl: apiBaseUrl || null,
+                      apiKey: apiKey || null
+                    },
+                    forceRefresh
+                  });
+                }}
+              />
             </Form.Item>
 
             {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}

@@ -1,4 +1,5 @@
-# Findings & Decisions: 队列任务等待原因提示与重试
+# Findings & Decisions: Queued Task Waiting Reason Hints and Retry
+<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
 <!-- 
   WHAT: Your knowledge base for the task. Stores everything you discover and decide.
   WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited.

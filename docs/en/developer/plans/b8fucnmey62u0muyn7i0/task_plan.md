@@ -1,4 +1,4 @@
-# Task Plan: Queued Task Waiting Reason Hints and Retry
+# Task Plan: Dynamic models by credential
 <!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
 <!-- 
   WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk."
@@ -6,15 +6,15 @@
   WHEN: Create this FIRST, before starting any work. Update after each phase completes.
 -->
 
-<!-- Track code changes with this session hash for traceability. f3a9c2d8e1b7f4a0c6d1 -->
+<!-- Track code changes with this session hash for traceability. b8fucnmey62u0muyn7i0 -->
 
 ## Session Metadata
 <!-- 
   WHAT: Stable identifiers for traceability (code comments ↔ plan folder).
   WHY: Makes it easy to find the plan that explains a change.
 -->
-- **Session Hash:** f3a9c2d8e1b7f4a0c6d1
-- **Created:** 2026-01-19
+- **Session Hash:** b8fucnmey62u0muyn7i0
+- **Created:** 2026-01-21
 
 ## Goal
 <!-- 
@@ -22,15 +22,14 @@
   WHY: This is your north star. Re-reading this keeps you focused on the end state.
   EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality."
 -->
-<!-- Clarify the user-visible end state for queued tasks and retry UX. f3a9c2d8e1b7f4a0c6d1 -->
-In the task list and task detail views, show an explainable reason for "a task has stayed queued for a long time", and provide a safe retry button (including backend diagnosis + retry API and frontend UI/interaction).
+In frontend configuration screens (credentials / repo review / bot credentials), dynamically display and allow selecting available models based on the user-provided LLM credentials (query in real time when supported, otherwise fall back to a built-in list) to avoid hardcoding models.<!-- Define dynamic model discovery goal for LLM credentials. b8fucnmey62u0muyn7i0 -->
 
 ## Current Phase
 <!-- 
   WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3").
   WHY: Quick reference for where you are in the task. Update this as you progress.
 -->
-Complete
+Phase 5
 
 ## Phases
 <!-- 
@@ -61,9 +60,10 @@ Complete
   WHY: Good planning prevents rework. Document decisions so you remember why you chose them.
 -->
 - [x] Define technical approach
-- [x] Decide API shape for queue diagnosis
-- [x] Decide UI placement for queue reason + retry
+- [x] Create project structure if needed
+- [x] Document decisions with rationale
 - **Status:** complete
+<!-- Plan implementation details for dynamic model listing. b8fucnmey62u0muyn7i0 -->
 
 ### Phase 3: Implementation
 <!-- 
@@ -71,10 +71,10 @@ Complete
   WHY: This is where the work happens. Break into smaller sub-tasks if needed.
 -->
 - [x] Execute the plan step by step
-- [x] Implement backend queue diagnosis + types
-- [x] Implement frontend queued hint + retry buttons
+- [x] Write code to files before executing
 - [x] Test incrementally
 - **Status:** complete
+<!-- Implement backend model listing APIs + frontend model preview/picker. b8fucnmey62u0muyn7i0 -->
 
 ### Phase 4: Testing & Verification
 <!-- 
@@ -92,7 +92,7 @@ Complete
   WHY: Ensures nothing is forgotten and deliverables are complete.
 -->
 - [x] Review all output files
-- [x] Update changelog entry
+- [x] Ensure deliverables are complete
 - [x] Deliver to user
 - **Status:** complete
 
@@ -104,11 +104,10 @@ Complete
     1. Should tasks persist between sessions? (Yes - need file storage)
     2. What format for storing tasks? (JSON file)
 -->
-1. What does a task being "queued/waiting" mean on the backend (DB status / queue job status / worker lock)?
-2. What are typical reasons a task stays queued for a long time, and which reasons can be reliably detected and returned to the frontend?
-3. How should "retry" be defined: re-enqueue, re-execute, or create a new task linked to the old one (idempotency/audit)?
-4. What should be the visibility/clickability conditions for the retry button (permissions, status, cooldown, max attempts)?
-5. Where should the frontend show the reason and what should the copy format be (list, detail, tooltip, error code)?
+1. Where is the mapping between "credentials" and the (code/claude/gemini) executors implemented today?
+2. Which frontend forms need to display the "available models" list (which pages/components correspond to account credentials, repo review, and bot credentials respectively)?
+3. Does the backend already have a unified LLM provider abstraction/SDK that we can reuse for auth and calls to query model lists?
+4. Do providers have a "list models" API (OpenAI / Anthropic / Google Gemini); if it fails/unavailable, how should we fall back and cache?
 
 ## Decisions Made
 <!-- 
@@ -120,8 +119,8 @@ Complete
 -->
 | Decision | Rationale |
 |----------|-----------|
-| Add structured queue diagnosis on Task API | Frontend can render clear queued-state hints without hardcoding backend internals. |
-| Reuse existing `POST /tasks/:id/retry` for queued retry | Avoid new endpoints; keep behavior consistent with existing retry UI for failed/processing tasks. |
+| Provide a unified backend API to list available models (by credential/provider) first | Reusable across multiple frontend surfaces and avoids exposing keys to the frontend, matching the security boundary |
+| Query in real time when the provider supports it; otherwise fall back to a built-in model list | Meets the "no hardcoding" priority while ensuring availability |
 
 ## Errors Encountered
 <!-- 
@@ -134,7 +133,7 @@ Complete
 -->
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-|       | 1       |            |
+| Duplicate function implementation (getModelCredentialsRaw) | 1 | Removed duplicate method and kept a single implementation |
 
 ## Notes
 <!-- 

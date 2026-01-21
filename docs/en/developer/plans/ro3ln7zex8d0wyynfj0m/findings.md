@@ -1,4 +1,5 @@
 # Findings & Decisions: Replace loading spinners with skeletons
+<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
 <!-- 
   WHAT: Your knowledge base for the task. Stores everything you discover and decide.
   WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited.
@@ -24,7 +25,7 @@
     - Python implementation
 -->
 <!-- Captured from user request -->
-- Replace simple loading icons/placeholders in the current frontend UI with Skeleton (骨架屏) for better perceived performance.
+- Replace simple loading icons/placeholders in the current frontend UI with Skeleton (skeleton screens) for better perceived performance.
 - Prefer skeletons for "content waiting" states (initial data fetch / empty while loading / detail fetch / modal detail fetch).
 - Update `frontend/AGENTS.md` to enforce: waiting content must use skeleton loading UI.
 - Keep existing i18n and theme (light/dark + accent) compatibility.

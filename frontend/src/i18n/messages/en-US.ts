@@ -44,6 +44,17 @@ export const enUS: Record<MessageKey, string> = {
   'common.theme.light': 'Light',
   'common.theme.dark': 'Dark',
 
+  // Add i18n strings for model discovery modal. b8fucnmey62u0muyn7i0
+  'modelCatalog.button': 'View models',
+  'modelCatalog.title': 'Available models',
+  'modelCatalog.count': '{{count}} models',
+  'modelCatalog.searchPlaceholder': 'Search model id',
+  'modelCatalog.pickToApply': 'Click a model to apply it',
+  'modelCatalog.source.remote': 'Live',
+  'modelCatalog.source.fallback': 'Fallback',
+  'modelCatalog.empty': 'No models found',
+  'modelCatalog.error': 'Failed to load models',
+
   // --- Sidebar ---
   'sidebar.newTaskGroup': 'New task group',
   'sidebar.nav.repos': 'Repositories',

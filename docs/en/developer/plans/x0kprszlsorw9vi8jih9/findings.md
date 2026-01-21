@@ -1,4 +1,5 @@
-# Findings & Decisions: 任务详情 Prompt patch 双栏展示
+# Findings & Decisions: Task Detail Prompt Patch Two-Column Display
+<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
 <!-- 
   WHAT: Your knowledge base for the task. Stores everything you discover and decide.
   WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited.
@@ -24,8 +25,8 @@
     - Python implementation
 -->
 <!-- Captured from user request -->
-- 任务详情页的 Prompt patch（提示词片段）展示需要分成两栏：左侧原始模板，右侧渲染后的内容（变量已替换）。
-- 渲染后内容需尽量与后端 promptBuilder 的变量语义一致，至少覆盖 `{{issue.number}}` 等常用变量。
+- In the task detail page, show the Prompt patch (prompt snippet) in two columns: the raw template on the left and the rendered content (with variables substituted) on the right.
+- The rendered content should match the backend `promptBuilder` variable semantics as closely as possible, at least covering common variables such as `{{issue.number}}`.
 
 ## Research Findings
 <!-- 
@@ -38,8 +39,8 @@
     - Standard pattern: python script.py <command> [args]
 -->
 <!-- Key discoveries during exploration -->
-- 当前 Prompt patch 展示位于 `frontend/src/pages/TaskDetailPage.tsx`，直接渲染 `task.promptCustom`（未做模板变量替换）。
-- 后端模板语法为 `{{path.to.value}}`，缺失值渲染为空字符串（参考 `backend/src/agent/template.ts`）。
+- The current Prompt patch UI lives in `frontend/src/pages/TaskDetailPage.tsx` and renders `task.promptCustom` directly (no template variable substitution).
+- The backend template syntax is `{{path.to.value}}`; missing values render as an empty string (see `backend/src/agent/template.ts`).
 
 ## Technical Decisions
 <!-- 
@@ -53,7 +54,7 @@
 <!-- Decisions made with rationale -->
 | Decision | Rationale |
 |----------|-----------|
-| 在前端实现与后端一致的轻量 `renderTemplate()` 并构造 best-effort 上下文 | 变更面小、无需新增后端接口/存储；能即时展示“渲染后”效果并支持历史任务。 |
+| Implement a lightweight `renderTemplate()` in the frontend consistent with the backend, and build a best-effort context | Small change surface, no new backend API/storage; can immediately show the rendered result and supports historical tasks. |
 
 ## Issues Encountered
 <!-- 
@@ -78,8 +79,8 @@
     - Project structure: src/main.py, src/utils.py
 -->
 <!-- URLs, file paths, API references -->
-- `frontend/src/pages/TaskDetailPage.tsx`（Prompt patch 展示位置）
-- `backend/src/agent/template.ts`（模板变量替换规则）
+- `frontend/src/pages/TaskDetailPage.tsx` (Prompt patch display location)
+- `backend/src/agent/template.ts` (Template variable substitution rules)
 
 ## Visual/Browser Findings
 <!-- 

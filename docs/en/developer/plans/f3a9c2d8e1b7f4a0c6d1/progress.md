@@ -8,7 +8,8 @@
 <!-- Keep phase status updates in sync with task_plan.md for this session. f3a9c2d8e1b7f4a0c6d1 -->
 
 ## Session Metadata
-- **Session Title:** 队列任务等待原因提示与重试
+- **Session Title:** Queued Task Waiting Reason Hints and Retry
+<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
 - **Session Hash:** f3a9c2d8e1b7f4a0c6d1
 
 ## Session: 2026-01-19

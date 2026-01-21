@@ -1,4 +1,5 @@
-# Task Plan: Tasks 列表页重设计与筛选状态展示
+# Task Plan: Tasks List Page Redesign and Active Filter Status Surfacing
+<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
 <!-- 
   WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk."
   WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh.

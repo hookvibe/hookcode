@@ -412,6 +412,32 @@ export const updateMyModelCredentials = async (params: {
   return data.credentials;
 };
 
+export type ModelProviderModelsSource = 'remote' | 'fallback';
+
+export interface ModelProviderModelsResponse {
+  models: string[];
+  source: ModelProviderModelsSource;
+}
+
+export interface ModelProviderModelsRequest {
+  provider: ModelProvider;
+  profileId?: string;
+  credential?: { apiBaseUrl?: string | null; apiKey?: string | null } | null;
+  forceRefresh?: boolean;
+}
+
+export const listMyModelProviderModels = async (params: ModelProviderModelsRequest): Promise<ModelProviderModelsResponse> => {
+  // Fetch provider models server-side so secrets never touch the browser runtime beyond form submission. b8fucnmey62u0muyn7i0
+  const { data } = await api.post<ModelProviderModelsResponse>('/users/me/model-credentials/models', params);
+  return data;
+};
+
+export const listRepoModelProviderModels = async (repoId: string, params: ModelProviderModelsRequest): Promise<ModelProviderModelsResponse> => {
+  // Fetch repo-scoped provider models server-side to avoid hardcoding model lists in the UI. b8fucnmey62u0muyn7i0
+  const { data } = await api.post<ModelProviderModelsResponse>(`/repos/${repoId}/model-credentials/models`, params);
+  return data;
+};
+
 export interface AdminToolsMeta {
   enabled: boolean;
   ports: {
@@ -452,7 +478,8 @@ export type RobotPermission = 'read' | 'write';
 
 export type ModelProvider = 'codex' | 'claude_code' | 'gemini_cli' | (string & {});
 
-export type CodexModel = 'gpt-5.2' | 'gpt-5.1-codex-max' | 'gpt-5.1-codex-mini';
+// Accept any Codex model id to support dynamic model discovery without hardcoded unions. b8fucnmey62u0muyn7i0
+export type CodexModel = string;
 export type CodexSandbox = 'workspace-write' | 'read-only';
 export type CodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 

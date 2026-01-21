@@ -5,14 +5,13 @@
   WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md.
 -->
 
-<!-- Keep phase status updates in sync with task_plan.md for this session. 3iz4jx8bsy7q7d6b3jr3 -->
+<!-- Keep phase status updates in sync with task_plan.md for this session. docsjsonindex20260121 -->
 
 ## Session Metadata
-- **Session Title:** Tasks List Page Redesign and Active Filter Status Surfacing
-<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
-- **Session Hash:** 3iz4jx8bsy7q7d6b3jr3
+- **Session Title:** Auto-update docs.json for plan sessions
+- **Session Hash:** docsjsonindex20260121
 
-## Session: 2026-01-20
+## Session: 2026-01-21
 <!-- 
   WHAT: The date of this work session.
   WHY: Helps track when work happened, useful for resuming after time gaps.
@@ -25,8 +24,8 @@
   WHY: Provides context for what was done, making it easier to resume or debug.
   WHEN: Update as you work through the phase, or at least when you complete it.
 -->
-- **Status:** complete
-- **Started:** 2026-01-20 00:10
+- **Status:** in_progress
+- **Started:** 2026-01-21 16:04
 <!-- 
   STATUS: Same as task_plan.md (pending, in_progress, complete)
   TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00")
@@ -39,8 +38,9 @@
       - Implemented add functionality
       - Fixed FileNotFoundError
   -->
-  - Initialized planning session folder via `init-session.sh` and recorded session hash. <!-- Track planning-with-files initialization. 3iz4jx8bsy7q7d6b3jr3 -->
-  - Reviewed current Tasks page, router helpers, task stats API, and existing unit tests to identify the minimal, compatible redesign surface. <!-- Summarize discovery work. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Reviewed existing `docs/docs.json` navigation config and identified stale/missing plan entries.
+  - Audited `.codex/skills/planning-with-files/scripts/init-session.sh` behavior (creates 3 files but does not update `docs/docs.json`).
+  - Enumerated existing session folders under `docs/en/developer/plans/` to estimate backfill scope.
 - Files created/modified:
   <!-- 
     WHAT: Which files you created or changed.
@@ -50,46 +50,29 @@
       - todos.json (created by app)
       - task_plan.md (updated)
   -->
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/task_plan.md` (updated)
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/findings.md` (updated)
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/progress.md` (updated)
+  - docs/en/developer/plans/docsjsonindex20260121/task_plan.md (updated)
+  - docs/en/developer/plans/docsjsonindex20260121/findings.md (updated)
+  - docs/en/developer/plans/docsjsonindex20260121/progress.md (updated)
 
-### Phase 2: Planning & Structure
+### Phase 2: Implementation & Backfill
+<!-- 
+  WHAT: Same structure as Phase 1, for the next phase.
+  WHY: Keep a separate log entry for each phase to track progress clearly.
+-->
 - **Status:** complete
 - Actions taken:
-  - Planned the new Tasks list layout (status summary strip + in-body filter tags + search) and confirmed `/tasks/stats` exists for accurate totals. <!-- Capture the design/tech planning milestone. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Implemented `.codex/skills/planning-with-files/scripts/sync-docs-json-plans.sh` to rebuild the Mintlify `plans` navigation from the filesystem.
+  - Updated `.codex/skills/planning-with-files/scripts/init-session.sh` to call the sync script after creating the three planning files.
+  - Ran the sync script in-repo to backfill missing plan navigation entries in `docs/docs.json`.
+  - Added a smoke test for sync + init-session integration and documented usage in the skill README.
+  - Appended a changelog entry for this session.
 - Files created/modified:
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/task_plan.md` (updated)
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/findings.md` (updated)
-
-### Phase 3: Implementation
-- **Status:** complete
-- Actions taken:
-  - Implemented a status summary strip (with counts) and visible filter tags for `TasksPage`, plus a header refresh action that refreshes both list and stats. <!-- Summarize implementation work. 3iz4jx8bsy7q7d6b3jr3 -->
-  - Added i18n keys for the new filter UI (en-US + zh-CN) and CSS styles for responsive layout and themes. <!-- Track UI copy + styling changes. 3iz4jx8bsy7q7d6b3jr3 -->
-- Files created/modified:
-  - `frontend/src/pages/TasksPage.tsx` (updated)
-  - `frontend/src/i18n/messages/en-US.ts` (updated)
-  - `frontend/src/i18n/messages/zh-CN.ts` (updated)
-  - `frontend/src/styles.css` (updated)
-  - `frontend/src/tests/tasksPage.test.tsx` (updated)
-
-### Phase 4: Testing & Verification
-- **Status:** complete
-- Actions taken:
-  - Ran frontend unit tests and verified the new status filter UI behavior via RTL tests. <!-- Record verification actions. 3iz4jx8bsy7q7d6b3jr3 -->
-- Files created/modified:
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/progress.md` (updated)
-
-### Phase 5: Delivery
-- **Status:** complete
-- Actions taken:
-  - Added a changelog entry linking this session hash to the plan folder. <!-- Ensure release-note traceability. 3iz4jx8bsy7q7d6b3jr3 -->
-  - Tweaked Tasks page controls layout so the status filters stay above a full-width search input row. <!-- Follow-up UX adjustment requested by user. 3iz4jx8bsy7q7d6b3jr3 -->
-- Files created/modified:
-  - `docs/en/change-log/0.0.0.md` (updated)
-  - `frontend/src/pages/TasksPage.tsx` (updated)
-  - `frontend/src/styles.css` (updated)
+  - .codex/skills/planning-with-files/scripts/sync-docs-json-plans.sh (created)
+  - .codex/skills/planning-with-files/scripts/sync-docs-json-plans.test.sh (created)
+  - .codex/skills/planning-with-files/scripts/init-session.sh (modified)
+  - .codex/skills/planning-with-files/SKILL.md (modified)
+  - docs/docs.json (modified)
+  - docs/en/change-log/0.0.0.md (modified)
 
 ## Test Results
 <!-- 
@@ -102,7 +85,7 @@
 -->
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-| Frontend unit tests | `pnpm -C frontend test` | All tests pass | 66/66 tests passed | ✓ |
+| Sync plans navigation | `bash .codex/skills/planning-with-files/scripts/sync-docs-json-plans.test.sh` | Tests pass | PASS | ✓ |
 
 ## Error Log
 <!-- 
@@ -134,11 +117,11 @@
 <!-- If you can answer these, context is solid -->
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 5 (Delivery) |
-| Where am I going? | Update changelog entry and deliver changes. |
-| What's the goal? | Redesign the Tasks list page to surface the active status filter + add a stats-driven filter UI with tests. |
-| What have I learned? | See findings.md |
-| What have I done? | See above |
+| Where am I? | Complete (Phase 5) |
+| Where am I going? | N/A (delivered) |
+| What's the goal? | Keep docs/docs.json in sync with planning session files and backfill missing indexes. |
+| What have I learned? | `docs/docs.json` must point to actual markdown files like `en/developer/plans/<hash>/task_plan`. |
+| What have I done? | Implemented sync + auto-update, backfilled docs.json, added tests, updated changelog. |
 
 ---
 <!-- 

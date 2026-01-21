@@ -1,4 +1,5 @@
-# Task Plan: 任务详情 Prompt patch 双栏展示
+# Task Plan: Task Detail Prompt Patch Two-Column Display
+<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
 <!-- 
   WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk."
   WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh.
@@ -21,7 +22,7 @@
   WHY: This is your north star. Re-reading this keeps you focused on the end state.
   EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality."
 -->
-在任务详情页的「Prompt patch」区块中，改为双栏展示：左侧展示原始模板（含 `{{issue.number}}` 等变量），右侧展示基于当前任务 payload 渲染后的文本，便于对照调试。
+In the task detail page “Prompt patch” section, switch to a two-column display: the raw template (with variables like `{{issue.number}}`) on the left, and the text rendered from the current task payload on the right, making side-by-side debugging easier.
 
 ## Current Phase
 <!-- 
@@ -101,8 +102,8 @@ Phase 5
     1. Should tasks persist between sessions? (Yes - need file storage)
     2. What format for storing tasks? (JSON file)
 -->
-1. 渲染后的文本来源：前端基于任务 payload 渲染 vs 后端在执行时持久化渲染结果？
-2. 双栏布局在小屏幕下如何自适应（并保证可读性/可复制性）？
+1. Source of the rendered text: frontend best-effort rendering based on task payload vs a backend-persisted render produced at execution time?
+2. How should the two-column layout adapt on small screens while keeping readability and copyability?
 
 ## Decisions Made
 <!-- 
@@ -114,7 +115,7 @@ Phase 5
 -->
 | Decision | Rationale |
 |----------|-----------|
-| 前端用轻量模板渲染（基于 task + payload 的 best-effort 上下文） | 无需改动后端/DB，历史任务也能即时看到“处理后”内容；且能覆盖常用变量（如 `{{issue.number}}`）。 |
+| Use a lightweight frontend template renderer (based on a best-effort context built from task + payload) | No backend/DB changes; historical tasks can immediately show the rendered content; covers common variables (e.g. `{{issue.number}}`). |
 
 ## Errors Encountered
 <!-- 

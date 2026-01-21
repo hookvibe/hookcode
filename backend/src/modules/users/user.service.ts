@@ -339,6 +339,7 @@ export class UserService {
   }
 
   async getModelCredentialsRaw(id: string): Promise<UserModelCredentials | null> {
+    // Business intent: resolve stored API keys server-side (never returned to the frontend). b8fucnmey62u0muyn7i0
     const row = await db.user.findUnique({ where: { id }, select: { modelCredentials: true } });
     if (!row) return null;
     return normalizeUserModelCredentials(row.modelCredentials);

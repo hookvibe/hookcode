@@ -1,16 +1,15 @@
-# Findings & Decisions: Tasks List Page Redesign and Active Filter Status Surfacing
-<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
+# Findings & Decisions: Translate docs/en Markdown to English
 <!-- 
   WHAT: Your knowledge base for the task. Stores everything you discover and decide.
   WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited.
   WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule).
 -->
 
-<!-- Link discoveries to code changes via this session hash. 3iz4jx8bsy7q7d6b3jr3 -->
+<!-- Link discoveries to code changes via this session hash. docsentrans20260121 -->
 
 ## Session Metadata
-- **Session Hash:** 3iz4jx8bsy7q7d6b3jr3
-- **Created:** 2026-01-20
+- **Session Hash:** docsentrans20260121
+- **Created:** 2026-01-21
 
 ## Requirements
 <!-- 
@@ -25,10 +24,8 @@
     - Python implementation
 -->
 <!-- Captured from user request -->
-- Redesign `#/tasks` list page so users can identify the active filter status without reading the URL. <!-- Capture user-visible pain point + desired outcome. 3iz4jx8bsy7q7d6b3jr3 -->
-- Keep the page usable via deep links like `#/tasks?status=success` and (optionally) `#/tasks?repoId=...`. <!-- Preserve existing routing behavior. 3iz4jx8bsy7q7d6b3jr3 -->
-- New user-facing strings must be i18n'ed; UI must work in light/dark themes and respect configurable accent color. <!-- Frontend constraints from AGENTS.md. 3iz4jx8bsy7q7d6b3jr3 -->
-- Loading states should use AntD `Skeleton` (not spinner-only placeholders). <!-- Enforce skeleton waiting UI guideline. 3iz4jx8bsy7q7d6b3jr3 -->
+- Translate every Markdown file under `docs/en/` into English.
+- Ensure there are no remaining Chinese (Han) characters in `docs/en/**/*.md` after the change.
 
 ## Research Findings
 <!-- 
@@ -41,10 +38,19 @@
     - Standard pattern: python script.py <command> [args]
 -->
 <!-- Key discoveries during exploration -->
-- `frontend/src/pages/TasksPage.tsx` already supports reading `status` from hash query and normalizes legacy `completed` → `success`, but the UI does not show the active filter anywhere. <!-- Root cause summary. 3iz4jx8bsy7q7d6b3jr3 -->
-- Router helpers `buildTasksHash({ status, repoId })` and `parseRoute` already support `#/tasks?status=...&repoId=...`. <!-- Confirm navigation primitives exist. 3iz4jx8bsy7q7d6b3jr3 -->
-- Frontend API exposes `/tasks/stats` via `fetchTaskStats()` (total/queued/processing/success/failed), which can power a status summary + filter UI independent of list limits. <!-- Identify correct data source for counts. 3iz4jx8bsy7q7d6b3jr3 -->
-- Existing unit tests cover TasksPage list fetching, search filtering, and retry button behavior; they will need updates once stats/filter UI is added. <!-- Testing impact. 3iz4jx8bsy7q7d6b3jr3 -->
+- A repo-wide scan (`rg --pcre2 "[\\p{Han}]" docs/en`) shows Chinese characters in 12 planning-session markdown files under `docs/en/developer/plans/`.
+  - docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/task_plan.md
+  - docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/findings.md
+  - docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/progress.md
+  - docs/en/developer/plans/x0kprszlsorw9vi8jih9/task_plan.md
+  - docs/en/developer/plans/x0kprszlsorw9vi8jih9/findings.md
+  - docs/en/developer/plans/x0kprszlsorw9vi8jih9/progress.md
+  - docs/en/developer/plans/ro3ln7zex8d0wyynfj0m/findings.md
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/findings.md
+  - docs/en/developer/plans/f3a9c2d8e1b7f4a0c6d1/task_plan.md
+  - docs/en/developer/plans/f3a9c2d8e1b7f4a0c6d1/findings.md
+  - docs/en/developer/plans/f3a9c2d8e1b7f4a0c6d1/progress.md
 
 ## Technical Decisions
 <!-- 
@@ -58,9 +64,8 @@
 <!-- Decisions made with rationale -->
 | Decision | Rationale |
 |----------|-----------|
-| Add a compact status filter strip (All / Queued / Processing / Success / Failed) with counts | Makes the current filter immediately visible and enables quick switching. |
-| Display the active filter (and repo scope, if any) in `PageNav` meta | Keeps the state discoverable even when the list is empty. |
-| Fetch stats and list in parallel with independent loading skeletons | Avoids blocking the list rendering while totals are loading. |
+| Translate only the lines containing Chinese (keep surrounding content unchanged) | Minimizes risk of altering meaning/structure in historical planning docs |
+| Add an inline HTML comment linking the translation change back to this session | Preserves traceability under the project’s planning-with-files rules |
 
 ## Issues Encountered
 <!-- 
@@ -85,10 +90,7 @@
     - Project structure: src/main.py, src/utils.py
 -->
 <!-- URLs, file paths, API references -->
-- `frontend/src/pages/TasksPage.tsx` (current list UI + status normalization)
-- `frontend/src/api.ts` (`fetchTasks`, `fetchTaskStats`)
-- `frontend/src/router.ts` (`buildTasksHash`, `parseRoute`)
-- `frontend/src/tests/tasksPage.test.tsx` (existing unit tests)
+- `rg -n --pcre2 "[\\p{Han}]" docs/en`
 
 ## Visual/Browser Findings
 <!-- 

@@ -59,9 +59,17 @@ Before ANY complex task:
 ### Option A: Initialize via Script (Fastest)
 
 Creates `docs/en/developer/plans/<session-hash>/` and copies templates there if missing.
+<!-- Document docs.json plan index sync behavior. docsjsonindex20260121 -->
+Also syncs `docs/docs.json` (Developer Docs → `plans`) so the new session files are discoverable in Mintlify navigation.
 
 ```bash
 bash .codex/skills/planning-with-files/scripts/init-session.sh "<session-hash>" "<session-title>"
+```
+
+If you need a one-off backfill or want to rebuild the navigation index deterministically:
+
+```bash
+bash .codex/skills/planning-with-files/scripts/sync-docs-json-plans.sh
 ```
 
 ### Option B: Copy Templates (Most Detailed)

@@ -1,16 +1,15 @@
-# Findings & Decisions: Tasks List Page Redesign and Active Filter Status Surfacing
-<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
+# Findings & Decisions: Auto-update docs.json for plan sessions
 <!-- 
   WHAT: Your knowledge base for the task. Stores everything you discover and decide.
   WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited.
   WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule).
 -->
 
-<!-- Link discoveries to code changes via this session hash. 3iz4jx8bsy7q7d6b3jr3 -->
+<!-- Link discoveries to code changes via this session hash. docsjsonindex20260121 -->
 
 ## Session Metadata
-- **Session Hash:** 3iz4jx8bsy7q7d6b3jr3
-- **Created:** 2026-01-20
+- **Session Hash:** docsjsonindex20260121
+- **Created:** 2026-01-21
 
 ## Requirements
 <!-- 
@@ -25,10 +24,9 @@
     - Python implementation
 -->
 <!-- Captured from user request -->
-- Redesign `#/tasks` list page so users can identify the active filter status without reading the URL. <!-- Capture user-visible pain point + desired outcome. 3iz4jx8bsy7q7d6b3jr3 -->
-- Keep the page usable via deep links like `#/tasks?status=success` and (optionally) `#/tasks?repoId=...`. <!-- Preserve existing routing behavior. 3iz4jx8bsy7q7d6b3jr3 -->
-- New user-facing strings must be i18n'ed; UI must work in light/dark themes and respect configurable accent color. <!-- Frontend constraints from AGENTS.md. 3iz4jx8bsy7q7d6b3jr3 -->
-- Loading states should use AntD `Skeleton` (not spinner-only placeholders). <!-- Enforce skeleton waiting UI guideline. 3iz4jx8bsy7q7d6b3jr3 -->
+- Update `docs/docs.json` whenever a new planning session is initialized so the three generated files are discoverable via navigation.
+- Backfill (one-time) missing navigation entries for existing session folders already under `docs/en/developer/plans/`.
+- Provide an easy, repeatable way to run the sync manually (for recovery / CI) if needed.
 
 ## Research Findings
 <!-- 
@@ -41,10 +39,8 @@
     - Standard pattern: python script.py <command> [args]
 -->
 <!-- Key discoveries during exploration -->
-- `frontend/src/pages/TasksPage.tsx` already supports reading `status` from hash query and normalizes legacy `completed` → `success`, but the UI does not show the active filter anywhere. <!-- Root cause summary. 3iz4jx8bsy7q7d6b3jr3 -->
-- Router helpers `buildTasksHash({ status, repoId })` and `parseRoute` already support `#/tasks?status=...&repoId=...`. <!-- Confirm navigation primitives exist. 3iz4jx8bsy7q7d6b3jr3 -->
-- Frontend API exposes `/tasks/stats` via `fetchTaskStats()` (total/queued/processing/success/failed), which can power a status summary + filter UI independent of list limits. <!-- Identify correct data source for counts. 3iz4jx8bsy7q7d6b3jr3 -->
-- Existing unit tests cover TasksPage list fetching, search filtering, and retry button behavior; they will need updates once stats/filter UI is added. <!-- Testing impact. 3iz4jx8bsy7q7d6b3jr3 -->
+- `docs/docs.json` is a Mintlify `docs.json` config and currently contains a stale `plans` page entry (`en/developer/plans/sddsa89612jk4hbwas678`) that does not map to an existing markdown file.
+- Planning sessions are stored as folders under `docs/en/developer/plans/<session-hash>/` and each session typically contains `task_plan.md`, `findings.md`, and `progress.md`.
 
 ## Technical Decisions
 <!-- 
@@ -58,9 +54,10 @@
 <!-- Decisions made with rationale -->
 | Decision | Rationale |
 |----------|-----------|
-| Add a compact status filter strip (All / Queued / Processing / Success / Failed) with counts | Makes the current filter immediately visible and enables quick switching. |
-| Display the active filter (and repo scope, if any) in `PageNav` meta | Keeps the state discoverable even when the list is empty. |
-| Fetch stats and list in parallel with independent loading skeletons | Avoids blocking the list rendering while totals are loading. |
+| Add `sync-docs-json-plans.sh` to rebuild the `plans` pages list from the filesystem | Keeps `docs/docs.json` deterministic and enables one-command backfill/recovery |
+| Update Mintlify navigation with page IDs `en/developer/plans/<hash>/{task_plan,findings,progress}` | Matches actual file layout under `docs/en/developer/plans/<hash>/` and avoids referencing non-existent `index.md` |
+| Skip missing session files instead of indexing them | Prevents `docs/docs.json` from pointing to broken pages; warns for partial sessions |
+| Call the sync script from `init-session.sh` by default (opt-out via `HC_SKIP_DOCS_JSON_SYNC=1`) | Makes the correct behavior automatic while preserving an escape hatch for special environments |
 
 ## Issues Encountered
 <!-- 
@@ -85,10 +82,9 @@
     - Project structure: src/main.py, src/utils.py
 -->
 <!-- URLs, file paths, API references -->
-- `frontend/src/pages/TasksPage.tsx` (current list UI + status normalization)
-- `frontend/src/api.ts` (`fetchTasks`, `fetchTaskStats`)
-- `frontend/src/router.ts` (`buildTasksHash`, `parseRoute`)
-- `frontend/src/tests/tasksPage.test.tsx` (existing unit tests)
+- `docs/docs.json`
+- `.codex/skills/planning-with-files/scripts/init-session.sh`
+- `docs/en/developer/plans/<session-hash>/{task_plan,findings,progress}.md`
 
 ## Visual/Browser Findings
 <!-- 

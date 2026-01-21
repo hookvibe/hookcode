@@ -44,6 +44,17 @@ export const zhCN = {
   'common.theme.light': '浅色',
   'common.theme.dark': '深色',
 
+  // Add i18n strings for model discovery modal. b8fucnmey62u0muyn7i0
+  'modelCatalog.button': '查看模型',
+  'modelCatalog.title': '可用模型',
+  'modelCatalog.count': '{{count}} 个模型',
+  'modelCatalog.searchPlaceholder': '搜索 model id',
+  'modelCatalog.pickToApply': '点击模型可填入当前表单',
+  'modelCatalog.source.remote': '实时',
+  'modelCatalog.source.fallback': '回退',
+  'modelCatalog.empty': '暂无模型',
+  'modelCatalog.error': '模型列表加载失败',
+
   // --- Sidebar ---
   'sidebar.newTaskGroup': '新建任务组',
   'sidebar.nav.repos': '仓库',

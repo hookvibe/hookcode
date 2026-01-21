@@ -5,14 +5,13 @@
   WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md.
 -->
 
-<!-- Keep phase status updates in sync with task_plan.md for this session. 3iz4jx8bsy7q7d6b3jr3 -->
+<!-- Keep phase status updates in sync with task_plan.md for this session. docsentrans20260121 -->
 
 ## Session Metadata
-- **Session Title:** Tasks List Page Redesign and Active Filter Status Surfacing
-<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
-- **Session Hash:** 3iz4jx8bsy7q7d6b3jr3
+- **Session Title:** Translate docs/en Markdown to English
+- **Session Hash:** docsentrans20260121
 
-## Session: 2026-01-20
+## Session: 2026-01-21
 <!-- 
   WHAT: The date of this work session.
   WHY: Helps track when work happened, useful for resuming after time gaps.
@@ -26,7 +25,7 @@
   WHEN: Update as you work through the phase, or at least when you complete it.
 -->
 - **Status:** complete
-- **Started:** 2026-01-20 00:10
+- **Started:** 2026-01-21 16:18
 <!-- 
   STATUS: Same as task_plan.md (pending, in_progress, complete)
   TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00")
@@ -39,8 +38,7 @@
       - Implemented add functionality
       - Fixed FileNotFoundError
   -->
-  - Initialized planning session folder via `init-session.sh` and recorded session hash. <!-- Track planning-with-files initialization. 3iz4jx8bsy7q7d6b3jr3 -->
-  - Reviewed current Tasks page, router helpers, task stats API, and existing unit tests to identify the minimal, compatible redesign surface. <!-- Summarize discovery work. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Scanned `docs/en/**/*.md` for Chinese (Han) characters and collected the list of affected files.
 - Files created/modified:
   <!-- 
     WHAT: Which files you created or changed.
@@ -50,46 +48,48 @@
       - todos.json (created by app)
       - task_plan.md (updated)
   -->
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/task_plan.md` (updated)
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/findings.md` (updated)
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/progress.md` (updated)
+  - docs/en/developer/plans/docsentrans20260121/task_plan.md (updated)
+  - docs/en/developer/plans/docsentrans20260121/findings.md (updated)
+  - docs/en/developer/plans/docsentrans20260121/progress.md (updated)
 
-### Phase 2: Planning & Structure
+### Phase 2: Translation
+<!-- 
+  WHAT: Same structure as Phase 1, for the next phase.
+  WHY: Keep a separate log entry for each phase to track progress clearly.
+-->
 - **Status:** complete
 - Actions taken:
-  - Planned the new Tasks list layout (status summary strip + in-body filter tags + search) and confirmed `/tasks/stats` exists for accurate totals. <!-- Capture the design/tech planning milestone. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Translated all remaining Chinese text in the 12 flagged `docs/en/**/*.md` files into English.
+  - Added an inline trace comment in each updated file to link the translation change back to this session.
 - Files created/modified:
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/task_plan.md` (updated)
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/findings.md` (updated)
+  - docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/task_plan.md (updated)
+  - docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/findings.md (updated)
+  - docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/progress.md (updated)
+  - docs/en/developer/plans/x0kprszlsorw9vi8jih9/task_plan.md (updated)
+  - docs/en/developer/plans/x0kprszlsorw9vi8jih9/findings.md (updated)
+  - docs/en/developer/plans/x0kprszlsorw9vi8jih9/progress.md (updated)
+  - docs/en/developer/plans/ro3ln7zex8d0wyynfj0m/findings.md (updated)
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md (updated)
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/findings.md (updated)
+  - docs/en/developer/plans/f3a9c2d8e1b7f4a0c6d1/task_plan.md (updated)
+  - docs/en/developer/plans/f3a9c2d8e1b7f4a0c6d1/findings.md (updated)
+  - docs/en/developer/plans/f3a9c2d8e1b7f4a0c6d1/progress.md (updated)
 
-### Phase 3: Implementation
+### Phase 3: Verification
 - **Status:** complete
 - Actions taken:
-  - Implemented a status summary strip (with counts) and visible filter tags for `TasksPage`, plus a header refresh action that refreshes both list and stats. <!-- Summarize implementation work. 3iz4jx8bsy7q7d6b3jr3 -->
-  - Added i18n keys for the new filter UI (en-US + zh-CN) and CSS styles for responsive layout and themes. <!-- Track UI copy + styling changes. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Re-scanned `docs/en/**/*.md` to ensure there are no remaining Chinese (Han) characters.
 - Files created/modified:
-  - `frontend/src/pages/TasksPage.tsx` (updated)
-  - `frontend/src/i18n/messages/en-US.ts` (updated)
-  - `frontend/src/i18n/messages/zh-CN.ts` (updated)
-  - `frontend/src/styles.css` (updated)
-  - `frontend/src/tests/tasksPage.test.tsx` (updated)
+  - docs/en/developer/plans/docsentrans20260121/task_plan.md (updated)
+  - docs/en/developer/plans/docsentrans20260121/findings.md (updated)
+  - docs/en/developer/plans/docsentrans20260121/progress.md (updated)
 
-### Phase 4: Testing & Verification
+### Phase 4: Delivery
 - **Status:** complete
 - Actions taken:
-  - Ran frontend unit tests and verified the new status filter UI behavior via RTL tests. <!-- Record verification actions. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Appended a changelog entry for this session.
 - Files created/modified:
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/progress.md` (updated)
-
-### Phase 5: Delivery
-- **Status:** complete
-- Actions taken:
-  - Added a changelog entry linking this session hash to the plan folder. <!-- Ensure release-note traceability. 3iz4jx8bsy7q7d6b3jr3 -->
-  - Tweaked Tasks page controls layout so the status filters stay above a full-width search input row. <!-- Follow-up UX adjustment requested by user. 3iz4jx8bsy7q7d6b3jr3 -->
-- Files created/modified:
-  - `docs/en/change-log/0.0.0.md` (updated)
-  - `frontend/src/pages/TasksPage.tsx` (updated)
-  - `frontend/src/styles.css` (updated)
+  - docs/en/change-log/0.0.0.md (updated)
 
 ## Test Results
 <!-- 
@@ -102,7 +102,7 @@
 -->
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-| Frontend unit tests | `pnpm -C frontend test` | All tests pass | 66/66 tests passed | ✓ |
+| Scan docs/en for Chinese | `rg -l --pcre2 \"[\\p{Han}]\" docs/en` | No files returned | No files returned | ✓ |
 
 ## Error Log
 <!-- 
@@ -134,11 +134,11 @@
 <!-- If you can answer these, context is solid -->
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 5 (Delivery) |
-| Where am I going? | Update changelog entry and deliver changes. |
-| What's the goal? | Redesign the Tasks list page to surface the active status filter + add a stats-driven filter UI with tests. |
-| What have I learned? | See findings.md |
-| What have I done? | See above |
+| Where am I? | Complete |
+| Where am I going? | N/A |
+| What's the goal? | Translate all `docs/en/**/*.md` to English and verify no Chinese remains. |
+| What have I learned? | Only 12 planning-session markdown files contained Chinese characters. |
+| What have I done? | Translated the 12 files, added trace comments, verified via `rg`, and updated changelog. |
 
 ---
 <!-- 

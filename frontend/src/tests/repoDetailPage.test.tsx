@@ -54,6 +54,8 @@ vi.mock('../api', () => {
       claude_code: { profiles: [], defaultProfileId: null },
       gemini_cli: { profiles: [], defaultProfileId: null }
     })),
+    listMyModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
+    listRepoModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
     fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' }))
   };
 });

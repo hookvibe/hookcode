@@ -66,6 +66,8 @@ import {
   UpdateRepoRobotResponseDto,
   UpdateRepositoryResponseDto
 } from './dto/repositories-swagger.dto';
+import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
+import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
 
 const normalizeProvider = (value: unknown): RepoProvider => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -583,6 +585,68 @@ export class RepositoriesController {
       }
       console.error('[repos] update failed', err);
       throw new InternalServerErrorException({ error: 'Failed to update repo' });
+    }
+  }
+
+  @Post(':id/model-credentials/models')
+  @ApiOperation({
+    summary: 'List models for a model provider credential (repo scoped)',
+    description: 'Lists models using either a repo-scoped credential profile or an inline apiKey (never returned).',
+    operationId: 'repos_list_model_provider_models'
+  })
+  @ApiOkResponse({ description: 'OK', type: ModelProviderModelsResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async listRepoModelProviderModels(@Param('id') id: string, @Req() req: Request, @Body() body: ModelProviderModelsRequestDto) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+      const repoId = String(id ?? '').trim();
+      const repo = await this.repositoryService.getById(repoId);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+
+      const provider = normalizeSupportedModelProviderKey(body?.provider);
+      const profileId = typeof body?.profileId === 'string' ? body.profileId.trim() : '';
+      const overrideApiBaseUrl = typeof body?.credential?.apiBaseUrl === 'string' ? body.credential.apiBaseUrl.trim() : '';
+      const inlineApiKey = typeof body?.credential?.apiKey === 'string' ? body.credential.apiKey.trim() : '';
+
+      const repoScopedCredentials = profileId ? await this.repositoryService.getRepoScopedCredentials(repoId) : null;
+      if (profileId && !repoScopedCredentials) throw new NotFoundException({ error: 'Repo not found' });
+
+      const providerProfiles = profileId ? ((repoScopedCredentials as any)?.modelProvider?.[provider]?.profiles ?? []) : [];
+      const storedProfile = profileId ? providerProfiles.find((p: any) => p && String(p.id ?? '').trim() === profileId) : null;
+      if (profileId && !storedProfile) {
+        throw new BadRequestException({ error: 'profileId does not exist in repo-scoped credentials', code: 'MODEL_PROFILE_NOT_FOUND' });
+      }
+
+      const apiKey = inlineApiKey || String(storedProfile?.apiKey ?? '').trim();
+      if (!apiKey) {
+        throw new BadRequestException({ error: 'credential.apiKey is required', code: 'MODEL_API_KEY_REQUIRED' });
+      }
+
+      const apiBaseUrl = overrideApiBaseUrl || String(storedProfile?.apiBaseUrl ?? '').trim() || undefined;
+
+      const result = await listModelProviderModels({
+        provider,
+        apiKey,
+        apiBaseUrl,
+        forceRefresh: Boolean(body?.forceRefresh)
+      });
+
+      return { models: result.models, source: result.source };
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      if (err instanceof ModelProviderModelsFetchError && (err.status === 401 || err.status === 403)) {
+        // UX: surface invalid keys explicitly so users can fix credentials instead of seeing fallbacks. b8fucnmey62u0muyn7i0
+        throw new BadRequestException({ error: 'Model provider API key is invalid or unauthorized', code: 'MODEL_API_KEY_INVALID' });
+      }
+      const message = err?.message ? String(err.message) : '';
+      if (message.includes('provider must be')) {
+        throw new BadRequestException({ error: message });
+      }
+      console.error('[repos] list model provider models failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to list model provider models' });
     }
   }
 

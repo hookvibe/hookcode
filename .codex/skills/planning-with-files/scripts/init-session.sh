@@ -93,6 +93,13 @@ hydrate_template "${SESSION_DIR}/task_plan.md"
 hydrate_template "${SESSION_DIR}/findings.md"
 hydrate_template "${SESSION_DIR}/progress.md"
 
+# Sync Mintlify navigation so the new session pages are discoverable in docs. docsjsonindex20260121
+if [ "${HC_SKIP_DOCS_JSON_SYNC:-}" != "1" ]; then
+    bash "${SCRIPT_DIR}/sync-docs-json-plans.sh"
+else
+    echo "Skipping docs.json sync (HC_SKIP_DOCS_JSON_SYNC=1)"
+fi
+
 echo ""
 echo "Planning files initialized!"
 echo "Files: ${SESSION_DIR}/task_plan.md, ${SESSION_DIR}/findings.md, ${SESSION_DIR}/progress.md"

@@ -8,6 +8,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
   Patch,
+  Post,
   Req,
   UnauthorizedException
 } from '@nestjs/common';
@@ -31,6 +32,8 @@ import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
 import { PatchMeResponseDto } from './dto/patch-me-response.dto';
 import { ModelCredentialsResponseDto } from './dto/model-credentials.dto';
+import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
+import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
 
 @Controller('users')
 @ApiTags('Users')
@@ -161,6 +164,64 @@ export class UsersController {
       }
       console.error('[users] update model credentials failed', err);
       throw new InternalServerErrorException({ error: 'Failed to update model credentials' });
+    }
+  }
+
+  @Post('me/model-credentials/models')
+  @ApiOperation({
+    summary: 'List models for a model provider credential (my account)',
+    description: 'Lists models using either a stored credential profile or an inline apiKey (never returned).',
+    operationId: 'users_list_model_provider_models'
+  })
+  @ApiOkResponse({ description: 'OK', type: ModelProviderModelsResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async listMyModelProviderModels(@Req() req: Request, @Body() body: ModelProviderModelsRequestDto) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+      const provider = normalizeSupportedModelProviderKey(body?.provider);
+      const profileId = typeof body?.profileId === 'string' ? body.profileId.trim() : '';
+      const overrideApiBaseUrl = typeof body?.credential?.apiBaseUrl === 'string' ? body.credential.apiBaseUrl.trim() : '';
+      const inlineApiKey = typeof body?.credential?.apiKey === 'string' ? body.credential.apiKey.trim() : '';
+
+      const storedCredentials = profileId ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+      if (profileId && !storedCredentials) throw new NotFoundException({ error: 'User not found' });
+
+      const providerProfiles = profileId ? ((storedCredentials as any)?.[provider]?.profiles ?? []) : [];
+      const storedProfile = profileId ? providerProfiles.find((p: any) => p && String(p.id ?? '').trim() === profileId) : null;
+      if (profileId && !storedProfile) {
+        throw new BadRequestException({ error: 'profileId does not exist in your account credentials', code: 'MODEL_PROFILE_NOT_FOUND' });
+      }
+
+      const apiKey = inlineApiKey || String(storedProfile?.apiKey ?? '').trim();
+      if (!apiKey) {
+        throw new BadRequestException({ error: 'credential.apiKey is required', code: 'MODEL_API_KEY_REQUIRED' });
+      }
+
+      const apiBaseUrl = overrideApiBaseUrl || String(storedProfile?.apiBaseUrl ?? '').trim() || undefined;
+
+      const result = await listModelProviderModels({
+        provider,
+        apiKey,
+        apiBaseUrl,
+        forceRefresh: Boolean(body?.forceRefresh)
+      });
+
+      return { models: result.models, source: result.source };
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      if (err instanceof ModelProviderModelsFetchError && (err.status === 401 || err.status === 403)) {
+        // UX: surface invalid keys explicitly so users can fix credentials instead of seeing fallbacks. b8fucnmey62u0muyn7i0
+        throw new BadRequestException({ error: 'Model provider API key is invalid or unauthorized', code: 'MODEL_API_KEY_INVALID' });
+      }
+      const message = err?.message ? String(err.message) : '';
+      if (message.includes('provider must be')) {
+        throw new BadRequestException({ error: message });
+      }
+      console.error('[users] list model provider models failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to list model provider models' });
     }
   }
 }

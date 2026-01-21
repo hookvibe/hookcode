@@ -1,4 +1,4 @@
-# Findings & Decisions: Tasks List Page Redesign and Active Filter Status Surfacing
+# Findings & Decisions: Dynamic models by credential
 <!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
 <!-- 
   WHAT: Your knowledge base for the task. Stores everything you discover and decide.
@@ -6,11 +6,11 @@
   WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule).
 -->
 
-<!-- Link discoveries to code changes via this session hash. 3iz4jx8bsy7q7d6b3jr3 -->
+<!-- Link discoveries to code changes via this session hash. b8fucnmey62u0muyn7i0 -->
 
 ## Session Metadata
-- **Session Hash:** 3iz4jx8bsy7q7d6b3jr3
-- **Created:** 2026-01-20
+- **Session Hash:** b8fucnmey62u0muyn7i0
+- **Created:** 2026-01-21
 
 ## Requirements
 <!-- 
@@ -25,10 +25,10 @@
     - Python implementation
 -->
 <!-- Captured from user request -->
-- Redesign `#/tasks` list page so users can identify the active filter status without reading the URL. <!-- Capture user-visible pain point + desired outcome. 3iz4jx8bsy7q7d6b3jr3 -->
-- Keep the page usable via deep links like `#/tasks?status=success` and (optionally) `#/tasks?repoId=...`. <!-- Preserve existing routing behavior. 3iz4jx8bsy7q7d6b3jr3 -->
-- New user-facing strings must be i18n'ed; UI must work in light/dark themes and respect configurable accent color. <!-- Frontend constraints from AGENTS.md. 3iz4jx8bsy7q7d6b3jr3 -->
-- Loading states should use AntD `Skeleton` (not spinner-only placeholders). <!-- Enforce skeleton waiting UI guideline. 3iz4jx8bsy7q7d6b3jr3 -->
+- When creating/editing LLM credentials, provide the ability to view/select executable models (prefer dynamic querying).<!-- Capture dynamic model list requirement. b8fucnmey62u0muyn7i0 -->
+- In repo review-related configuration, also show available models based on the selected credential to avoid hardcoding.
+- In bot credential/bot configuration, also provide available model list display/selection.
+- If a provider cannot offer a model-list API, use a built-in model allowlist as a fallback (without affecting other providers' dynamic capability).
 
 ## Research Findings
 <!-- 
@@ -41,10 +41,11 @@
     - Standard pattern: python script.py <command> [args]
 -->
 <!-- Key discoveries during exploration -->
-- `frontend/src/pages/TasksPage.tsx` already supports reading `status` from hash query and normalizes legacy `completed` → `success`, but the UI does not show the active filter anywhere. <!-- Root cause summary. 3iz4jx8bsy7q7d6b3jr3 -->
-- Router helpers `buildTasksHash({ status, repoId })` and `parseRoute` already support `#/tasks?status=...&repoId=...`. <!-- Confirm navigation primitives exist. 3iz4jx8bsy7q7d6b3jr3 -->
-- Frontend API exposes `/tasks/stats` via `fetchTaskStats()` (total/queued/processing/success/failed), which can power a status summary + filter UI independent of list limits. <!-- Identify correct data source for counts. 3iz4jx8bsy7q7d6b3jr3 -->
-- Existing unit tests cover TasksPage list fetching, search filtering, and retry button behavior; they will need updates once stats/filter UI is added. <!-- Testing impact. 3iz4jx8bsy7q7d6b3jr3 -->
+- The currently supported model provider keys are: `codex` / `claude_code` / `gemini_cli`, and the backend execution path branches explicitly on them (see `backend/src/agent/agent.ts`).<!-- Record provider keys and execution mapping. b8fucnmey62u0muyn7i0 -->
+- The frontend account-level credentials panel is in `frontend/src/components/UserPanelPopover.tsx`, and includes profiles for the three providers.
+- The frontend repo detail page is in `frontend/src/pages/RepoDetailPage.tsx`, contains repo-level credentials and bot model configuration, and currently hardcodes default models (e.g. `gpt-5.2` / `claude-sonnet-4-5-20250929` / `gemini-2.5-pro`).
+- Backend provider default models are also hardcoded in each provider module (e.g. `backend/src/modelProviders/claudeCode.ts` / `geminiCli.ts`).
+- Implemented model discovery endpoints: account-level `POST /users/me/model-credentials/models`, repo-level `POST /repos/:id/model-credentials/models`, with a reusable frontend picker (`ModelProviderModelsButton`).<!-- Record implemented API entrypoints and UI integration. b8fucnmey62u0muyn7i0 -->
 
 ## Technical Decisions
 <!-- 
@@ -58,9 +59,9 @@
 <!-- Decisions made with rationale -->
 | Decision | Rationale |
 |----------|-----------|
-| Add a compact status filter strip (All / Queued / Processing / Success / Failed) with counts | Makes the current filter immediately visible and enables quick switching. |
-| Display the active filter (and repo scope, if any) in `PageNav` meta | Keeps the state discoverable even when the list is empty. |
-| Fetch stats and list in parallel with independent loading skeletons | Avoids blocking the list rendering while totals are loading. |
+| Implement a backend API to fetch models by credential (server-side proxy request) | Does not expose secrets to the frontend, and centralizes caching/fallback policy for maintainability |
+| Split the API into user-level and repo-level entrypoints (`/users/me/...` + `/repos/:id/...`) | Matches the two scenarios (account credentials vs repo & bot configuration) and reduces cross-module coupling |<!-- Document API split decision. b8fucnmey62u0muyn7i0 -->
+| Relax the Codex model field from a strict union to "any non-empty string" | Supports dynamic model lists and future model evolution, avoiding a hardcoded union that forces fallback to defaults |
 
 ## Issues Encountered
 <!-- 
@@ -85,10 +86,15 @@
     - Project structure: src/main.py, src/utils.py
 -->
 <!-- URLs, file paths, API references -->
-- `frontend/src/pages/TasksPage.tsx` (current list UI + status normalization)
-- `frontend/src/api.ts` (`fetchTasks`, `fetchTaskStats`)
-- `frontend/src/router.ts` (`buildTasksHash`, `parseRoute`)
-- `frontend/src/tests/tasksPage.test.tsx` (existing unit tests)
+- backend/src/agent/agent.ts
+- backend/src/modelProviders/codex.ts
+- backend/src/modelProviders/claudeCode.ts
+- backend/src/modelProviders/geminiCli.ts
+- backend/src/services/modelProviderModels.ts
+- backend/src/modules/common/dto/model-provider-models.dto.ts
+- frontend/src/components/UserPanelPopover.tsx
+- frontend/src/components/ModelProviderModelsButton.tsx
+- frontend/src/pages/RepoDetailPage.tsx
 
 ## Visual/Browser Findings
 <!-- 

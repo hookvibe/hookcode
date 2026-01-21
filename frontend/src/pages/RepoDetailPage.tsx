@@ -41,6 +41,8 @@ import {
   deleteRepoRobot,
   fetchMyModelCredentials,
   fetchRepo,
+  listMyModelProviderModels,
+  listRepoModelProviderModels,
   unarchiveRepo,
   testRepoRobot,
   updateRepo,
@@ -64,6 +66,7 @@ import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
 import { RepoDetailDashboardSummaryStrip, type RepoDetailSectionKey } from '../components/repos/RepoDetailDashboardSummaryStrip';
 import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
 import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
+import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
 
 /**
  * RepoDetailPage:
@@ -1998,6 +2001,30 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               <Input placeholder={t('panel.credentials.codexApiBaseUrlPlaceholder')} />
             </Form.Item>
 
+            <Form.Item label={t('modelCatalog.title')}>
+              <ModelProviderModelsButton
+                disabled={modelProfileSubmitting || repoArchived}
+                buttonProps={{ size: 'small' }}
+                loadModels={async ({ forceRefresh }) => {
+                  // Fetch models using either repo-stored credentials (keep mode) or the in-form apiKey (set mode). b8fucnmey62u0muyn7i0
+                  const apiBaseUrl = String(modelProfileForm.getFieldValue('apiBaseUrl') ?? '').trim();
+                  const apiKey =
+                    modelProfileApiKeyMode === 'set' ? String(modelProfileForm.getFieldValue('apiKey') ?? '').trim() : '';
+                  const profileId = modelProfileApiKeyMode === 'keep' ? modelProfileEditing?.id : undefined;
+
+                  return listRepoModelProviderModels(repoId, {
+                    provider: modelProfileProvider,
+                    profileId: profileId || undefined,
+                    credential: {
+                      apiBaseUrl: apiBaseUrl || null,
+                      apiKey: apiKey || null
+                    },
+                    forceRefresh
+                  });
+                }}
+              />
+            </Form.Item>
+
             {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
           </Form>
         </Space>
@@ -2425,17 +2452,47 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                     <Row gutter={16}>
                       <Col xs={24} md={12}>
                         <Form.Item label={t('repos.robotForm.model')} name={['modelProviderConfig', 'model']} rules={[{ required: true, message: t('panel.validation.required') }]}>
-                          {isCodex ? (
-                            <Select
-                              options={[
-                                { value: 'gpt-5.2', label: 'gpt-5.2' },
-                                { value: 'gpt-5.1-codex-max', label: 'gpt-5.1-codex-max' },
-                                { value: 'gpt-5.1-codex-mini', label: 'gpt-5.1-codex-mini' }
-                              ]}
-                            />
-                          ) : (
+                          <Space.Compact style={{ width: '100%' }}>
                             <Input />
-                          )}
+                            <ModelProviderModelsButton
+                              disabled={repoArchived || (source === 'robot' && apiKeyDisabled)}
+                              buttonProps={{ size: 'middle' }}
+                              loadModels={async ({ forceRefresh }) => {
+                                // Load models based on the selected credential source so robot config avoids hardcoded model ids. b8fucnmey62u0muyn7i0
+                                const credentialSource = normalizeCredentialSource(watchedModelCredentialSource);
+                                const credentialProfileId = String(watchedModelCredentialProfileId ?? '').trim();
+
+                                if (credentialSource === 'user') {
+                                  return listMyModelProviderModels({
+                                    provider,
+                                    profileId: credentialProfileId || undefined,
+                                    forceRefresh
+                                  });
+                                }
+
+                                if (credentialSource === 'repo') {
+                                  return listRepoModelProviderModels(repoId, {
+                                    provider,
+                                    profileId: credentialProfileId || undefined,
+                                    forceRefresh
+                                  });
+                                }
+
+                                const apiKey = String(robotForm.getFieldValue(['modelProviderConfig', 'credential', 'apiKey']) ?? '').trim();
+                                const apiBaseUrl = String(robotForm.getFieldValue(['modelProviderConfig', 'credential', 'apiBaseUrl']) ?? '').trim();
+
+                                return listRepoModelProviderModels(repoId, {
+                                  provider,
+                                  credential: { apiKey: apiKey || null, apiBaseUrl: apiBaseUrl || null },
+                                  forceRefresh
+                                });
+                              }}
+                              onPickModel={(model) => {
+                                const current = robotForm.getFieldValue('modelProviderConfig') ?? {};
+                                robotForm.setFieldsValue({ modelProviderConfig: { ...current, model } as any });
+                              }}
+                            />
+                          </Space.Compact>
                         </Form.Item>
                       </Col>
                       <Col xs={24} md={12}>

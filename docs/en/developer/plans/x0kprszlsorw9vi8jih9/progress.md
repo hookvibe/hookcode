@@ -8,7 +8,8 @@
 <!-- Keep phase status updates in sync with task_plan.md for this session. x0kprszlsorw9vi8jih9 -->
 
 ## Session Metadata
-- **Session Title:** 任务详情 Prompt patch 双栏展示
+- **Session Title:** Task Detail Prompt Patch Two-Column Display
+<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
 - **Session Hash:** x0kprszlsorw9vi8jih9
 
 ## Session: 2026-01-19

@@ -5,14 +5,13 @@
   WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md.
 -->
 
-<!-- Keep phase status updates in sync with task_plan.md for this session. 3iz4jx8bsy7q7d6b3jr3 -->
+<!-- Keep phase status updates in sync with task_plan.md for this session. b8fucnmey62u0muyn7i0 -->
 
 ## Session Metadata
-- **Session Title:** Tasks List Page Redesign and Active Filter Status Surfacing
-<!-- Translate remaining Chinese content to English for docs/en consistency. docsentrans20260121 -->
-- **Session Hash:** 3iz4jx8bsy7q7d6b3jr3
+- **Session Title:** Dynamic models by credential
+- **Session Hash:** b8fucnmey62u0muyn7i0
 
-## Session: 2026-01-20
+## Session: 2026-01-21
 <!-- 
   WHAT: The date of this work session.
   WHY: Helps track when work happened, useful for resuming after time gaps.
@@ -26,7 +25,7 @@
   WHEN: Update as you work through the phase, or at least when you complete it.
 -->
 - **Status:** complete
-- **Started:** 2026-01-20 00:10
+- **Started:** 2026-01-21 00:00
 <!-- 
   STATUS: Same as task_plan.md (pending, in_progress, complete)
   TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00")
@@ -39,8 +38,9 @@
       - Implemented add functionality
       - Fixed FileNotFoundError
   -->
-  - Initialized planning session folder via `init-session.sh` and recorded session hash. <!-- Track planning-with-files initialization. 3iz4jx8bsy7q7d6b3jr3 -->
-  - Reviewed current Tasks page, router helpers, task stats API, and existing unit tests to identify the minimal, compatible redesign surface. <!-- Summarize discovery work. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Initialized planning session folder and templates.
+  - Captured initial requirements for dynamic model listing by credential.<!-- Log phase kickoff actions. b8fucnmey62u0muyn7i0 -->
+  - Located current provider keys (`codex`/`claude_code`/`gemini_cli`) and where model defaults are hardcoded in UI and backend.
 - Files created/modified:
   <!-- 
     WHAT: Which files you created or changed.
@@ -50,46 +50,62 @@
       - todos.json (created by app)
       - task_plan.md (updated)
   -->
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/task_plan.md` (updated)
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/findings.md` (updated)
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/progress.md` (updated)
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/findings.md
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/progress.md
 
 ### Phase 2: Planning & Structure
+<!-- 
+  WHAT: Same structure as Phase 1, for the next phase.
+  WHY: Keep a separate log entry for each phase to track progress clearly.
+-->
 - **Status:** complete
 - Actions taken:
-  - Planned the new Tasks list layout (status summary strip + in-body filter tags + search) and confirmed `/tasks/stats` exists for accurate totals. <!-- Capture the design/tech planning milestone. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Designed backend APIs + frontend components for dynamic model listing.<!-- Track planning phase completion. b8fucnmey62u0muyn7i0 -->
 - Files created/modified:
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/task_plan.md` (updated)
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/findings.md` (updated)
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/findings.md
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/progress.md
 
 ### Phase 3: Implementation
 - **Status:** complete
 - Actions taken:
-  - Implemented a status summary strip (with counts) and visible filter tags for `TasksPage`, plus a header refresh action that refreshes both list and stats. <!-- Summarize implementation work. 3iz4jx8bsy7q7d6b3jr3 -->
-  - Added i18n keys for the new filter UI (en-US + zh-CN) and CSS styles for responsive layout and themes. <!-- Track UI copy + styling changes. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Added backend model discovery service + user/repo endpoints to list models per credential.
+  - Added frontend reusable model picker modal and wired it into account credentials, repo-scoped credentials, and robot model form.<!-- Summarize implementation milestone. b8fucnmey62u0muyn7i0 -->
+  - Relaxed Codex model typing to accept any model id (no longer union-locked).
 - Files created/modified:
-  - `frontend/src/pages/TasksPage.tsx` (updated)
-  - `frontend/src/i18n/messages/en-US.ts` (updated)
-  - `frontend/src/i18n/messages/zh-CN.ts` (updated)
-  - `frontend/src/styles.css` (updated)
-  - `frontend/src/tests/tasksPage.test.tsx` (updated)
+  - backend/src/services/modelProviderModels.ts
+  - backend/src/modules/common/dto/model-provider-models.dto.ts
+  - backend/src/modules/users/user.service.ts
+  - backend/src/modules/users/users.controller.ts
+  - backend/src/modules/repositories/repositories.controller.ts
+  - backend/src/modelProviders/codex.ts
+  - backend/src/tests/unit/modelProviderModels.test.ts
+  - frontend/src/api.ts
+  - frontend/src/components/ModelProviderModelsButton.tsx
+  - frontend/src/components/UserPanelPopover.tsx
+  - frontend/src/pages/RepoDetailPage.tsx
+  - frontend/src/i18n/messages/zh-CN.ts
+  - frontend/src/i18n/messages/en-US.ts
+  - frontend/src/tests/userPanelPopover.test.tsx
+  - frontend/src/tests/repoDetailPage.test.tsx
 
 ### Phase 4: Testing & Verification
 - **Status:** complete
 - Actions taken:
-  - Ran frontend unit tests and verified the new status filter UI behavior via RTL tests. <!-- Record verification actions. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Ran backend Jest unit tests.
+  - Ran frontend Vitest suite.
+  - Verified backend + frontend production builds complete successfully.<!-- Record verification actions. b8fucnmey62u0muyn7i0 -->
 - Files created/modified:
-  - `docs/en/developer/plans/3iz4jx8bsy7q7d6b3jr3/progress.md` (updated)
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/progress.md
 
 ### Phase 5: Delivery
 - **Status:** complete
 - Actions taken:
-  - Added a changelog entry linking this session hash to the plan folder. <!-- Ensure release-note traceability. 3iz4jx8bsy7q7d6b3jr3 -->
-  - Tweaked Tasks page controls layout so the status filters stay above a full-width search input row. <!-- Follow-up UX adjustment requested by user. 3iz4jx8bsy7q7d6b3jr3 -->
+  - Updated changelog entry and session plan docs for traceability.<!-- Record delivery checklist completion. b8fucnmey62u0muyn7i0 -->
+  - Confirmed all phases complete via `check-complete.sh`.<!-- Keep plan completeness verification recorded. b8fucnmey62u0muyn7i0 -->
 - Files created/modified:
-  - `docs/en/change-log/0.0.0.md` (updated)
-  - `frontend/src/pages/TasksPage.tsx` (updated)
-  - `frontend/src/styles.css` (updated)
+  - docs/en/change-log/0.0.0.md
 
 ## Test Results
 <!-- 
@@ -102,7 +118,10 @@
 -->
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-| Frontend unit tests | `pnpm -C frontend test` | All tests pass | 66/66 tests passed | ✓ |
+| Backend unit tests | pnpm --filter hookcode-backend test | Pass | Pass | ✓ |
+| Frontend unit tests | pnpm --filter hookcode-frontend test | Pass | Pass | ✓ |
+| Backend build | pnpm build:backend | Pass | Pass | ✓ |
+| Frontend build | pnpm build:frontend | Pass | Pass | ✓ |
 
 ## Error Log
 <!-- 
@@ -116,7 +135,7 @@
 <!-- Keep ALL errors - they help avoid repetition -->
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-|           |       | 1       |            |
+| 2026-01-21 | Duplicate function implementation (getModelCredentialsRaw) | 1 | Removed duplicate method and kept a single commented implementation |
 
 ## 5-Question Reboot Check
 <!-- 
@@ -134,11 +153,11 @@
 <!-- If you can answer these, context is solid -->
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 5 (Delivery) |
-| Where am I going? | Update changelog entry and deliver changes. |
-| What's the goal? | Redesign the Tasks list page to surface the active status filter + add a stats-driven filter UI with tests. |
+| Where am I? | Phase 5 |
+| Where am I going? | Completed |
+| What's the goal? | Dynamic, credential-based model listing in relevant UIs |
 | What have I learned? | See findings.md |
-| What have I done? | See above |
+| What have I done? | Implemented + tested backend/FE model discovery + updated changelog |
 
 ---
 <!-- 

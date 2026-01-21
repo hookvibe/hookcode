@@ -12,7 +12,7 @@ import { normalizeHttpBaseUrl } from '../utils/url';
 export const CODEX_PROVIDER_KEY = 'codex' as const;
 export type ModelProviderKey = typeof CODEX_PROVIDER_KEY | (string & {});
 
-export type CodexModel = 'gpt-5.2' | 'gpt-5.1-codex-max' | 'gpt-5.1-codex-mini';
+export type CodexModel = string;
 export type CodexSandbox = 'read-only' | 'workspace-write' | 'danger-full-access';
 export type CodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 
@@ -189,8 +189,8 @@ const normalizeCredentialSource = (value: unknown): CodexCredentialSource => {
 
 const normalizeCodexModel = (value: unknown): CodexModel => {
   const raw = asString(value).trim();
-  if (raw === 'gpt-5.2' || raw === 'gpt-5.1-codex-max' || raw === 'gpt-5.1-codex-mini') return raw;
-  return 'gpt-5.1-codex-max';
+  // Accept any non-empty model id so the UI can dynamically discover models per credential. b8fucnmey62u0muyn7i0
+  return raw || 'gpt-5.1-codex-max';
 };
 
 const normalizeCodexSandbox = (value: unknown): 'workspace-write' | 'read-only' => {
