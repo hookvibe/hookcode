@@ -70,6 +70,38 @@ export class RepoScopedCredentialsPublicSwaggerDto {
   modelProvider!: RepoScopedModelProviderCredentialsPublicSwaggerDto;
 }
 
+// Describe repo provider activity payload for the repo detail dashboard row. kzxac35mxk0fg358i7zs
+export class RepoProviderActivityItemSwaggerDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiPropertyOptional()
+  url?: string;
+
+  @ApiPropertyOptional()
+  state?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  time?: string;
+}
+
+export class RepoProviderActivityResponseDto {
+  @ApiProperty({ enum: ['gitlab', 'github'] })
+  provider!: 'gitlab' | 'github';
+
+  @ApiProperty({ type: RepoProviderActivityItemSwaggerDto, isArray: true })
+  commits!: RepoProviderActivityItemSwaggerDto[];
+
+  @ApiProperty({ type: RepoProviderActivityItemSwaggerDto, isArray: true })
+  merges!: RepoProviderActivityItemSwaggerDto[];
+
+  @ApiProperty({ type: RepoProviderActivityItemSwaggerDto, isArray: true })
+  issues!: RepoProviderActivityItemSwaggerDto[];
+}
+
 export class RepoRobotSwaggerDto {
   @ApiProperty()
   id!: string;

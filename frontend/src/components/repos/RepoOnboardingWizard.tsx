@@ -8,10 +8,11 @@ import { buildTaskGroupHash } from '../../router';
 import { extractTaskResultText, isTerminalStatus } from '../../utils/task';
 import { isLocalhostUrl } from '../../utils/url';
 import { MarkdownViewer } from '../MarkdownViewer';
+import { pickRepoProviderCredentials, type RepoProviderCredentialSource } from './repoProviderCredentials';
 
 // RepoOnboardingWizard renders the first-entry setup flow (credentials → robot → chat test → webhook). 58w1q3n5nr58flmempxe
 
-type CredentialSource = 'user' | 'repo' | 'anonymous';
+type CredentialSource = RepoProviderCredentialSource; // Keep onboarding credential source aligned with shared selectors. kzxac35mxk0fg358i7zs
 
 type ChatMessage = {
   id: string;
@@ -44,20 +45,6 @@ const visibilityTag = (t: (key: string, vars?: any) => string, visibility: RepoP
   if (visibility === 'internal') return <Tag color="geekblue">{t('repos.onboarding.visibility.internal')}</Tag>;
   if (visibility === 'private') return <Tag color="volcano">{t('repos.onboarding.visibility.private')}</Tag>;
   return <Tag>{t('repos.onboarding.visibility.unknown')}</Tag>;
-};
-
-const pickProviderCredentials = (
-  provider: RepoProvider,
-  source: CredentialSource,
-  repoScopedCredentials: RepoScopedCredentialsPublic | null,
-  userModelCredentials: UserModelCredentialsPublic | null
-) => {
-  if (source === 'repo') return repoScopedCredentials?.repoProvider ?? null;
-  if (source === 'user') {
-    const key = provider === 'github' ? 'github' : 'gitlab';
-    return (userModelCredentials as any)?.[key] ?? null;
-  }
-  return null;
 };
 
 export const RepoOnboardingWizard: FC<RepoOnboardingWizardProps> = ({
@@ -97,7 +84,7 @@ export const RepoOnboardingWizard: FC<RepoOnboardingWizardProps> = ({
   );
 
   const repoProviderCreds = useMemo(
-    () => pickProviderCredentials(repo.provider, credentialSource, repoScopedCredentials, userModelCredentials),
+    () => pickRepoProviderCredentials(repo.provider, credentialSource, repoScopedCredentials, userModelCredentials),
     [credentialSource, repo.provider, repoScopedCredentials, userModelCredentials]
   );
   const profileOptions = useMemo(

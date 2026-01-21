@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { Injectable } from '@nestjs/common';
+import { GitProviderHttpError } from './git-provider-http-error';
 
 dotenv.config();
 
@@ -59,6 +60,23 @@ export interface GithubCommit {
   commit?: { message?: string };
 }
 
+export interface GithubPullRequest {
+  id: number;
+  number: number;
+  title: string;
+  state?: string;
+  html_url?: string;
+  merged_at?: string | null;
+  updated_at?: string;
+  created_at?: string;
+}
+
+export interface GithubIssueListItem extends GithubIssue {
+  pull_request?: unknown;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface GithubRepository {
   id: number;
   name?: string;
@@ -78,16 +96,30 @@ export interface GithubRepository {
   };
 }
 
+// Build query strings consistently for GitHub list endpoints. kzxac35mxk0fg358i7zs
+const buildQuery = (params: Record<string, string | number | boolean | undefined>) => {
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      searchParams.append(key, String(value));
+    }
+  });
+  const queryString = searchParams.toString();
+  return queryString ? `?${queryString}` : '';
+};
+
 @Injectable()
 class GithubService {
   private readonly apiBaseUrl: string;
   private readonly token: string;
 
-  constructor(options?: { token?: string; apiBaseUrl?: string }) {
+  constructor(options?: { token?: string; apiBaseUrl?: string; warnIfNoToken?: boolean }) {
     this.apiBaseUrl = (options?.apiBaseUrl || 'https://api.github.com').replace(/\/$/, '');
     this.token = (options?.token ?? '').trim();
 
-    if (!this.token) {
+    // Allow callers to suppress missing-token warnings for intentional anonymous requests. kzxac35mxk0fg358i7zs
+    const warnIfNoToken = options?.warnIfNoToken !== false;
+    if (!this.token && warnIfNoToken) {
       console.warn(
         '[github] token is not configured: requests will be anonymous (write operations will fail and rate limits are more likely); please configure a token in the trigger/robot settings'
       );
@@ -112,7 +144,16 @@ class GithubService {
     const res = await fetch(url, { ...init, headers });
     if (!res.ok) {
       const errorText = await res.text().catch(() => '');
-      throw new Error(`[github] ${res.status} ${res.statusText}: ${errorText}`);
+      // Preserve HTTP status metadata on provider errors so callers can handle auth-required flows. kzxac35mxk0fg358i7zs
+      throw new GitProviderHttpError({
+        provider: 'github',
+        status: res.status,
+        statusText: res.statusText,
+        url,
+        method: String(init.method ?? 'GET').toUpperCase(),
+        responseText: errorText,
+        message: `[github] ${res.status} ${res.statusText}: ${errorText}`
+      });
     }
 
     if (res.status === 204) return undefined as T;
@@ -176,6 +217,42 @@ class GithubService {
 
   async listCommitComments(owner: string, repo: string, sha: string): Promise<GithubCommitComment[]> {
     return this.request<GithubCommitComment[]>(`repos/${owner}/${repo}/commits/${sha}/comments?per_page=100`);
+  }
+
+  async listCommits(owner: string, repo: string, options?: { perPage?: number; sha?: string }): Promise<GithubCommit[]> {
+    // List commits for repo activity dashboard (best-effort for public/anonymous repos). kzxac35mxk0fg358i7zs
+    const query = buildQuery({ per_page: options?.perPage ?? 10, sha: options?.sha });
+    return this.request<GithubCommit[]>(`repos/${owner}/${repo}/commits${query}`);
+  }
+
+  async listPullRequests(
+    owner: string,
+    repo: string,
+    options?: { state?: 'open' | 'closed' | 'all'; sort?: 'created' | 'updated' | 'popularity' | 'long-running'; direction?: 'asc' | 'desc'; perPage?: number }
+  ): Promise<GithubPullRequest[]> {
+    // List PRs for repo activity dashboard (caller can filter merged PRs). kzxac35mxk0fg358i7zs
+    const query = buildQuery({
+      state: options?.state ?? 'closed',
+      sort: options?.sort ?? 'updated',
+      direction: options?.direction ?? 'desc',
+      per_page: options?.perPage ?? 30
+    });
+    return this.request<GithubPullRequest[]>(`repos/${owner}/${repo}/pulls${query}`);
+  }
+
+  async listIssues(
+    owner: string,
+    repo: string,
+    options?: { state?: 'open' | 'closed' | 'all'; sort?: 'created' | 'updated' | 'comments'; direction?: 'asc' | 'desc'; perPage?: number }
+  ): Promise<GithubIssueListItem[]> {
+    // List issues for repo activity dashboard (caller must filter out PR items). kzxac35mxk0fg358i7zs
+    const query = buildQuery({
+      state: options?.state ?? 'open',
+      sort: options?.sort ?? 'updated',
+      direction: options?.direction ?? 'desc',
+      per_page: options?.perPage ?? 30
+    });
+    return this.request<GithubIssueListItem[]>(`repos/${owner}/${repo}/issues${query}`);
   }
 }
 

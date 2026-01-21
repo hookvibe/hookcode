@@ -716,6 +716,30 @@ export const fetchRepoProviderMeta = async (
   return data;
 };
 
+export interface RepoProviderActivityItem {
+  id: string;
+  title: string;
+  url?: string;
+  state?: string;
+  time?: string;
+}
+
+export interface RepoProviderActivity {
+  provider: RepoProvider;
+  commits: RepoProviderActivityItem[];
+  merges: RepoProviderActivityItem[];
+  issues: RepoProviderActivityItem[];
+}
+
+export const fetchRepoProviderActivity = async (
+  repoId: string,
+  params?: { credentialSource?: 'user' | 'repo' | 'anonymous'; credentialProfileId?: string; limit?: number }
+): Promise<RepoProviderActivity> => {
+  // Fetch provider activity for the repo detail dashboard row without exposing tokens to the browser. kzxac35mxk0fg358i7zs
+  const { data } = await api.get<RepoProviderActivity>(`/repos/${repoId}/provider-activity`, { params });
+  return data;
+};
+
 export const listRepoWebhookDeliveries = async (
   repoId: string,
   params?: { limit?: number; cursor?: string }

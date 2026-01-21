@@ -67,6 +67,7 @@ import { RepoDetailDashboardSummaryStrip, type RepoDetailSectionKey } from '../c
 import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
 import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
 import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
+import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailProviderActivityRow';
 
 /**
  * RepoDetailPage:
@@ -1284,6 +1285,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                             {t('repos.detail.openedFromTask', { taskId: fromTaskId })}
                           </Typography.Paragraph>
                         ) : null}
+                        {/* Show provider activity directly below Basic info for quick triage. kzxac35mxk0fg358i7zs */}
+                        <RepoDetailProviderActivityRow
+                          repo={repo}
+                          repoScopedCredentials={repoScopedCredentials}
+                          userModelCredentials={userModelCredentials}
+                        />
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
                           {repoArchived ? (
                             <Popconfirm

@@ -56,7 +56,8 @@ vi.mock('../api', () => {
     })),
     listMyModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
     listRepoModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
-    fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' }))
+    fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' })),
+    fetchRepoProviderActivity: vi.fn(async () => ({ provider: 'gitlab', commits: [], merges: [], issues: [] })) // Mock activity fetch for new Basic-row widget. kzxac35mxk0fg358i7zs
   };
 });
 
@@ -128,6 +129,26 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
         enabled: true
       })
     );
+  });
+
+  test('loads provider activity row for public repos', async () => {
+    // Ensure the Basic section can display provider activity without requiring credentials for public repos. kzxac35mxk0fg358i7zs
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    vi.mocked(api.fetchRepoProviderMeta).mockResolvedValueOnce({ provider: 'gitlab', visibility: 'public' } as any);
+    vi.mocked(api.fetchRepoProviderActivity).mockResolvedValueOnce({
+      provider: 'gitlab',
+      commits: [{ id: 'c1', title: 'feat: one', url: 'https://gitlab.example.com/c1' }],
+      merges: [{ id: 'm1', title: 'MR: one', url: 'https://gitlab.example.com/m1' }],
+      issues: [{ id: 'i1', title: 'Issue: one', url: 'https://gitlab.example.com/i1' }]
+    } as any);
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepoProviderActivity).toHaveBeenCalled());
+    expect(await screen.findByText('feat: one')).toBeInTheDocument();
+    expect(screen.getByText('MR: one')).toBeInTheDocument();
+    expect(screen.getByText('Issue: one')).toBeInTheDocument();
   });
 
   test('shows onboarding wizard on first entry and can be skipped', async () => {

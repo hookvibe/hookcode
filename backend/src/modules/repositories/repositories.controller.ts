@@ -38,6 +38,7 @@ import { GitlabService } from '../../services/gitlabService';
 import { GithubService } from '../../services/githubService';
 import { UserService } from '../users/user.service';
 import { inferRobotRepoProviderCredentialSource, resolveRobotProviderToken } from '../../services/repoRobotAccess';
+import { fetchRepoProviderActivity, RepoProviderAuthRequiredError } from '../../services/repoProviderActivity';
 import type { RepoProvider, Repository, RepositoryBranch } from '../../types/repository';
 import type { RobotDefaultBranchRole } from '../../types/repoRobot';
 import { CODEX_PROVIDER_KEY, normalizeCodexRobotProviderConfig } from '../../modelProviders/codex';
@@ -59,6 +60,7 @@ import {
   GetRepoWebhookDeliveryResponseDto,
   GetRepositoryResponseDto,
   ListRepoRobotsResponseDto,
+  RepoProviderActivityResponseDto,
   ListRepoWebhookDeliveriesResponseDto,
   ListRepositoriesResponseDto,
   TestRobotResponseDto,
@@ -390,7 +392,8 @@ export class RepositoriesController {
 
       if (repo.provider === 'github') {
         try {
-          const github = new GithubService({ token, apiBaseUrl });
+          // Suppress missing-token warnings when onboarding probes public GitHub repos anonymously. kzxac35mxk0fg358i7zs
+          const github = new GithubService({ token, apiBaseUrl, warnIfNoToken: Boolean(token) });
           const repoIdOrSlug = repoIdentity;
           const repoInfo: any = await (async () => {
             if (!repoIdOrSlug.includes('/')) return github.getRepositoryById(repoIdOrSlug);
@@ -415,6 +418,83 @@ export class RepositoriesController {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get provider meta failed', err);
       throw new InternalServerErrorException({ error: 'Failed to fetch provider metadata' });
+    }
+  }
+
+  @Get(':id/provider-activity')
+  @ApiOperation({
+    summary: 'Get provider activity (commits/merges/issues)',
+    description:
+      'Fetch recent commits, merged MRs/PRs, and issues from the Git provider using anonymous mode for public repos or a selected credential profile for private repos.',
+    operationId: 'repos_get_provider_activity'
+  })
+  @ApiOkResponse({ description: 'OK', type: RepoProviderActivityResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async getProviderActivity(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('credentialSource') credentialSourceRaw: string | undefined,
+    @Query('credentialProfileId') credentialProfileIdRaw: string | undefined,
+    @Query('limit') limitRaw: string | undefined
+  ) {
+    try {
+      // Provide recent provider activity for the repo detail dashboard row (commits/merges/issues). kzxac35mxk0fg358i7zs
+      const repoId = id;
+      const repo = await this.repositoryService.getById(repoId);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+
+      const repoIdentity = (repo.externalId ?? '').trim() || (repo.name ?? '').trim();
+      if (!repoIdentity) {
+        throw new BadRequestException({ error: 'repo identity is required (externalId or name)' });
+      }
+
+      const credentialSource = (() => {
+        const raw = String(credentialSourceRaw ?? '').trim().toLowerCase();
+        if (raw === 'repo') return 'repo';
+        if (raw === 'user') return 'user';
+        if (raw === 'anonymous') return 'anonymous';
+        return 'anonymous';
+      })();
+      const credentialProfileId = typeof credentialProfileIdRaw === 'string' ? credentialProfileIdRaw.trim() : '';
+      const limit = Math.max(1, Math.min(10, parsePositiveInt(limitRaw, 3)));
+
+      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+      const token =
+        credentialSource === 'anonymous'
+          ? ''
+          : resolveRobotProviderToken({
+              provider: repo.provider,
+              robot: { repoCredentialProfileId: credentialProfileId || null },
+              userCredentials,
+              repoCredentials: repoScopedCredentials?.repoProvider ?? null,
+              source: credentialSource === 'repo' ? 'repo' : 'user'
+            });
+      if (credentialSource !== 'anonymous' && !token) {
+        throw new BadRequestException({
+          error: 'repo provider token is required to fetch activity',
+          code: 'REPO_PROVIDER_TOKEN_REQUIRED'
+        });
+      }
+
+      const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
+      const activity = await fetchRepoProviderActivity({
+        provider: repo.provider,
+        repoIdentity,
+        token,
+        apiBaseUrl,
+        limit
+      });
+      return { provider: repo.provider, ...activity };
+    } catch (err) {
+      if (err instanceof RepoProviderAuthRequiredError) {
+        throw new UnauthorizedException({ error: err.message, code: err.code, providerStatus: err.providerStatus });
+      }
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] get provider activity failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch provider activity' });
     }
   }
 
