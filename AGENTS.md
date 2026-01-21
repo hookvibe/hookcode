@@ -15,6 +15,7 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 ## Working workflow
 
 <!-- Enforce planning-with-files workflow on every invocation for traceability. 0lldjnbw5qxdhw4wwftz -->
+<!-- Add doc-sync and release versioning rules to the working workflow. docs/en/developer/plans/docsworkflowapi20260121/task_plan.md docsworkflowapi20260121 -->
 
 1. Determine the active session (NON-NEGOTIABLE)
    - **Check conversation history first**: if this conversation already has an active `SESSION_HASH` and the current request is a continuation/refinement of that task, **reuse the existing SESSION_HASH** (do NOT create a new session).
@@ -33,13 +34,15 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 4. Implement the change
    - Re-read `docs/en/developer/plans/<SESSION_HASH>/task_plan.md` before major decisions.
    - Add/adjust inline comments for every code change (see "Inline comment requirements").
+   - After changing code, validate whether any user-facing docs output becomes outdated (User Docs / API Reference); update docs and navigation as needed.
 5. After completing each phase or meaningful milestone, return to the session folder and update
    - `task_plan.md`: phase status (pending → in_progress → complete)
    - `progress.md`: actions, touched files, test results, error log
 6. Add or update test cases, run tests, and record results in `docs/en/developer/plans/<SESSION_HASH>/progress.md`
 7. Delivery checklist (NON-NEGOTIABLE)
    - Ensure all phases are complete (optional helper: `bash .codex/skills/planning-with-files/scripts/check-complete.sh <SESSION_HASH>`).
-   - Update `docs/en/change-log/0.0.0.md` with: `SESSION_HASH` + one-line summary + relative link to the plan.
+   - Update `docs/en/change-log/0.0.0.md` (Unreleased placeholder) with: `SESSION_HASH` + one-line summary + relative link to the plan.
+   - Versioning: the release version is `package.json#version` (current: `0.0.1`); when releasing, rename `docs/en/change-log/0.0.0.md` → `docs/en/change-log/<version>.md` and recreate a fresh `0.0.0.md`.
    <!-- Keep changelog entries clean by avoiding redundant HTML comment lines. l290bb7v758opd6uxu6r -->
    - Do NOT add an extra `<!-- ... -->` line above changelog bullets; the bullet (hash + plan link) is enough traceability.
 
@@ -50,13 +53,15 @@ Goal: Maintain the codebase like an encyclopedia — code and comments evolve to
 Mandatory rules:
 - Write comments inline at the exact code location they describe (do NOT create new `.md` documentation as a substitute for code comments).
 - After EVERY code change (add / modify / refactor / bugfix), you MUST also add or update the corresponding inline comments.
-- Traceability (NON-NEGOTIABLE): every changed area MUST include a 1-sentence English inline comment that ends with the active `SESSION_HASH`.
-  - Format: `<one sentence in English> <SESSION_HASH>`
+<!-- Require plan path links in inline traceability comments for easier navigation. docs/en/developer/plans/docsworkflowapi20260121/task_plan.md docsworkflowapi20260121 -->
+- Traceability (NON-NEGOTIABLE): every changed area MUST include a 1-sentence English inline comment that (1) includes a relative link to the session plan file and (2) ends with the active `SESSION_HASH`.
+  - Format: `<one sentence in English> <relative-plan-path> <SESSION_HASH>`
+  - Plan path: `docs/en/developer/plans/<SESSION_HASH>/task_plan.md`
   - Examples:
-    - JS/TS/Go: `// Add input validation for webhook payload. <SESSION_HASH>`
-    - Python/Shell/YAML: `# Explain retry backoff behavior. <SESSION_HASH>`
-    - SQL: `-- Prevent duplicate inserts via unique key. <SESSION_HASH>`
-    - Markdown: `<!-- Update workflow rules to enforce plan sessions. <SESSION_HASH> -->`
+    - JS/TS/Go: `// Add input validation for webhook payload. docs/en/developer/plans/<SESSION_HASH>/task_plan.md <SESSION_HASH>`
+    - Python/Shell/YAML: `# Explain retry backoff behavior. docs/en/developer/plans/<SESSION_HASH>/task_plan.md <SESSION_HASH>`
+    - SQL: `-- Prevent duplicate inserts via unique key. docs/en/developer/plans/<SESSION_HASH>/task_plan.md <SESSION_HASH>`
+    - Markdown: `<!-- Update workflow rules to enforce plan sessions. docs/en/developer/plans/<SESSION_HASH>/task_plan.md <SESSION_HASH> -->`
 <!-- Changelog entries are already self-traceable via the session hash link, so avoid redundant HTML comments there. l290bb7v758opd6uxu6r -->
 - Exception: For `docs/en/change-log/*.md` entries, do not add a separate `<!-- ... -->` comment line; keep only the bullet summary + plan link.
 - Comments must match the complexity level of the code (simple vs. medium vs. complex), and include the required content below.

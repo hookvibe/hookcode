@@ -219,23 +219,28 @@ class GithubService {
     return this.request<GithubCommitComment[]>(`repos/${owner}/${repo}/commits/${sha}/comments?per_page=100`);
   }
 
-  async listCommits(owner: string, repo: string, options?: { perPage?: number; sha?: string }): Promise<GithubCommit[]> {
+  async listCommits(
+    owner: string,
+    repo: string,
+    options?: { perPage?: number; page?: number; sha?: string }
+  ): Promise<GithubCommit[]> {
     // List commits for repo activity dashboard (best-effort for public/anonymous repos). kzxac35mxk0fg358i7zs
-    const query = buildQuery({ per_page: options?.perPage ?? 10, sha: options?.sha });
+    const query = buildQuery({ per_page: options?.perPage ?? 10, page: options?.page, sha: options?.sha });
     return this.request<GithubCommit[]>(`repos/${owner}/${repo}/commits${query}`);
   }
 
   async listPullRequests(
     owner: string,
     repo: string,
-    options?: { state?: 'open' | 'closed' | 'all'; sort?: 'created' | 'updated' | 'popularity' | 'long-running'; direction?: 'asc' | 'desc'; perPage?: number }
+    options?: { state?: 'open' | 'closed' | 'all'; sort?: 'created' | 'updated' | 'popularity' | 'long-running'; direction?: 'asc' | 'desc'; perPage?: number; page?: number }
   ): Promise<GithubPullRequest[]> {
     // List PRs for repo activity dashboard (caller can filter merged PRs). kzxac35mxk0fg358i7zs
     const query = buildQuery({
       state: options?.state ?? 'closed',
       sort: options?.sort ?? 'updated',
       direction: options?.direction ?? 'desc',
-      per_page: options?.perPage ?? 30
+      per_page: options?.perPage ?? 30,
+      page: options?.page ?? 1
     });
     return this.request<GithubPullRequest[]>(`repos/${owner}/${repo}/pulls${query}`);
   }
@@ -243,14 +248,15 @@ class GithubService {
   async listIssues(
     owner: string,
     repo: string,
-    options?: { state?: 'open' | 'closed' | 'all'; sort?: 'created' | 'updated' | 'comments'; direction?: 'asc' | 'desc'; perPage?: number }
+    options?: { state?: 'open' | 'closed' | 'all'; sort?: 'created' | 'updated' | 'comments'; direction?: 'asc' | 'desc'; perPage?: number; page?: number }
   ): Promise<GithubIssueListItem[]> {
     // List issues for repo activity dashboard (caller must filter out PR items). kzxac35mxk0fg358i7zs
     const query = buildQuery({
       state: options?.state ?? 'open',
       sort: options?.sort ?? 'updated',
       direction: options?.direction ?? 'desc',
-      per_page: options?.perPage ?? 30
+      per_page: options?.perPage ?? 30,
+      page: options?.page ?? 1
     });
     return this.request<GithubIssueListItem[]>(`repos/${owner}/${repo}/issues${query}`);
   }

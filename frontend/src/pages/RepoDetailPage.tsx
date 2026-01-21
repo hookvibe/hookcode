@@ -1285,12 +1285,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                             {t('repos.detail.openedFromTask', { taskId: fromTaskId })}
                           </Typography.Paragraph>
                         ) : null}
-                        {/* Show provider activity directly below Basic info for quick triage. kzxac35mxk0fg358i7zs */}
-                        <RepoDetailProviderActivityRow
-                          repo={repo}
-                          repoScopedCredentials={repoScopedCredentials}
-                          userModelCredentials={userModelCredentials}
-                        />
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
                           {repoArchived ? (
                             <Popconfirm
@@ -1812,6 +1806,18 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                             </div>
                           </Col>
                         </Row>
+                      </div>
+
+                      <div className="hc-repo-dashboard__region">
+                        {/* Region 2.5: provider activity as a standalone full-width row (not inside Basic card). kzxac35mxk0fg358i7zs */}
+                        <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+                          <RepoDetailProviderActivityRow
+                            repo={repo}
+                            repoScopedCredentials={repoScopedCredentials}
+                            userModelCredentials={userModelCredentials}
+                            formatTime={formatTime}
+                          />
+                        </div>
                       </div>
 
 	                      <div id={sectionDomId('credentials')} className="hc-repo-dashboard__region">

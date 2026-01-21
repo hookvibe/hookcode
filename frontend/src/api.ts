@@ -718,22 +718,46 @@ export const fetchRepoProviderMeta = async (
 
 export interface RepoProviderActivityItem {
   id: string;
+  shortId?: string;
   title: string;
   url?: string;
   state?: string;
   time?: string;
+  taskGroups?: Array<{
+    id: string;
+    kind: string;
+    title?: string;
+    updatedAt: string;
+    processingTasks?: Array<{ id: string; status: string; title?: string; updatedAt?: string }>;
+  }>;
+}
+
+export interface RepoProviderActivityPage {
+  items: RepoProviderActivityItem[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
 }
 
 export interface RepoProviderActivity {
   provider: RepoProvider;
-  commits: RepoProviderActivityItem[];
-  merges: RepoProviderActivityItem[];
-  issues: RepoProviderActivityItem[];
+  commits: RepoProviderActivityPage;
+  merges: RepoProviderActivityPage;
+  issues: RepoProviderActivityPage;
 }
 
 export const fetchRepoProviderActivity = async (
   repoId: string,
-  params?: { credentialSource?: 'user' | 'repo' | 'anonymous'; credentialProfileId?: string; limit?: number }
+  params?: {
+    credentialSource?: 'user' | 'repo' | 'anonymous';
+    credentialProfileId?: string;
+    pageSize?: number;
+    commitsPage?: number;
+    mergesPage?: number;
+    issuesPage?: number;
+    // Back-compat: legacy `limit` param is accepted by backend as pageSize when provided. kzxac35mxk0fg358i7zs
+    limit?: number;
+  }
 ): Promise<RepoProviderActivity> => {
   // Fetch provider activity for the repo detail dashboard row without exposing tokens to the browser. kzxac35mxk0fg358i7zs
   const { data } = await api.get<RepoProviderActivity>(`/repos/${repoId}/provider-activity`, { params });

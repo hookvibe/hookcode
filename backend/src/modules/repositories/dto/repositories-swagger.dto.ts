@@ -71,9 +71,43 @@ export class RepoScopedCredentialsPublicSwaggerDto {
 }
 
 // Describe repo provider activity payload for the repo detail dashboard row. kzxac35mxk0fg358i7zs
+export class RepoProviderActivityTaskSwaggerDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiPropertyOptional()
+  title?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  updatedAt?: string;
+}
+
+export class RepoProviderActivityTaskGroupSwaggerDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  kind!: string;
+
+  @ApiPropertyOptional()
+  title?: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string;
+
+  @ApiPropertyOptional({ type: RepoProviderActivityTaskSwaggerDto, isArray: true })
+  processingTasks?: RepoProviderActivityTaskSwaggerDto[];
+}
+
 export class RepoProviderActivityItemSwaggerDto {
   @ApiProperty()
   id!: string;
+
+  @ApiPropertyOptional()
+  shortId?: string;
 
   @ApiProperty()
   title!: string;
@@ -86,20 +120,37 @@ export class RepoProviderActivityItemSwaggerDto {
 
   @ApiPropertyOptional({ format: 'date-time' })
   time?: string;
+
+  @ApiPropertyOptional({ type: RepoProviderActivityTaskGroupSwaggerDto, isArray: true })
+  taskGroups?: RepoProviderActivityTaskGroupSwaggerDto[];
+}
+
+export class RepoProviderActivityPageSwaggerDto {
+  @ApiProperty({ type: RepoProviderActivityItemSwaggerDto, isArray: true })
+  items!: RepoProviderActivityItemSwaggerDto[];
+
+  @ApiProperty()
+  page!: number;
+
+  @ApiProperty()
+  pageSize!: number;
+
+  @ApiProperty()
+  hasMore!: boolean;
 }
 
 export class RepoProviderActivityResponseDto {
   @ApiProperty({ enum: ['gitlab', 'github'] })
   provider!: 'gitlab' | 'github';
 
-  @ApiProperty({ type: RepoProviderActivityItemSwaggerDto, isArray: true })
-  commits!: RepoProviderActivityItemSwaggerDto[];
+  @ApiProperty({ type: RepoProviderActivityPageSwaggerDto })
+  commits!: RepoProviderActivityPageSwaggerDto;
 
-  @ApiProperty({ type: RepoProviderActivityItemSwaggerDto, isArray: true })
-  merges!: RepoProviderActivityItemSwaggerDto[];
+  @ApiProperty({ type: RepoProviderActivityPageSwaggerDto })
+  merges!: RepoProviderActivityPageSwaggerDto;
 
-  @ApiProperty({ type: RepoProviderActivityItemSwaggerDto, isArray: true })
-  issues!: RepoProviderActivityItemSwaggerDto[];
+  @ApiProperty({ type: RepoProviderActivityPageSwaggerDto })
+  issues!: RepoProviderActivityPageSwaggerDto;
 }
 
 export class RepoRobotSwaggerDto {

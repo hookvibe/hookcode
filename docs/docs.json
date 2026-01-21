@@ -20,7 +20,24 @@
               {
                 "group": "Home",
                 "pages": [
-                  "en/user-docs/index"
+                  "en/user-docs/index",
+                  "en/user-docs/quickstart"
+                ]
+              },
+              {
+                "group": "Configuration",
+                "pages": [
+                  "en/user-docs/config/repositories",
+                  "en/user-docs/config/robots",
+                  "en/user-docs/config/triggers"
+                ]
+              },
+              {
+                "group": "Reference",
+                "pages": [
+                  "en/user-docs/environment",
+                  "en/user-docs/features",
+                  "en/user-docs/troubleshooting"
                 ]
               }
             ]
@@ -32,6 +49,15 @@
                 "group": "Home",
                 "pages": [
                   "en/api-reference/index"
+                ]
+              },
+              {
+                "group": "Reference",
+                "pages": [
+                  "en/api-reference/auth-users",
+                  "en/api-reference/repositories",
+                  "en/api-reference/tasks-and-groups",
+                  "en/api-reference/webhooks-events-tools"
                 ]
               }
             ]
@@ -84,6 +110,9 @@
                   "en/developer/plans/docsjsonindex20260121/task_plan",
                   "en/developer/plans/docsjsonindex20260121/findings",
                   "en/developer/plans/docsjsonindex20260121/progress",
+                  "en/developer/plans/docsworkflowapi20260121/task_plan",
+                  "en/developer/plans/docsworkflowapi20260121/findings",
+                  "en/developer/plans/docsworkflowapi20260121/progress",
                   "en/developer/plans/f3a9c2d8e1b7f4a0c6d1/task_plan",
                   "en/developer/plans/f3a9c2d8e1b7f4a0c6d1/findings",
                   "en/developer/plans/f3a9c2d8e1b7f4a0c6d1/progress",
@@ -157,7 +186,8 @@
               {
                 "group": "Home",
                 "pages": [
-                  "en/change-log/index"
+                  "en/change-log/index",
+                  "en/change-log/0.0.0"
                 ]
               }
             ]

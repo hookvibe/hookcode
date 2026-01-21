@@ -117,14 +117,17 @@ Filesystem = Disk (persistent, unlimited)
 
 To link code changes back to the plan folder, include the session hash in **every changed area** via an inline comment:
 
-**Format:** `<one sentence in English> <session-hash>`
+<!-- Align traceability format with repo-root AGENTS.md (include plan path + hash). docs/en/developer/plans/docsworkflowapi20260121/task_plan.md docsworkflowapi20260121 -->
+**Format:** `<one sentence in English> <relative-plan-path> <session-hash>`
+
+**Plan path:** `docs/en/developer/plans/<session-hash>/task_plan.md`
 
 Examples:
 
-- JS/TS/Go: `// Add input validation for webhook payload. sddsa89612jk4hbwas678`
-- Python/Shell/YAML: `# Document retry backoff behavior. sddsa89612jk4hbwas678`
-- SQL: `-- Prevent duplicate inserts via unique key. sddsa89612jk4hbwas678`
-- Markdown: `<!-- Explain why this doc section changed. sddsa89612jk4hbwas678 -->`
+- JS/TS/Go: `// Add input validation for webhook payload. docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md sddsa89612jk4hbwas678`
+- Python/Shell/YAML: `# Document retry backoff behavior. docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md sddsa89612jk4hbwas678`
+- SQL: `-- Prevent duplicate inserts via unique key. docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md sddsa89612jk4hbwas678`
+- Markdown: `<!-- Explain why this doc section changed. docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md sddsa89612jk4hbwas678 -->`
 
 This creates a stable backlink: comment → hash → `docs/en/developer/plans/<hash>/`.
 

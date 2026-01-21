@@ -1,7 +1,7 @@
 {
   "name": "hookcode",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.1",
   "packageManager": "pnpm@9.6.0",
   "workspaces": [
     "backend",
@@ -14,6 +14,7 @@
     "dev:worker": "pnpm --filter hookcode-backend dev:worker",
     "dev:frontend": "pnpm --filter hookcode-frontend dev",
     "dev:db": "docker compose -f docker/docker-compose.yml up db -d",
+    "dev:doc": "cd docs && npx mint dev",
     "db:migrate": "pnpm --filter hookcode-backend db:migrate",
     "db:migrate:dev": "pnpm --filter hookcode-backend db:migrate:dev",
     "db:reset": "pnpm --filter hookcode-backend db:reset",

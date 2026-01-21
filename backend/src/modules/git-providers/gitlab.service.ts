@@ -54,6 +54,9 @@ export interface GitlabMergeRequest {
   web_url: string;
   source_branch: string;
   target_branch: string;
+  created_at?: string;
+  updated_at?: string;
+  merged_at?: string | null;
 }
 
 export interface GitlabIssue {
@@ -64,6 +67,8 @@ export interface GitlabIssue {
   description?: string;
   state: string;
   web_url: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface GitlabNote {

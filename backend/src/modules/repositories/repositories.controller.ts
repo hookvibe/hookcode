@@ -34,6 +34,7 @@ import { RepoAutomationService, findRobotAutomationUsages, RepoAutomationConfigV
 import { RepoRobotService } from './repo-robot.service';
 import { RepoWebhookDeliveryService } from './repo-webhook-delivery.service';
 import { RepositoryService, type ArchiveScope } from './repository.service';
+import { db } from '../../db';
 import { GitlabService } from '../../services/gitlabService';
 import { GithubService } from '../../services/githubService';
 import { UserService } from '../users/user.service';
@@ -437,6 +438,10 @@ export class RepositoriesController {
     @Req() req: Request,
     @Query('credentialSource') credentialSourceRaw: string | undefined,
     @Query('credentialProfileId') credentialProfileIdRaw: string | undefined,
+    @Query('pageSize') pageSizeRaw: string | undefined,
+    @Query('commitsPage') commitsPageRaw: string | undefined,
+    @Query('mergesPage') mergesPageRaw: string | undefined,
+    @Query('issuesPage') issuesPageRaw: string | undefined,
     @Query('limit') limitRaw: string | undefined
   ) {
     try {
@@ -458,7 +463,11 @@ export class RepositoriesController {
         return 'anonymous';
       })();
       const credentialProfileId = typeof credentialProfileIdRaw === 'string' ? credentialProfileIdRaw.trim() : '';
-      const limit = Math.max(1, Math.min(10, parsePositiveInt(limitRaw, 3)));
+      const pageSizeFromLimit = parsePositiveInt(limitRaw, 0);
+      const pageSize = Math.max(1, Math.min(20, parsePositiveInt(pageSizeRaw, pageSizeFromLimit || 5)));
+      const commitsPage = Math.max(1, parsePositiveInt(commitsPageRaw, 1));
+      const mergesPage = Math.max(1, parsePositiveInt(mergesPageRaw, 1));
+      const issuesPage = Math.max(1, parsePositiveInt(issuesPageRaw, 1));
 
       const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
       const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
@@ -485,9 +494,107 @@ export class RepositoriesController {
         repoIdentity,
         token,
         apiBaseUrl,
-        limit
+        pageSize,
+        commitsPage,
+        mergesPage,
+        issuesPage
       });
-      return { provider: repo.provider, ...activity };
+
+      // Attach HookCode task-group bindings (and processing tasks) to provider items for the repo dashboard UI. kzxac35mxk0fg358i7zs
+      const attachBindings = async (items: Array<{ id: string; taskGroups?: any[] }>) => {
+        const commitShas = activity.commits.items.map((i) => String(i.id ?? '').trim()).filter(Boolean);
+        const mrIds = activity.merges.items
+          .map((i) => Number(i.id))
+          .filter((n) => Number.isFinite(n)) as number[];
+        const issueIds = activity.issues.items
+          .map((i) => Number(i.id))
+          .filter((n) => Number.isFinite(n)) as number[];
+
+        if (!commitShas.length && !mrIds.length && !issueIds.length) return;
+
+        const groups = await db.taskGroup.findMany({
+          where: {
+            repoId,
+            archivedAt: null,
+            OR: [
+              commitShas.length ? { commitSha: { in: commitShas } } : undefined,
+              mrIds.length ? { mrId: { in: mrIds } } : undefined,
+              issueIds.length ? { issueId: { in: issueIds } } : undefined
+            ].filter(Boolean) as any[]
+          },
+          orderBy: { updatedAt: 'desc' },
+          select: {
+            id: true,
+            kind: true,
+            title: true,
+            updatedAt: true,
+            robotId: true,
+            commitSha: true,
+            mrId: true,
+            issueId: true,
+            tasks: {
+              where: { status: 'processing', archivedAt: null },
+              orderBy: { updatedAt: 'desc' },
+              take: 3,
+              select: { id: true, status: true, title: true, updatedAt: true }
+            }
+          }
+        });
+
+        const groupsByCommit = new Map<string, any[]>();
+        const groupsByMr = new Map<string, any[]>();
+        const groupsByIssue = new Map<string, any[]>();
+
+        for (const g of groups) {
+          const summary = {
+            id: g.id,
+            kind: g.kind,
+            title: g.title ?? undefined,
+            updatedAt: g.updatedAt instanceof Date ? g.updatedAt.toISOString() : String(g.updatedAt ?? ''),
+            robotId: g.robotId ?? undefined,
+            processingTasks: (g.tasks ?? []).map((t) => ({
+              id: t.id,
+              status: t.status,
+              title: t.title ?? undefined,
+              updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt ?? '')
+            }))
+          };
+
+          if (g.kind === 'commit' && g.commitSha) {
+            const key = String(g.commitSha);
+            groupsByCommit.set(key, [...(groupsByCommit.get(key) ?? []), summary]);
+          }
+          if (g.kind === 'merge_request' && typeof g.mrId === 'number') {
+            const key = String(g.mrId);
+            groupsByMr.set(key, [...(groupsByMr.get(key) ?? []), summary]);
+          }
+          if (g.kind === 'issue' && typeof g.issueId === 'number') {
+            const key = String(g.issueId);
+            groupsByIssue.set(key, [...(groupsByIssue.get(key) ?? []), summary]);
+          }
+        }
+
+        for (const item of items) {
+          const id = String(item.id ?? '').trim();
+          if (!id) continue;
+          const groups = groupsByCommit.get(id) ?? groupsByMr.get(id) ?? groupsByIssue.get(id) ?? [];
+          if (groups.length) {
+            item.taskGroups = groups;
+          }
+        }
+      };
+
+      const commits = activity.commits.items.map((i) => ({ ...i })) as any[];
+      const merges = activity.merges.items.map((i) => ({ ...i })) as any[];
+      const issues = activity.issues.items.map((i) => ({ ...i })) as any[];
+      await attachBindings([...commits, ...merges, ...issues]);
+
+      return {
+        provider: repo.provider,
+        commits: { ...activity.commits, items: commits },
+        merges: { ...activity.merges, items: merges },
+        issues: { ...activity.issues, items: issues }
+      };
     } catch (err) {
       if (err instanceof RepoProviderAuthRequiredError) {
         throw new UnauthorizedException({ error: err.message, code: err.code, providerStatus: err.providerStatus });

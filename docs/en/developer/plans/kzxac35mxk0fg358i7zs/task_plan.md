@@ -21,14 +21,14 @@
   WHY: This is your north star. Re-reading this keeps you focused on the end state.
   EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality."
 -->
-Add a repo detail dashboard row under the Basic section to show recent provider activity (commits, merges/PRs, issues) with public-vs-private credential handling.
+Add a full-width repo detail dashboard row to show recent provider activity (commits, merges/PRs, issues) with per-column pagination, task-group bindings, and public-vs-private credential handling.
 
 ## Current Phase
 <!-- 
   WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3").
   WHY: Quick reference for where you are in the task. Update this as you progress.
 -->
-Phase 5
+Phase 6
 
 ## Phases
 <!-- 
@@ -90,6 +90,14 @@ Phase 5
 -->
 - [x] Update changelog entry + link plan
 - [x] Ensure all phases marked complete
+- **Status:** complete
+
+### Phase 6: Follow-up (Layout + Pagination + Task bindings)
+- [x] Move provider activity into a full-width dashboard row (not inside Basic card)
+- [x] Add per-column pagination (commits/merges/issues)
+- [x] Show commit short hash and issue change indicators
+- [x] Show bound task groups and processing tasks per item
+- [x] Update tests and changelog
 - **Status:** complete
 
 ## Key Questions

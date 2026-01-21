@@ -138,7 +138,12 @@ vi.mock('../api', () => {
       github: { profiles: [], defaultProfileId: null }
     })),
     fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' })), // Mock provider visibility for repo activity row. kzxac35mxk0fg358i7zs
-    fetchRepoProviderActivity: vi.fn(async () => ({ provider: 'gitlab', commits: [], merges: [], issues: [] })), // Mock provider activity for repo activity row. kzxac35mxk0fg358i7zs
+    fetchRepoProviderActivity: vi.fn(async () => ({
+      provider: 'gitlab',
+      commits: { items: [], page: 1, pageSize: 5, hasMore: false },
+      merges: { items: [], page: 1, pageSize: 5, hasMore: false },
+      issues: { items: [], page: 1, pageSize: 5, hasMore: false }
+    })), // Mock provider activity for provider activity row. kzxac35mxk0fg358i7zs
     updateMyModelCredentials: vi.fn(async () => ({
       codex: { profiles: [], defaultProfileId: null },
       claude_code: { profiles: [], defaultProfileId: null },

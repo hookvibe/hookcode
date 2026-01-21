@@ -98,6 +98,28 @@
 - Files created/modified:
   - docs/en/change-log/0.0.0.md
 
+### Phase 6: Follow-up (Layout + Pagination + Task bindings)
+- **Status:** complete
+- Actions taken:
+  - Moved provider activity into a standalone full-width dashboard card (not inside Basic).
+  - Added per-column pagination and enriched items with commit short SHA + issue state/updated time.
+  - Attached HookCode task-group bindings and processing tasks to provider items.
+- Files created/modified:
+  - backend/src/modules/git-providers/github.service.ts
+  - backend/src/modules/git-providers/gitlab.service.ts
+  - backend/src/services/repoProviderActivity.ts
+  - backend/src/modules/repositories/repositories.controller.ts
+  - backend/src/modules/repositories/dto/repositories-swagger.dto.ts
+  - backend/src/tests/unit/repoProviderActivity.test.ts
+  - frontend/src/api.ts
+  - frontend/src/components/repos/RepoDetailProviderActivityRow.tsx
+  - frontend/src/pages/RepoDetailPage.tsx
+  - frontend/src/i18n/messages/en-US.ts
+  - frontend/src/i18n/messages/zh-CN.ts
+  - frontend/src/tests/repoDetailPage.test.tsx
+  - frontend/src/tests/appShell.test.tsx
+  - docs/en/change-log/0.0.0.md
+
 ## Test Results
 <!-- 
   WHAT: Table of tests you ran, what you expected, what actually happened.
@@ -144,9 +166,9 @@
 <!-- If you can answer these, context is solid -->
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 5 (Delivery) |
-| Where am I going? | Update changelog + final review |
-| What's the goal? | Add a provider activity row under the repo Basic section (public direct / private pick credentials). |
+| Where am I? | Phase 6 (Follow-up) complete |
+| Where am I going? | Done |
+| What's the goal? | Full-width provider activity row with pagination + task bindings (public direct / private pick credentials). |
 | What have I learned? | See findings.md |
 | What have I done? | Implemented backend+frontend and ran tests/builds (see above). |
 

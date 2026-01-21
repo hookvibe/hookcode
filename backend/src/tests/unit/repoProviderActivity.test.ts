@@ -80,41 +80,61 @@ describe('fetchRepoProviderActivity', () => {
       repoIdentity: '123',
       token: '',
       apiBaseUrl: 'https://gitlab.example.com',
-      limit: 2
+      pageSize: 2,
+      commitsPage: 1,
+      mergesPage: 1,
+      issuesPage: 1
     });
 
-    expect(res.commits).toEqual([
-      {
-        id: 'c1',
-        title: 'feat: one',
-        url: 'https://gitlab.example.com/group/project/-/commit/c1',
-        time: '2026-01-21T00:00:00.000Z'
-      },
-      {
-        id: 'c2',
-        title: 'fix: two',
-        url: 'https://gitlab.example.com/group/project/-/commit/c2',
-        time: '2026-01-20T00:00:00.000Z'
-      }
-    ]);
+    expect(res.commits).toEqual({
+      page: 1,
+      pageSize: 2,
+      hasMore: false,
+      items: [
+        {
+          id: 'c1',
+          shortId: 'c1',
+          title: 'feat: one',
+          url: 'https://gitlab.example.com/group/project/-/commit/c1',
+          time: '2026-01-21T00:00:00.000Z'
+        },
+        {
+          id: 'c2',
+          shortId: 'c2',
+          title: 'fix: two',
+          url: 'https://gitlab.example.com/group/project/-/commit/c2',
+          time: '2026-01-20T00:00:00.000Z'
+        }
+      ]
+    });
 
-    expect(res.merges).toEqual([
-      {
-        id: '2',
-        title: 'Merge: feature',
-        url: 'https://gitlab.example.com/group/project/-/merge_requests/2',
-        state: 'merged'
-      }
-    ]);
+    expect(res.merges).toEqual({
+      page: 1,
+      pageSize: 2,
+      hasMore: false,
+      items: [
+        {
+          id: '2',
+          title: 'Merge: feature',
+          url: 'https://gitlab.example.com/group/project/-/merge_requests/2',
+          state: 'merged'
+        }
+      ]
+    });
 
-    expect(res.issues).toEqual([
-      {
-        id: '7',
-        title: 'Issue: bug',
-        url: 'https://gitlab.example.com/group/project/-/issues/7',
-        state: 'opened'
-      }
-    ]);
+    expect(res.issues).toEqual({
+      page: 1,
+      pageSize: 2,
+      hasMore: false,
+      items: [
+        {
+          id: '7',
+          title: 'Issue: bug',
+          url: 'https://gitlab.example.com/group/project/-/issues/7',
+          state: 'opened'
+        }
+      ]
+    });
   });
 
   test('aggregates github commits + merged PRs + issues (filters PR issues)', async () => {
@@ -144,21 +164,39 @@ describe('fetchRepoProviderActivity', () => {
       repoIdentity: 'o/r',
       token: '',
       apiBaseUrl: 'https://api.github.com',
-      limit: 2
+      pageSize: 2,
+      commitsPage: 1,
+      mergesPage: 1,
+      issuesPage: 1
     });
 
-    expect(res.commits).toEqual([
-      { id: 's1', title: 'fix: one', url: 'https://github.com/o/r/commit/s1' },
-      { id: 's2', title: 'feat: two', url: 'https://github.com/o/r/commit/s2' }
-    ]);
+    expect(res.commits).toEqual({
+      page: 1,
+      pageSize: 2,
+      hasMore: false,
+      items: [
+        { id: 's1', shortId: 's1', title: 'fix: one', url: 'https://github.com/o/r/commit/s1' },
+        { id: 's2', shortId: 's2', title: 'feat: two', url: 'https://github.com/o/r/commit/s2' }
+      ]
+    });
 
-    expect(res.merges).toEqual([
-      { id: '10', title: 'PR merged', url: 'https://github.com/o/r/pull/10', state: 'closed', time: '2026-01-20T00:00:00.000Z' }
-    ]);
+    expect(res.merges).toEqual({
+      page: 1,
+      pageSize: 2,
+      hasMore: false,
+      items: [
+        { id: '10', title: 'PR merged', url: 'https://github.com/o/r/pull/10', state: 'merged', time: '2026-01-20T00:00:00.000Z' }
+      ]
+    });
 
-    expect(res.issues).toEqual([
-      { id: '5', title: 'Issue open', url: 'https://github.com/o/r/issues/5', state: 'open', time: '2026-01-18T00:00:00.000Z' }
-    ]);
+    expect(res.issues).toEqual({
+      page: 1,
+      pageSize: 2,
+      hasMore: false,
+      items: [
+        { id: '5', title: 'Issue open', url: 'https://github.com/o/r/issues/5', state: 'open', time: '2026-01-18T00:00:00.000Z' }
+      ]
+    });
   });
 
   test('suggests credentials when anonymous provider request returns 404', async () => {
@@ -172,7 +210,10 @@ describe('fetchRepoProviderActivity', () => {
         repoIdentity: 'o/r',
         token: '',
         apiBaseUrl: 'https://api.github.com',
-        limit: 3
+        pageSize: 5,
+        commitsPage: 1,
+        mergesPage: 1,
+        issuesPage: 1
       })
     ).rejects.toBeInstanceOf(RepoProviderAuthRequiredError);
   });
