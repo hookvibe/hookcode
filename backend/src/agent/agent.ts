@@ -54,6 +54,8 @@ import {
   getGitlabProjectIdFromPayload,
   getGitlabProjectPathWithNamespaceFromPayload
 } from '../utils/repoPayload';
+// Reuse a shared console URL builder so provider messages consistently link back to the task detail page. docs/en/developer/plans/taskdetailbacklink20260122k4p8/task_plan.md taskdetailbacklink20260122k4p8
+import { getTaskConsoleUrl } from '../utils/taskConsoleUrl';
 // Keep git workflow helpers in a shared util so hooks/agent logic can be unit-tested. 24yz61mdik7tqdgaa152
 import { canTokenPushToUpstream, normalizeGitRemoteUrl } from '../utils/gitWorkflow';
 
@@ -265,20 +267,6 @@ const buildGitlabLogDetails = (logs: string[]): string => {
   const summary = (process.env.GITLAB_LOG_DETAILS_SUMMARY || 'Execution log').trim() || 'Execution log';
   const detailsBody = escapeHtml(logs.join('\n'));
   return `<details${open}><summary>${escapeHtml(summary)}</summary>\n\n<pre><code>${detailsBody}</code></pre>\n\n</details>`;
-};
-
-const getTaskConsoleUrl = (taskId: string): string => {
-  const prefixFromEnv = String(process.env.HOOKCODE_CONSOLE_TASK_URL_PREFIX ?? '').trim();
-  const baseFromEnv = String(process.env.HOOKCODE_CONSOLE_BASE_URL ?? '').trim();
-  const defaultPrefix = (() => {
-    const base = baseFromEnv.replace(/\/+$/, '');
-    if (base) return `${base}/#/tasks/`;
-    return 'http://localhost:5173/#/tasks/';
-  })();
-
-  const prefix = prefixFromEnv || defaultPrefix;
-  if (prefix.endsWith('/')) return `${prefix}${taskId}`;
-  return `${prefix}/${taskId}`;
 };
 
 const getRepoCloneUrl = (provider: RepoProvider, payload: any): string | undefined => {
