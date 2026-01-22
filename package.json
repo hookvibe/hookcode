@@ -5,7 +5,8 @@
   "packageManager": "pnpm@9.6.0",
   "workspaces": [
     "backend",
-    "frontend"
+    "frontend",
+    "docs"
   ],
   "scripts": {
     "dev": "concurrently  \"pnpm dev:backend\" \"pnpm dev:frontend\"",
@@ -14,7 +15,8 @@
     "dev:worker": "pnpm --filter hookcode-backend dev:worker",
     "dev:frontend": "pnpm --filter hookcode-frontend dev",
     "dev:db": "docker compose -f docker/docker-compose.yml up db -d",
-    "dev:doc": "cd docs && npx mint dev",
+    "dev:doc": "pnpm --filter hookcode-docs start",
+    "build:doc": "pnpm --filter hookcode-docs build",
     "db:migrate": "pnpm --filter hookcode-backend db:migrate",
     "db:migrate:dev": "pnpm --filter hookcode-backend db:migrate:dev",
     "db:reset": "pnpm --filter hookcode-backend db:reset",

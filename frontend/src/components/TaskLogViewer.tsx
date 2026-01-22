@@ -36,9 +36,9 @@ interface StreamLogPayload {
 
 interface Props {
   taskId: string;
-  height?: number;
   tail?: number;
   canManage?: boolean;
+  variant?: 'panel' | 'flat';
   controls?: {
     pause?: boolean;
     reconnect?: boolean;
@@ -78,9 +78,9 @@ const timelineReducer = (state: ExecutionTimelineState, action: TimelineAction):
 
 export const TaskLogViewer: FC<Props> = ({
   taskId,
-  height = 320,
   tail = 200,
   canManage = true,
+  variant = 'panel',
   controls,
   paused: pausedProp,
   onPausedChange,
@@ -90,7 +90,8 @@ export const TaskLogViewer: FC<Props> = ({
 }) => {
   const t = useT();
   const [messageApi, messageContextHolder] = message.useMessage();
-  const boxRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const endRef = useRef<HTMLDivElement | null>(null);
   const pausedRef = useRef(false);
   const focusedKeyRef = useRef<number | null>(null);
 
@@ -158,17 +159,71 @@ export const TaskLogViewer: FC<Props> = ({
     }
   }, [canManage, clearing, messageApi, t, taskId]);
 
-  const onScroll = useCallback(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-    setAutoScroll(atBottom);
-  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const root = rootRef.current;
+    if (!root) return;
+
+    const isScrollableY = (node: HTMLElement): boolean => {
+      const style = window.getComputedStyle(node);
+      const overflowY = style.overflowY;
+      return overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
+    };
+
+    const findScrollTarget = (node: HTMLElement): HTMLElement | Window => {
+      let current: HTMLElement | null = node;
+      while (current?.parentElement) {
+        const parent = current.parentElement;
+        if (isScrollableY(parent)) return parent;
+        current = parent;
+      }
+      return window;
+    };
+
+    const target = findScrollTarget(root);
+
+    const isAtBottom = (): boolean => {
+      if (target === window) {
+        const doc = document.documentElement;
+        return window.innerHeight + window.scrollY >= doc.scrollHeight - 24;
+      }
+      const el = target as HTMLElement;
+      return el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    };
+
+    const onScroll = () => setAutoScroll(isAtBottom());
+    const opts: AddEventListenerOptions = { passive: true };
+
+    // Avoid nested scroll regions: track auto-scroll against the nearest scroll container. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
+    if (target === window) window.addEventListener('scroll', onScroll, opts);
+    else target.addEventListener('scroll', onScroll, opts);
+
+    onScroll();
+
+    return () => {
+      if (target === window) window.removeEventListener('scroll', onScroll);
+      else target.removeEventListener('scroll', onScroll);
+    };
+  }, [variant]);
 
   useEffect(() => {
-    const el = boxRef.current;
-    if (!el || !autoScroll) return;
-    el.scrollTop = el.scrollHeight;
+    if (!autoScroll) return;
+    const el = endRef.current;
+    if (!el) return;
+
+    const schedule =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (cb: FrameRequestCallback) => window.setTimeout(cb, 0);
+
+    schedule(() => {
+      if (typeof (el as any).scrollIntoView !== 'function') return;
+      try {
+        el.scrollIntoView({ behavior: 'auto', block: 'end' });
+      } catch {
+        el.scrollIntoView();
+      }
+    });
   }, [logs.length, autoScroll]);
 
   useEffect(() => {
@@ -195,8 +250,8 @@ export const TaskLogViewer: FC<Props> = ({
         : (cb: FrameRequestCallback) => window.setTimeout(cb, 0);
 
     schedule(() => {
-      const el = document.getElementById(buildLineId(idx));
-      if (!el) return;
+      const el = document.getElementById(buildLineId(idx)) as any;
+      if (!el || typeof el.scrollIntoView !== 'function') return;
       try {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } catch {
@@ -267,8 +322,28 @@ export const TaskLogViewer: FC<Props> = ({
     };
   }, [taskId, tail, session, reconnectKey, t]);
 
+  if (variant === 'flat') {
+    // Render realtime logs as a flat, structured timeline (no toolbar + no inner scroll). docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121
+    return (
+      <div ref={rootRef}>
+        {messageContextHolder}
+        {error ? <Alert type="warning" showIcon message={error} style={{ marginBottom: 8 }} /> : null}
+        {timeline.items.length ? (
+          <ExecutionTimeline items={timeline.items} showReasoning={false} wrapDiffLines={true} showLineNumbers={true} />
+        ) : logs.length ? (
+          <pre className="hc-task-code-block hc-task-code-block--expanded">{lines}</pre>
+        ) : (
+          <div className="hc-exec-empty">
+            <Typography.Text type="secondary">{t('logViewer.empty')}</Typography.Text>
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+    );
+  }
+
   return (
-    <div className="log-viewer">
+    <div className="log-viewer" ref={rootRef}>
       {messageContextHolder}
       <div className="log-viewer__header">
         <Space size={8} wrap>
@@ -328,7 +403,8 @@ export const TaskLogViewer: FC<Props> = ({
         <Alert type="warning" showIcon message={error} style={{ marginBottom: 8 }} />
       ) : null}
 
-      <div className="log-viewer__body" style={{ height }} onScroll={onScroll} ref={boxRef}>
+      {/* Remove the inner fixed-height scroller; the outer page/container should own scrolling. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */}
+      <div className="log-viewer__body">
         {mode === 'raw' ? (
           logs.length ? (
             <pre className="log-viewer__pre">
@@ -346,6 +422,7 @@ export const TaskLogViewer: FC<Props> = ({
         ) : (
           <ExecutionTimeline items={timeline.items} showReasoning={showReasoning} wrapDiffLines={wrapDiffLines} showLineNumbers={showLineNumbers} />
         )}
+        <div ref={endRef} />
       </div>
     </div>
   );

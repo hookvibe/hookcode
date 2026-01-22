@@ -156,6 +156,74 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     expect(screen.getByText('Issue: one')).toBeInTheDocument();
   });
 
+  test('paginates commits without refreshing merges/issues', async () => {
+    // Keep provider activity pagination column-scoped to avoid unrelated refresh/skeleton updates. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    vi.mocked(api.fetchRepoProviderMeta).mockResolvedValueOnce({ provider: 'gitlab', visibility: 'public' } as any);
+    vi.mocked(api.fetchRepoProviderActivity)
+      .mockResolvedValueOnce({
+        provider: 'gitlab',
+        commits: {
+          page: 1,
+          pageSize: 5,
+          hasMore: true,
+          items: [{ id: 'c1', shortId: 'c1', title: 'feat: one', url: 'https://gitlab.example.com/c1' }]
+        },
+        merges: { page: 1, pageSize: 5, hasMore: false, items: [{ id: 'm1', title: 'MR: one', url: 'https://gitlab.example.com/m1', state: 'merged' }] },
+        issues: {
+          page: 1,
+          pageSize: 5,
+          hasMore: false,
+          items: [{ id: 'i1', title: 'Issue: one', url: 'https://gitlab.example.com/i1', state: 'open', time: '2026-01-21T00:00:00.000Z' }]
+        }
+      } as any)
+      .mockResolvedValueOnce({
+        provider: 'gitlab',
+        commits: {
+          page: 2,
+          pageSize: 5,
+          hasMore: false,
+          items: [{ id: 'c2', shortId: 'c2', title: 'feat: two', url: 'https://gitlab.example.com/c2' }]
+        },
+        merges: {
+          page: 1,
+          pageSize: 5,
+          hasMore: false,
+          items: [{ id: 'm2', title: 'MR: should not update', url: 'https://gitlab.example.com/m2', state: 'merged' }]
+        },
+        issues: {
+          page: 1,
+          pageSize: 5,
+          hasMore: false,
+          items: [{ id: 'i2', title: 'Issue: should not update', url: 'https://gitlab.example.com/i2', state: 'open', time: '2026-01-21T00:00:00.000Z' }]
+        }
+      } as any);
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepoProviderActivity).toHaveBeenCalled());
+
+    expect(await screen.findByText('feat: one')).toBeInTheDocument();
+    expect(screen.getByText('MR: one')).toBeInTheDocument();
+    expect(screen.getByText('Issue: one')).toBeInTheDocument();
+
+    await ui.click(screen.getByRole('button', { name: 'Next' }));
+
+    // Other columns should stay visible while commits pagination is loading.
+    expect(screen.getByText('MR: one')).toBeInTheDocument();
+    expect(screen.getByText('Issue: one')).toBeInTheDocument();
+
+    await waitFor(() => expect(api.fetchRepoProviderActivity).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('feat: two')).toBeInTheDocument();
+
+    expect(screen.getByText('MR: one')).toBeInTheDocument();
+    expect(screen.queryByText('MR: should not update')).not.toBeInTheDocument();
+    expect(screen.getByText('Issue: one')).toBeInTheDocument();
+    expect(screen.queryByText('Issue: should not update')).not.toBeInTheDocument();
+  });
+
   test('shows onboarding wizard on first entry and can be skipped', async () => {
     const ui = userEvent.setup();
     renderPage({ repoId: 'r1' });

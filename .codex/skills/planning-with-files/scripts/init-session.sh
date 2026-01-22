@@ -93,11 +93,16 @@ hydrate_template "${SESSION_DIR}/task_plan.md"
 hydrate_template "${SESSION_DIR}/findings.md"
 hydrate_template "${SESSION_DIR}/progress.md"
 
-# Sync Mintlify navigation so the new session pages are discoverable in docs. docsjsonindex20260121
+# Sync docs navigation so the new session pages are discoverable.
+# Docusaurus does not require an explicit sync when using sidebar autogeneration. docs/en/developer/plans/dsim8xybp9oa18nz1gfq/task_plan.md dsim8xybp9oa18nz1gfq
 if [ "${HC_SKIP_DOCS_JSON_SYNC:-}" != "1" ]; then
-    bash "${SCRIPT_DIR}/sync-docs-json-plans.sh"
+    if [ -f "${REPO_ROOT}/docs/docs.json" ]; then
+        bash "${SCRIPT_DIR}/sync-docs-json-plans.sh"
+    else
+        echo "Skipping docs navigation sync: docs/docs.json not found (likely using Docusaurus)."
+    fi
 else
-    echo "Skipping docs.json sync (HC_SKIP_DOCS_JSON_SYNC=1)"
+    echo "Skipping docs navigation sync (HC_SKIP_DOCS_JSON_SYNC=1)"
 fi
 
 echo ""

@@ -50,7 +50,8 @@ export const ScrollableTable = <RecordType extends object>({
 
   return (
     <div className={className}>
-      <Table<RecordType> {...props} scroll={mergedScroll} />
+      {/* Default to a compact table density to match Ant Design docs and reduce visual heaviness. docs/en/developer/plans/qh23ler2y5yeesg6hqel/task_plan.md qh23ler2y5yeesg6hqel */}
+      <Table<RecordType> {...props} scroll={mergedScroll} size={props.size ?? 'small'} />
     </div>
   );
 };

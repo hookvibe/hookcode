@@ -79,7 +79,7 @@
 
   /* Scrollbars:
    * - UX: keep scrollbars readable without looking "heavy" in both themes.
-   * - Notes: `color-scheme` + `scrollbar-color` cover modern browsers; WebKit pseudo-elements handle Chrome/Safari.
+   * - Notes: prefer OS-native scrollbars via `color-scheme`; Firefox uses `scrollbar-color`. docs/en/developer/plans/qh23ler2y5yeesg6hqel/task_plan.md qh23ler2y5yeesg6hqel
    */
   --hc-scrollbar-track: rgba(15, 23, 42, 0.06);
   --hc-scrollbar-thumb: rgba(15, 23, 42, 0.18);
@@ -211,38 +211,17 @@ body {
  * - Purpose: keep scrollbars readable in dark mode (avoid a white track) while staying subtle in light mode.
  *
  * Notes:
- * - Firefox uses `scrollbar-color`; Chromium/WebKit use the `::-webkit-scrollbar*` pseudo-elements.
+ * - Firefox uses `scrollbar-color`; Chromium/WebKit rely on `color-scheme` + OS-native scrollbars.
  * - `color-scheme` (set in `:root`) helps native UI match the active theme.
  *
  * Change record:
  * - 2026-01-13: Add theme-aware scrollbar tokens and apply them globally.
+ * - Restore OS-native scrollbars by dropping global WebKit overrides to match Ant Design docs. docs/en/developer/plans/qh23ler2y5yeesg6hqel/task_plan.md qh23ler2y5yeesg6hqel
  * ========================================================================== */
 
 :root {
   scrollbar-color: var(--hc-scrollbar-thumb) var(--hc-scrollbar-track);
   scrollbar-width: thin;
-}
-
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-*::-webkit-scrollbar-track {
-  background: var(--hc-scrollbar-track);
-}
-
-*::-webkit-scrollbar-thumb {
-  background-color: var(--hc-scrollbar-thumb);
-  border-radius: 999px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background-color: var(--hc-scrollbar-thumb-hover);
-}
-
-*::-webkit-scrollbar-corner {
-  background: var(--hc-scrollbar-track);
 }
 
 /* =============================================================================
@@ -1100,6 +1079,99 @@ button.hc-tasks-status-tile--active {
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+/* Add column spacing/dividers and keep activity rows compact to prevent overflow in repo provider activity. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc */
+.hc-provider-activity-card.ant-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-provider-activity-card.ant-card > .ant-card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.hc-provider-activity-columns {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.hc-provider-activity-columns > .ant-col {
+  display: flex;
+  min-width: 0;
+}
+
+.hc-provider-activity-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-provider-activity-item:last-child {
+  border-bottom: none;
+}
+
+.hc-provider-activity-column {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .hc-provider-activity-column--divider {
+    border-left: 1px solid var(--hc-border);
+    padding-left: 16px;
+  }
+}
+
+.hc-provider-activity-list {
+  width: 100%;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__mainLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__titleWrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__side {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.hc-provider-activity-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
 .hc-repo-summary-strip__card--interactive:hover {
   background: var(--hc-accent-soft-hover);
   border-color: var(--hc-accent-border);
@@ -1412,6 +1484,17 @@ button.hc-tasks-status-tile--active {
   min-width: 0;
 }
 
+/* Keep the task detail panel switcher visible while scrolling long logs/results. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121 */
+.hc-task-detail-panel-switcher {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+.hc-task-detail-panel-content {
+  margin-top: 12px;
+}
+
 .hc-task-workflow .ant-steps-item-content,
 .hc-task-workflow .ant-steps-item-description {
   max-width: none;
@@ -1442,6 +1525,12 @@ button.hc-tasks-status-tile--active {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Expand task detail code blocks to remove inner scrolling. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121 */
+.hc-task-code-block--expanded {
+  max-height: none;
+  overflow: visible;
 }
 
 @media (max-width: 1200px) {
@@ -1495,10 +1584,42 @@ button.hc-tasks-status-tile--active {
   min-width: 0;
 }
 
-.table-wrapper .ant-table-container {
-  /* Enable horizontal swipe on small screens (especially iOS). */
-  overflow-x: auto;
+.table-wrapper .ant-table-content,
+.table-wrapper .ant-table-body {
+  /* Style the real AntD scroll containers (avoid an extra scroll layer that can force a vertical scrollbar). docs/en/developer/plans/qh23ler2y5yeesg6hqel/task_plan.md qh23ler2y5yeesg6hqel */
   -webkit-overflow-scrolling: touch;
+  scrollbar-color: var(--hc-scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.table-wrapper .ant-table-content::-webkit-scrollbar,
+.table-wrapper .ant-table-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.table-wrapper .ant-table-content::-webkit-scrollbar-track,
+.table-wrapper .ant-table-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-wrapper .ant-table-content::-webkit-scrollbar-thumb,
+.table-wrapper .ant-table-body::-webkit-scrollbar-thumb {
+  background-color: var(--hc-scrollbar-thumb);
+  border-radius: 999px;
+  /* Use a transparent border so the thumb looks lighter than a solid "pill" bar. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.table-wrapper .ant-table-content::-webkit-scrollbar-thumb:hover,
+.table-wrapper .ant-table-body::-webkit-scrollbar-thumb:hover {
+  background-color: var(--hc-scrollbar-thumb-hover);
+}
+
+.table-wrapper .ant-table-content::-webkit-scrollbar-corner,
+.table-wrapper .ant-table-body::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .table-cell-ellipsis {
@@ -1595,10 +1716,7 @@ button.hc-tasks-status-tile--active {
   border-color: var(--hc-border);
   border-radius: 12px;
 }
-
-.hc-chat-logs-toggle {
-  width: min(820px, 86vw);
-}
+/* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */
 
 /* =============================================================================
  * Log viewer
@@ -1621,8 +1739,8 @@ button.hc-tasks-status-tile--active {
   font-weight: 700;
 }
 
+/* Avoid nested scroll regions in the log viewer; rely on the outer page/container scroller. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
 .log-viewer__body {
-  overflow: auto;
   padding: 10px 12px;
 }
 
@@ -1662,36 +1780,72 @@ html[data-theme='dark'] {
   text-align: center;
 }
 
+/* Style Ant Design X ThoughtChain snippets to match existing execution log typography. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
+.hc-exec-thought-chain {
+  width: 100%;
+}
+
+/* Replace Think's default arrow with Caret icons rendered in the title. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
+.hc-exec-thought-chain [class$='think-status-down-icon'] {
+  display: none;
+}
+
+/* Hide Think icons for command blocks to avoid duplicate command icons (ThoughtChain header already indicates type). docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
+.hc-exec-think--no-icon [class$='think-status-icon'] {
+  display: none;
+}
+
+.hc-exec-think-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hc-exec-think-title__caret {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.hc-exec-think-title__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.hc-exec-thought__desc {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
 .hc-exec-item {
   border: 1px solid var(--hc-border);
   border-radius: 12px;
   box-shadow: none;
 }
 
+/* Remove grey "code block" backgrounds and inner scrollbars; use indentation + Think collapse instead. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
 .hc-exec-code,
 .hc-exec-output {
   margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--hc-border);
-  border-radius: 10px;
-  background: var(--hc-hover);
+  padding: 0 0 0 12px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.5;
   color: var(--text);
-  overflow: auto;
-}
-
-.hc-exec-output {
-  margin-top: 10px;
-  max-height: 240px;
+  overflow: visible;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
+.hc-exec-output {
+  margin-top: 8px;
+}
+
 .hc-exec-output--mono {
-  white-space: pre;
-  word-break: normal;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .hc-exec-files {
@@ -1705,9 +1859,9 @@ html[data-theme='dark'] {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--hc-hover) 70%, transparent);
+  padding: 2px 0 2px 12px;
+  border-radius: 0;
+  background: transparent;
 }
 
 .hc-exec-file__path {
@@ -1724,10 +1878,10 @@ html[data-theme='dark'] {
 }
 
 .hc-diff {
-  border: 1px solid var(--hc-border);
-  border-radius: 10px;
-  background: var(--hc-hover);
-  overflow: auto;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.5;
@@ -1735,10 +1889,11 @@ html[data-theme='dark'] {
 }
 
 .hc-diff__hunk-header {
-  padding: 8px 12px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--hc-hover));
-  border-bottom: 1px solid var(--hc-border);
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
   font-weight: 700;
+  color: var(--muted);
 }
 
 .hc-diff__line {

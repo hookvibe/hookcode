@@ -172,7 +172,8 @@ export const enUS: Record<MessageKey, string> = {
   // Add raw vs rendered labels for the prompt patch preview on task detail. x0kprszlsorw9vi8jih9
   'tasks.promptCustom.raw': 'Template',
   'tasks.promptCustom.rendered': 'Rendered',
-  'tasks.payloadRaw': 'Raw webhook payload (expand)',
+  // Align the payload label with the step-bar switcher (no "expand" affordance). docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121
+  'tasks.payloadRaw': 'Raw webhook payload',
 
   // --- Login ---
   'login.title': 'Sign in',

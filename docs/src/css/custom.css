@@ -1,0 +1,10 @@
+/* Tweak basic theme styles for the new Docusaurus docs site. docs/en/developer/plans/dsim8xybp9oa18nz1gfq/task_plan.md dsim8xybp9oa18nz1gfq */
+
+:root {
+  --ifm-color-primary: #16a34a;
+  --ifm-color-primary-dark: #15803d;
+  --ifm-color-primary-darker: #14753a;
+  --ifm-color-primary-light: #22c55e;
+  --ifm-color-primary-lighter: #4ade80;
+}
+

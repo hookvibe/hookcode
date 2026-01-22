@@ -1,6 +1,6 @@
 import { FC, useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Col, Radio, Row, Select, Skeleton, Space, Tag, Typography } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Col, Dropdown, Radio, Row, Select, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
+import { LeftOutlined, ReloadOutlined, RightOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import type {
   RepoProviderActivity,
   RepoProviderActivityItem,
@@ -14,7 +14,7 @@ import { useT } from '../../i18n';
 import { buildTaskGroupHash, buildTaskHash } from '../../router';
 import { pickRepoProviderCredentials, type RepoProviderCredentialSource } from './repoProviderCredentials';
 
-// Render recent provider activity (commits/merges/issues) as a full-width dashboard row with pagination and task bindings. kzxac35mxk0fg358i7zs
+// Render recent provider activity as compact lists with right-aligned task-group entry and column-scoped pagination. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
 
 export interface RepoDetailProviderActivityRowProps {
   repo: Repository;
@@ -42,6 +42,7 @@ const stateTag = (t: (key: string, vars?: any) => string, state?: string) => {
 };
 
 const renderItem = (t: (key: string, vars?: any) => string, formatTime: (iso: string) => string, kind: 'commit' | 'merge' | 'issue', item: RepoProviderActivityItem) => {
+  // Redesign activity items as compact rows with right-aligned task-group actions. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
   const label = item.title || item.id;
   const displayId = kind === 'commit' ? String(item.shortId ?? '').trim() || shortIdFallback(item.id) : '';
   const metaTime = item.time ? formatTime(item.time) : '';
@@ -59,50 +60,70 @@ const renderItem = (t: (key: string, vars?: any) => string, formatTime: (iso: st
   const taskGroups = Array.isArray(item.taskGroups) ? item.taskGroups : [];
   const processingTasks = taskGroups.flatMap((g) => (Array.isArray(g.processingTasks) ? g.processingTasks : []));
 
-  return (
-    <div key={item.id} style={{ minWidth: 0 }}>
-      <Space size={8} wrap style={{ width: '100%' }}>
-        {kind === 'commit' ? (
-          <Typography.Text code title={item.id} style={{ fontSize: 12 }}>
-            {displayId}
-          </Typography.Text>
-        ) : null}
-        {kind !== 'commit' ? stateTag(t, item.state) : null}
-        {titleNode}
-        {kind !== 'commit' && metaTime ? (
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {t('repos.detail.providerActivity.updatedAt', { time: metaTime })}
-          </Typography.Text>
-        ) : null}
-      </Space>
+  const taskGroupEntry = taskGroups.length ? (
+    <Tooltip title={t('repos.detail.providerActivity.taskGroups', { count: taskGroups.length })}>
+      {taskGroups.length === 1 ? (
+        <Button
+          size="small"
+          type="text"
+          icon={<UnorderedListOutlined />}
+          aria-label={t('repos.detail.providerActivity.taskGroups', { count: taskGroups.length })}
+          onClick={() => {
+            // Navigate via the compact task-group affordance to keep activity rows short. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+            window.location.hash = buildTaskGroupHash(taskGroups[0].id);
+          }}
+        >
+          {taskGroups.length}
+        </Button>
+      ) : (
+        <Dropdown
+          trigger={['click']}
+          menu={{
+            items: taskGroups.map((g) => ({ key: g.id, label: g.title || g.id })),
+            onClick: ({ key }) => {
+              // Offer a chooser for multiple task groups without expanding the list row. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+              window.location.hash = buildTaskGroupHash(String(key));
+            }
+          }}
+        >
+          <Button
+            size="small"
+            type="text"
+            icon={<UnorderedListOutlined />}
+            aria-label={t('repos.detail.providerActivity.taskGroups', { count: taskGroups.length })}
+          >
+            {taskGroups.length}
+          </Button>
+        </Dropdown>
+      )}
+    </Tooltip>
+  ) : null;
 
-      {taskGroups.length ? (
-        <Space size={6} wrap style={{ marginTop: 4 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {t('repos.detail.providerActivity.taskGroups', { count: taskGroups.length })}
-          </Typography.Text>
-          {taskGroups.slice(0, 2).map((g) => (
-            <Button
-              key={g.id}
-              size="small"
-              type="link"
-              onClick={() => {
-                window.location.hash = buildTaskGroupHash(g.id);
-              }}
-            >
-              {g.title || g.id}
-            </Button>
-          ))}
-          {taskGroups.length > 2 ? (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {t('repos.detail.providerActivity.taskGroups.more', { count: taskGroups.length - 2 })}
-            </Typography.Text>
-          ) : null}
-        </Space>
-      ) : null}
+  return (
+    <div key={item.id} className="hc-provider-activity-item">
+      <div className="hc-provider-activity-item__row">
+        <div className="hc-provider-activity-item__main">
+          <div className="hc-provider-activity-item__mainLine">
+            {kind === 'commit' ? (
+              <Typography.Text code title={item.id} style={{ fontSize: 12 }}>
+                {displayId}
+              </Typography.Text>
+            ) : null}
+            {kind !== 'commit' ? stateTag(t, item.state) : null}
+            <div className="hc-provider-activity-item__titleWrap">{titleNode}</div>
+            {kind !== 'commit' && metaTime ? (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('repos.detail.providerActivity.updatedAt', { time: metaTime })}
+              </Typography.Text>
+            ) : null}
+          </div>
+        </div>
+
+        {taskGroupEntry ? <div className="hc-provider-activity-item__side">{taskGroupEntry}</div> : null}
+      </div>
 
       {processingTasks.length ? (
-        <Space size={6} wrap style={{ marginTop: 2 }}>
+        <div style={{ marginTop: 2 }}>
           <Tag color="gold">{t('repos.detail.providerActivity.processing', { count: processingTasks.length })}</Tag>
           {processingTasks.slice(0, 1).map((task) => (
             <Button
@@ -116,7 +137,7 @@ const renderItem = (t: (key: string, vars?: any) => string, formatTime: (iso: st
               {task.title || task.id}
             </Button>
           ))}
-        </Space>
+        </div>
       ) : null}
     </div>
   );
@@ -137,13 +158,14 @@ export const RepoDetailProviderActivityRow: FC<RepoDetailProviderActivityRowProp
   const [credentialProfileId, setCredentialProfileId] = useState('');
 
   const [activity, setActivity] = useState<RepoProviderActivity | null>(null);
-  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityLoadingByKind, setActivityLoadingByKind] = useState({ commits: false, merges: false, issues: false });
   const [activityError, setActivityError] = useState<string>('');
 
   const [commitsPage, setCommitsPage] = useState(1);
   const [mergesPage, setMergesPage] = useState(1);
   const [issuesPage, setIssuesPage] = useState(1);
-  const pageSize = 5;
+  // Use a larger page size so the activity list fills the dashboard slot better (avoid large empty space). docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+  const pageSize = 10;
 
   const repoProviderCreds = useMemo(
     () => pickRepoProviderCredentials(repo.provider, credentialSource, repoScopedCredentials, userModelCredentials),
@@ -166,11 +188,24 @@ export const RepoDetailProviderActivityRow: FC<RepoDetailProviderActivityRowProp
     setCommitsPage(1);
     setMergesPage(1);
     setIssuesPage(1);
+    // Clear existing activity so page labels cannot drift from the displayed data. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+    setActivity(null);
   }, [credentialSource]);
 
-  const loadActivity = useCallback(
+  const resolveActivityError = useCallback(
+    (err: any): string => {
+      const code = String(err?.response?.data?.code ?? '').trim();
+      if (code === 'REPO_PROVIDER_TOKEN_REQUIRED') return t('repos.detail.providerActivity.tokenRequired');
+      if (code === 'REPO_PROVIDER_AUTH_REQUIRED') return t('repos.detail.providerActivity.authRequired');
+      return t('repos.detail.providerActivity.fetchFailed');
+    },
+    [t]
+  );
+
+  const loadActivityAll = useCallback(
     async (params: { source: RepoProviderCredentialSource; profileId?: string; commitsPage: number; mergesPage: number; issuesPage: number }) => {
-      setActivityLoading(true);
+      // Keep refresh behavior intact while allowing pagination to be column-scoped. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+      setActivityLoadingByKind({ commits: true, merges: true, issues: true });
       setActivityError('');
       try {
         const res = await fetchRepoProviderActivity(repo.id, {
@@ -183,20 +218,42 @@ export const RepoDetailProviderActivityRow: FC<RepoDetailProviderActivityRowProp
         });
         setActivity(res);
       } catch (err: any) {
-        const code = String(err?.response?.data?.code ?? '').trim();
-        if (code === 'REPO_PROVIDER_TOKEN_REQUIRED') {
-          setActivityError(t('repos.detail.providerActivity.tokenRequired'));
-        } else if (code === 'REPO_PROVIDER_AUTH_REQUIRED') {
-          setActivityError(t('repos.detail.providerActivity.authRequired'));
-        } else {
-          setActivityError(t('repos.detail.providerActivity.fetchFailed'));
-        }
+        setActivityError(resolveActivityError(err));
         setActivity(null);
       } finally {
-        setActivityLoading(false);
+        setActivityLoadingByKind({ commits: false, merges: false, issues: false });
       }
     },
-    [pageSize, repo.id, t]
+    [pageSize, repo.id, resolveActivityError]
+  );
+
+  const loadActivityColumn = useCallback(
+    async (
+      kind: 'commits' | 'merges' | 'issues',
+      params: { source: RepoProviderCredentialSource; profileId?: string; commitsPage: number; mergesPage: number; issuesPage: number }
+    ) => {
+      // Prevent other columns from reloading/skeletoning when paging one list. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+      setActivityLoadingByKind((prev) => ({ ...prev, [kind]: true }));
+      setActivityError('');
+      try {
+        const res = await fetchRepoProviderActivity(repo.id, {
+          credentialSource: params.source,
+          credentialProfileId: params.profileId || undefined,
+          pageSize,
+          commitsPage: params.commitsPage,
+          mergesPage: params.mergesPage,
+          issuesPage: params.issuesPage
+        });
+        setActivity((prev) => (prev ? { ...prev, [kind]: res[kind] } : res));
+        return true;
+      } catch (err: any) {
+        setActivityError(resolveActivityError(err));
+        return false;
+      } finally {
+        setActivityLoadingByKind((prev) => ({ ...prev, [kind]: false }));
+      }
+    },
+    [pageSize, repo.id, resolveActivityError]
   );
 
   useEffect(() => {
@@ -211,7 +268,7 @@ export const RepoDetailProviderActivityRow: FC<RepoDetailProviderActivityRowProp
         setVisibility(meta.visibility || 'unknown');
         if (meta.visibility === 'public') {
           setCredentialSource('anonymous');
-          await loadActivity({ source: 'anonymous', commitsPage: 1, mergesPage: 1, issuesPage: 1 });
+          await loadActivityAll({ source: 'anonymous', commitsPage: 1, mergesPage: 1, issuesPage: 1 });
         } else {
           setCredentialSource('user');
         }
@@ -228,7 +285,7 @@ export const RepoDetailProviderActivityRow: FC<RepoDetailProviderActivityRowProp
     return () => {
       cancelled = true;
     };
-  }, [loadActivity, repo.id]);
+  }, [loadActivityAll, repo.id]);
 
   const showCredentialPicker = !visibilityLoading && visibility !== 'public';
 
@@ -237,9 +294,17 @@ export const RepoDetailProviderActivityRow: FC<RepoDetailProviderActivityRowProp
   const issues = activity?.issues?.items ?? [];
 
   const column = useCallback(
-    (label: string, kind: 'commit' | 'merge' | 'issue', items: RepoProviderActivityItem[], page: number, hasMore: boolean, onChangePage: (next: number) => void) => {
+    (
+      label: string,
+      kind: 'commit' | 'merge' | 'issue',
+      items: RepoProviderActivityItem[],
+      page: number,
+      hasMore: boolean,
+      loading: boolean,
+      onChangePage: (next: number) => void
+    ) => {
       const content = (() => {
-        if (visibilityLoading || activityLoading) {
+        if (visibilityLoading || loading) {
           return <Skeleton active title={false} paragraph={{ rows: 2 }} />;
         }
         if (!items.length) {
@@ -250,9 +315,10 @@ export const RepoDetailProviderActivityRow: FC<RepoDetailProviderActivityRowProp
           );
         }
         return (
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <div className="hc-provider-activity-list">
+            {/* Use a plain list container to keep borders/ellipsis stable across AntD wrappers. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc */}
             {items.map((item) => renderItem(t, formatTime, kind, item))}
-          </Space>
+          </div>
         );
       })();
 
@@ -262,44 +328,65 @@ export const RepoDetailProviderActivityRow: FC<RepoDetailProviderActivityRowProp
             {label}
           </Typography.Text>
           <div style={{ marginTop: 6 }}>{content}</div>
-          {!visibilityLoading && !activityLoading && (page > 1 || hasMore) ? (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-              <Space size={8}>
-                <Button size="small" onClick={() => onChangePage(page - 1)} disabled={page <= 1}>
-                  {t('common.prev')}
-                </Button>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {t('repos.detail.providerActivity.page', { page })}
-                </Typography.Text>
-                <Button size="small" onClick={() => onChangePage(page + 1)} disabled={!hasMore}>
-                  {t('common.next')}
-                </Button>
-              </Space>
+          {!visibilityLoading && (page > 1 || hasMore) ? (
+            <div className="hc-provider-activity-pagination">
+              {/* Center icon pagination to keep controls minimal and prevent overflow. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc */}
+              <Tooltip title={t('common.prev')}>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<LeftOutlined />}
+                  aria-label={t('common.prev')}
+                  onClick={() => onChangePage(page - 1)}
+                  disabled={page <= 1 || loading}
+                />
+              </Tooltip>
+
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {t('repos.detail.providerActivity.page', { page })}
+              </Typography.Text>
+
+              <Tooltip title={t('common.next')}>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<RightOutlined />}
+                  aria-label={t('common.next')}
+                  onClick={() => onChangePage(page + 1)}
+                  disabled={!hasMore || loading}
+                />
+              </Tooltip>
             </div>
           ) : null}
         </div>
       );
     },
-    [activityLoading, formatTime, t, visibilityLoading]
+    [formatTime, t, visibilityLoading]
   );
 
   const onRefresh = useCallback(() => {
-    void loadActivity({
+    void loadActivityAll({
       source: showCredentialPicker ? credentialSource : 'anonymous',
       profileId: showCredentialPicker ? credentialProfileId : undefined,
       commitsPage,
       mergesPage,
       issuesPage
     });
-  }, [commitsPage, credentialProfileId, credentialSource, issuesPage, loadActivity, mergesPage, showCredentialPicker]);
+  }, [commitsPage, credentialProfileId, credentialSource, issuesPage, loadActivityAll, mergesPage, showCredentialPicker]);
 
   return (
+    // Make the activity row fill the dashboard slot so dividers can span the full column height. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
     <Card
       size="small"
       title={t('repos.detail.providerActivity.title')}
-      className="hc-card"
+      className="hc-card hc-provider-activity-card"
       extra={
-        <Button size="small" icon={<ReloadOutlined />} onClick={onRefresh} loading={visibilityLoading || activityLoading}>
+        <Button
+          size="small"
+          icon={<ReloadOutlined />}
+          onClick={onRefresh}
+          loading={visibilityLoading || activityLoadingByKind.commits || activityLoadingByKind.merges || activityLoadingByKind.issues}
+        >
           {t('common.refresh')}
         </Button>
       }
@@ -329,63 +416,82 @@ export const RepoDetailProviderActivityRow: FC<RepoDetailProviderActivityRowProp
         </Space>
       ) : null}
 
-      <Row gutter={[12, 12]}>
+      <Row gutter={[16, 12]} className="hc-provider-activity-columns">
+        {/* Add visual separation between activity columns for readability. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc */}
         <Col xs={24} md={8}>
-          {column(
-            t('repos.detail.providerActivity.commits'),
-            'commit',
-            commits,
-            commitsPage,
-            Boolean(activity?.commits?.hasMore),
-            (next) => {
-              setCommitsPage(next);
-              void loadActivity({
-                source: showCredentialPicker ? credentialSource : 'anonymous',
-                profileId: showCredentialPicker ? credentialProfileId : undefined,
-                commitsPage: next,
-                mergesPage,
-                issuesPage
-              });
-            }
-          )}
+          <div className="hc-provider-activity-column">
+            {column(
+              t('repos.detail.providerActivity.commits'),
+              'commit',
+              commits,
+              commitsPage,
+              Boolean(activity?.commits?.hasMore),
+              activityLoadingByKind.commits,
+              (next) => {
+                // Page commits without refreshing other columns to avoid full skeleton flicker. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+                void (async () => {
+                  const ok = await loadActivityColumn('commits', {
+                    source: showCredentialPicker ? credentialSource : 'anonymous',
+                    profileId: showCredentialPicker ? credentialProfileId : undefined,
+                    commitsPage: next,
+                    mergesPage,
+                    issuesPage
+                  });
+                  if (ok) setCommitsPage(next);
+                })();
+              }
+            )}
+          </div>
         </Col>
         <Col xs={24} md={8}>
-          {column(
-            t('repos.detail.providerActivity.merges'),
-            'merge',
-            merges,
-            mergesPage,
-            Boolean(activity?.merges?.hasMore),
-            (next) => {
-              setMergesPage(next);
-              void loadActivity({
-                source: showCredentialPicker ? credentialSource : 'anonymous',
-                profileId: showCredentialPicker ? credentialProfileId : undefined,
-                commitsPage,
-                mergesPage: next,
-                issuesPage
-              });
-            }
-          )}
+          <div className="hc-provider-activity-column hc-provider-activity-column--divider">
+            {column(
+              t('repos.detail.providerActivity.merges'),
+              'merge',
+              merges,
+              mergesPage,
+              Boolean(activity?.merges?.hasMore),
+              activityLoadingByKind.merges,
+              (next) => {
+                // Page merges without refreshing other columns to avoid full skeleton flicker. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+                void (async () => {
+                  const ok = await loadActivityColumn('merges', {
+                    source: showCredentialPicker ? credentialSource : 'anonymous',
+                    profileId: showCredentialPicker ? credentialProfileId : undefined,
+                    commitsPage,
+                    mergesPage: next,
+                    issuesPage
+                  });
+                  if (ok) setMergesPage(next);
+                })();
+              }
+            )}
+          </div>
         </Col>
         <Col xs={24} md={8}>
-          {column(
-            t('repos.detail.providerActivity.issues'),
-            'issue',
-            issues,
-            issuesPage,
-            Boolean(activity?.issues?.hasMore),
-            (next) => {
-              setIssuesPage(next);
-              void loadActivity({
-                source: showCredentialPicker ? credentialSource : 'anonymous',
-                profileId: showCredentialPicker ? credentialProfileId : undefined,
-                commitsPage,
-                mergesPage,
-                issuesPage: next
-              });
-            }
-          )}
+          <div className="hc-provider-activity-column hc-provider-activity-column--divider">
+            {column(
+              t('repos.detail.providerActivity.issues'),
+              'issue',
+              issues,
+              issuesPage,
+              Boolean(activity?.issues?.hasMore),
+              activityLoadingByKind.issues,
+              (next) => {
+                // Page issues without refreshing other columns to avoid full skeleton flicker. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+                void (async () => {
+                  const ok = await loadActivityColumn('issues', {
+                    source: showCredentialPicker ? credentialSource : 'anonymous',
+                    profileId: showCredentialPicker ? credentialProfileId : undefined,
+                    commitsPage,
+                    mergesPage,
+                    issuesPage: next
+                  });
+                  if (ok) setIssuesPage(next);
+                })();
+              }
+            )}
+          </div>
         </Col>
       </Row>
     </Card>

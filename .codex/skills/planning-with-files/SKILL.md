@@ -7,7 +7,7 @@ description: "Manus-style file-based planning for Codex CLI. Stores task_plan.md
 # Planning with Files (Codex)
 
 Work like Manus: Use persistent markdown files as your "working memory on disk."
-<!-- Refactor planning files to live under docs/en/developer/plans/<hash> for traceability. sddsa89612jk4hbwas678 -->
+{/* Refactor planning files to live under docs/en/developer/plans/<hash> for traceability. sddsa89612jk4hbwas678 */}
 
 ## What This Skill Does (Codex-Compatible)
 
@@ -59,8 +59,8 @@ Before ANY complex task:
 ### Option A: Initialize via Script (Fastest)
 
 Creates `docs/en/developer/plans/<session-hash>/` and copies templates there if missing.
-<!-- Document docs.json plan index sync behavior. docsjsonindex20260121 -->
-Also syncs `docs/docs.json` (Developer Docs → `plans`) so the new session files are discoverable in Mintlify navigation.
+{/* Document docs navigation sync behavior (Mintlify vs Docusaurus). docs/en/developer/plans/dsim8xybp9oa18nz1gfq/task_plan.md dsim8xybp9oa18nz1gfq */}
+Also syncs `docs/docs.json` when present (Mintlify) so the new session files are discoverable; if `docs/docs.json` is absent (Docusaurus), the sync step is skipped.
 
 ```bash
 bash .codex/skills/planning-with-files/scripts/init-session.sh "<session-hash>" "<session-title>"
@@ -117,7 +117,7 @@ Filesystem = Disk (persistent, unlimited)
 
 To link code changes back to the plan folder, include the session hash in **every changed area** via an inline comment:
 
-<!-- Align traceability format with repo-root AGENTS.md (include plan path + hash). docs/en/developer/plans/docsworkflowapi20260121/task_plan.md docsworkflowapi20260121 -->
+{/* Align traceability format with repo-root AGENTS.md (include plan path + hash). docs/en/developer/plans/docsworkflowapi20260121/task_plan.md docsworkflowapi20260121 */}
 **Format:** `<one sentence in English> <relative-plan-path> <session-hash>`
 
 **Plan path:** `docs/en/developer/plans/<session-hash>/task_plan.md`
@@ -127,7 +127,7 @@ Examples:
 - JS/TS/Go: `// Add input validation for webhook payload. docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md sddsa89612jk4hbwas678`
 - Python/Shell/YAML: `# Document retry backoff behavior. docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md sddsa89612jk4hbwas678`
 - SQL: `-- Prevent duplicate inserts via unique key. docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md sddsa89612jk4hbwas678`
-- Markdown: `<!-- Explain why this doc section changed. docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md sddsa89612jk4hbwas678 -->`
+- Markdown: `{/* Explain why this doc section changed. docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md sddsa89612jk4hbwas678 */}`
 
 This creates a stable backlink: comment → hash → `docs/en/developer/plans/<hash>/`.
 
@@ -144,10 +144,10 @@ Example entry:
 - sddsa89612jk4hbwas678: Refactor planning-with-files to store plans in hash folders. ([plan](../developer/plans/sddsa89612jk4hbwas678/task_plan.md))
 ```
 
-<!-- Keep changelog entries clean and single-line (no extra HTML comment lines). l290bb7v758opd6uxu6r -->
-> **Note:** Do not add an extra `<!-- ... -->` line above changelog bullets. The bullet itself (hash + plan link) is enough traceability.
+{/* Keep changelog entries clean and single-line (no extra HTML comment lines). l290bb7v758opd6uxu6r */}
+> **Note:** Do not add an extra `{/* ... */}` line above changelog bullets. The bullet itself (hash + plan link) is enough traceability.
 
-<!-- Prefer stdin to avoid shell expansion when summaries contain code-like characters. l290bb7v758opd6uxu6r -->
+{/* Prefer stdin to avoid shell expansion when summaries contain code-like characters. l290bb7v758opd6uxu6r */}
 > **Tip:** If your summary contains backticks or other shell-sensitive characters, pipe it via stdin: `printf '%s' "<summary>" | bash .codex/skills/planning-with-files/scripts/append-changelog.sh "<hash>"`.
 
 ## Critical Rules

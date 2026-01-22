@@ -3,6 +3,8 @@ dist
 build
 .turbo
 .cache
+# Ignore Docusaurus build cache directories. docs/en/developer/plans/dsim8xybp9oa18nz1gfq/task_plan.md dsim8xybp9oa18nz1gfq
+.docusaurus
 .env
 .env.*
 !**/.env.example

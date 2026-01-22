@@ -172,7 +172,8 @@ export const zhCN = {
   // Add raw vs rendered labels for the prompt patch preview on task detail. x0kprszlsorw9vi8jih9
   'tasks.promptCustom.raw': '原始模板',
   'tasks.promptCustom.rendered': '渲染后',
-  'tasks.payloadRaw': 'Webhook 原始内容（点击展开）',
+  // Align the payload label with the step-bar switcher (no "expand" affordance). docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121
+  'tasks.payloadRaw': 'Webhook 原始内容',
 
   // --- Login ---
   'login.title': '登录',
