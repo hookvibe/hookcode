@@ -1640,6 +1640,8 @@ button.hc-tasks-status-tile--active {
   min-height: 0;
   overflow: auto;
   padding: 0 18px;
+  /* Prevent scroll chaining / rubber-band bounce in the TaskGroup chat scroller. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a */
+  overscroll-behavior: contain;
 }
 
 .hc-chat-welcome {
@@ -1709,12 +1711,20 @@ button.hc-tasks-status-tile--active {
   background: var(--hc-bubble-user-bg);
 }
 
-.hc-chat-task-card,
-.hc-chat-logs-card {
+.hc-chat-task-card {
   width: min(820px, 86vw);
   background: var(--hc-surface);
   border-color: var(--hc-border);
   border-radius: 12px;
+}
+
+.hc-chat-logs-card {
+  width: min(820px, 86vw);
+  /* Remove the Card surface background for TaskGroup execution logs. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a */
+  background: transparent;
+  border-color: transparent;
+  border-radius: 12px;
+  box-shadow: none;
 }
 /* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */
 
@@ -2683,8 +2693,8 @@ html[data-theme='dark'] {
 .hc-shell .ant-card,
 .hc-shell .ant-modal-content,
 .hc-shell .ant-popover-inner {
-  background: var(--hc-surface-elevated);
-  border-color: var(--hc-border);
+  /* background: var(--hc-surface-elevated); */
+  /* border-color: var(--hc-border); */
 }
 
 .hc-shell .ant-popover-inner {

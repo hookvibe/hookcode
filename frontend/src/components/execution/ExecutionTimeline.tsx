@@ -247,7 +247,7 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
     if (item.kind === 'agent_message') {
       const running = toThoughtStatus(item) === 'loading';
       return (
-        <ExecutionThink title={t('execViewer.item.message')} icon={<MessageOutlined />} loading={running} blink={running} defaultExpanded={false}>
+        <ExecutionThink title={t('execViewer.item.message')} hideIcon icon={<MessageOutlined />} loading={running} blink={running} defaultExpanded={false}>
           {item.text ? <MarkdownViewer markdown={item.text} className="markdown-result--expanded" /> : <Typography.Text type="secondary">-</Typography.Text>}
         </ExecutionThink>
       );

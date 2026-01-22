@@ -92,8 +92,10 @@ export const TaskLogViewer: FC<Props> = ({
   const [messageApi, messageContextHolder] = message.useMessage();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const scrollTargetRef = useRef<HTMLElement | Window | null>(null); // Cache the nearest scroll container so log updates do not scroll-jump between multiple viewer instances. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
   const pausedRef = useRef(false);
   const focusedKeyRef = useRef<number | null>(null);
+  const autoScrollRef = useRef(true); // Keep the latest auto-scroll state for scheduled scroll updates. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
 
   const showPauseButton = controls?.pause !== false;
   const showReconnectButton = controls?.reconnect !== false;
@@ -104,7 +106,6 @@ export const TaskLogViewer: FC<Props> = ({
   const [pausedInternal, setPausedInternal] = useState(false);
   const paused = pausedProp ?? pausedInternal;
   const [error, setError] = useState<string | null>(null);
-  const [autoScroll, setAutoScroll] = useState(true);
   const [session, setSession] = useState(0);
   const [clearing, setClearing] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
@@ -181,6 +182,7 @@ export const TaskLogViewer: FC<Props> = ({
     };
 
     const target = findScrollTarget(root);
+    scrollTargetRef.current = target;
 
     const isAtBottom = (): boolean => {
       if (target === window) {
@@ -191,7 +193,10 @@ export const TaskLogViewer: FC<Props> = ({
       return el.scrollHeight - el.scrollTop - el.clientHeight < 24;
     };
 
-    const onScroll = () => setAutoScroll(isAtBottom());
+    const onScroll = () => {
+      // Track "at bottom" state in a ref so scroll listeners don't trigger re-renders for every scroll event. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
+      autoScrollRef.current = isAtBottom();
+    };
     const opts: AddEventListenerOptions = { passive: true };
 
     // Avoid nested scroll regions: track auto-scroll against the nearest scroll container. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
@@ -203,28 +208,43 @@ export const TaskLogViewer: FC<Props> = ({
     return () => {
       if (target === window) window.removeEventListener('scroll', onScroll);
       else target.removeEventListener('scroll', onScroll);
+      scrollTargetRef.current = null;
     };
   }, [variant]);
 
   useEffect(() => {
-    if (!autoScroll) return;
-    const el = endRef.current;
-    if (!el) return;
-
     const schedule =
       typeof requestAnimationFrame === 'function'
         ? requestAnimationFrame
         : (cb: FrameRequestCallback) => window.setTimeout(cb, 0);
 
     schedule(() => {
-      if (typeof (el as any).scrollIntoView !== 'function') return;
+      // Keep the outer scroll container pinned to the bottom for streaming logs to avoid "bouncing" between multiple TaskLogViewer instances. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
+      if (!autoScrollRef.current) return;
+      const target = scrollTargetRef.current;
+      if (target === window) {
+        const doc = document.documentElement;
+        const maxTop = Math.max(0, doc.scrollHeight - window.innerHeight);
+        window.scrollTo({ top: maxTop, behavior: 'auto' });
+        return;
+      }
+      if (target) {
+        const el = target as HTMLElement;
+        const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+        el.scrollTop = maxTop;
+        return;
+      }
+
+      // Fallback: if the scroll target cannot be resolved yet, scroll the log end marker into view. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
+      const end = endRef.current as any;
+      if (!end || typeof end.scrollIntoView !== 'function') return;
       try {
-        el.scrollIntoView({ behavior: 'auto', block: 'end' });
+        end.scrollIntoView({ behavior: 'auto', block: 'end' });
       } catch {
-        el.scrollIntoView();
+        end.scrollIntoView();
       }
     });
-  }, [logs.length, autoScroll]);
+  }, [logs.length]);
 
   useEffect(() => {
     // Focus helpers remain raw-log only; the structured timeline does not have per-line anchors. yjlphd6rbkrq521ny796
@@ -242,7 +262,7 @@ export const TaskLogViewer: FC<Props> = ({
     if (idx < 0) return;
 
     focusedKeyRef.current = focusKey;
-    setAutoScroll(false);
+    autoScrollRef.current = false;
 
     const schedule =
       typeof requestAnimationFrame === 'function'
