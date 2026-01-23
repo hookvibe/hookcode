@@ -1556,10 +1556,9 @@ const collectGitStatusSnapshot = async (params: {
     if (lsRemoteRes.exitCode === 0) {
       const line = lsRemoteRes.stdout.trim().split(/\r?\n/)[0] ?? '';
       const sha = line.split(/\s+/)[0] ?? '';
+      // Treat empty ls-remote output as "not pushed yet" to avoid false failures. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
       if (sha) {
         pushTargetSha = sha;
-      } else {
-        errors.push('pushTarget: empty');
       }
     } else {
       errors.push(`pushTarget: ${lsRemoteRes.stderr || 'command_failed'}`);

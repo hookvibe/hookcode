@@ -53,7 +53,7 @@
 {/* Errors and how they were resolved */}
 | Issue | Resolution |
 |-------|------------|
-|       |            |
+| Empty `git ls-remote` output was treated as push error | Treat empty output as "not pushed yet" (no error) so UI shows unpushed. |
 
 ## Resources
 {/* WHAT: URLs, file paths, API references, documentation links you've found useful. WHY: Easy reference for later. Don't lose important links in context. WHEN: Add as you discover useful resources. EXAMPLE: - Python argparse docs: https://docs.python.org/3/library/argparse.html - Project structure: src/main.py, src/utils.py */}

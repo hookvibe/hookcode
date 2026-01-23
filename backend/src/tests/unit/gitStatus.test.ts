@@ -66,6 +66,15 @@ describe('gitStatus utils', () => {
       expect(state.status).toBe('unpushed');
     });
 
+    // Ensure missing ls-remote output maps to "unpushed" instead of error. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+    test('returns unpushed when target is missing', () => {
+      const state = computeGitPushState({
+        delta: { branchChanged: false, headChanged: true },
+        final: { branch: 'main', headSha: 'abc' }
+      });
+      expect(state.status).toBe('unpushed');
+    });
+
     test('returns error when explicitly provided', () => {
       const state = computeGitPushState({
         delta: { branchChanged: false, headChanged: true },
