@@ -299,4 +299,25 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     expect(automationSection).not.toBeNull();
     expect(within(automationSection as HTMLElement).getByRole('button', { name: 'Add rule' })).toBeDisabled();
   });
+
+  test('applies selected model from the available models picker', async () => {
+    // Verify picker selections update the bound model input via the robot create flow. docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md b8fucnmey62u0muyn7i0
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    vi.mocked(api.listMyModelProviderModels).mockResolvedValueOnce({ models: ['gpt-4o'], source: 'remote' });
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    await ui.click(screen.getByRole('button', { name: /new robot/i }));
+
+    const modelInput = await screen.findByLabelText('Model');
+    await ui.click(screen.getByRole('button', { name: /view models/i }));
+
+    const modelButton = await screen.findByRole('button', { name: 'gpt-4o' });
+    await ui.click(modelButton);
+
+    await waitFor(() => expect(modelInput).toHaveValue('gpt-4o'));
+  });
 });

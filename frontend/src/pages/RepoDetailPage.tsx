@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   App,
   Alert,
@@ -27,6 +27,7 @@ import type {
   ClaudeCodeRobotProviderConfigPublic,
   GeminiCliRobotProviderConfigPublic,
   ModelProvider,
+  ModelProviderModelsResponse,
   RepoAutomationConfig,
   RepoRobot,
   RepoScopedCredentialsPublic,
@@ -117,6 +118,28 @@ type RobotFormValues = {
     credential?: { apiBaseUrl?: string; apiKey?: string; hasApiKey?: boolean; remark?: string };
     sandbox_workspace_write?: { network_access?: boolean };
   };
+};
+
+type ModelPickerFieldProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & {
+  value?: string;
+  onChange?: (nextValue: string) => void;
+  pickerDisabled?: boolean;
+  loadModels: (params: { forceRefresh: boolean }) => Promise<ModelProviderModelsResponse>;
+};
+
+const ModelPickerField: FC<ModelPickerFieldProps> = ({ value, onChange, pickerDisabled, loadModels, ...inputProps }) => {
+  // Keep the model field controlled so picker selections propagate through Form.Item. docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md b8fucnmey62u0muyn7i0
+  return (
+    <Space.Compact style={{ width: '100%' }}>
+      <Input {...inputProps} value={value} onChange={(event) => onChange?.(event.target.value)} />
+      <ModelProviderModelsButton
+        disabled={pickerDisabled}
+        buttonProps={{ size: 'middle' }}
+        loadModels={loadModels}
+        onPickModel={(model) => onChange?.(model)}
+      />
+    </Space.Compact>
+  );
 };
 
 const providerLabel = (provider: string) => (provider === 'github' ? 'GitHub' : 'GitLab');
@@ -2465,47 +2488,40 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                     <Row gutter={16}>
                       <Col xs={24} md={12}>
                         <Form.Item label={t('repos.robotForm.model')} name={['modelProviderConfig', 'model']} rules={[{ required: true, message: t('panel.validation.required') }]}>
-                          <Space.Compact style={{ width: '100%' }}>
-                            <Input />
-                            <ModelProviderModelsButton
-                              disabled={repoArchived || (source === 'robot' && apiKeyDisabled)}
-                              buttonProps={{ size: 'middle' }}
-                              loadModels={async ({ forceRefresh }) => {
-                                // Load models based on the selected credential source so robot config avoids hardcoded model ids. b8fucnmey62u0muyn7i0
-                                const credentialSource = normalizeCredentialSource(watchedModelCredentialSource);
-                                const credentialProfileId = String(watchedModelCredentialProfileId ?? '').trim();
+                          {/* Use the bound picker field so model clicks update the form value. docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md b8fucnmey62u0muyn7i0 */}
+                          <ModelPickerField
+                            pickerDisabled={repoArchived || (source === 'robot' && apiKeyDisabled)}
+                            loadModels={async ({ forceRefresh }) => {
+                              // Load models based on the selected credential source so robot config avoids hardcoded model ids. b8fucnmey62u0muyn7i0
+                              const credentialSource = normalizeCredentialSource(watchedModelCredentialSource);
+                              const credentialProfileId = String(watchedModelCredentialProfileId ?? '').trim();
 
-                                if (credentialSource === 'user') {
-                                  return listMyModelProviderModels({
-                                    provider,
-                                    profileId: credentialProfileId || undefined,
-                                    forceRefresh
-                                  });
-                                }
-
-                                if (credentialSource === 'repo') {
-                                  return listRepoModelProviderModels(repoId, {
-                                    provider,
-                                    profileId: credentialProfileId || undefined,
-                                    forceRefresh
-                                  });
-                                }
-
-                                const apiKey = String(robotForm.getFieldValue(['modelProviderConfig', 'credential', 'apiKey']) ?? '').trim();
-                                const apiBaseUrl = String(robotForm.getFieldValue(['modelProviderConfig', 'credential', 'apiBaseUrl']) ?? '').trim();
-
-                                return listRepoModelProviderModels(repoId, {
+                              if (credentialSource === 'user') {
+                                return listMyModelProviderModels({
                                   provider,
-                                  credential: { apiKey: apiKey || null, apiBaseUrl: apiBaseUrl || null },
+                                  profileId: credentialProfileId || undefined,
                                   forceRefresh
                                 });
-                              }}
-                              onPickModel={(model) => {
-                                const current = robotForm.getFieldValue('modelProviderConfig') ?? {};
-                                robotForm.setFieldsValue({ modelProviderConfig: { ...current, model } as any });
-                              }}
-                            />
-                          </Space.Compact>
+                              }
+
+                              if (credentialSource === 'repo') {
+                                return listRepoModelProviderModels(repoId, {
+                                  provider,
+                                  profileId: credentialProfileId || undefined,
+                                  forceRefresh
+                                });
+                              }
+
+                              const apiKey = String(robotForm.getFieldValue(['modelProviderConfig', 'credential', 'apiKey']) ?? '').trim();
+                              const apiBaseUrl = String(robotForm.getFieldValue(['modelProviderConfig', 'credential', 'apiBaseUrl']) ?? '').trim();
+
+                              return listRepoModelProviderModels(repoId, {
+                                provider,
+                                credential: { apiKey: apiKey || null, apiBaseUrl: apiBaseUrl || null },
+                                forceRefresh
+                              });
+                            }}
+                          />
                         </Form.Item>
                       </Col>
                       <Col xs={24} md={12}>

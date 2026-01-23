@@ -74,6 +74,23 @@
   - Updated changelog entry and session plan docs for traceability.{/* Record delivery checklist completion. b8fucnmey62u0muyn7i0 */}
   - Confirmed all phases complete via `check-complete.sh`.{/* Keep plan completeness verification recorded. b8fucnmey62u0muyn7i0 */}
 - Files created/modified:
+- docs/en/change-log/0.0.0.md
+
+## Session: 2026-01-22
+
+### Phase 6: Model Picker Bugfix
+- **Status:** complete
+- **Started:** 2026-01-22 00:10
+- Actions taken:
+  - Located the only interactive picker usage (robot form) and corrected form binding via a dedicated controlled field component.
+  - Added a repo detail test that opens the robot modal and asserts picker selections update the model input.{/* Log model picker bugfix actions. b8fucnmey62u0muyn7i0 */}
+  - Adjusted the test for summary-card navigation and icon-injected accessible names.
+- Files created/modified:
+  - frontend/src/pages/RepoDetailPage.tsx
+  - frontend/src/tests/repoDetailPage.test.tsx
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/findings.md
+  - docs/en/developer/plans/b8fucnmey62u0muyn7i0/progress.md
   - docs/en/change-log/0.0.0.md
 
 ## Test Results
@@ -84,6 +101,7 @@
 | Frontend unit tests | pnpm --filter hookcode-frontend test | Pass | Pass | ✓ |
 | Backend build | pnpm build:backend | Pass | Pass | ✓ |
 | Frontend build | pnpm build:frontend | Pass | Pass | ✓ |
+| Repo detail picker test | pnpm --filter hookcode-frontend test -- repoDetailPage.test.tsx | Pass | Pass (warnings: existing AntD deprecations + Vite CJS notice) | ✓ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
@@ -91,15 +109,18 @@
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
 | 2026-01-21 | Duplicate function implementation (getModelCredentialsRaw) | 1 | Removed duplicate method and kept a single commented implementation |
+| 2026-01-22 | RepoDetailPage test could not find Robots tab | 1 | Updated test to open robot modal via the New robot button |
+| 2026-01-22 | RepoDetailPage test could not find View models button | 1 | Matched the button with a case-insensitive regex to include icon text |
+| 2026-01-22 | RepoDetailPage test could not associate the Model label with the input | 1 | Forwarded Form.Item props through the custom picker field |
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}
 {/* If you can answer these, context is solid */}
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 5 |
-| Where am I going? | Completed |
-| What's the goal? | Dynamic, credential-based model listing in relevant UIs |
+| Where am I? | Phase 6 |
+| Where am I going? | Complete |
+| What's the goal? | Dynamic model listing plus picker click-to-apply fix |
 | What have I learned? | See findings.md |
 | What have I done? | Implemented + tested backend/FE model discovery + updated changelog |
 

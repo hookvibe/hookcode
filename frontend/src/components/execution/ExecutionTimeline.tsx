@@ -1,6 +1,6 @@
 import { FC, type ReactNode, useMemo, useState } from 'react';
 import { Space, Tag, Typography } from 'antd';
-import { CaretDownOutlined, CaretRightOutlined, CodeOutlined, FileTextOutlined, MessageOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { CaretDownOutlined, CaretRightOutlined, CodeOutlined, FileTextOutlined, MessageOutlined, EditOutlined } from '@ant-design/icons';
 import { Think, ThoughtChain, type ThoughtChainItemType } from '@ant-design/x';
 import type { ExecutionFileDiff, ExecutionItem } from '../../utils/executionLog';
 import { useT } from '../../i18n';
@@ -25,7 +25,9 @@ const formatPath = (raw: string): string => {
 const diffKey = (diff: ExecutionFileDiff): string => `${diff.path}::${diff.kind ?? ''}`;
 
 const clampText = (raw: string, maxLen: number): string => {
-  const text = String(raw ?? '').trim();
+  // **Finalizing project details** remove *
+  const cleanedText = raw.replace(/^\*+|\*+$/g, '').trim();
+  const text = String(cleanedText ?? '').trim();  
   if (!text) return '';
   if (text.length <= maxLen) return text;
   return `${text.slice(0, Math.max(0, maxLen - 1))}…`;
@@ -47,7 +49,7 @@ type ExecutionThinkProps = {
   children?: ReactNode;
 };
 
-const ExecutionThink: FC<ExecutionThinkProps> = ({ title, icon, hideIcon = false, loading, blink, defaultExpanded = false, children }) => {
+const ExecutionThink: FC<ExecutionThinkProps> = ({ title, icon, hideIcon = true, loading, blink, defaultExpanded = false, children }) => {
   // Control Think expansion so we can use CaretRight/CaretDown icons and default-collapse details. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
   const [expanded, setExpanded] = useState(defaultExpanded);
 
@@ -135,7 +137,7 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
       const text = line ? clampText(line, 140) : t('execViewer.item.reasoning');
       return (
         <Space size={8} style={{ minWidth: 0 }}>
-          <QuestionCircleOutlined />
+          <EditOutlined />
           <Typography.Text strong ellipsis={{ tooltip: line || undefined }} style={{ minWidth: 0 }}>
             {text}
           </Typography.Text>
@@ -145,7 +147,7 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
 
     return (
       <Space size={8} wrap>
-        <QuestionCircleOutlined />
+        <EditOutlined />
         <Typography.Text strong>{t('execViewer.item.unknown')}</Typography.Text>
       </Space>
     );
@@ -256,14 +258,14 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
     if (item.kind === 'reasoning') {
       const running = toThoughtStatus(item) === 'loading';
       return (
-        <ExecutionThink title={t('execViewer.item.reasoning')} icon={<QuestionCircleOutlined />} loading={running} blink={running} defaultExpanded={false}>
+        <ExecutionThink title={t('execViewer.item.reasoning')} icon={<EditOutlined />} loading={running} blink={running} defaultExpanded={false}>
           <pre className="hc-exec-output hc-exec-output--mono">{item.text || '-'}</pre>
         </ExecutionThink>
       );
     }
 
     return (
-      <ExecutionThink title={t('execViewer.item.unknown')} icon={<QuestionCircleOutlined />} defaultExpanded={false}>
+      <ExecutionThink title={t('execViewer.item.unknown')} icon={<EditOutlined />} defaultExpanded={false}>
         <pre className="hc-exec-output hc-exec-output--mono">{JSON.stringify((item as any).raw ?? item, null, 2)}</pre>
       </ExecutionThink>
     );

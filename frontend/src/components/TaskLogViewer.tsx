@@ -108,7 +108,7 @@ export const TaskLogViewer: FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState(0);
   const [clearing, setClearing] = useState(false);
-  const [showReasoning, setShowReasoning] = useState(false);
+  const [showReasoning, setShowReasoning] = useState(true); // Default to showing reasoning so Codex text is visible in ThoughtChain. docs/en/developer/plans/thoughtchain-log-display/task_plan.md thoughtchain-log-display
   const [wrapDiffLines, setWrapDiffLines] = useState(true);
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [timeline, dispatchTimeline] = useReducer(timelineReducer, undefined, () => createEmptyTimeline());
@@ -349,7 +349,10 @@ export const TaskLogViewer: FC<Props> = ({
         {messageContextHolder}
         {error ? <Alert type="warning" showIcon message={error} style={{ marginBottom: 8 }} /> : null}
         {timeline.items.length ? (
-          <ExecutionTimeline items={timeline.items} showReasoning={false} wrapDiffLines={true} showLineNumbers={true} />
+          <>
+            {/* Show reasoning in flat ThoughtChain to surface Codex text by default. docs/en/developer/plans/thoughtchain-log-display/task_plan.md thoughtchain-log-display */}
+            <ExecutionTimeline items={timeline.items} showReasoning={showReasoning} wrapDiffLines={true} showLineNumbers={true} />
+          </>
         ) : logs.length ? (
           <pre className="hc-task-code-block hc-task-code-block--expanded">{lines}</pre>
         ) : (

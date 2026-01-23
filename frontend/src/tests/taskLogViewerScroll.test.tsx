@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { App as AntdApp } from 'antd';
 import { TaskLogViewer } from '../components/TaskLogViewer';
 
@@ -45,3 +45,29 @@ describe('TaskLogViewer auto-scroll', () => {
   });
 });
 
+describe('TaskLogViewer reasoning visibility', () => {
+  test('shows reasoning items in flat ThoughtChain by default', async () => {
+    // Validate reasoning visibility in flat ThoughtChain for Codex logs. docs/en/developer/plans/thoughtchain-log-display/task_plan.md thoughtchain-log-display
+    render(
+      <AntdApp>
+        <TaskLogViewer taskId="t_reasoning" tail={2} variant="flat" />
+      </AntdApp>
+    );
+
+    await waitFor(() => expect((globalThis as any).__eventSourceInstances?.length ?? 0).toBe(1));
+
+    const es = (globalThis as any).__eventSourceInstances[0];
+    es.emit('init', {
+      data: JSON.stringify({
+        logs: [
+          JSON.stringify({
+            type: 'item.completed',
+            item: { id: 'r1', type: 'reasoning', text: 'why this matters' }
+          })
+        ]
+      })
+    });
+
+    expect(await screen.findByText('why this matters')).toBeInTheDocument();
+  });
+});
