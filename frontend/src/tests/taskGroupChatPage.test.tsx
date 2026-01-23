@@ -70,10 +70,10 @@ vi.mock('../api', () => {
   };
 });
 
-const renderPage = (props?: { taskGroupId?: string }) =>
+const renderPage = (props?: { taskGroupId?: string; taskLogsEnabled?: boolean | null }) =>
   render(
     <AntdApp>
-      <TaskGroupChatPage taskGroupId={props?.taskGroupId} />
+      <TaskGroupChatPage taskGroupId={props?.taskGroupId} taskLogsEnabled={props?.taskLogsEnabled} />
     </AntdApp>
   );
 
@@ -275,5 +275,47 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
       expect(screen.queryByText('Group g1')).not.toBeInTheDocument();
       expect(screen.queryByText('Task 1')).not.toBeInTheDocument();
     });
+  });
+
+  test('renders only the latest 3 tasks by default and loads older tasks when scrolling up', async () => {
+    // Reverse paging keeps TaskGroup chat short while always rendering ThoughtChain inline. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
+    const tasks = Array.from({ length: 7 }, (_, idx) => {
+      const n = idx + 1;
+      return {
+        id: `t_${n}`,
+        eventType: 'chat',
+        title: `Task ${n}`,
+        payload: { __chat: { text: `Message ${n}` } },
+        status: 'queued',
+        retries: 0,
+        createdAt: `2026-01-11T00:00:0${n}.000Z`,
+        updatedAt: `2026-01-11T00:00:0${n}.000Z`
+      } as any;
+    });
+
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValueOnce(tasks);
+    renderPage({ taskGroupId: 'g1', taskLogsEnabled: false });
+
+    await waitFor(() => expect(api.fetchTaskGroupTasks).toHaveBeenCalled());
+
+    // Only the latest 3 tasks should be rendered initially.
+    expect(await screen.findByText('Task 5')).toBeInTheDocument();
+    expect(screen.getByText('Task 6')).toBeInTheDocument();
+    expect(screen.getByText('Task 7')).toBeInTheDocument();
+    expect(screen.queryByText('Task 4')).not.toBeInTheDocument();
+
+    const chatBody = document.querySelector('.hc-chat-body') as HTMLElement;
+    expect(chatBody).toBeTruthy();
+
+    chatBody.scrollTop = 0;
+    chatBody.dispatchEvent(new Event('scroll'));
+
+    expect(await screen.findByText('Task 4')).toBeInTheDocument();
+    expect(screen.queryByText('Task 1')).not.toBeInTheDocument();
+
+    chatBody.scrollTop = 0;
+    chatBody.dispatchEvent(new Event('scroll'));
+
+    expect(await screen.findByText('Task 1')).toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import {
   ConflictException,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpException,
   InternalServerErrorException,
@@ -21,6 +22,7 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -31,12 +33,14 @@ import type { Request } from 'express';
 import { RepoAutomationService, findRobotAutomationUsages, RepoAutomationConfigValidationError } from './repo-automation.service';
 import { RepoRobotService } from './repo-robot.service';
 import { RepoWebhookDeliveryService } from './repo-webhook-delivery.service';
-import { RepositoryService } from './repository.service';
+import { RepositoryService, type ArchiveScope } from './repository.service';
+import { db } from '../../db';
 import { GitlabService } from '../../services/gitlabService';
 import { GithubService } from '../../services/githubService';
 import { UserService } from '../users/user.service';
 import { inferRobotRepoProviderCredentialSource, resolveRobotProviderToken } from '../../services/repoRobotAccess';
-import type { RepoProvider, RepositoryBranch } from '../../types/repository';
+import { fetchRepoProviderActivity, RepoProviderAuthRequiredError } from '../../services/repoProviderActivity';
+import type { RepoProvider, Repository, RepositoryBranch } from '../../types/repository';
 import type { RobotDefaultBranchRole } from '../../types/repoRobot';
 import { CODEX_PROVIDER_KEY, normalizeCodexRobotProviderConfig } from '../../modelProviders/codex';
 import { CLAUDE_CODE_PROVIDER_KEY, normalizeClaudeCodeRobotProviderConfig } from '../../modelProviders/claudeCode';
@@ -49,6 +53,7 @@ import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { parsePositiveInt } from '../../utils/parse';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import {
+  ArchiveRepositoryResponseDto,
   AutomationConfigResponseDto,
   CreateRepoRobotResponseDto,
   CreateRepositoryResponseDto,
@@ -56,12 +61,16 @@ import {
   GetRepoWebhookDeliveryResponseDto,
   GetRepositoryResponseDto,
   ListRepoRobotsResponseDto,
+  RepoProviderActivityResponseDto,
   ListRepoWebhookDeliveriesResponseDto,
   ListRepositoriesResponseDto,
   TestRobotResponseDto,
+  UnarchiveRepositoryResponseDto,
   UpdateRepoRobotResponseDto,
   UpdateRepositoryResponseDto
 } from './dto/repositories-swagger.dto';
+import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
+import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
 
 const normalizeProvider = (value: unknown): RepoProvider => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -106,6 +115,24 @@ const normalizeRepoCredentialSource = (
   throw new Error('repoCredentialSource must be robot/user/repo or null');
 };
 
+const normalizeArchiveScope = (value: unknown): ArchiveScope => {
+  // Keep query parsing tolerant so the Archive page can use `archived=1` while future APIs can use `archived=all`. qnp1mtxhzikhbi0xspbc
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (!raw || raw === '0' || raw === 'false' || raw === 'active') return 'active';
+  if (raw === '1' || raw === 'true' || raw === 'archived') return 'archived';
+  if (raw === 'all') return 'all';
+  return 'active';
+};
+
+const assertRepoWritable = (repo: Repository): void => {
+  // Reject repo-scoped write operations when the repository is archived to enforce view-only archive semantics. qnp1mtxhzikhbi0xspbc
+  if (!repo.archivedAt) return;
+  throw new ForbiddenException({
+    error: 'Archived repositories are read-only',
+    code: 'REPO_ARCHIVED_READ_ONLY'
+  });
+};
+
 @Controller('repos')
 @ApiTags('Repos')
 @ApiBearerAuth('bearerAuth')
@@ -126,9 +153,10 @@ export class RepositoriesController {
   })
   @ApiOkResponse({ description: 'OK', type: ListRepositoriesResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
-  async list() {
+  async list(@Query('archived') archivedRaw: string | undefined) {
     try {
-      const repos = await this.repositoryService.listAll();
+      const scope = normalizeArchiveScope(archivedRaw);
+      const repos = await this.repositoryService.listByArchiveScope(scope);
       return { repos };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -248,6 +276,48 @@ export class RepositoriesController {
     }
   }
 
+  @Post(':id/archive')
+  @ApiOperation({
+    summary: 'Archive repository',
+    description: 'Archive a repository and cascade archive to its related tasks/task groups.',
+    operationId: 'repos_archive'
+  })
+  @ApiOkResponse({ description: 'OK', type: ArchiveRepositoryResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async archive(@Req() req: Request, @Param('id') id: string) {
+    try {
+      const result = await this.repositoryService.archiveRepo(id, req.user ?? null);
+      if (!result) throw new NotFoundException({ error: 'Repo not found' });
+      return result;
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] archive failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to archive repo' });
+    }
+  }
+
+  @Post(':id/unarchive')
+  @ApiOperation({
+    summary: 'Unarchive repository',
+    description: 'Restore an archived repository and cascade restore to its related tasks/task groups.',
+    operationId: 'repos_unarchive'
+  })
+  @ApiOkResponse({ description: 'OK', type: UnarchiveRepositoryResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async unarchive(@Req() req: Request, @Param('id') id: string) {
+    try {
+      const result = await this.repositoryService.unarchiveRepo(id, req.user ?? null);
+      if (!result) throw new NotFoundException({ error: 'Repo not found' });
+      return result;
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] unarchive failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to unarchive repo' });
+    }
+  }
+
   @Get(':id/provider-meta')
   @ApiOperation({
     summary: 'Get provider metadata (visibility)',
@@ -323,7 +393,8 @@ export class RepositoriesController {
 
       if (repo.provider === 'github') {
         try {
-          const github = new GithubService({ token, apiBaseUrl });
+          // Suppress missing-token warnings when onboarding probes public GitHub repos anonymously. kzxac35mxk0fg358i7zs
+          const github = new GithubService({ token, apiBaseUrl, warnIfNoToken: Boolean(token) });
           const repoIdOrSlug = repoIdentity;
           const repoInfo: any = await (async () => {
             if (!repoIdOrSlug.includes('/')) return github.getRepositoryById(repoIdOrSlug);
@@ -348,6 +419,189 @@ export class RepositoriesController {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get provider meta failed', err);
       throw new InternalServerErrorException({ error: 'Failed to fetch provider metadata' });
+    }
+  }
+
+  @Get(':id/provider-activity')
+  @ApiOperation({
+    summary: 'Get provider activity (commits/merges/issues)',
+    description:
+      'Fetch recent commits, merged MRs/PRs, and issues from the Git provider using anonymous mode for public repos or a selected credential profile for private repos.',
+    operationId: 'repos_get_provider_activity'
+  })
+  @ApiOkResponse({ description: 'OK', type: RepoProviderActivityResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async getProviderActivity(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('credentialSource') credentialSourceRaw: string | undefined,
+    @Query('credentialProfileId') credentialProfileIdRaw: string | undefined,
+    @Query('pageSize') pageSizeRaw: string | undefined,
+    @Query('commitsPage') commitsPageRaw: string | undefined,
+    @Query('mergesPage') mergesPageRaw: string | undefined,
+    @Query('issuesPage') issuesPageRaw: string | undefined,
+    @Query('limit') limitRaw: string | undefined
+  ) {
+    try {
+      // Provide recent provider activity for the repo detail dashboard row (commits/merges/issues). kzxac35mxk0fg358i7zs
+      const repoId = id;
+      const repo = await this.repositoryService.getById(repoId);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+
+      const repoIdentity = (repo.externalId ?? '').trim() || (repo.name ?? '').trim();
+      if (!repoIdentity) {
+        throw new BadRequestException({ error: 'repo identity is required (externalId or name)' });
+      }
+
+      const credentialSource = (() => {
+        const raw = String(credentialSourceRaw ?? '').trim().toLowerCase();
+        if (raw === 'repo') return 'repo';
+        if (raw === 'user') return 'user';
+        if (raw === 'anonymous') return 'anonymous';
+        return 'anonymous';
+      })();
+      const credentialProfileId = typeof credentialProfileIdRaw === 'string' ? credentialProfileIdRaw.trim() : '';
+      const pageSizeFromLimit = parsePositiveInt(limitRaw, 0);
+      const pageSize = Math.max(1, Math.min(20, parsePositiveInt(pageSizeRaw, pageSizeFromLimit || 5)));
+      const commitsPage = Math.max(1, parsePositiveInt(commitsPageRaw, 1));
+      const mergesPage = Math.max(1, parsePositiveInt(mergesPageRaw, 1));
+      const issuesPage = Math.max(1, parsePositiveInt(issuesPageRaw, 1));
+
+      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+      const token =
+        credentialSource === 'anonymous'
+          ? ''
+          : resolveRobotProviderToken({
+              provider: repo.provider,
+              robot: { repoCredentialProfileId: credentialProfileId || null },
+              userCredentials,
+              repoCredentials: repoScopedCredentials?.repoProvider ?? null,
+              source: credentialSource === 'repo' ? 'repo' : 'user'
+            });
+      if (credentialSource !== 'anonymous' && !token) {
+        throw new BadRequestException({
+          error: 'repo provider token is required to fetch activity',
+          code: 'REPO_PROVIDER_TOKEN_REQUIRED'
+        });
+      }
+
+      const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
+      const activity = await fetchRepoProviderActivity({
+        provider: repo.provider,
+        repoIdentity,
+        token,
+        apiBaseUrl,
+        pageSize,
+        commitsPage,
+        mergesPage,
+        issuesPage
+      });
+
+      // Attach HookCode task-group bindings (and processing tasks) to provider items for the repo dashboard UI. kzxac35mxk0fg358i7zs
+      const attachBindings = async (items: Array<{ id: string; taskGroups?: any[] }>) => {
+        const commitShas = activity.commits.items.map((i) => String(i.id ?? '').trim()).filter(Boolean);
+        const mrIds = activity.merges.items
+          .map((i) => Number(i.id))
+          .filter((n) => Number.isFinite(n)) as number[];
+        const issueIds = activity.issues.items
+          .map((i) => Number(i.id))
+          .filter((n) => Number.isFinite(n)) as number[];
+
+        if (!commitShas.length && !mrIds.length && !issueIds.length) return;
+
+        const groups = await db.taskGroup.findMany({
+          where: {
+            repoId,
+            archivedAt: null,
+            OR: [
+              commitShas.length ? { commitSha: { in: commitShas } } : undefined,
+              mrIds.length ? { mrId: { in: mrIds } } : undefined,
+              issueIds.length ? { issueId: { in: issueIds } } : undefined
+            ].filter(Boolean) as any[]
+          },
+          orderBy: { updatedAt: 'desc' },
+          select: {
+            id: true,
+            kind: true,
+            title: true,
+            updatedAt: true,
+            robotId: true,
+            commitSha: true,
+            mrId: true,
+            issueId: true,
+            tasks: {
+              where: { status: 'processing', archivedAt: null },
+              orderBy: { updatedAt: 'desc' },
+              take: 3,
+              select: { id: true, status: true, title: true, updatedAt: true }
+            }
+          }
+        });
+
+        const groupsByCommit = new Map<string, any[]>();
+        const groupsByMr = new Map<string, any[]>();
+        const groupsByIssue = new Map<string, any[]>();
+
+        for (const g of groups) {
+          const summary = {
+            id: g.id,
+            kind: g.kind,
+            title: g.title ?? undefined,
+            updatedAt: g.updatedAt instanceof Date ? g.updatedAt.toISOString() : String(g.updatedAt ?? ''),
+            robotId: g.robotId ?? undefined,
+            processingTasks: (g.tasks ?? []).map((t) => ({
+              id: t.id,
+              status: t.status,
+              title: t.title ?? undefined,
+              updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt ?? '')
+            }))
+          };
+
+          if (g.kind === 'commit' && g.commitSha) {
+            const key = String(g.commitSha);
+            groupsByCommit.set(key, [...(groupsByCommit.get(key) ?? []), summary]);
+          }
+          if (g.kind === 'merge_request' && typeof g.mrId === 'number') {
+            const key = String(g.mrId);
+            groupsByMr.set(key, [...(groupsByMr.get(key) ?? []), summary]);
+          }
+          if (g.kind === 'issue' && typeof g.issueId === 'number') {
+            const key = String(g.issueId);
+            groupsByIssue.set(key, [...(groupsByIssue.get(key) ?? []), summary]);
+          }
+        }
+
+        for (const item of items) {
+          const id = String(item.id ?? '').trim();
+          if (!id) continue;
+          const groups = groupsByCommit.get(id) ?? groupsByMr.get(id) ?? groupsByIssue.get(id) ?? [];
+          if (groups.length) {
+            item.taskGroups = groups;
+          }
+        }
+      };
+
+      const commits = activity.commits.items.map((i) => ({ ...i })) as any[];
+      const merges = activity.merges.items.map((i) => ({ ...i })) as any[];
+      const issues = activity.issues.items.map((i) => ({ ...i })) as any[];
+      await attachBindings([...commits, ...merges, ...issues]);
+
+      return {
+        provider: repo.provider,
+        commits: { ...activity.commits, items: commits },
+        merges: { ...activity.merges, items: merges },
+        issues: { ...activity.issues, items: issues }
+      };
+    } catch (err) {
+      if (err instanceof RepoProviderAuthRequiredError) {
+        throw new UnauthorizedException({ error: err.message, code: err.code, providerStatus: err.providerStatus });
+      }
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] get provider activity failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch provider activity' });
     }
   }
 
@@ -426,6 +680,7 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: UpdateRepositoryResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async patch(@Param('id') id: string, @Body() body: UpdateRepositoryDto) {
@@ -433,6 +688,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block mutations for archived repos; the Archive area is view-only. qnp1mtxhzikhbi0xspbc
 
       const name = typeof body?.name === 'string' ? body.name : undefined;
       const externalId =
@@ -519,6 +775,68 @@ export class RepositoriesController {
     }
   }
 
+  @Post(':id/model-credentials/models')
+  @ApiOperation({
+    summary: 'List models for a model provider credential (repo scoped)',
+    description: 'Lists models using either a repo-scoped credential profile or an inline apiKey (never returned).',
+    operationId: 'repos_list_model_provider_models'
+  })
+  @ApiOkResponse({ description: 'OK', type: ModelProviderModelsResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async listRepoModelProviderModels(@Param('id') id: string, @Req() req: Request, @Body() body: ModelProviderModelsRequestDto) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+
+      const repoId = String(id ?? '').trim();
+      const repo = await this.repositoryService.getById(repoId);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+
+      const provider = normalizeSupportedModelProviderKey(body?.provider);
+      const profileId = typeof body?.profileId === 'string' ? body.profileId.trim() : '';
+      const overrideApiBaseUrl = typeof body?.credential?.apiBaseUrl === 'string' ? body.credential.apiBaseUrl.trim() : '';
+      const inlineApiKey = typeof body?.credential?.apiKey === 'string' ? body.credential.apiKey.trim() : '';
+
+      const repoScopedCredentials = profileId ? await this.repositoryService.getRepoScopedCredentials(repoId) : null;
+      if (profileId && !repoScopedCredentials) throw new NotFoundException({ error: 'Repo not found' });
+
+      const providerProfiles = profileId ? ((repoScopedCredentials as any)?.modelProvider?.[provider]?.profiles ?? []) : [];
+      const storedProfile = profileId ? providerProfiles.find((p: any) => p && String(p.id ?? '').trim() === profileId) : null;
+      if (profileId && !storedProfile) {
+        throw new BadRequestException({ error: 'profileId does not exist in repo-scoped credentials', code: 'MODEL_PROFILE_NOT_FOUND' });
+      }
+
+      const apiKey = inlineApiKey || String(storedProfile?.apiKey ?? '').trim();
+      if (!apiKey) {
+        throw new BadRequestException({ error: 'credential.apiKey is required', code: 'MODEL_API_KEY_REQUIRED' });
+      }
+
+      const apiBaseUrl = overrideApiBaseUrl || String(storedProfile?.apiBaseUrl ?? '').trim() || undefined;
+
+      const result = await listModelProviderModels({
+        provider,
+        apiKey,
+        apiBaseUrl,
+        forceRefresh: Boolean(body?.forceRefresh)
+      });
+
+      return { models: result.models, source: result.source };
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      if (err instanceof ModelProviderModelsFetchError && (err.status === 401 || err.status === 403)) {
+        // UX: surface invalid keys explicitly so users can fix credentials instead of seeing fallbacks. b8fucnmey62u0muyn7i0
+        throw new BadRequestException({ error: 'Model provider API key is invalid or unauthorized', code: 'MODEL_API_KEY_INVALID' });
+      }
+      const message = err?.message ? String(err.message) : '';
+      if (message.includes('provider must be')) {
+        throw new BadRequestException({ error: message });
+      }
+      console.error('[repos] list model provider models failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to list model provider models' });
+    }
+  }
+
   @Get(':id/robots')
   @ApiOperation({
     summary: 'List robots',
@@ -552,6 +870,7 @@ export class RepositoriesController {
   @ApiCreatedResponse({ description: 'Created', type: CreateRepoRobotResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async createRobot(@Param('id') id: string, @Req() req: Request, @Body() body: CreateRepoRobotDto) {
@@ -559,6 +878,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block robot creation for archived repos to keep archived config immutable. qnp1mtxhzikhbi0xspbc
       // Allow configuring robots without requiring webhook verification (webhooks are optional). 58w1q3n5nr58flmempxe
 
       const name = typeof body?.name === 'string' ? body.name.trim() : '';
@@ -740,6 +1060,7 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: UpdateRepoRobotResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async patchRobot(
@@ -752,6 +1073,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block robot updates for archived repos to enforce read-only archive behavior. qnp1mtxhzikhbi0xspbc
       // Keep robot updates available before webhook verification to support manual chat workflows. 58w1q3n5nr58flmempxe
 
       const existing = await this.repoRobotService.getByIdWithToken(robotId);
@@ -984,6 +1306,7 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: TestRobotResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async testRobot(@Param('id') id: string, @Param('robotId') robotId: string, @Req() req: Request) {
@@ -991,6 +1314,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block robot activation tests for archived repos to keep archived state stable. qnp1mtxhzikhbi0xspbc
       // Support robot token activation tests without depending on webhook verification. 58w1q3n5nr58flmempxe
 
       const existing = await this.repoRobotService.getByIdWithToken(robotId);
@@ -1173,6 +1497,7 @@ export class RepositoriesController {
   })
   @ApiOkResponse({ description: 'OK', type: DeleteRobotResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async deleteRobot(@Param('id') id: string, @Param('robotId') robotId: string) {
@@ -1180,6 +1505,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block robot deletion for archived repos to prevent modifying archived configuration. qnp1mtxhzikhbi0xspbc
       // Permit robot deletion even when webhooks are not configured yet. 58w1q3n5nr58flmempxe
 
       const existing = await this.repoRobotService.getById(robotId);
@@ -1240,6 +1566,7 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: AutomationConfigResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async updateAutomation(@Param('id') id: string, @Body() body: UpdateAutomationDto) {
@@ -1247,6 +1574,7 @@ export class RepositoriesController {
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block automation updates for archived repos (automation is view-only in Archive). qnp1mtxhzikhbi0xspbc
       // Allow editing automation rules before webhooks are enabled so users can pre-configure triggers. 58w1q3n5nr58flmempxe
 
       const config = body?.config;

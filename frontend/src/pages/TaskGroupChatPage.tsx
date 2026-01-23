@@ -1,6 +1,6 @@
-import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { App, Button, Card, Input, Select, Space, Typography } from 'antd';
-import { LockOutlined, SendOutlined } from '@ant-design/icons';
+import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { App, Button, Input, Select, Space, Typography } from 'antd';
+import { SendOutlined } from '@ant-design/icons';
 import type { RepoRobot, Repository, Task, TaskGroup } from '../api';
 import { executeChat, fetchTask, fetchTaskGroup, fetchTaskGroupTasks, listRepoRobots, listRepos } from '../api';
 import { useLocale, useT } from '../i18n';
@@ -57,6 +57,11 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [sending, setSending] = useState(false);
 
   const pollTimerRef = useRef<number | null>(null);
+  const chatBodyRef = useRef<HTMLDivElement | null>(null);
+  const chatAutoScrollEnabledRef = useRef(true);
+  const chatDidInitScrollRef = useRef(false);
+  const chatPrependScrollRestoreRef = useRef<null | { scrollTop: number; scrollHeight: number }>(null);
+  const chatPrependInFlightRef = useRef(false);
   const groupRef = useRef<TaskGroup | null>(null);
   const groupRequestSeqRef = useRef(0);
   const groupRequestInFlightRef = useRef(false);
@@ -89,6 +94,27 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     return list;
   }, [tasks]);
+
+  const TASK_PAGE_SIZE = 3;
+  const [taskHiddenCount, setTaskHiddenCount] = useState(0);
+  const [taskPagingPinnedToLatest, setTaskPagingPinnedToLatest] = useState(true);
+
+  const pinnedHiddenCount = Math.max(0, orderedTasks.length - TASK_PAGE_SIZE);
+  const effectiveHiddenCount = Math.max(
+    0,
+    Math.min(taskPagingPinnedToLatest ? pinnedHiddenCount : taskHiddenCount, orderedTasks.length)
+  );
+  const visibleTasks = useMemo(() => orderedTasks.slice(effectiveHiddenCount), [effectiveHiddenCount, orderedTasks]);
+
+  useEffect(() => {
+    // Reset TaskGroup paging when switching groups so users always start from the latest page. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
+    chatDidInitScrollRef.current = false;
+    chatAutoScrollEnabledRef.current = true;
+    chatPrependInFlightRef.current = false;
+    chatPrependScrollRestoreRef.current = null;
+    setTaskPagingPinnedToLatest(true);
+    setTaskHiddenCount(0);
+  }, [taskGroupId]);
 
   const groupTitle = useMemo(() => {
     if (!group) return '';
@@ -335,6 +361,65 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     window.location.hash = buildTaskHash(task.id);
   }, []);
 
+  const loadOlderTasks = useCallback(() => {
+    const container = chatBodyRef.current;
+    if (!container) return;
+    // Keep the default view bounded (latest 3 tasks) until users explicitly scroll up to load older tasks. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
+    const currentHidden = taskPagingPinnedToLatest ? pinnedHiddenCount : taskHiddenCount;
+    if (currentHidden <= 0) return;
+    if (chatPrependInFlightRef.current) return;
+
+    chatPrependInFlightRef.current = true;
+    chatPrependScrollRestoreRef.current = { scrollTop: container.scrollTop, scrollHeight: container.scrollHeight };
+    setTaskPagingPinnedToLatest(false);
+    setTaskHiddenCount(Math.max(0, currentHidden - TASK_PAGE_SIZE));
+  }, [pinnedHiddenCount, taskHiddenCount, taskPagingPinnedToLatest]);
+
+  const handleChatScroll = useCallback(() => {
+    const container = chatBodyRef.current;
+    if (!container) return;
+
+    const remainingBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    chatAutoScrollEnabledRef.current = remainingBottom < 24;
+
+    if (container.scrollTop < 48) {
+      loadOlderTasks();
+    }
+  }, [loadOlderTasks]);
+
+  useLayoutEffect(() => {
+    // Preserve scroll position when older tasks are prepended (reverse paging). docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
+    const container = chatBodyRef.current;
+    const pending = chatPrependScrollRestoreRef.current;
+    if (!container || !pending) return;
+
+    const delta = container.scrollHeight - pending.scrollHeight;
+    container.scrollTop = pending.scrollTop + Math.max(0, delta);
+    chatPrependScrollRestoreRef.current = null;
+    chatPrependInFlightRef.current = false;
+  }, [taskHiddenCount, orderedTasks.length]);
+
+  useLayoutEffect(() => {
+    // Default the TaskGroup chat view to the bottom (latest tasks) and keep it pinned when the user is already at the bottom. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
+    const container = chatBodyRef.current;
+    if (!container) return;
+    if (!taskGroupId) return;
+    if (groupLoading) return;
+    if (!visibleTasks.length) return;
+    if (chatPrependScrollRestoreRef.current) return;
+
+    if (!chatDidInitScrollRef.current) {
+      container.scrollTop = container.scrollHeight;
+      chatDidInitScrollRef.current = true;
+      chatAutoScrollEnabledRef.current = true;
+      return;
+    }
+
+    if (chatAutoScrollEnabledRef.current) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [groupLoading, taskGroupId, visibleTasks.length, orderedTasks.length, taskHiddenCount]);
+
   const [isInputFocused, setIsInputFocused] = useState(false);
   const isCentered = !taskGroupId || (orderedTasks.length === 0 && !groupLoading);
   const composerMode: 'centered' | 'inline' = isCentered ? 'centered' : 'inline';
@@ -443,7 +528,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         userPanel={userPanel}
       />
 
-      <div className="hc-chat-body">
+      <div className="hc-chat-body" ref={chatBodyRef} onScroll={handleChatScroll}>
         {groupLoading && taskGroupId ? (
           // Render skeleton chat items instead of a generic Empty+icon while the group is loading. ro3ln7zex8d0wyynfj0m
           <ChatTimelineSkeleton testId="hc-chat-group-skeleton" ariaLabel={t('common.loading')} />
@@ -461,7 +546,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
           </div>
         ) : (
           <div className="hc-chat-timeline">
-            {orderedTasks.map((task) => (
+            {visibleTasks.map((task) => (
               <TaskConversationItem
                 key={task.id}
                 task={task}

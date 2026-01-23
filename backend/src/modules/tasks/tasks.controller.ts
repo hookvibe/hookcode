@@ -67,6 +67,15 @@ export class TasksController {
     return undefined;
   }
 
+  private normalizeArchiveScope(value: unknown): 'active' | 'archived' | 'all' {
+    // Keep query parsing tolerant so the Archive page can use `archived=1` while default behavior stays "active only". qnp1mtxhzikhbi0xspbc
+    const raw = normalizeString(value);
+    if (!raw || raw === '0' || raw === 'false' || raw === 'active') return 'active';
+    if (raw === '1' || raw === 'true' || raw === 'archived') return 'archived';
+    if (raw === 'all') return 'all';
+    return 'active';
+  }
+
   private attachTaskPermissions(tasks: any[]): any[] {
     return tasks.map((t) => ({
       ...t,
@@ -99,7 +108,8 @@ export class TasksController {
     @Query('repoId') repoIdRaw: string | undefined,
     @Query('robotId') robotIdRaw: string | undefined,
     @Query('status') statusRaw: string | undefined,
-    @Query('eventType') eventTypeRaw: string | undefined
+    @Query('eventType') eventTypeRaw: string | undefined,
+    @Query('archived') archivedRaw: string | undefined
   ) {
     try {
       const limit = parsePositiveInt(limitRaw, 50);
@@ -107,6 +117,7 @@ export class TasksController {
       const robotId = normalizeString(robotIdRaw);
       const status = this.normalizeTaskStatusFilter(statusRaw);
       const eventType = normalizeString(eventTypeRaw);
+      const archived = this.normalizeArchiveScope(archivedRaw);
 
       if (normalizeString(statusRaw) && !status) {
         throw new BadRequestException({ error: 'Invalid status' });
@@ -118,6 +129,7 @@ export class TasksController {
         robotId,
         status,
         eventType: eventType as any,
+        archived,
         includeMeta: true
       });
       const decorated = this.attachTaskPermissions(tasks as any[]);
@@ -147,17 +159,20 @@ export class TasksController {
   async stats(
     @Query('repoId') repoIdRaw: string | undefined,
     @Query('robotId') robotIdRaw: string | undefined,
-    @Query('eventType') eventTypeRaw: string | undefined
+    @Query('eventType') eventTypeRaw: string | undefined,
+    @Query('archived') archivedRaw: string | undefined
   ) {
     try {
       const repoId = normalizeString(repoIdRaw);
       const robotId = normalizeString(robotIdRaw);
       const eventType = normalizeString(eventTypeRaw);
+      const archived = this.normalizeArchiveScope(archivedRaw);
 
       const stats = await this.taskService.getTaskStats({
         repoId,
         robotId,
-        eventType: eventType as any
+        eventType: eventType as any,
+        archived
       });
 
       return { stats };
@@ -182,7 +197,8 @@ export class TasksController {
     @Query('startDay') startDayRaw: string | undefined,
     @Query('endDay') endDayRaw: string | undefined,
     @Query('robotId') robotIdRaw: string | undefined,
-    @Query('eventType') eventTypeRaw: string | undefined
+    @Query('eventType') eventTypeRaw: string | undefined,
+    @Query('archived') archivedRaw: string | undefined
   ) {
     try {
       const repoId = normalizeString(repoIdRaw);
@@ -211,13 +227,15 @@ export class TasksController {
 
       const robotId = normalizeString(robotIdRaw);
       const eventType = normalizeString(eventTypeRaw);
+      const archived = this.normalizeArchiveScope(archivedRaw);
 
       const points = await this.taskService.getTaskVolumeByDay({
         repoId,
         start,
         endExclusive,
         robotId,
-        eventType: eventType as any
+        eventType: eventType as any,
+        archived
       });
 
       return { points };
@@ -426,6 +444,10 @@ export class TasksController {
       const existing = await this.taskService.getTask(id);
       if (!existing) {
         throw new NotFoundException({ error: 'Task not found' });
+      }
+      // Prevent retrying archived tasks because the worker intentionally skips them. qnp1mtxhzikhbi0xspbc
+      if (existing.archivedAt) {
+        throw new ConflictException({ error: 'Task is archived; retry is blocked' });
       }
 
       if (existing.status === 'processing' && !force) {

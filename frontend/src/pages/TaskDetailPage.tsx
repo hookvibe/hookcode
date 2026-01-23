@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, App, Avatar, Button, Card, Col, Descriptions, Empty, Popconfirm, Row, Space, Steps, Tag, Typography } from 'antd';
 import {
   ClockCircleOutlined,
@@ -17,6 +17,7 @@ import { useLocale, useT } from '../i18n';
 import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../router';
 import { MarkdownViewer } from '../components/MarkdownViewer';
 import { TaskLogViewer } from '../components/TaskLogViewer';
+import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
 import { PageNav } from '../components/nav/PageNav';
 import { getPrevHashForBack, isInAppHash } from '../navHistory';
 import {
@@ -213,83 +214,96 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     return renderTemplate(promptPatch, buildTaskTemplateContext(task));
   }, [promptPatch, task]);
 
-  const workflowSteps = useMemo(() => {
-    // Render the workflow as Steps with bottom-up numbering while keeping Result at the top. tdstepsreverse20260117k1p6
-    const items = [
-      {
-        key: 'result',
-        title: t('task.page.resultTitle'),
-        content: (
-          <Card size="small" className="hc-card">
-            {showResult ? (
-              resultText ? (
-                <MarkdownViewer markdown={resultText} className="markdown-result--expanded" />
-              ) : (
-                <Typography.Text type="secondary">{t('chat.message.resultEmpty')}</Typography.Text>
-              )
-            ) : (
-              <Typography.Text type="secondary">{t('task.page.resultPending')}</Typography.Text>
-            )}
-          </Card>
-        )
-      },
-      {
-        key: 'logs',
-        title: t('task.page.logsTitle'),
-        content: (
-          <Card size="small" className="hc-card">
-            {/* Render the logs viewer only when logs are enabled to prevent endless SSE reconnects. 0nazpc53wnvljv5yh7c6 */}
-            {effectiveTaskLogsEnabled === false ? (
-              <Alert type="info" showIcon message={t('logViewer.disabled')} />
-            ) : effectiveTaskLogsEnabled === null ? (
-              <>
-                {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
-                <LogViewerSkeleton lines={10} ariaLabel={t('common.loading')} />
-              </>
-            ) : task ? (
-              <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} height={360} tail={800} />
-            ) : null}
-          </Card>
-        )
-      },
-      {
-        key: 'prompt',
-        title: t('tasks.promptCustom'),
-        content: (
-          <Card size="small" className="hc-card">
-            {promptPatch ? (
-              <Row gutter={[12, 12]}>
-                <Col xs={24} lg={12} style={{ minWidth: 0 }}>
-                  <Typography.Text type="secondary">{t('tasks.promptCustom.raw')}</Typography.Text>
-                  <pre className="hc-task-code-block">{promptPatch}</pre>
-                </Col>
-                <Col xs={24} lg={12} style={{ minWidth: 0 }}>
-                  <Typography.Text type="secondary">{t('tasks.promptCustom.rendered')}</Typography.Text>
-                  <pre className="hc-task-code-block">{promptPatchRendered}</pre>
-                </Col>
-              </Row>
-            ) : (
-              <Typography.Text type="secondary">-</Typography.Text>
-            )}
-          </Card>
-        )
-      },
-      {
-        key: 'payload',
-        title: t('tasks.payloadRaw'),
-        content: (
-          <Card size="small" className="hc-card">
-            {payloadPretty ? <pre className="hc-task-code-block">{payloadPretty}</pre> : <Typography.Text type="secondary">-</Typography.Text>}
-          </Card>
-        )
-      }
-    ] as const;
+  type WorkflowPanelKey = 'result' | 'logs' | 'prompt' | 'payload';
 
-    return items.map((item, idx) => ({
-      ...item,
-      icon: <span className="hc-step-index">{items.length - idx}</span>
-    }));
-  }, [effectiveTaskLogsEnabled, payloadPretty, promptPatch, promptPatchRendered, resultText, showResult, t, task]);
+  const [activePanel, setActivePanel] = useState<WorkflowPanelKey>('logs');
+  const defaultPanelKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Default panel: show Result for terminal tasks, otherwise focus on Live logs. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121
+    if (!task?.id) return;
+    if (defaultPanelKeyRef.current === task.id) return;
+    defaultPanelKeyRef.current = task.id;
+    setActivePanel(isTerminalStatus(task.status) ? 'result' : 'logs');
+  }, [task?.id, task?.status]);
+
+  const workflowPanels = useMemo(
+    () =>
+      [
+        {
+          key: 'result' as const,
+          title: t('task.page.resultTitle'),
+          content: (
+            <Card size="small" className="hc-card">
+              {showResult ? (
+                resultText ? (
+                  <MarkdownViewer markdown={resultText} className="markdown-result--expanded" />
+                ) : (
+                  <Typography.Text type="secondary">{t('chat.message.resultEmpty')}</Typography.Text>
+                )
+              ) : (
+                <Typography.Text type="secondary">{t('task.page.resultPending')}</Typography.Text>
+              )}
+            </Card>
+          )
+        },
+        {
+          key: 'logs' as const,
+          title: t('task.page.logsTitle'),
+          content: (
+            <>
+              {/* Render the logs viewer only when logs are enabled to prevent endless SSE reconnects. 0nazpc53wnvljv5yh7c6 */}
+              {effectiveTaskLogsEnabled === false ? (
+                <Alert type="info" showIcon message={t('logViewer.disabled')} />
+              ) : effectiveTaskLogsEnabled === null ? (
+                <>
+                  {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
+                  <LogViewerSkeleton lines={10} ariaLabel={t('common.loading')} />
+                </>
+              ) : task ? (
+                <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} tail={800} variant="flat" />
+              ) : null}
+            </>
+          )
+        },
+        {
+          key: 'prompt' as const,
+          title: t('tasks.promptCustom'),
+          content: (
+            <Card size="small" className="hc-card">
+              {promptPatch ? (
+                <Row gutter={[12, 12]}>
+                  <Col xs={24} lg={12} style={{ minWidth: 0 }}>
+                    <Typography.Text type="secondary">{t('tasks.promptCustom.raw')}</Typography.Text>
+                    <pre className="hc-task-code-block hc-task-code-block--expanded">{promptPatch}</pre>
+                  </Col>
+                  <Col xs={24} lg={12} style={{ minWidth: 0 }}>
+                    <Typography.Text type="secondary">{t('tasks.promptCustom.rendered')}</Typography.Text>
+                    <pre className="hc-task-code-block hc-task-code-block--expanded">{promptPatchRendered}</pre>
+                  </Col>
+                </Row>
+              ) : (
+                <Typography.Text type="secondary">-</Typography.Text>
+              )}
+            </Card>
+          )
+        },
+        {
+          key: 'payload' as const,
+          title: t('tasks.payloadRaw'),
+          content: (
+            <Card size="small" className="hc-card">
+              {payloadPretty ? (
+                <pre className="hc-task-code-block hc-task-code-block--expanded">{payloadPretty}</pre>
+              ) : (
+                <Typography.Text type="secondary">-</Typography.Text>
+              )}
+            </Card>
+          )
+        }
+      ] as const,
+    [effectiveTaskLogsEnabled, payloadPretty, promptPatch, promptPatchRendered, resultText, showResult, t, task]
+  );
 
   const handleRetry = useCallback(
     async (options?: { force?: boolean }) => {
@@ -730,16 +744,35 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                   <Alert type="info" showIcon message={t('tasks.repoMissing')} style={{ marginTop: 12 }} />
                 ) : null}
               </Card>
+              {task.result?.gitStatus?.enabled ? (
+                <div style={{ marginTop: 12 }}>
+                  {/* Render git status in task detail so write-enabled changes are visible. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
+                  <TaskGitStatusPanel task={task} variant="full" />
+                </div>
+              ) : null}
             </div>
 
             <div className="hc-task-detail-workflow">
-              <Steps
-                className="hc-task-workflow"
-                orientation="vertical"
-                size="small"
-                current={0}
-                items={workflowSteps}
-              />
+              {/* Render a sticky step-bar switcher so only one panel is visible at a time. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121 */}
+              <Card size="small" className="hc-card hc-task-detail-panel-switcher">
+                <Steps
+                  size="small"
+                  current={Math.max(
+                    0,
+                    workflowPanels.findIndex((panel) => panel.key === activePanel)
+                  )}
+                  responsive={false}
+                  onChange={(next) => {
+                    const panel = workflowPanels[next];
+                    if (!panel) return;
+                    setActivePanel(panel.key);
+                  }}
+                  items={workflowPanels.map((panel) => ({ title: panel.title }))}
+                />
+              </Card>
+              <div className="hc-task-detail-panel-content">
+                {workflowPanels.find((panel) => panel.key === activePanel)?.content ?? null}
+              </div>
             </div>
           </div>
         ) : loading ? (

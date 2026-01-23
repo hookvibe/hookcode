@@ -6,6 +6,15 @@ import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { TaskService } from './task.service';
 import { GetTaskGroupResponseDto, ListTaskGroupsResponseDto, ListTasksByGroupResponseDto } from './dto/task-groups-swagger.dto';
 
+const normalizeArchiveScope = (value: unknown): 'active' | 'archived' | 'all' => {
+  // Keep query parsing tolerant so the Archive page can use `archived=1` while default behavior stays "active only". qnp1mtxhzikhbi0xspbc
+  const raw = normalizeString(value);
+  if (!raw || raw === '0' || raw === 'false' || raw === 'active') return 'active';
+  if (raw === '1' || raw === 'true' || raw === 'archived') return 'archived';
+  if (raw === 'all') return 'all';
+  return 'active';
+};
+
 @Controller('task-groups')
 @ApiTags('Task Groups')
 @ApiBearerAuth('bearerAuth')
@@ -24,19 +33,22 @@ export class TaskGroupsController {
     @Query('limit') limitRaw: string | undefined,
     @Query('repoId') repoIdRaw: string | undefined,
     @Query('robotId') robotIdRaw: string | undefined,
-    @Query('kind') kindRaw: string | undefined
+    @Query('kind') kindRaw: string | undefined,
+    @Query('archived') archivedRaw: string | undefined
   ) {
     try {
       const limit = parsePositiveInt(limitRaw, 50);
       const repoId = normalizeString(repoIdRaw);
       const robotId = normalizeString(robotIdRaw);
       const kind = normalizeString(kindRaw);
+      const archived = normalizeArchiveScope(archivedRaw);
 
       const taskGroups = await this.taskService.listTaskGroups({
         limit,
         repoId,
         robotId,
         kind: kind as any,
+        archived,
         includeMeta: true
       });
 

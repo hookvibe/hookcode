@@ -1,0 +1,25 @@
+/* Add section buttons layout for 4-way docs switcher. docs/en/developer/plans/z91bv632ewan7oocdkb4/task_plan.md z91bv632ewan7oocdkb4 */
+
+.main {
+  padding: 6rem 1.5rem;
+}
+
+.hero {
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.tagline {
+  margin-top: 0.75rem;
+  opacity: 0.85;
+  font-size: 1.1rem;
+}
+
+.buttons {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}

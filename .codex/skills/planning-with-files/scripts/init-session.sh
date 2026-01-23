@@ -93,6 +93,18 @@ hydrate_template "${SESSION_DIR}/task_plan.md"
 hydrate_template "${SESSION_DIR}/findings.md"
 hydrate_template "${SESSION_DIR}/progress.md"
 
+# Sync docs navigation so the new session pages are discoverable.
+# Docusaurus does not require an explicit sync when using sidebar autogeneration. docs/en/developer/plans/dsim8xybp9oa18nz1gfq/task_plan.md dsim8xybp9oa18nz1gfq
+if [ "${HC_SKIP_DOCS_JSON_SYNC:-}" != "1" ]; then
+    if [ -f "${REPO_ROOT}/docs/docs.json" ]; then
+        bash "${SCRIPT_DIR}/sync-docs-json-plans.sh"
+    else
+        echo "Skipping docs navigation sync: docs/docs.json not found (likely using Docusaurus)."
+    fi
+else
+    echo "Skipping docs navigation sync (HC_SKIP_DOCS_JSON_SYNC=1)"
+fi
+
 echo ""
 echo "Planning files initialized!"
 echo "Files: ${SESSION_DIR}/task_plan.md, ${SESSION_DIR}/findings.md, ${SESSION_DIR}/progress.md"

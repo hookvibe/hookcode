@@ -19,6 +19,7 @@ vi.mock('../api', () => {
       gitlab: { profiles: [], defaultProfileId: null },
       github: { profiles: [], defaultProfileId: null }
     })),
+    listMyModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
     updateMyModelCredentials: vi.fn(async () => ({
       codex: { profiles: [], defaultProfileId: null },
       claude_code: { profiles: [], defaultProfileId: null },

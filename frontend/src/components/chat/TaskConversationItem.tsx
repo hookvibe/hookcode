@@ -1,19 +1,20 @@
-import { FC, useMemo, useState } from 'react';
+import { FC, useMemo } from 'react';
 import { Alert, Button, Card, Space, Typography } from 'antd';
-import { DownOutlined, FileTextOutlined, UpOutlined } from '@ant-design/icons';
+import { FileTextOutlined } from '@ant-design/icons';
 import type { Task } from '../../api';
 import { useT } from '../../i18n';
 import { MarkdownViewer } from '../MarkdownViewer';
 import { TaskLogViewer } from '../TaskLogViewer';
 import { clampText, extractTaskResultText, extractTaskUserText, getTaskTitle, isTerminalStatus, statusTag } from '../../utils/task';
 import { LogViewerSkeleton } from '../skeletons/LogViewerSkeleton';
+import { TaskGitStatusPanel } from '../tasks/TaskGitStatusPanel';
 
 /**
  * TaskConversationItem:
  * - Business context: render a single task execution as a "chat-like" 4-part structure.
  *   1) User question (right bubble)
  *   2) Task card (left)
- *   3) Thought chain (left, collapsible) -> real-time logs (SSE)
+ *   3) Thought chain (left, always visible) -> real-time logs (SSE)
  *   4) Final result text (left)
  *
  * Change record:
@@ -29,7 +30,6 @@ interface Props {
 
 export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, taskLogsEnabled }) => {
   const t = useT();
-  const [logsExpanded, setLogsExpanded] = useState(() => task.status === 'queued' || task.status === 'processing');
 
   const mergedTask = taskDetail ?? task;
   const effectiveTaskLogsEnabled = taskLogsEnabled === undefined ? true : taskLogsEnabled; // Keep chat UI consistent with backend log feature gating to avoid confusing errors. 0nazpc53wnvljv5yh7c6
@@ -77,35 +77,29 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
         </Card>
       </div>
 
+      {mergedTask?.result?.gitStatus?.enabled ? (
+        <div className="hc-chat-item__assistant">
+          {/* Show git status in task groups so write-enabled changes are visible in chat. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
+          <TaskGitStatusPanel task={mergedTask} variant="compact" />
+        </div>
+      ) : null}
+
       {/* 3) Thought chain (logs) */}
       <div className="hc-chat-item__assistant">
-        <div className="hc-chat-logs-toggle">
-          <Button
-            type="text"
-            size="small"
-            icon={logsExpanded ? <UpOutlined /> : <DownOutlined />}
-            onClick={() => setLogsExpanded((v) => !v)}
-          >
-            {logsExpanded ? t('chat.think.collapse') : t('chat.think.expand')}
-          </Button>
-        </div>
-        {logsExpanded ? (
-          <Card size="small" className="hc-chat-logs-card" styles={{ body: { padding: 0 } }}>
-            {/* Guard SSE logs viewer when backend task logs are disabled. 0nazpc53wnvljv5yh7c6 */}
-            {effectiveTaskLogsEnabled === false ? (
-              <div style={{ padding: 12 }}>
-                <Alert type="info" showIcon message={t('logViewer.disabled')} />
-              </div>
-            ) : effectiveTaskLogsEnabled === null ? (
-              <div style={{ padding: 12 }}>
-                {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
-                <LogViewerSkeleton lines={8} ariaLabel={t('common.loading')} />
-              </div>
-            ) : (
-              <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} height={240} tail={400} />
-            )}
-          </Card>
-        ) : null}
+        <Card size="small" className="hc-chat-logs-card" styles={{ body: { padding: 12 } }}>
+          {/* Always render the task ThoughtChain inline (Task Detail parity) and rely on TaskGroup reverse paging to avoid an overly long page. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */}
+          {/* Guard SSE logs viewer when backend task logs are disabled. 0nazpc53wnvljv5yh7c6 */}
+          {effectiveTaskLogsEnabled === false ? (
+            <Alert type="info" showIcon message={t('logViewer.disabled')} />
+          ) : effectiveTaskLogsEnabled === null ? (
+            <>
+              {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
+              <LogViewerSkeleton lines={8} ariaLabel={t('common.loading')} />
+            </>
+          ) : (
+            <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} tail={400} variant="flat" />
+          )}
+        </Card>
       </div>
 
       {/* 4) Final text output */}

@@ -83,6 +83,8 @@ export class ChatController {
 
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      // Prevent manual-trigger tasks for archived repos (archived area should be read-only). qnp1mtxhzikhbi0xspbc
+      if (repo.archivedAt) throw new BadRequestException({ error: 'Repo is archived' });
       if (!repo.enabled) throw new BadRequestException({ error: 'Repo is disabled' });
 
       const robot = await this.repoRobotService.getById(robotId);
@@ -144,4 +146,3 @@ export class ChatController {
     }
   }
 }
-

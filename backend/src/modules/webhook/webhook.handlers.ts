@@ -794,6 +794,10 @@ export const handleGitlabWebhook = async (req: Request, res: Response, deps: Web
     if (!repoAuth) return res.status(404).json({ error: 'Repo not found' });
     canRecord = true;
 
+    // Do not accept events for archived repos to keep the Archive area stable. qnp1mtxhzikhbi0xspbc
+    if (repoAuth.repo.archivedAt) {
+      return respond(202, { skipped: true, reason: 'repo archived' }, { result: 'skipped', message: 'repo archived' });
+    }
     if (!repoAuth.repo.enabled) {
       return respond(202, { skipped: true, reason: 'repo disabled' }, { result: 'skipped', message: 'repo disabled' });
     }
@@ -1094,6 +1098,10 @@ export const handleGithubWebhook = async (req: Request, res: Response, deps: Web
     if (!repoAuth) return res.status(404).json({ error: 'Repo not found' });
     canRecord = true;
 
+    // Do not accept events for archived repos to keep the Archive area stable. qnp1mtxhzikhbi0xspbc
+    if (repoAuth.repo.archivedAt) {
+      return respond(202, { skipped: true, reason: 'repo archived' }, { result: 'skipped', message: 'repo archived' });
+    }
     if (!repoAuth.repo.enabled) {
       return respond(202, { skipped: true, reason: 'repo disabled' }, { result: 'skipped', message: 'repo disabled' });
     }

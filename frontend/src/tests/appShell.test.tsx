@@ -101,6 +101,9 @@ vi.mock('../api', () => {
     listRepos: vi.fn(async () => [
       { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true, createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' }
     ]),
+    // Expose archive APIs in the mock so ArchivePage / RepoDetailPage can render safely. qnp1mtxhzikhbi0xspbc
+    archiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksArchived: 0, taskGroupsArchived: 0 })),
+    unarchiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksRestored: 0, taskGroupsRestored: 0 })),
     listRepoRobots: vi.fn(async () => []),
     fetchRepo: vi.fn(async (id: string) => ({
       repo: { id, provider: 'gitlab', name: `Repo ${id}`, enabled: true, createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' },
@@ -134,6 +137,13 @@ vi.mock('../api', () => {
       gitlab: { profiles: [], defaultProfileId: null },
       github: { profiles: [], defaultProfileId: null }
     })),
+    fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' })), // Mock provider visibility for repo activity row. kzxac35mxk0fg358i7zs
+    fetchRepoProviderActivity: vi.fn(async () => ({
+      provider: 'gitlab',
+      commits: { items: [], page: 1, pageSize: 5, hasMore: false },
+      merges: { items: [], page: 1, pageSize: 5, hasMore: false },
+      issues: { items: [], page: 1, pageSize: 5, hasMore: false }
+    })), // Mock provider activity for provider activity row. kzxac35mxk0fg358i7zs
     updateMyModelCredentials: vi.fn(async () => ({
       codex: { profiles: [], defaultProfileId: null },
       claude_code: { profiles: [], defaultProfileId: null },
@@ -245,6 +255,18 @@ describe('AppShell (frontend-chat migration)', () => {
 
     const processingHeader = await screen.findByRole('button', { name: 'Processing' });
     await waitFor(() => expect(processingHeader.querySelector('.hc-sider-processingIcon--idle')).toBeNull());
+  });
+
+  test('navigates to Archive page via the sidebar bottom icon', async () => {
+    // Ensure the Archive entry is discoverable via the bottom sidebar icon. qnp1mtxhzikhbi0xspbc
+    const ui = userEvent.setup();
+    renderApp();
+
+    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    await ui.click(screen.getByRole('button', { name: 'Archive' }));
+    expect(window.location.hash).toBe('#/archive');
+
+    expect(await screen.findByText('Archived repositories and tasks')).toBeInTheDocument();
   });
 
   test('keeps processing icon static in collapsed sidebar when there are no processing tasks', async () => {

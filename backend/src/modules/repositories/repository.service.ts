@@ -121,6 +121,8 @@ export interface RepoScopedCredentialsPublic {
   modelProvider: RepoScopedModelProviderCredentialsPublic;
 }
 
+export type ArchiveScope = 'active' | 'archived' | 'all'; // Centralize archive filtering across services. qnp1mtxhzikhbi0xspbc
+
 const normalizeRepoScopedRepoProviderCredentials = (raw: unknown): RepoScopedRepoProviderCredentials => {
   if (!isRecord(raw)) return { profiles: [], defaultProfileId: undefined };
   const profilesRaw = Array.isArray(raw.profiles) ? raw.profiles : [];
@@ -250,6 +252,8 @@ const recordToRepository = (row: any): Repository => ({
   apiBaseUrl: row.apiBaseUrl ?? undefined,
   webhookVerifiedAt: row.webhookVerifiedAt ? toIso(row.webhookVerifiedAt) : undefined,
   branches: normalizeBranches(row.branches),
+  // Archived repositories are hidden from default lists and block new automation/tasks. qnp1mtxhzikhbi0xspbc
+  archivedAt: row.archivedAt ? toIso(row.archivedAt) : undefined,
   enabled: Boolean(row.enabled),
   createdAt: toIso(row.createdAt),
   updatedAt: toIso(row.updatedAt)
@@ -362,10 +366,100 @@ export class RepositoryService {
   }
 
   async listAll(): Promise<Repository[]> {
+    // Default to listing active (non-archived) repos for backward compatible UI behavior. qnp1mtxhzikhbi0xspbc
+    return this.listByArchiveScope('active');
+  }
+
+  async listByArchiveScope(scope: ArchiveScope): Promise<Repository[]> {
+    // Archive listing is used by both the normal Repos page and the dedicated Archive area. qnp1mtxhzikhbi0xspbc
+    const archivedScope: ArchiveScope = scope ?? 'active';
+    const where: Prisma.RepositoryWhereInput = {};
+    if (archivedScope === 'active') where.archivedAt = null;
+    if (archivedScope === 'archived') where.archivedAt = { not: null };
+
     const rows = await db.repository.findMany({
+      where,
       orderBy: { createdAt: 'desc' }
     });
     return rows.map(recordToRepository);
+  }
+
+  async archiveRepo(
+    id: string,
+    _actor: { id: string } | null
+  ): Promise<{ repo: Repository; tasksArchived: number; taskGroupsArchived: number } | null> {
+    // Archive semantics:
+    // - Scope: repository + all tasks/task_groups under it.
+    // - Safety: archived repos are still readable, but they block webhook/manual task creation. qnp1mtxhzikhbi0xspbc
+    const repoId = String(id ?? '').trim();
+    const now = new Date();
+
+    return db.$transaction(async (tx) => {
+      const existing = await tx.repository.findUnique({ where: { id: repoId } });
+      if (!existing) return null;
+
+      if (!existing.archivedAt) {
+        await tx.repository.update({
+          where: { id: repoId },
+          data: { archivedAt: now, updatedAt: now }
+        });
+      }
+
+      const tasksResult = await tx.task.updateMany({
+        where: { repoId, archivedAt: null },
+        data: { archivedAt: now }
+      });
+      const groupsResult = await tx.taskGroup.updateMany({
+        where: { repoId, archivedAt: null },
+        data: { archivedAt: now }
+      });
+
+      const row = await tx.repository.findUnique({ where: { id: repoId } });
+      if (!row) return null;
+      return {
+        repo: recordToRepository(row),
+        tasksArchived: tasksResult.count ?? 0,
+        taskGroupsArchived: groupsResult.count ?? 0
+      };
+    });
+  }
+
+  async unarchiveRepo(
+    id: string,
+    _actor: { id: string } | null
+  ): Promise<{ repo: Repository; tasksRestored: number; taskGroupsRestored: number } | null> {
+    // Unarchive restores the repository and its related tasks/task_groups back into the default console views. qnp1mtxhzikhbi0xspbc
+    const repoId = String(id ?? '').trim();
+    const now = new Date();
+
+    return db.$transaction(async (tx) => {
+      const existing = await tx.repository.findUnique({ where: { id: repoId } });
+      if (!existing) return null;
+
+      if (existing.archivedAt) {
+        await tx.repository.update({
+          where: { id: repoId },
+          data: { archivedAt: null, updatedAt: now }
+        });
+      }
+
+      const tasksResult = await tx.task.updateMany({
+        where: { repoId, archivedAt: { not: null } },
+        data: { archivedAt: null }
+      });
+      const groupsResult = await tx.taskGroup.updateMany({
+        where: { repoId, archivedAt: { not: null } },
+        data: { archivedAt: null }
+      });
+
+      const row = await tx.repository.findUnique({ where: { id: repoId } });
+      if (!row) return null;
+      return {
+        repo: recordToRepository(row),
+        tasksRestored: tasksResult.count ?? 0,
+        taskGroupsRestored: groupsResult.count ?? 0
+      };
+    });
   }
 
   async createRepositoryTx(
@@ -396,6 +490,8 @@ export class RepositoryService {
         webhookSecret,
         enabled,
         webhookVerifiedAt: null,
+        // Initialize archivedAt as NULL so new repos appear in the default (active) list. qnp1mtxhzikhbi0xspbc
+        archivedAt: null,
         repoProviderCredentials: Prisma.DbNull,
         modelProviderCredentials: Prisma.DbNull,
         createdAt: now,

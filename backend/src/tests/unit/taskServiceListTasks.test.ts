@@ -177,7 +177,8 @@ describe('taskService.listTasks', () => {
     expect(db.task.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({
         by: ['status'],
-        where: {}
+        // Default stats exclude archived tasks via `archivedAt = null`. qnp1mtxhzikhbi0xspbc
+        where: { archivedAt: null }
       })
     );
     expect(stats).toEqual({
@@ -197,7 +198,8 @@ describe('taskService.listTasks', () => {
     expect(db.task.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          repoId: { in: ['r1'] }
+          repoId: { in: ['r1'] },
+          archivedAt: null
         })
       })
     );

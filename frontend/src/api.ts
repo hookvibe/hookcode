@@ -20,6 +20,8 @@ export const api = axios.create({
   baseURL: apiBaseUrl
 });
 
+export type ArchiveScope = 'active' | 'archived' | 'all'; // Keep archive filtering consistent with backend query params. qnp1mtxhzikhbi0xspbc
+
 export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
 export type TaskQueueReasonCode = 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
 
@@ -65,6 +67,8 @@ export interface Task {
   groupId?: string;
   eventType: TaskEventType;
   status: TaskStatus;
+  // Archived tasks are excluded from default lists and the worker queue. qnp1mtxhzikhbi0xspbc
+  archivedAt?: string;
   payload?: unknown;
   promptCustom?: string;
   title?: string;
@@ -85,6 +89,51 @@ export interface Task {
   permissions?: { canManage: boolean };
 }
 
+export interface TaskGitStatusSnapshot {
+  // Mirror backend git snapshot payload for UI rendering. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  branch: string;
+  headSha: string;
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+  pushRemote?: string;
+  pushWebUrl?: string;
+}
+
+export interface TaskGitStatusWorkingTree {
+  // Track local file change lists for the task detail and group views. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  staged: string[];
+  unstaged: string[];
+  untracked: string[];
+}
+
+export interface TaskGitStatusDelta {
+  // Flag branch/head changes between baseline and final snapshots. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  branchChanged: boolean;
+  headChanged: boolean;
+}
+
+export interface TaskGitStatusPushState {
+  // Track push results for write-enabled robots (fork or upstream). docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  status: 'pushed' | 'unpushed' | 'unknown' | 'error' | 'not_applicable';
+  reason?: string;
+  targetBranch?: string;
+  targetWebUrl?: string;
+  targetHeadSha?: string;
+}
+
+export interface TaskGitStatus {
+  // Provide git change tracking metadata for frontend rendering. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  enabled: boolean;
+  capturedAt?: string;
+  baseline?: TaskGitStatusSnapshot;
+  final?: TaskGitStatusSnapshot;
+  delta?: TaskGitStatusDelta;
+  workingTree?: TaskGitStatusWorkingTree;
+  push?: TaskGitStatusPushState;
+  errors?: string[];
+}
+
 export interface TaskResult {
   summary?: string;
   message?: string;
@@ -92,6 +141,8 @@ export interface TaskResult {
   outputText?: string;
   providerCommentUrl?: string;
   tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+  // Surface backend git status in task result payloads for UI reuse. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  gitStatus?: TaskGitStatus;
   [key: string]: unknown;
 }
 
@@ -110,6 +161,8 @@ export interface TaskGroup {
   issueId?: number;
   mrId?: number;
   commitSha?: string;
+  // Archived groups are excluded from default sidebar/chat lists. qnp1mtxhzikhbi0xspbc
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
   repo?: TaskRepoSummary;
@@ -121,6 +174,7 @@ export const fetchTaskGroups = async (options?: {
   repoId?: string;
   robotId?: string;
   kind?: TaskGroupKind;
+  archived?: ArchiveScope;
 }): Promise<TaskGroup[]> => {
   const { data } = await api.get<{ taskGroups: TaskGroup[] }>('/task-groups', { params: options });
   return data.taskGroups;
@@ -155,6 +209,7 @@ export const fetchTasks = async (options?: {
   robotId?: string;
   status?: TaskStatus | 'success';
   eventType?: string;
+  archived?: ArchiveScope;
 }): Promise<Task[]> => {
   const { data } = await api.get<{ tasks: Task[] }>('/tasks', { params: options });
   return data.tasks;
@@ -172,6 +227,7 @@ export const fetchTaskStats = async (options?: {
   repoId?: string;
   robotId?: string;
   eventType?: string;
+  archived?: ArchiveScope;
 }): Promise<TaskStatusStats> => {
   const { data } = await api.get<{ stats: TaskStatusStats }>('/tasks/stats', { params: options });
   return data.stats;
@@ -188,6 +244,7 @@ export const fetchTaskVolumeByDay = async (options: {
   endDay: string;
   robotId?: string;
   eventType?: string;
+  archived?: ArchiveScope;
 }): Promise<TaskVolumePoint[]> => {
   // Fetch per-day task volume for the repo dashboard trend chart (UTC buckets). dashtrendline20260119m9v2
   const { data } = await api.get<{ points: TaskVolumePoint[] }>('/tasks/volume', { params: options });
@@ -402,6 +459,32 @@ export const updateMyModelCredentials = async (params: {
   return data.credentials;
 };
 
+export type ModelProviderModelsSource = 'remote' | 'fallback';
+
+export interface ModelProviderModelsResponse {
+  models: string[];
+  source: ModelProviderModelsSource;
+}
+
+export interface ModelProviderModelsRequest {
+  provider: ModelProvider;
+  profileId?: string;
+  credential?: { apiBaseUrl?: string | null; apiKey?: string | null } | null;
+  forceRefresh?: boolean;
+}
+
+export const listMyModelProviderModels = async (params: ModelProviderModelsRequest): Promise<ModelProviderModelsResponse> => {
+  // Fetch provider models server-side so secrets never touch the browser runtime beyond form submission. b8fucnmey62u0muyn7i0
+  const { data } = await api.post<ModelProviderModelsResponse>('/users/me/model-credentials/models', params);
+  return data;
+};
+
+export const listRepoModelProviderModels = async (repoId: string, params: ModelProviderModelsRequest): Promise<ModelProviderModelsResponse> => {
+  // Fetch repo-scoped provider models server-side to avoid hardcoding model lists in the UI. b8fucnmey62u0muyn7i0
+  const { data } = await api.post<ModelProviderModelsResponse>(`/repos/${repoId}/model-credentials/models`, params);
+  return data;
+};
+
 export interface AdminToolsMeta {
   enabled: boolean;
   ports: {
@@ -430,6 +513,8 @@ export interface Repository {
   externalId?: string;
   apiBaseUrl?: string;
   webhookVerifiedAt?: string;
+  // Archived repositories are hidden from default lists and block new automation/tasks. qnp1mtxhzikhbi0xspbc
+  archivedAt?: string;
   branches?: RepositoryBranch[];
   enabled: boolean;
   createdAt: string;
@@ -440,7 +525,8 @@ export type RobotPermission = 'read' | 'write';
 
 export type ModelProvider = 'codex' | 'claude_code' | 'gemini_cli' | (string & {});
 
-export type CodexModel = 'gpt-5.2' | 'gpt-5.1-codex-max' | 'gpt-5.1-codex-mini';
+// Accept any Codex model id to support dynamic model discovery without hardcoded unions. b8fucnmey62u0muyn7i0
+export type CodexModel = string;
 export type CodexSandbox = 'workspace-write' | 'read-only';
 export type CodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 
@@ -603,9 +689,27 @@ export interface RepoWebhookDeliveryDetail extends RepoWebhookDeliverySummary {
   response?: unknown;
 }
 
-export const listRepos = async (): Promise<Repository[]> => {
-  const { data } = await api.get<{ repos: Repository[] }>('/repos');
+export const listRepos = async (options?: { archived?: ArchiveScope }): Promise<Repository[]> => {
+  const { data } = await api.get<{ repos: Repository[] }>('/repos', { params: options });
   return data.repos;
+};
+
+export const archiveRepo = async (
+  repoId: string
+): Promise<{ repo: Repository; tasksArchived: number; taskGroupsArchived: number }> => {
+  const { data } = await api.post<{ repo: Repository; tasksArchived: number; taskGroupsArchived: number }>(
+    `/repos/${repoId}/archive`
+  );
+  return data;
+};
+
+export const unarchiveRepo = async (
+  repoId: string
+): Promise<{ repo: Repository; tasksRestored: number; taskGroupsRestored: number }> => {
+  const { data } = await api.post<{ repo: Repository; tasksRestored: number; taskGroupsRestored: number }>(
+    `/repos/${repoId}/unarchive`
+  );
+  return data;
 };
 
 export const listRepoRobots = async (repoId: string): Promise<RepoRobot[]> => {
@@ -656,6 +760,54 @@ export const fetchRepoProviderMeta = async (
     `/repos/${repoId}/provider-meta`,
     { params }
   );
+  return data;
+};
+
+export interface RepoProviderActivityItem {
+  id: string;
+  shortId?: string;
+  title: string;
+  url?: string;
+  state?: string;
+  time?: string;
+  taskGroups?: Array<{
+    id: string;
+    kind: string;
+    title?: string;
+    updatedAt: string;
+    processingTasks?: Array<{ id: string; status: string; title?: string; updatedAt?: string }>;
+  }>;
+}
+
+export interface RepoProviderActivityPage {
+  items: RepoProviderActivityItem[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+export interface RepoProviderActivity {
+  provider: RepoProvider;
+  commits: RepoProviderActivityPage;
+  merges: RepoProviderActivityPage;
+  issues: RepoProviderActivityPage;
+}
+
+export const fetchRepoProviderActivity = async (
+  repoId: string,
+  params?: {
+    credentialSource?: 'user' | 'repo' | 'anonymous';
+    credentialProfileId?: string;
+    pageSize?: number;
+    commitsPage?: number;
+    mergesPage?: number;
+    issuesPage?: number;
+    // Back-compat: legacy `limit` param is accepted by backend as pageSize when provided. kzxac35mxk0fg358i7zs
+    limit?: number;
+  }
+): Promise<RepoProviderActivity> => {
+  // Fetch provider activity for the repo detail dashboard row without exposing tokens to the browser. kzxac35mxk0fg358i7zs
+  const { data } = await api.get<RepoProviderActivity>(`/repos/${repoId}/provider-activity`, { params });
   return data;
 };
 

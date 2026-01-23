@@ -56,6 +56,11 @@ m = re.fullmatch(r"<!--\s*(.*?)\s*-->", summary, flags=re.DOTALL)
 if m:
     summary = m.group(1).strip()
 
+# Unwrap MDX comment wrappers so they don't swallow the changelog summary. docs/en/developer/plans/mintmdxcomment20260122/task_plan.md mintmdxcomment20260122
+m = re.fullmatch(r"\{\s*/\*\s*(.*?)\s*\*/\s*\}", summary, flags=re.DOTALL)
+if m:
+    summary = m.group(1).strip()
+
 # Remove a leading markdown bullet prefix so we don't end up with "- - ..." in the changelog file.
 if summary.startswith("- "):
     summary = summary[2:].lstrip()
@@ -85,7 +90,8 @@ if [ ! -f "${CHANGELOG_FILE}" ]; then
     exit 1
 fi
 
-PLAN_REL_LINK="../developer/plans/${SESSION_HASH}/task_plan.md"
+# Use Mintlify page routes (no .md extension) for internal doc links. docs/en/developer/plans/mintmdxcomment20260122/task_plan.md mintmdxcomment20260122
+PLAN_REL_LINK="../developer/plans/${SESSION_HASH}/task_plan"
 ENTRY="- ${SUMMARY} ([${SESSION_HASH}](${PLAN_REL_LINK}))"
 
 if rg -n --fixed-strings "${SESSION_HASH}" "${CHANGELOG_FILE}" >/dev/null 2>&1; then

@@ -58,6 +58,13 @@ export interface TaskListOptions {
   status?: TaskStatus | 'success';
   eventType?: TaskEventType;
   /**
+   * Archive filter:
+   * - active (default): archivedAt IS NULL
+   * - archived: archivedAt IS NOT NULL
+   * - all: no archivedAt filter. qnp1mtxhzikhbi0xspbc
+   */
+  archived?: 'active' | 'archived' | 'all';
+  /**
    * Access control: only allow listing tasks under these repositories.
    * - Only used by the console API layer (non-admin users).
    * - Passing an empty array means "no access to any repo", and returns an empty list.
@@ -70,6 +77,10 @@ export interface TaskStatsOptions {
   repoId?: string;
   robotId?: string;
   eventType?: TaskEventType;
+  /**
+   * Archive filter (default: active). qnp1mtxhzikhbi0xspbc
+   */
+  archived?: 'active' | 'archived' | 'all';
   /**
    * Access control: only allow aggregating tasks under these repositories.
    * - Only used by the console API layer (non-admin users).
@@ -103,6 +114,8 @@ const taskRecordToTask = (row: any): Task => ({
   groupId: row.groupId ? String(row.groupId) : undefined,
   eventType: row.eventType as TaskEventType,
   status: row.status as TaskStatus,
+  // Archived tasks are excluded from the worker queue and default console lists. qnp1mtxhzikhbi0xspbc
+  archivedAt: row.archivedAt ? toIso(row.archivedAt) : undefined,
   payload: row.payload ?? null,
   promptCustom: row.promptCustom ?? undefined,
   title: row.title ?? undefined,
@@ -124,6 +137,8 @@ const rowToTaskFromSql = (row: any): Task => ({
   groupId: row.group_id ? String(row.group_id) : undefined,
   eventType: row.event_type as TaskEventType,
   status: row.status as TaskStatus,
+  // Archived tasks are excluded from the worker queue and default console lists. qnp1mtxhzikhbi0xspbc
+  archivedAt: row.archived_at ? toIso(row.archived_at) : undefined,
   payload: row.payload_json ?? null,
   promptCustom: row.prompt_custom ?? undefined,
   title: row.title ?? undefined,
@@ -152,6 +167,8 @@ const taskGroupRecordToTaskGroup = (row: any): TaskGroup => ({
   issueId: row.issueId ?? undefined,
   mrId: row.mrId ?? undefined,
   commitSha: row.commitSha ?? undefined,
+  // Archived groups are excluded from default sidebar/chat lists. qnp1mtxhzikhbi0xspbc
+  archivedAt: row.archivedAt ? toIso(row.archivedAt) : undefined,
   createdAt: toIso(row.createdAt),
   updatedAt: toIso(row.updatedAt)
 });
@@ -736,6 +753,7 @@ export class TaskService {
     repoId?: string;
     robotId?: string;
     kind?: TaskGroup['kind'];
+    archived?: 'active' | 'archived' | 'all';
     includeMeta?: boolean;
   }): Promise<TaskGroupWithMeta[]> {
     const take = clampLimit(options?.limit, 50);
@@ -743,6 +761,10 @@ export class TaskService {
     if (options?.repoId) where.repoId = options.repoId;
     if (options?.robotId) where.robotId = options.robotId;
     if (options?.kind) where.kind = options.kind;
+    // Exclude archived task groups from default sidebar/chat lists. qnp1mtxhzikhbi0xspbc
+    const archiveScope = options?.archived ?? 'active';
+    if (archiveScope === 'active') where.archivedAt = null;
+    if (archiveScope === 'archived') where.archivedAt = { not: null };
 
     if (options?.repoId && !isUuidLike(options.repoId)) return [];
     if (options?.robotId && !isUuidLike(options.robotId)) return [];
@@ -807,12 +829,16 @@ export class TaskService {
     const eventType = options?.eventType ?? null;
     const allowedRepoIds = options?.allowedRepoIds ?? [];
     const restrictAllowedRepoIds = Boolean(options?.allowedRepoIds && !options.repoId);
+    // Apply archive filtering consistently across the raw-SQL task list queries. qnp1mtxhzikhbi0xspbc
+    const archiveScope = options?.archived ?? 'active';
+    const listAllArchived = archiveScope === 'all';
+    const listArchivedOnly = archiveScope === 'archived';
 
     let tasks: TaskWithMeta[] = [];
     if (!options?.status) {
       const rows = await db.$queryRaw<any[]>`
         WITH candidates AS (
-          (SELECT id, group_id, event_type, status, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+          (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
                   jsonb_strip_nulls(jsonb_build_object(
                     'message', NULLIF(result_json->>'message', ''),
                     'summary', NULLIF(result_json->>'summary', ''),
@@ -824,12 +850,13 @@ export class TaskService {
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
              AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+             AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
              AND status = 'queued'
            ORDER BY updated_at DESC
            LIMIT ${take})
           UNION ALL
-          (SELECT id, group_id, event_type, status, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+          (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
                   jsonb_strip_nulls(jsonb_build_object(
                     'message', NULLIF(result_json->>'message', ''),
                     'summary', NULLIF(result_json->>'summary', ''),
@@ -841,12 +868,13 @@ export class TaskService {
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
              AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+             AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
              AND status = 'processing'
            ORDER BY updated_at DESC
            LIMIT ${take})
           UNION ALL
-          (SELECT id, group_id, event_type, status, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+          (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
                   jsonb_strip_nulls(jsonb_build_object(
                     'message', NULLIF(result_json->>'message', ''),
                     'summary', NULLIF(result_json->>'summary', ''),
@@ -858,12 +886,13 @@ export class TaskService {
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
              AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+             AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
              AND status = 'succeeded'
            ORDER BY updated_at DESC
            LIMIT ${take})
           UNION ALL
-          (SELECT id, group_id, event_type, status, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+          (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
                   jsonb_strip_nulls(jsonb_build_object(
                     'message', NULLIF(result_json->>'message', ''),
                     'summary', NULLIF(result_json->>'summary', ''),
@@ -875,12 +904,13 @@ export class TaskService {
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
              AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+             AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
              AND status = 'commented'
            ORDER BY updated_at DESC
            LIMIT ${take})
           UNION ALL
-          (SELECT id, group_id, event_type, status, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+          (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
                   jsonb_strip_nulls(jsonb_build_object(
                     'message', NULLIF(result_json->>'message', ''),
                     'summary', NULLIF(result_json->>'summary', ''),
@@ -892,6 +922,7 @@ export class TaskService {
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
              AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+             AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
              AND status = 'failed'
            ORDER BY updated_at DESC
@@ -906,7 +937,7 @@ export class TaskService {
     } else if (options.status === 'success') {
       const rows = await db.$queryRaw<any[]>`
         WITH candidates AS (
-          (SELECT id, group_id, event_type, status, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+          (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
                   jsonb_strip_nulls(jsonb_build_object(
                     'message', NULLIF(result_json->>'message', ''),
                     'summary', NULLIF(result_json->>'summary', ''),
@@ -918,12 +949,13 @@ export class TaskService {
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
              AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+             AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
              AND status = 'succeeded'
            ORDER BY updated_at DESC
            LIMIT ${take})
           UNION ALL
-          (SELECT id, group_id, event_type, status, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+          (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
                   jsonb_strip_nulls(jsonb_build_object(
                     'message', NULLIF(result_json->>'message', ''),
                     'summary', NULLIF(result_json->>'summary', ''),
@@ -935,6 +967,7 @@ export class TaskService {
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
              AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+             AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
              AND status = 'commented'
            ORDER BY updated_at DESC
@@ -949,7 +982,7 @@ export class TaskService {
     } else {
       const status = options.status;
       const rows = await db.$queryRaw<any[]>`
-        SELECT id, group_id, event_type, status, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+        SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
                jsonb_strip_nulls(jsonb_build_object(
                  'message', NULLIF(result_json->>'message', ''),
                  'summary', NULLIF(result_json->>'summary', ''),
@@ -961,6 +994,7 @@ export class TaskService {
         WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
           AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
           AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+          AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
           AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
           AND status = ${status}::text
         ORDER BY updated_at DESC
@@ -982,6 +1016,10 @@ export class TaskService {
     if (options?.allowedRepoIds && !options.repoId) {
       where.repoId = { in: options.allowedRepoIds };
     }
+    // Keep stats in sync with the default "active only" task list behavior. qnp1mtxhzikhbi0xspbc
+    const archiveScope = options?.archived ?? 'active';
+    if (archiveScope === 'active') where.archivedAt = null;
+    if (archiveScope === 'archived') where.archivedAt = { not: null };
 
     const rows = await db.task.groupBy({
       by: ['status'],
@@ -1019,6 +1057,7 @@ export class TaskService {
     robotId?: string;
     eventType?: TaskEventType;
     allowedRepoIds?: string[];
+    archived?: 'active' | 'archived' | 'all';
   }): Promise<TaskVolumeByDayPoint[]> {
     // Aggregate task volume per UTC day for the repo dashboard chart without loading full task lists. dashtrendline20260119m9v2
     const repoId = String(options?.repoId ?? '').trim();
@@ -1028,6 +1067,10 @@ export class TaskService {
     if (robotId && !isUuidLike(robotId)) return [];
 
     const eventType = options?.eventType ? String(options.eventType).trim() : null;
+    // Exclude archived tasks from repo dashboard metrics by default (can be overridden via options). qnp1mtxhzikhbi0xspbc
+    const archiveScope = options?.archived ?? 'active';
+    const listAllArchived = archiveScope === 'all';
+    const listArchivedOnly = archiveScope === 'archived';
 
     if (options?.allowedRepoIds) {
       if (options.allowedRepoIds.length === 0) return [];
@@ -1047,6 +1090,7 @@ export class TaskService {
       WHERE repo_id = ${repoId}::uuid
         AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
         AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+        AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
         AND created_at >= ${start}
         AND created_at < ${endExclusive}
       GROUP BY 1
@@ -1149,11 +1193,13 @@ export class TaskService {
 
   async takeNextQueued(): Promise<Task | undefined> {
     const now = new Date();
+    // Skip archived tasks so the worker does not process tasks hidden in the Archive area. qnp1mtxhzikhbi0xspbc
     const rows = await db.$queryRaw<any[]>`
       WITH next AS (
         SELECT id
         FROM tasks
         WHERE status = 'queued'
+          AND archived_at IS NULL
         ORDER BY created_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED

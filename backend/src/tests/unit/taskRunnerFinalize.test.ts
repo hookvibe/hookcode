@@ -7,12 +7,18 @@ jest.mock('../../agent/agent', () => {
     logs: string[];
     logsSeq: number;
     providerCommentUrl?: string;
-    constructor(message: string, params: { logs: string[]; logsSeq: number; providerCommentUrl?: string; cause?: unknown }) {
+    // Mirror AgentExecutionError shape to include git status payloads. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+    gitStatus?: unknown;
+    constructor(
+      message: string,
+      params: { logs: string[]; logsSeq: number; providerCommentUrl?: string; gitStatus?: unknown; cause?: unknown }
+    ) {
       super(message);
       this.name = 'AgentExecutionError';
       this.logs = params.logs;
       this.logsSeq = params.logsSeq;
       this.providerCommentUrl = params.providerCommentUrl;
+      this.gitStatus = params.gitStatus;
       if (params.cause !== undefined) {
         (this as any).cause = params.cause;
       }
@@ -105,7 +111,12 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     await taskRunner.trigger();
 
     expect(taskService.patchResult).toHaveBeenCalledTimes(2);
-    expect(taskService.patchResult).toHaveBeenLastCalledWith('t2', { logs: ['ok'], outputText: 'OUT' }, 'succeeded');
+    // Allow extra result fields (e.g., gitStatus) without breaking this regression test. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+    expect(taskService.patchResult).toHaveBeenLastCalledWith(
+      't2',
+      expect.objectContaining({ logs: ['ok'], outputText: 'OUT' }),
+      'succeeded'
+    );
   });
 
   test('calls hooks on start and finish (success)', async () => {

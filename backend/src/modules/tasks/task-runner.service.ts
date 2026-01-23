@@ -106,8 +106,9 @@ export class TaskRunner {
         console.warn('[taskRunner] pre-run outputText reset failed', task.id, err);
       }
 
-      const { logs, logsSeq, providerCommentUrl, outputText } = await this.agentService.callAgent(task);
-      await this.finalizeWithRetry(task.id, 'succeeded', { logs, logsSeq, providerCommentUrl, outputText });
+      // Persist git status alongside logs/output so the UI can display change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+      const { logs, logsSeq, providerCommentUrl, outputText, gitStatus } = await this.agentService.callAgent(task);
+      await this.finalizeWithRetry(task.id, 'succeeded', { logs, logsSeq, providerCommentUrl, outputText, gitStatus });
       await this.runHookFinish(task, {
         status: 'succeeded',
         providerCommentUrl,
@@ -118,8 +119,10 @@ export class TaskRunner {
       const logs = err instanceof AgentExecutionError ? err.logs : [];
       const logsSeq = err instanceof AgentExecutionError ? err.logsSeq : undefined;
       const providerCommentUrl = err instanceof AgentExecutionError ? err.providerCommentUrl : undefined;
+      // Preserve git status on failed runs so the UI can show unpushed changes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+      const gitStatus = err instanceof AgentExecutionError ? err.gitStatus : undefined;
       const message = getErrorMessage(err);
-      await this.finalizeWithRetry(task.id, 'failed', { logs, logsSeq, message, providerCommentUrl });
+      await this.finalizeWithRetry(task.id, 'failed', { logs, logsSeq, message, providerCommentUrl, gitStatus });
       await this.runHookFinish(task, {
         status: 'failed',
         message,

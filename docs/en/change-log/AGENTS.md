@@ -1,3 +1,4 @@
 # rule
 
-0.0.0 represents the current version; versions with numbers are those that have already been released.
+
+`0.0.0.md` is a placeholder for **Unreleased** changes and will be renamed to the next release version when publishing.

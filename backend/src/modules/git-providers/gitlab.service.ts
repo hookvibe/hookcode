@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { Injectable } from '@nestjs/common';
+import { GitProviderHttpError } from './git-provider-http-error';
 
 dotenv.config();
 
@@ -53,6 +54,9 @@ export interface GitlabMergeRequest {
   web_url: string;
   source_branch: string;
   target_branch: string;
+  created_at?: string;
+  updated_at?: string;
+  merged_at?: string | null;
 }
 
 export interface GitlabIssue {
@@ -63,6 +67,8 @@ export interface GitlabIssue {
   description?: string;
   state: string;
   web_url: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface GitlabNote {
@@ -82,6 +88,7 @@ export interface GitlabCommit {
   title: string;
   message?: string;
   web_url: string;
+  created_at?: string;
 }
 
 export interface GitlabCommitComment {
@@ -159,7 +166,16 @@ export class GitlabService {
     if (!res.ok) {
       const errorText = await res.text().catch(() => '');
       const method = String(init.method ?? 'GET').toUpperCase();
-      throw new Error(`[gitlab] ${res.status} ${res.statusText}: ${errorText} (${method} ${url})`);
+      // Preserve HTTP status metadata on provider errors so callers can handle auth-required flows. kzxac35mxk0fg358i7zs
+      throw new GitProviderHttpError({
+        provider: 'gitlab',
+        status: res.status,
+        statusText: res.statusText,
+        url,
+        method,
+        responseText: errorText,
+        message: `[gitlab] ${res.status} ${res.statusText}: ${errorText} (${method} ${url})`
+      });
     }
 
     if (res.status === 204) {
@@ -239,13 +255,16 @@ export class GitlabService {
    */
   async listMergeRequests(
     project: ProjectIdentifier,
-    options?: { state?: 'opened' | 'closed' | 'merged' | 'all'; search?: string }
+    options?: { state?: 'opened' | 'closed' | 'merged' | 'all'; search?: string; perPage?: number; page?: number }
   ): Promise<GitlabMergeRequest[]> {
+    // Support repo activity dashboard by allowing merged MR listing with paging. kzxac35mxk0fg358i7zs
     const query = buildQuery({
       state: options?.state ?? 'opened',
       search: options?.search,
       order_by: 'updated_at',
-      sort: 'desc'
+      sort: 'desc',
+      per_page: options?.perPage ?? 100,
+      page: options?.page ?? 1
     });
     return this.request<GitlabMergeRequest[]>(`projects/${this.encodeProject(project)}/merge_requests${query}`);
   }
@@ -343,6 +362,22 @@ export class GitlabService {
     return this.request<GitlabNote[]>(`projects/${this.encodeProject(project)}/issues/${issueIid}/notes`);
   }
 
+  async listIssues(
+    project: ProjectIdentifier,
+    options?: { state?: 'opened' | 'closed' | 'all'; search?: string; perPage?: number; page?: number }
+  ): Promise<GitlabIssue[]> {
+    // List issues for repo activity dashboard (sorted by updated_at desc). kzxac35mxk0fg358i7zs
+    const query = buildQuery({
+      state: options?.state ?? 'opened',
+      search: options?.search,
+      order_by: 'updated_at',
+      sort: 'desc',
+      per_page: options?.perPage ?? 100,
+      page: options?.page ?? 1
+    });
+    return this.request<GitlabIssue[]>(`projects/${this.encodeProject(project)}/issues${query}`);
+  }
+
   async listCommitComments(project: ProjectIdentifier, commitSha: string): Promise<GitlabCommitComment[]> {
     return this.request<GitlabCommitComment[]>(`projects/${this.encodeProject(project)}/repository/commits/${commitSha}/comments`);
   }
@@ -381,5 +416,18 @@ export class GitlabService {
    */
   async getCommit(project: ProjectIdentifier, commitSha: string): Promise<GitlabCommit> {
     return this.request<GitlabCommit>(`projects/${this.encodeProject(project)}/repository/commits/${commitSha}`);
+  }
+
+  async listCommits(
+    project: ProjectIdentifier,
+    options?: { refName?: string; perPage?: number; page?: number }
+  ): Promise<GitlabCommit[]> {
+    // List commits for repo activity dashboard (best-effort for public/anonymous repos). kzxac35mxk0fg358i7zs
+    const query = buildQuery({
+      ref_name: options?.refName,
+      per_page: options?.perPage ?? 50,
+      page: options?.page ?? 1
+    });
+    return this.request<GitlabCommit[]>(`projects/${this.encodeProject(project)}/repository/commits${query}`);
   }
 }

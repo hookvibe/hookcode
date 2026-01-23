@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import { mkdir, rm, writeFile, stat, readFile, chmod } from 'fs/promises';
 import path from 'path';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import type { Task, TaskResult } from '../types/task';
+import type { Task, TaskGitStatusSnapshot, TaskGitStatusWorkingTree, TaskResult } from '../types/task';
 import {
   addTaskTokenUsage,
   extractClaudeCodeExecThreadIdFromLine,
@@ -54,8 +54,12 @@ import {
   getGitlabProjectIdFromPayload,
   getGitlabProjectPathWithNamespaceFromPayload
 } from '../utils/repoPayload';
-// Keep git workflow helpers in a shared util so hooks/agent logic can be unit-tested. 24yz61mdik7tqdgaa152
-import { canTokenPushToUpstream, normalizeGitRemoteUrl } from '../utils/gitWorkflow';
+// Reuse a shared console URL builder so provider messages consistently link back to the task detail page. docs/en/developer/plans/taskdetailbacklink20260122k4p8/task_plan.md taskdetailbacklink20260122k4p8
+import { getTaskConsoleUrl } from '../utils/taskConsoleUrl';
+// Keep git workflow helpers and config keys centralized for hook guard logic. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
+import { canTokenPushToUpstream, GIT_CONFIG_KEYS, normalizeGitRemoteUrl, toRepoWebUrl } from '../utils/gitWorkflow';
+// Pull git status helpers to report repo changes after write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAheadBehind } from '../utils/gitStatus';
 
 /**
  * Core task execution (callAgent):
@@ -267,20 +271,6 @@ const buildGitlabLogDetails = (logs: string[]): string => {
   return `<details${open}><summary>${escapeHtml(summary)}</summary>\n\n<pre><code>${detailsBody}</code></pre>\n\n</details>`;
 };
 
-const getTaskConsoleUrl = (taskId: string): string => {
-  const prefixFromEnv = String(process.env.HOOKCODE_CONSOLE_TASK_URL_PREFIX ?? '').trim();
-  const baseFromEnv = String(process.env.HOOKCODE_CONSOLE_BASE_URL ?? '').trim();
-  const defaultPrefix = (() => {
-    const base = baseFromEnv.replace(/\/+$/, '');
-    if (base) return `${base}/#/tasks/`;
-    return 'http://localhost:5173/#/tasks/';
-  })();
-
-  const prefix = prefixFromEnv || defaultPrefix;
-  if (prefix.endsWith('/')) return `${prefix}${taskId}`;
-  return `${prefix}/${taskId}`;
-};
-
 const getRepoCloneUrl = (provider: RepoProvider, payload: any): string | undefined => {
   if (provider === 'gitlab') {
     const project = payload?.project ?? {};
@@ -324,13 +314,19 @@ export class AgentExecutionError extends Error {
   readonly logs: string[];
   readonly logsSeq: number;
   readonly providerCommentUrl?: string;
+  // Attach git status snapshot for failed tasks to preserve change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  readonly gitStatus?: TaskResult['gitStatus'];
 
-  constructor(message: string, params: { logs: string[]; logsSeq: number; providerCommentUrl?: string; cause?: unknown }) {
+  constructor(
+    message: string,
+    params: { logs: string[]; logsSeq: number; providerCommentUrl?: string; gitStatus?: TaskResult['gitStatus']; cause?: unknown }
+  ) {
     super(message);
     this.name = 'AgentExecutionError';
     this.logs = params.logs;
     this.logsSeq = params.logsSeq;
     this.providerCommentUrl = params.providerCommentUrl;
+    this.gitStatus = params.gitStatus;
     if (params.cause !== undefined) {
       (this as any).cause = params.cause;
     }
@@ -420,7 +416,10 @@ const resolveExecution = async (
   );
 };
 
-async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number; providerCommentUrl?: string; outputText?: string }> {
+// Return git status alongside logs so downstream services can persist change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+async function callAgent(
+  task: Task
+): Promise<{ logs: string[]; logsSeq: number; providerCommentUrl?: string; outputText?: string; gitStatus?: TaskResult['gitStatus'] }> {
   assertAgentServicesReady();
 
   const logs: string[] = [];
@@ -428,9 +427,16 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
   let execution: ResolvedExecution | null = null;
   let tokenUsage: TaskTokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
   let repoWorkflow: TaskResult['repoWorkflow'] | undefined; // Surface direct-vs-fork workflow to UI/logs. 24yz61mdik7tqdgaa152
+  // Track git status snapshots for write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  let gitStatus: TaskResult['gitStatus'] | undefined;
+  let gitBaseline: TaskGitStatusSnapshot | undefined;
+  // Store repo workspace path for post-run git status capture, even on failure. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  let repoDir = '';
   const taskLogsDbEnabled = isTaskLogsDbEnabled(); // Persist task logs based on DB toggle even when user visibility is disabled. nykx5svtlgh050cstyht
   let taskGroupId: string | null = typeof task.groupId === 'string' ? task.groupId.trim() : null;
   let threadIdBound = false;
+  // Track whether this run is allowed to mutate repos before collecting git status. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  let writeEnabled = false;
 
   let persistLogsDisabled = false;
   let lastPersistErrorAt = 0;
@@ -509,6 +515,39 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     await appendLine(line);
   };
 
+  const finalizeGitStatus = (finalCapture: {
+    snapshot?: TaskGitStatusSnapshot;
+    workingTree?: TaskGitStatusWorkingTree;
+    pushTargetSha?: string;
+    errors: string[];
+  }) => {
+    // Normalize final git status data for downstream persistence and UI. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+    const finalSnapshot = finalCapture.snapshot;
+    if (!gitStatus) gitStatus = { enabled: true, capturedAt: new Date().toISOString(), errors: [] };
+    gitStatus.capturedAt = new Date().toISOString();
+    if (finalSnapshot) gitStatus.final = finalSnapshot;
+    if (finalCapture.workingTree) gitStatus.workingTree = finalCapture.workingTree;
+    gitStatus.delta = computeGitStatusDelta(gitBaseline, finalSnapshot) ?? undefined;
+    // Derive push error signals so UI can distinguish unknown vs failed push checks. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+    const pushError = finalCapture.errors.find((err) => err.startsWith('pushTarget:') || err.startsWith('pushRemote:'));
+    const pushState = computeGitPushState({
+      delta: gitStatus.delta ?? null,
+      final: finalSnapshot,
+      pushTargetSha: finalCapture.pushTargetSha,
+      error: pushError
+    });
+    gitStatus.push = {
+      ...pushState,
+      targetBranch: finalSnapshot?.branch || undefined,
+      targetWebUrl: finalSnapshot?.pushWebUrl || undefined,
+      targetHeadSha: finalCapture.pushTargetSha
+    };
+    if (finalCapture.errors.length) {
+      if (!gitStatus.errors) gitStatus.errors = [];
+      gitStatus.errors.push(...finalCapture.errors);
+    }
+  };
+
   try {
     const payload: any = task.payload ?? {};
     if (!taskGroupId) {
@@ -516,6 +555,8 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     }
     const resumeThreadId = taskGroupId ? await taskService.getTaskGroupThreadId(taskGroupId) : null;
     execution = await resolveExecution(task, payload, appendLog);
+    // Flag write-enabled runs for git change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+    writeEnabled = execution.robot.permission === 'write';
 
     const repoUrl: string | undefined = getRepoCloneUrl(execution.provider, payload);
     const repoSlug = getRepoSlug(execution.provider, payload, task.id);
@@ -527,7 +568,8 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     });
     const checkoutRef = checkout.ref;
     const refSlug = checkoutRef ? checkoutRef.replace(/[^\w.-]/g, '_') : 'default';
-    const repoDir = path.join(BUILD_ROOT, `${execution.provider}__${repoSlug}__${refSlug}`);
+    // Keep repoDir in outer scope so failure handlers can still inspect git state. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+    repoDir = path.join(BUILD_ROOT, `${execution.provider}__${repoSlug}__${refSlug}`);
 
     if (!repoUrl) {
       await appendLog('Repository URL not found; cannot proceed');
@@ -644,13 +686,13 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
     const installGitPrePushGuard = async (params: { expectedUpstream: string; expectedPush: string }) => {
-      // Install a repo-local guard to prevent accidental pushes to the wrong remote. 24yz61mdik7tqdgaa152
+      // Install a repo-local guard and align git config keys with valid naming rules. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
       const hookDir = path.join(repoDir, '.git', 'hooks');
       const hookPath = path.join(hookDir, 'pre-push');
       await mkdir(hookDir, { recursive: true });
 
       const script = `#!/bin/sh
-# Guard pushes to ensure origin fetch/push targets stay correct for fork workflows. 24yz61mdik7tqdgaa152
+# Guard pushes to ensure origin fetch/push targets stay correct for fork workflows. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
 set -e
 
 normalize_url() {
@@ -663,8 +705,8 @@ normalize_url() {
   echo "$raw" | sed -E 's#(https?://)[^@/[:space:]]+@#\\1#g; s#\\.git$##I; s#/*$##'
 }
 
-expected_upstream="$(git config --get hookcode.upstream_url 2>/dev/null || true)"
-expected_push="$(git config --get hookcode.push_url 2>/dev/null || true)"
+expected_upstream="$(git config --get "${GIT_CONFIG_KEYS.upstream}" 2>/dev/null || true)"
+expected_push="$(git config --get "${GIT_CONFIG_KEYS.push}" 2>/dev/null || true)"
 
 if [ -z "$expected_upstream" ] || [ -z "$expected_push" ]; then
   exit 0
@@ -694,10 +736,11 @@ exit 0
       await writeFile(hookPath, script, 'utf8');
       await chmod(hookPath, 0o755);
 
+      // Persist expected remotes under valid git config keys for the pre-push guard. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
       const expectedUpstream = normalizeGitRemoteUrl(params.expectedUpstream);
       const expectedPush = normalizeGitRemoteUrl(params.expectedPush);
       await streamCommand(
-        `cd ${repoDir} && git config --local hookcode.upstream_url ${shDoubleQuote(expectedUpstream)} && git config --local hookcode.push_url ${shDoubleQuote(expectedPush)}`,
+        `cd ${repoDir} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.upstream)} ${shDoubleQuote(expectedUpstream)} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.push)} ${shDoubleQuote(expectedPush)}`,
         appendRawLog,
         { redact: redactSensitiveText }
       );
@@ -935,6 +978,20 @@ exit 0
       await configureGitWorkflow();
     } catch (err: any) {
       await appendLog(`Git workflow setup failed (continuing): ${err?.message || err}`);
+    }
+
+    if (writeEnabled) {
+      // Capture a baseline git snapshot before running the model to detect later changes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+      gitStatus = { enabled: true, capturedAt: new Date().toISOString(), errors: [] };
+      try {
+        const baselineCapture = await collectGitStatusSnapshot({ repoDir });
+        gitBaseline = baselineCapture.snapshot;
+        if (gitBaseline) gitStatus.baseline = gitBaseline;
+        if (baselineCapture.errors.length) gitStatus.errors?.push(...baselineCapture.errors);
+      } catch (captureErr: any) {
+        const safeErr = redactSensitiveText(captureErr?.message || String(captureErr));
+        gitStatus.errors?.push(`baseline: ${safeErr}`);
+      }
     }
 
     // Build prompt based on robot type.
@@ -1209,6 +1266,19 @@ exit 0
       await taskService.bindTaskGroupThreadId(taskGroupId, threadId);
     }
 
+    if (writeEnabled) {
+      // Capture final git status (files/commit/push) after the model run completes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+      try {
+        const finalCapture = await collectGitStatusSnapshot({ repoDir, includeWorkingTree: true });
+        finalizeGitStatus(finalCapture);
+      } catch (captureErr: any) {
+        if (!gitStatus) gitStatus = { enabled: true, capturedAt: new Date().toISOString(), errors: [] };
+        const safeErr = redactSensitiveText(captureErr?.message || String(captureErr));
+        if (!gitStatus.errors) gitStatus.errors = [];
+        gitStatus.errors.push(`final: ${safeErr}`);
+      }
+    }
+
     // Post the result back to the provider after completion.
     let outputText = '';
     outputText = finalResponse || '';
@@ -1228,7 +1298,7 @@ exit 0
     // - Change record: skip `postToProvider()` when `eventType=chat` or payload explicitly sets `__skipProviderPost`.
     if (skipProviderPost) {
       await appendLog('Provider posting skipped (chat/manual task)');
-      return { logs, logsSeq, outputText: safeOutputText ? safeOutputText : undefined };
+      return { logs, logsSeq, outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
     }
 
     const details = buildGitlabLogDetails(logs);
@@ -1251,7 +1321,7 @@ exit 0
       await appendLog('Posted successfully');
     }
 
-    return { logs, logsSeq, providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined };
+    return { logs, logsSeq, providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
   } catch (err: any) {
     const payload: any = task.payload ?? {};
     const consoleUrl = getTaskConsoleUrl(task.id);
@@ -1260,6 +1330,19 @@ exit 0
       `Task execution failed; see HookCode console: ${consoleUrl}`,
       details
     ].filter((v) => v && v.trim().length);
+
+    if (writeEnabled && repoDir && !gitStatus?.final) {
+      // Best-effort capture of git status even when execution fails. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+      try {
+        const finalCapture = await collectGitStatusSnapshot({ repoDir, includeWorkingTree: true });
+        finalizeGitStatus(finalCapture);
+      } catch (captureErr: any) {
+        if (!gitStatus) gitStatus = { enabled: true, capturedAt: new Date().toISOString(), errors: [] };
+        const safeErr = redactSensitiveText(captureErr?.message || String(captureErr));
+        if (!gitStatus.errors) gitStatus.errors = [];
+        gitStatus.errors.push(`capture: ${safeErr}`);
+      }
+    }
 
     let providerCommentUrl: string | undefined;
     const skipProviderPost = task.eventType === 'chat' || Boolean(payload?.__skipProviderPost);
@@ -1291,7 +1374,8 @@ exit 0
     }
 
     const safeMessage = redactSensitiveText(err?.message || String(err));
-    throw new AgentExecutionError(safeMessage, { logs, logsSeq, providerCommentUrl, cause: err });
+    // Bubble git status into failed task results for UI visibility. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+    throw new AgentExecutionError(safeMessage, { logs, logsSeq, providerCommentUrl, gitStatus, cause: err });
   }
 }
 
@@ -1367,3 +1451,146 @@ interface StreamOptions {
   env?: Record<string, string | undefined>;
   redact?: (text: string) => string;
 }
+
+interface CaptureOptions {
+  env?: Record<string, string | undefined>;
+  redact?: (text: string) => string;
+}
+
+const runCommandCapture = async (
+  command: string,
+  options: CaptureOptions = {}
+): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
+  // Capture command output for git status probing without spamming task logs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  const redact = options.redact ?? redactSensitiveText;
+  return await new Promise((resolve, reject) => {
+    const child = spawn('sh', ['-c', command], {
+      env: { ...process.env, ...(options.env ?? {}) },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data: Buffer) => {
+      stdout += data.toString();
+    });
+    child.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+
+    child.on('error', (err) => {
+      reject(err);
+    });
+    child.on('close', (code) => {
+      resolve({
+        stdout: redact(stdout).trimEnd(),
+        stderr: redact(stderr).trimEnd(),
+        exitCode: typeof code === 'number' ? code : 1
+      });
+    });
+  });
+};
+
+const collectGitStatusSnapshot = async (params: {
+  repoDir: string;
+  includeWorkingTree?: boolean;
+}): Promise<{
+  snapshot?: TaskGitStatusSnapshot;
+  workingTree?: TaskGitStatusWorkingTree;
+  pushTargetSha?: string;
+  errors: string[];
+}> => {
+  // Collect git refs + working tree changes to report write-enabled task outcomes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  const errors: string[] = [];
+  const gitEnv = { GIT_TERMINAL_PROMPT: '0' };
+  const runGit = (cmd: string) => runCommandCapture(`cd ${shDoubleQuote(params.repoDir)} && ${cmd}`, { env: gitEnv });
+
+  const branchRes = await runGit('git rev-parse --abbrev-ref HEAD');
+  const branch = branchRes.exitCode === 0 ? branchRes.stdout.trim() : '';
+  if (!branchRes.exitCode && !branch) {
+    errors.push('branch: empty');
+  } else if (branchRes.exitCode !== 0) {
+    errors.push(`branch: ${branchRes.stderr || 'command_failed'}`);
+  }
+
+  const headRes = await runGit('git rev-parse HEAD');
+  const headSha = headRes.exitCode === 0 ? headRes.stdout.trim() : '';
+  if (!headRes.exitCode && !headSha) {
+    errors.push('head: empty');
+  } else if (headRes.exitCode !== 0) {
+    errors.push(`head: ${headRes.stderr || 'command_failed'}`);
+  }
+
+  const upstreamRes = await runGit('git rev-parse --abbrev-ref --symbolic-full-name @{u}');
+  const upstream = upstreamRes.exitCode === 0 ? upstreamRes.stdout.trim() : '';
+
+  let ahead: number | undefined;
+  let behind: number | undefined;
+  if (upstream) {
+    const aheadBehindRes = await runGit('git rev-list --left-right --count HEAD...@{u}');
+    if (aheadBehindRes.exitCode === 0) {
+      const parsed = parseAheadBehind(aheadBehindRes.stdout);
+      if (parsed) {
+        ahead = parsed.ahead;
+        behind = parsed.behind;
+      } else {
+        errors.push('aheadBehind: parse_failed');
+      }
+    } else {
+      errors.push(`aheadBehind: ${aheadBehindRes.stderr || 'command_failed'}`);
+    }
+  }
+
+  const pushRemoteRes = await runGit('git remote get-url --push origin');
+  const pushRemoteRaw = pushRemoteRes.exitCode === 0 ? pushRemoteRes.stdout.trim() : '';
+  const pushRemote = pushRemoteRaw ? normalizeGitRemoteUrl(pushRemoteRaw) : '';
+  const pushWebUrl = pushRemoteRaw ? toRepoWebUrl(pushRemoteRaw) : '';
+  if (!pushRemote && pushRemoteRes.exitCode !== 0) {
+    errors.push(`pushRemote: ${pushRemoteRes.stderr || 'command_failed'}`);
+  }
+
+  let pushTargetSha: string | undefined;
+  if (pushRemoteRaw && branch && branch !== 'HEAD') {
+    const lsRemoteRes = await runGit(`git ls-remote --heads ${shDoubleQuote(pushRemoteRaw)} ${shDoubleQuote(branch)}`);
+    if (lsRemoteRes.exitCode === 0) {
+      const line = lsRemoteRes.stdout.trim().split(/\r?\n/)[0] ?? '';
+      const sha = line.split(/\s+/)[0] ?? '';
+      // Treat empty ls-remote output as "not pushed yet" to avoid false failures. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+      if (sha) {
+        pushTargetSha = sha;
+      }
+    } else {
+      errors.push(`pushTarget: ${lsRemoteRes.stderr || 'command_failed'}`);
+    }
+  }
+
+  let workingTree: TaskGitStatusWorkingTree | undefined;
+  if (params.includeWorkingTree) {
+    const stagedRes = await runGit('git diff --name-only --cached');
+    const unstagedRes = await runGit('git diff --name-only');
+    const untrackedRes = await runGit('git ls-files --others --exclude-standard');
+    workingTree = buildWorkingTree({
+      stagedRaw: stagedRes.exitCode === 0 ? stagedRes.stdout : '',
+      unstagedRaw: unstagedRes.exitCode === 0 ? unstagedRes.stdout : '',
+      untrackedRaw: untrackedRes.exitCode === 0 ? untrackedRes.stdout : ''
+    });
+    if (stagedRes.exitCode !== 0) errors.push(`staged: ${stagedRes.stderr || 'command_failed'}`);
+    if (unstagedRes.exitCode !== 0) errors.push(`unstaged: ${unstagedRes.stderr || 'command_failed'}`);
+    if (untrackedRes.exitCode !== 0) errors.push(`untracked: ${untrackedRes.stderr || 'command_failed'}`);
+  }
+
+  const snapshot = branch && headSha
+    ? {
+        branch,
+        headSha,
+        upstream: upstream || undefined,
+        ahead,
+        behind,
+        pushRemote: pushRemote || undefined,
+        pushWebUrl: pushWebUrl || undefined
+      }
+    : undefined;
+
+  return { snapshot, workingTree, pushTargetSha, errors };
+};

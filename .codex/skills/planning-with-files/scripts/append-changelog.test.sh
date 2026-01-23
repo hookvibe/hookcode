@@ -20,7 +20,8 @@ cat > docs/en/change-log/0.0.0.md <<'MD'
 MD
 
 SESSION_HASH="testhash1234567890ab"
-SUMMARY="<!-- Fix Vite \`/api\` proxy target to avoid SSE 404 in local dev. ${SESSION_HASH} -->"
+# Ensure MDX comment-wrapped summaries are unwrapped before writing the changelog entry. docs/en/developer/plans/mintmdxcomment20260122/task_plan.md mintmdxcomment20260122
+SUMMARY="{/* Fix Vite \`/api\` proxy target to avoid SSE 404 in local dev. ${SESSION_HASH} */}"
 
 printf '%s' "${SUMMARY}" | bash "${APPENDER}" "${SESSION_HASH}" >/dev/null
 
@@ -29,7 +30,12 @@ if rg -n "<!--" docs/en/change-log/0.0.0.md >/dev/null; then
     exit 1
 fi
 
-EXPECTED_LINK="([${SESSION_HASH}](../developer/plans/${SESSION_HASH}/task_plan.md))"
+if rg -n --fixed-strings "{/*" docs/en/change-log/0.0.0.md >/dev/null; then
+    echo "FAIL: changelog contains an MDX comment wrapper"
+    exit 1
+fi
+
+EXPECTED_LINK="([${SESSION_HASH}](../developer/plans/${SESSION_HASH}/task_plan))"
 if ! rg -n --fixed-strings "${EXPECTED_LINK}" docs/en/change-log/0.0.0.md >/dev/null; then
     echo "FAIL: changelog entry missing expected plan link: ${EXPECTED_LINK}"
     exit 1
@@ -47,4 +53,3 @@ if [ "${COUNT}" -ne 1 ]; then
 fi
 
 echo "PASS"
-

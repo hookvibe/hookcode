@@ -12,7 +12,8 @@ describe('TasksController.volumeByDay', () => {
     };
 
     const controller = new TasksController(taskService, {} as any, {} as any);
-    const res = await controller.volumeByDay(repoId, '2026-01-01', '2026-01-02', undefined, undefined);
+    // Keep API parity with the new `archived` query param added to volumeByDay. qnp1mtxhzikhbi0xspbc
+    const res = await controller.volumeByDay(repoId, '2026-01-01', '2026-01-02', undefined, undefined, undefined);
 
     expect(taskService.getTaskVolumeByDay).toHaveBeenCalledTimes(1);
     const args = (taskService.getTaskVolumeByDay as jest.Mock).mock.calls[0][0];
@@ -26,12 +27,11 @@ describe('TasksController.volumeByDay', () => {
     const taskService: any = { getTaskVolumeByDay: jest.fn() };
     const controller = new TasksController(taskService, {} as any, {} as any);
 
-    await expect(controller.volumeByDay(repoId, '2026-99-01', '2026-01-02', undefined, undefined)).rejects.toBeInstanceOf(
-      BadRequestException
-    );
-    await expect(controller.volumeByDay(repoId, '2026-01-01', 'bad', undefined, undefined)).rejects.toBeInstanceOf(
+    await expect(
+      controller.volumeByDay(repoId, '2026-99-01', '2026-01-02', undefined, undefined, undefined)
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.volumeByDay(repoId, '2026-01-01', 'bad', undefined, undefined, undefined)).rejects.toBeInstanceOf(
       BadRequestException
     );
   });
 });
-

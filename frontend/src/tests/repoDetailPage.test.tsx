@@ -36,6 +36,9 @@ vi.mock('../api', () => {
         }
       }
     })),
+    // Expose archive APIs in the mock so RepoDetailPage can render the archive controls safely. qnp1mtxhzikhbi0xspbc
+    archiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksArchived: 0, taskGroupsArchived: 0 })),
+    unarchiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksRestored: 0, taskGroupsRestored: 0 })),
     updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null })),
     // Mock task stats fetch used by the repo detail dashboard overview to keep tests deterministic. u55e45ffi8jng44erdzp
     fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 })),
@@ -51,7 +54,15 @@ vi.mock('../api', () => {
       claude_code: { profiles: [], defaultProfileId: null },
       gemini_cli: { profiles: [], defaultProfileId: null }
     })),
-    fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' }))
+    listMyModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
+    listRepoModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
+    fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' })),
+    fetchRepoProviderActivity: vi.fn(async () => ({
+      provider: 'gitlab',
+      commits: { items: [], page: 1, pageSize: 5, hasMore: false },
+      merges: { items: [], page: 1, pageSize: 5, hasMore: false },
+      issues: { items: [], page: 1, pageSize: 5, hasMore: false }
+    })) // Mock activity fetch for the provider activity row. kzxac35mxk0fg358i7zs
   };
 });
 
@@ -125,6 +136,94 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     );
   });
 
+  test('loads provider activity row for public repos', async () => {
+    // Ensure the repo detail dashboard can display provider activity without requiring credentials for public repos. kzxac35mxk0fg358i7zs
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    vi.mocked(api.fetchRepoProviderMeta).mockResolvedValueOnce({ provider: 'gitlab', visibility: 'public' } as any);
+    vi.mocked(api.fetchRepoProviderActivity).mockResolvedValueOnce({
+      provider: 'gitlab',
+      commits: { page: 1, pageSize: 5, hasMore: false, items: [{ id: 'c1', shortId: 'c1', title: 'feat: one', url: 'https://gitlab.example.com/c1' }] },
+      merges: { page: 1, pageSize: 5, hasMore: false, items: [{ id: 'm1', title: 'MR: one', url: 'https://gitlab.example.com/m1', state: 'merged' }] },
+      issues: { page: 1, pageSize: 5, hasMore: false, items: [{ id: 'i1', title: 'Issue: one', url: 'https://gitlab.example.com/i1', state: 'open', time: '2026-01-21T00:00:00.000Z' }] }
+    } as any);
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepoProviderActivity).toHaveBeenCalled());
+    expect(await screen.findByText('feat: one')).toBeInTheDocument();
+    expect(screen.getByText('MR: one')).toBeInTheDocument();
+    expect(screen.getByText('Issue: one')).toBeInTheDocument();
+  });
+
+  test('paginates commits without refreshing merges/issues', async () => {
+    // Keep provider activity pagination column-scoped to avoid unrelated refresh/skeleton updates. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    vi.mocked(api.fetchRepoProviderMeta).mockResolvedValueOnce({ provider: 'gitlab', visibility: 'public' } as any);
+    vi.mocked(api.fetchRepoProviderActivity)
+      .mockResolvedValueOnce({
+        provider: 'gitlab',
+        commits: {
+          page: 1,
+          pageSize: 5,
+          hasMore: true,
+          items: [{ id: 'c1', shortId: 'c1', title: 'feat: one', url: 'https://gitlab.example.com/c1' }]
+        },
+        merges: { page: 1, pageSize: 5, hasMore: false, items: [{ id: 'm1', title: 'MR: one', url: 'https://gitlab.example.com/m1', state: 'merged' }] },
+        issues: {
+          page: 1,
+          pageSize: 5,
+          hasMore: false,
+          items: [{ id: 'i1', title: 'Issue: one', url: 'https://gitlab.example.com/i1', state: 'open', time: '2026-01-21T00:00:00.000Z' }]
+        }
+      } as any)
+      .mockResolvedValueOnce({
+        provider: 'gitlab',
+        commits: {
+          page: 2,
+          pageSize: 5,
+          hasMore: false,
+          items: [{ id: 'c2', shortId: 'c2', title: 'feat: two', url: 'https://gitlab.example.com/c2' }]
+        },
+        merges: {
+          page: 1,
+          pageSize: 5,
+          hasMore: false,
+          items: [{ id: 'm2', title: 'MR: should not update', url: 'https://gitlab.example.com/m2', state: 'merged' }]
+        },
+        issues: {
+          page: 1,
+          pageSize: 5,
+          hasMore: false,
+          items: [{ id: 'i2', title: 'Issue: should not update', url: 'https://gitlab.example.com/i2', state: 'open', time: '2026-01-21T00:00:00.000Z' }]
+        }
+      } as any);
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepoProviderActivity).toHaveBeenCalled());
+
+    expect(await screen.findByText('feat: one')).toBeInTheDocument();
+    expect(screen.getByText('MR: one')).toBeInTheDocument();
+    expect(screen.getByText('Issue: one')).toBeInTheDocument();
+
+    await ui.click(screen.getByRole('button', { name: 'Next' }));
+
+    // Other columns should stay visible while commits pagination is loading.
+    expect(screen.getByText('MR: one')).toBeInTheDocument();
+    expect(screen.getByText('Issue: one')).toBeInTheDocument();
+
+    await waitFor(() => expect(api.fetchRepoProviderActivity).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('feat: two')).toBeInTheDocument();
+
+    expect(screen.getByText('MR: one')).toBeInTheDocument();
+    expect(screen.queryByText('MR: should not update')).not.toBeInTheDocument();
+    expect(screen.getByText('Issue: one')).toBeInTheDocument();
+    expect(screen.queryByText('Issue: should not update')).not.toBeInTheDocument();
+  });
+
   test('shows onboarding wizard on first entry and can be skipped', async () => {
     const ui = userEvent.setup();
     renderPage({ repoId: 'r1' });
@@ -133,5 +232,92 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     expect(await screen.findByText('Repository setup guide')).toBeInTheDocument();
     await ui.click(screen.getByRole('button', { name: 'Skip' }));
     await screen.findByLabelText('Name');
+  });
+
+  test('treats archived repositories as read-only (no write actions)', async () => {
+    // Ensure archived repositories do not expose write affordances in the repo detail page. qnp1mtxhzikhbi0xspbc
+    vi.mocked(api.fetchRepo).mockResolvedValueOnce({
+      repo: {
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'Repo 1',
+        externalId: '',
+        apiBaseUrl: '',
+        enabled: true,
+        archivedAt: '2026-01-20T00:00:00.000Z',
+        createdAt: '2026-01-11T00:00:00.000Z',
+        updatedAt: '2026-01-11T00:00:00.000Z'
+      },
+      robots: [
+        {
+          id: 'rb1',
+          repoId: 'r1',
+          name: 'Bot 1',
+          enabled: true,
+          activatedAt: null,
+          permission: 'write',
+          isDefault: true
+        } as any
+      ],
+      automationConfig: null,
+      webhookSecret: null,
+      webhookPath: null,
+      repoScopedCredentials: {
+        repoProvider: { profiles: [], defaultProfileId: null },
+        modelProvider: {
+          codex: { profiles: [], defaultProfileId: null },
+          claude_code: { profiles: [], defaultProfileId: null },
+          gemini_cli: { profiles: [], defaultProfileId: null }
+        }
+      }
+    });
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    expect(screen.queryByText('Repository setup guide')).not.toBeInTheDocument();
+
+    const nameInput = await screen.findByLabelText('Name');
+    expect(nameInput).toBeDisabled();
+
+    await waitFor(() => expect(document.getElementById('hc-repo-section-branches')).not.toBeNull());
+
+    const branchesSection = document.getElementById('hc-repo-section-branches');
+    expect(branchesSection).not.toBeNull();
+    expect(within(branchesSection as HTMLElement).queryByRole('button', { name: 'Add branch' })).not.toBeInTheDocument();
+    expect(within(branchesSection as HTMLElement).queryByRole('button', { name: 'Save branches' })).not.toBeInTheDocument();
+
+    const robotsSection = document.getElementById('hc-repo-section-robots');
+    expect(robotsSection).not.toBeNull();
+    expect(within(robotsSection as HTMLElement).queryByRole('button', { name: /New robot/i })).not.toBeInTheDocument();
+    expect(within(robotsSection as HTMLElement).getByRole('button', { name: 'View' })).toBeInTheDocument();
+    expect(within(robotsSection as HTMLElement).queryByRole('button', { name: 'Test' })).not.toBeInTheDocument();
+    expect(within(robotsSection as HTMLElement).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+
+    const automationSection = document.getElementById('hc-repo-section-automation');
+    expect(automationSection).not.toBeNull();
+    expect(within(automationSection as HTMLElement).getByRole('button', { name: 'Add rule' })).toBeDisabled();
+  });
+
+  test('applies selected model from the available models picker', async () => {
+    // Verify picker selections update the bound model input via the robot create flow. docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md b8fucnmey62u0muyn7i0
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    vi.mocked(api.listMyModelProviderModels).mockResolvedValueOnce({ models: ['gpt-4o'], source: 'remote' });
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    await ui.click(screen.getByRole('button', { name: /new robot/i }));
+
+    const modelInput = await screen.findByLabelText('Model');
+    await ui.click(screen.getByRole('button', { name: /view models/i }));
+
+    const modelButton = await screen.findByRole('button', { name: 'gpt-4o' });
+    await ui.click(modelButton);
+
+    await waitFor(() => expect(modelInput).toHaveValue('gpt-4o'));
   });
 });

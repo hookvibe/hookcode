@@ -14,6 +14,16 @@ describe('codex exec', () => {
 
       async function* events() {
         yield { type: 'thread.started', thread_id: 't_123' } as any;
+        // Ensure HookCode emits diff artifacts for Codex file_change events. yjlphd6rbkrq521ny796
+        yield {
+          type: 'item.completed',
+          item: {
+            id: 'item_file_1',
+            type: 'file_change',
+            changes: [{ path: path.join(repoDir, 'README.md'), kind: 'update' }],
+            status: 'completed'
+          }
+        } as any;
         yield { type: 'item.completed', item: { type: 'agent_message', text: 'hi' } } as any;
         yield { type: 'turn.completed', usage: { input_tokens: 1, output_tokens: 2 } } as any;
       }
@@ -34,6 +44,17 @@ describe('codex exec', () => {
       }
 
       const logged: string[] = [];
+      const captureCodexFileDiffEvents = jest.fn(async (_params: any) => [
+        {
+          type: 'hookcode.file.diff',
+          item_id: 'item_file_1',
+          path: 'README.md',
+          kind: 'update',
+          unified_diff: 'diff --git a/README.md b/README.md',
+          old_text: 'a',
+          new_text: 'b'
+        }
+      ]) as any;
 
       const res = await runCodexExecWithSdk({
         repoDir,
@@ -48,7 +69,8 @@ describe('codex exec', () => {
           logged.push(line);
         },
         __internal: {
-          importCodexSdk: async () => ({ Codex: FakeCodex } as any)
+          importCodexSdk: async () => ({ Codex: FakeCodex } as any),
+          captureCodexFileDiffEvents
         }
       });
 
@@ -61,6 +83,8 @@ describe('codex exec', () => {
 
       expect(logged.some((line) => line.includes('"type":"thread.started"'))).toBe(true);
       expect(logged.some((line) => line.includes('"type":"turn.completed"'))).toBe(true);
+      expect(logged.some((line) => line.includes('"type":"hookcode.file.diff"'))).toBe(true);
+      expect(captureCodexFileDiffEvents).toHaveBeenCalledTimes(1);
     } finally {
       await fs.rm(repoDir, { recursive: true, force: true });
     }

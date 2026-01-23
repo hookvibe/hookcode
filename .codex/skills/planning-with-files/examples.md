@@ -1,5 +1,5 @@
 # Examples: Planning with Files in Action
-<!-- Update examples to use hash-based plan directories. sddsa89612jk4hbwas678 -->
+{/* Update examples to use hash-based plan directories. sddsa89612jk4hbwas678 */}
 
 ## Example 1: Research Task
 

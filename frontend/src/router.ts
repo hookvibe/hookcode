@@ -9,7 +9,7 @@
  * - 2026-01-11: Introduced routes for Home/Tasks/Task detail/Task group chat while keeping `#/chat` as an alias.
  */
 
-export type RoutePage = 'home' | 'tasks' | 'task' | 'taskGroup' | 'repos' | 'repo' | 'login';
+export type RoutePage = 'home' | 'tasks' | 'task' | 'taskGroup' | 'repos' | 'repo' | 'archive' | 'login';
 
 export interface RouteState {
   page: RoutePage;
@@ -18,6 +18,7 @@ export interface RouteState {
   repoId?: string;
   tasksStatus?: string;
   tasksRepoId?: string;
+  archiveTab?: string;
 }
 
 const safeDecode = (value: string): string => {
@@ -74,6 +75,13 @@ export const parseRoute = (hash: string): RouteState => {
     return { page: 'repos' };
   }
 
+  if (parts[0] === 'archive') {
+    // Add an Archive route so archived repos/tasks have a dedicated console area. qnp1mtxhzikhbi0xspbc
+    const state: RouteState = { page: 'archive' };
+    if (query.tab) state.archiveTab = query.tab;
+    return state;
+  }
+
   if (parts[0] === 'login') return { page: 'login' };
 
   // Fallback: keep unknown hashes safe by sending users to Home.
@@ -99,3 +107,8 @@ export const buildTaskGroupHash = (taskGroupId: string): string =>
 export const buildReposHash = (): string => '#/repos';
 
 export const buildRepoHash = (repoId: string): string => `#/repos/${encodeURIComponent(repoId)}`;
+
+export const buildArchiveHash = (options?: { tab?: 'repos' | 'tasks' }): string => {
+  const tab = String(options?.tab ?? '').trim();
+  return tab ? `#/archive?tab=${encodeURIComponent(tab)}` : '#/archive';
+};

@@ -73,11 +73,18 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     expect(stripScope.getByText('Alice')).toBeInTheDocument();
     expect(stripScope.getByText(/@alice/i)).toBeInTheDocument();
 
-    // Regression: ensure workflow step numbers count bottom-up (1 at the bottom). tdstepsreverse20260117k1p6
-    const stepIndices = Array.from(document.querySelectorAll('.hc-task-workflow .hc-step-index')).map((el) =>
+    // Regression: ensure the task detail panel switcher uses a step-bar layout and keeps Result as the leftmost step. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121
+    const switcher = document.querySelector('.hc-task-detail-panel-switcher');
+    expect(switcher).toBeTruthy();
+    const stepTitles = Array.from((switcher as HTMLElement).querySelectorAll('.ant-steps-item-title')).map((el) =>
       String(el.textContent || '').trim()
     );
-    expect(stepIndices).toEqual(['4', '3', '2', '1']);
+    expect(stepTitles).toEqual(['Result', 'Live logs', 'Prompt patch (repo config)', 'Raw webhook payload']);
+
+    // Default to Result panel for terminal tasks and allow switching to other panels. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121
+    expect(await screen.findByText('No output')).toBeInTheDocument();
+    await ui.click(screen.getByText('Raw webhook payload'));
+    expect(await screen.findByText(/user_name/i)).toBeInTheDocument();
 
     await ui.click(screen.getByRole('button', { name: /Retry/i }));
     await waitFor(() => expect(api.retryTask).toHaveBeenCalledWith('t1', undefined));
@@ -121,6 +128,7 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
 
   test('shows prompt patch template + rendered preview side-by-side', async () => {
     // Ensure the task detail prompt patch shows both raw template and rendered preview. x0kprszlsorw9vi8jih9
+    const ui = userEvent.setup();
     vi.mocked(api.fetchTask).mockResolvedValueOnce({
       id: 'tp1',
       eventType: 'issue',
@@ -143,6 +151,7 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     renderPage({ taskId: 'tp1' });
     await waitFor(() => expect(api.fetchTask).toHaveBeenCalled());
 
+    await ui.click(screen.getByText('Prompt patch (repo config)'));
     expect(await screen.findByText('Template')).toBeInTheDocument();
     expect(screen.getByText('Rendered')).toBeInTheDocument();
     expect(screen.getByText('Issue={{issue.number}} Repo={{repo.name}} Robot={{robot.name}}')).toBeInTheDocument();
