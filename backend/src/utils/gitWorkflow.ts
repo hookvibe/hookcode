@@ -21,6 +21,29 @@ export const normalizeGitRemoteUrl = (raw: string): string => {
   return stripTrailingSlash(withoutGit);
 };
 
+export const toRepoWebUrl = (raw: string): string => {
+  // Convert git remote URLs (https or ssh) into a stable web URL for UI links. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  const normalized = normalizeGitRemoteUrl(raw);
+  if (!normalized) return '';
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) return normalized;
+
+  const scpMatch = /^git@([^:]+):(.+)$/.exec(normalized);
+  if (scpMatch) {
+    const host = scpMatch[1];
+    const path = stripTrailingSlash(scpMatch[2]);
+    return `https://${host}/${path}`;
+  }
+
+  const sshMatch = /^ssh:\/\/git@([^/]+)\/(.+)$/.exec(normalized);
+  if (sshMatch) {
+    const host = sshMatch[1];
+    const path = stripTrailingSlash(sshMatch[2]);
+    return `https://${host}/${path}`;
+  }
+
+  return normalized;
+};
+
 export const canTokenPushToUpstream = (provider: RepoProvider, roleRaw: unknown): boolean => {
   // Decide whether we can push to upstream based on the token's last-known repo role. 24yz61mdik7tqdgaa152
   const role = safeTrim(roleRaw).toLowerCase();

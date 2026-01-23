@@ -89,6 +89,51 @@ export interface Task {
   permissions?: { canManage: boolean };
 }
 
+export interface TaskGitStatusSnapshot {
+  // Mirror backend git snapshot payload for UI rendering. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  branch: string;
+  headSha: string;
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+  pushRemote?: string;
+  pushWebUrl?: string;
+}
+
+export interface TaskGitStatusWorkingTree {
+  // Track local file change lists for the task detail and group views. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  staged: string[];
+  unstaged: string[];
+  untracked: string[];
+}
+
+export interface TaskGitStatusDelta {
+  // Flag branch/head changes between baseline and final snapshots. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  branchChanged: boolean;
+  headChanged: boolean;
+}
+
+export interface TaskGitStatusPushState {
+  // Track push results for write-enabled robots (fork or upstream). docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  status: 'pushed' | 'unpushed' | 'unknown' | 'error' | 'not_applicable';
+  reason?: string;
+  targetBranch?: string;
+  targetWebUrl?: string;
+  targetHeadSha?: string;
+}
+
+export interface TaskGitStatus {
+  // Provide git change tracking metadata for frontend rendering. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  enabled: boolean;
+  capturedAt?: string;
+  baseline?: TaskGitStatusSnapshot;
+  final?: TaskGitStatusSnapshot;
+  delta?: TaskGitStatusDelta;
+  workingTree?: TaskGitStatusWorkingTree;
+  push?: TaskGitStatusPushState;
+  errors?: string[];
+}
+
 export interface TaskResult {
   summary?: string;
   message?: string;
@@ -96,6 +141,8 @@ export interface TaskResult {
   outputText?: string;
   providerCommentUrl?: string;
   tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+  // Surface backend git status in task result payloads for UI reuse. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  gitStatus?: TaskGitStatus;
   [key: string]: unknown;
 }
 

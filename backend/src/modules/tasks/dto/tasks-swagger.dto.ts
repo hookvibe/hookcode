@@ -11,6 +11,96 @@ export class TaskTokenUsageDto {
   totalTokens!: number;
 }
 
+export class TaskGitStatusSnapshotDto {
+  // Swagger DTO for git snapshot metadata. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  @ApiProperty()
+  branch!: string;
+
+  @ApiProperty()
+  headSha!: string;
+
+  @ApiPropertyOptional()
+  upstream?: string;
+
+  @ApiPropertyOptional()
+  ahead?: number;
+
+  @ApiPropertyOptional()
+  behind?: number;
+
+  @ApiPropertyOptional()
+  pushRemote?: string;
+
+  @ApiPropertyOptional()
+  pushWebUrl?: string;
+}
+
+export class TaskGitStatusWorkingTreeDto {
+  // Swagger DTO for local file change lists. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  @ApiProperty({ type: String, isArray: true })
+  staged!: string[];
+
+  @ApiProperty({ type: String, isArray: true })
+  unstaged!: string[];
+
+  @ApiProperty({ type: String, isArray: true })
+  untracked!: string[];
+}
+
+export class TaskGitStatusDeltaDto {
+  // Swagger DTO for branch/commit delta flags. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  @ApiProperty()
+  branchChanged!: boolean;
+
+  @ApiProperty()
+  headChanged!: boolean;
+}
+
+export class TaskGitStatusPushStateDto {
+  // Swagger DTO for push/commit sync state. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  @ApiProperty({ enum: ['pushed', 'unpushed', 'unknown', 'error', 'not_applicable'] })
+  status!: 'pushed' | 'unpushed' | 'unknown' | 'error' | 'not_applicable';
+
+  @ApiPropertyOptional()
+  reason?: string;
+
+  @ApiPropertyOptional()
+  targetBranch?: string;
+
+  @ApiPropertyOptional()
+  targetWebUrl?: string;
+
+  @ApiPropertyOptional()
+  targetHeadSha?: string;
+}
+
+export class TaskGitStatusDto {
+  // Swagger DTO for git status payload returned to the UI. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  @ApiProperty()
+  enabled!: boolean;
+
+  @ApiPropertyOptional()
+  capturedAt?: string;
+
+  @ApiPropertyOptional({ type: TaskGitStatusSnapshotDto })
+  baseline?: TaskGitStatusSnapshotDto;
+
+  @ApiPropertyOptional({ type: TaskGitStatusSnapshotDto })
+  final?: TaskGitStatusSnapshotDto;
+
+  @ApiPropertyOptional({ type: TaskGitStatusDeltaDto })
+  delta?: TaskGitStatusDeltaDto;
+
+  @ApiPropertyOptional({ type: TaskGitStatusWorkingTreeDto })
+  workingTree?: TaskGitStatusWorkingTreeDto;
+
+  @ApiPropertyOptional({ type: TaskGitStatusPushStateDto })
+  push?: TaskGitStatusPushStateDto;
+
+  @ApiPropertyOptional({ type: String, isArray: true })
+  errors?: string[];
+}
+
 export class TaskResultDto {
   @ApiPropertyOptional({ enum: ['A', 'B', 'C', 'D'] })
   grade?: 'A' | 'B' | 'C' | 'D';
@@ -44,6 +134,10 @@ export class TaskResultDto {
 
   @ApiPropertyOptional()
   providerCommentUrl?: string;
+
+  // Expose git status payload in task result responses. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  @ApiPropertyOptional({ type: TaskGitStatusDto })
+  gitStatus?: TaskGitStatusDto;
 }
 
 export class TaskRepoSummaryDto {

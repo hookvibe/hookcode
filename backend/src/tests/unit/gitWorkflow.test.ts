@@ -1,4 +1,4 @@
-import { canTokenPushToUpstream, GIT_CONFIG_KEYS, normalizeGitRemoteUrl } from '../../utils/gitWorkflow';
+import { canTokenPushToUpstream, GIT_CONFIG_KEYS, normalizeGitRemoteUrl, toRepoWebUrl } from '../../utils/gitWorkflow';
 
 // Add unit coverage for git workflow helpers and config keys used by fork-based PR setup. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
 
@@ -32,6 +32,21 @@ describe('gitWorkflow utils', () => {
       expect(canTokenPushToUpstream('gitlab', 'developer')).toBe(true);
       expect(canTokenPushToUpstream('gitlab', 'reporter')).toBe(false);
       expect(canTokenPushToUpstream('gitlab', 'guest')).toBe(false);
+    });
+  });
+
+  describe('toRepoWebUrl', () => {
+    // Validate web URL derivation for git status links in the UI. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+    test('preserves normalized https URLs', () => {
+      expect(toRepoWebUrl('https://x-access-token:secret@github.com/foo/bar.git')).toBe('https://github.com/foo/bar');
+    });
+
+    test('converts scp-style ssh remotes', () => {
+      expect(toRepoWebUrl('git@github.com:foo/bar.git')).toBe('https://github.com/foo/bar');
+    });
+
+    test('converts ssh:// remotes', () => {
+      expect(toRepoWebUrl('ssh://git@gitlab.com/foo/bar.git')).toBe('https://gitlab.com/foo/bar');
     });
   });
 

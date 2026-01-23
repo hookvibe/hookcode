@@ -66,6 +66,53 @@ export interface TaskResult {
     upstream?: { slug?: string; webUrl?: string; cloneUrl?: string };
     fork?: { slug?: string; webUrl?: string; cloneUrl?: string };
   };
+  // Persist git change/push status for write-enabled robots. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  gitStatus?: TaskGitStatus;
+}
+
+export interface TaskGitStatusSnapshot {
+  // Capture the repo ref state at a point in time (branch + head + upstream divergence). docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  branch: string;
+  headSha: string;
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+  pushRemote?: string;
+  pushWebUrl?: string;
+}
+
+export interface TaskGitStatusWorkingTree {
+  // Surface local-only file changes for the UI (staged/unstaged/untracked). docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  staged: string[];
+  unstaged: string[];
+  untracked: string[];
+}
+
+export interface TaskGitStatusDelta {
+  // Compare baseline vs final to spot branch/commit changes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  branchChanged: boolean;
+  headChanged: boolean;
+}
+
+export interface TaskGitStatusPushState {
+  // Track whether new commits reached the push target (fork or upstream). docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  status: 'pushed' | 'unpushed' | 'unknown' | 'error' | 'not_applicable';
+  reason?: string;
+  targetBranch?: string;
+  targetWebUrl?: string;
+  targetHeadSha?: string;
+}
+
+export interface TaskGitStatus {
+  // Store per-task git status snapshots to support UI change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  enabled: boolean;
+  capturedAt?: string;
+  baseline?: TaskGitStatusSnapshot;
+  final?: TaskGitStatusSnapshot;
+  delta?: TaskGitStatusDelta;
+  workingTree?: TaskGitStatusWorkingTree;
+  push?: TaskGitStatusPushState;
+  errors?: string[];
 }
 
 export type TaskQueueReasonCode = 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';

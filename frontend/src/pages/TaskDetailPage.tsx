@@ -17,6 +17,7 @@ import { useLocale, useT } from '../i18n';
 import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../router';
 import { MarkdownViewer } from '../components/MarkdownViewer';
 import { TaskLogViewer } from '../components/TaskLogViewer';
+import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
 import { PageNav } from '../components/nav/PageNav';
 import { getPrevHashForBack, isInAppHash } from '../navHistory';
 import {
@@ -743,6 +744,12 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                   <Alert type="info" showIcon message={t('tasks.repoMissing')} style={{ marginTop: 12 }} />
                 ) : null}
               </Card>
+              {task.result?.gitStatus?.enabled ? (
+                <div style={{ marginTop: 12 }}>
+                  {/* Render git status in task detail so write-enabled changes are visible. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
+                  <TaskGitStatusPanel task={task} variant="full" />
+                </div>
+              ) : null}
             </div>
 
             <div className="hc-task-detail-workflow">

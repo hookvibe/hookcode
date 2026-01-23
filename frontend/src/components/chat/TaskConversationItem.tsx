@@ -7,6 +7,7 @@ import { MarkdownViewer } from '../MarkdownViewer';
 import { TaskLogViewer } from '../TaskLogViewer';
 import { clampText, extractTaskResultText, extractTaskUserText, getTaskTitle, isTerminalStatus, statusTag } from '../../utils/task';
 import { LogViewerSkeleton } from '../skeletons/LogViewerSkeleton';
+import { TaskGitStatusPanel } from '../tasks/TaskGitStatusPanel';
 
 /**
  * TaskConversationItem:
@@ -75,6 +76,13 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
           </Space>
         </Card>
       </div>
+
+      {mergedTask?.result?.gitStatus?.enabled ? (
+        <div className="hc-chat-item__assistant">
+          {/* Show git status in task groups so write-enabled changes are visible in chat. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
+          <TaskGitStatusPanel task={mergedTask} variant="compact" />
+        </div>
+      ) : null}
 
       {/* 3) Thought chain (logs) */}
       <div className="hc-chat-item__assistant">
