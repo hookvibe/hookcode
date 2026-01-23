@@ -56,8 +56,8 @@ import {
 } from '../utils/repoPayload';
 // Reuse a shared console URL builder so provider messages consistently link back to the task detail page. docs/en/developer/plans/taskdetailbacklink20260122k4p8/task_plan.md taskdetailbacklink20260122k4p8
 import { getTaskConsoleUrl } from '../utils/taskConsoleUrl';
-// Keep git workflow helpers in a shared util so hooks/agent logic can be unit-tested. 24yz61mdik7tqdgaa152
-import { canTokenPushToUpstream, normalizeGitRemoteUrl } from '../utils/gitWorkflow';
+// Keep git workflow helpers and config keys centralized for hook guard logic. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
+import { canTokenPushToUpstream, GIT_CONFIG_KEYS, normalizeGitRemoteUrl } from '../utils/gitWorkflow';
 
 /**
  * Core task execution (callAgent):
@@ -632,13 +632,13 @@ async function callAgent(task: Task): Promise<{ logs: string[]; logsSeq: number;
     const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
     const installGitPrePushGuard = async (params: { expectedUpstream: string; expectedPush: string }) => {
-      // Install a repo-local guard to prevent accidental pushes to the wrong remote. 24yz61mdik7tqdgaa152
+      // Install a repo-local guard and align git config keys with valid naming rules. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
       const hookDir = path.join(repoDir, '.git', 'hooks');
       const hookPath = path.join(hookDir, 'pre-push');
       await mkdir(hookDir, { recursive: true });
 
       const script = `#!/bin/sh
-# Guard pushes to ensure origin fetch/push targets stay correct for fork workflows. 24yz61mdik7tqdgaa152
+# Guard pushes to ensure origin fetch/push targets stay correct for fork workflows. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
 set -e
 
 normalize_url() {
@@ -651,8 +651,8 @@ normalize_url() {
   echo "$raw" | sed -E 's#(https?://)[^@/[:space:]]+@#\\1#g; s#\\.git$##I; s#/*$##'
 }
 
-expected_upstream="$(git config --get hookcode.upstream_url 2>/dev/null || true)"
-expected_push="$(git config --get hookcode.push_url 2>/dev/null || true)"
+expected_upstream="$(git config --get "${GIT_CONFIG_KEYS.upstream}" 2>/dev/null || true)"
+expected_push="$(git config --get "${GIT_CONFIG_KEYS.push}" 2>/dev/null || true)"
 
 if [ -z "$expected_upstream" ] || [ -z "$expected_push" ]; then
   exit 0
@@ -682,10 +682,11 @@ exit 0
       await writeFile(hookPath, script, 'utf8');
       await chmod(hookPath, 0o755);
 
+      // Persist expected remotes under valid git config keys for the pre-push guard. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
       const expectedUpstream = normalizeGitRemoteUrl(params.expectedUpstream);
       const expectedPush = normalizeGitRemoteUrl(params.expectedPush);
       await streamCommand(
-        `cd ${repoDir} && git config --local hookcode.upstream_url ${shDoubleQuote(expectedUpstream)} && git config --local hookcode.push_url ${shDoubleQuote(expectedPush)}`,
+        `cd ${repoDir} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.upstream)} ${shDoubleQuote(expectedUpstream)} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.push)} ${shDoubleQuote(expectedPush)}`,
         appendRawLog,
         { redact: redactSensitiveText }
       );

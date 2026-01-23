@@ -5,6 +5,12 @@ const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.
 const stripTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 const stripGitSuffix = (value: string): string => value.replace(/\.git$/i, '');
 
+// Centralize git config keys used by agent hooks to avoid invalid names and keep tests aligned. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
+export const GIT_CONFIG_KEYS = {
+  upstream: 'hookcode.upstream-url',
+  push: 'hookcode.push-url'
+};
+
 export const normalizeGitRemoteUrl = (raw: string): string => {
   // Normalize git remote URLs so hook checks can compare repo identity without leaking credentials. 24yz61mdik7tqdgaa152
   const trimmed = String(raw ?? '').trim();
@@ -23,4 +29,3 @@ export const canTokenPushToUpstream = (provider: RepoProvider, roleRaw: unknown)
   if (provider === 'gitlab') return role === 'owner' || role === 'maintainer' || role === 'developer';
   return false;
 };
-
