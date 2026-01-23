@@ -52,6 +52,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [group, setGroup] = useState<TaskGroup | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskDetailsById, setTaskDetailsById] = useState<Record<string, Task | null>>({});
+  // Track the latest sent task so it can animate into its final chat position. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+  const [recentTaskId, setRecentTaskId] = useState<string | null>(null);
 
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -63,6 +65,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const chatPrependScrollRestoreRef = useRef<null | { scrollTop: number; scrollHeight: number }>(null);
   const chatPrependInFlightRef = useRef(false);
   const groupRef = useRef<TaskGroup | null>(null);
+  // Preserve the newly created group id so route-driven refresh stays non-blocking. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+  const optimisticGroupIdRef = useRef<string | null>(null);
   const groupRequestSeqRef = useRef(0);
   const groupRequestInFlightRef = useRef(false);
 
@@ -259,7 +263,16 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       void refreshGroupDetail('');
       return;
     }
-    void refreshGroupDetail(taskGroupId, { mode: 'blocking' });
+    // Keep initial navigation to a freshly-created group non-blocking so the chat item stays visible. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+    const isOptimisticGroup = optimisticGroupIdRef.current === taskGroupId;
+    const refreshPromise = refreshGroupDetail(taskGroupId, { mode: isOptimisticGroup ? 'refreshing' : 'blocking' });
+    if (isOptimisticGroup) {
+      void refreshPromise.finally(() => {
+        if (optimisticGroupIdRef.current === taskGroupId) optimisticGroupIdRef.current = null;
+      });
+    } else {
+      void refreshPromise;
+    }
 
     // Poll for task status changes to update the chat view.
     if (pollTimerRef.current) {
@@ -330,15 +343,19 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         message.success(t('toast.chat.executeSuccess'));
         setDraft('');
 
-        const nextGroupId = res.taskGroup?.id ?? '';
-        if (nextGroupId && !taskGroupId) {
-          // Navigation note: when creating a new group, jump to the group route so sidebar selection stays in sync.
-          window.location.hash = buildTaskGroupHash(nextGroupId);
-        }
+      const nextGroupId = res.taskGroup?.id ?? '';
+      if (nextGroupId && !taskGroupId) {
+        // Mark the new group as optimistic so we avoid a blocking skeleton during route transition. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+        optimisticGroupIdRef.current = nextGroupId;
+        // Navigation note: when creating a new group, jump to the group route so sidebar selection stays in sync.
+        window.location.hash = buildTaskGroupHash(nextGroupId);
+      }
         setGroup(res.taskGroup ?? null);
         // UX: update the ref immediately so a follow-up refresh does not temporarily show a blocking loading state.
         groupRef.current = res.taskGroup ?? null;
         if (res.task?.id) {
+          // Flag the most recent task so it animates into place instead of showing a skeleton. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+          setRecentTaskId(res.task.id);
           setTasks((prev) => [res.task, ...prev.filter((task) => task.id !== res.task.id)]);
         }
         if (nextGroupId) void refreshGroupDetail(nextGroupId, { mode: 'refreshing' });
@@ -419,6 +436,41 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       container.scrollTop = container.scrollHeight;
     }
   }, [groupLoading, taskGroupId, visibleTasks.length, orderedTasks.length, taskHiddenCount]);
+
+  useEffect(() => {
+    // Keep the chat pinned to the bottom when async log rendering changes height and the user hasn't scrolled away. docs/en/developer/plans/taskgroupscrollbottom20260123/task_plan.md taskgroupscrollbottom20260123
+    const container = chatBodyRef.current;
+    if (!container) return;
+    if (typeof ResizeObserver === 'undefined') return;
+
+    let rafId: number | null = null;
+    let lastHeight = container.scrollHeight;
+
+    const observer = new ResizeObserver(() => {
+      const nextHeight = container.scrollHeight;
+      if (nextHeight === lastHeight) return;
+      lastHeight = nextHeight;
+      if (!taskGroupId) return;
+      if (groupLoading) return;
+      if (chatPrependScrollRestoreRef.current) return;
+      if (!chatAutoScrollEnabledRef.current) return;
+
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const target = chatBodyRef.current;
+        if (!target) return;
+        target.scrollTop = target.scrollHeight;
+      });
+    });
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [groupLoading, taskGroupId]);
 
   const [isInputFocused, setIsInputFocused] = useState(false);
   const isCentered = !taskGroupId || (orderedTasks.length === 0 && !groupLoading);
@@ -546,10 +598,12 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
           </div>
         ) : (
           <div className="hc-chat-timeline">
+            {/* Animate the most recent message to create a smooth transition into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */}
             {visibleTasks.map((task) => (
               <TaskConversationItem
                 key={task.id}
                 task={task}
+                entering={task.id === recentTaskId}
                 taskDetail={taskDetailsById[task.id] ?? null}
                 onOpenTask={openTask}
                 taskLogsEnabled={effectiveTaskLogsEnabled}

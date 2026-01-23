@@ -1685,6 +1685,28 @@ button.hc-tasks-status-tile--active {
   gap: 10px;
 }
 
+/* Animate newly sent chat items as they settle into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */
+@keyframes hc-chat-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hc-chat-item--enter {
+  animation: hc-chat-item-enter 360ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-chat-item--enter {
+    animation: none;
+  }
+}
+
 .hc-chat-item__user {
   display: flex;
   justify-content: flex-end;

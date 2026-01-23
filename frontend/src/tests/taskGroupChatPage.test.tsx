@@ -169,6 +169,65 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
     expect(textarea).toHaveValue('');
   });
 
+  // Validate optimistic in-place rendering on new group creation without a skeleton. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+  test('renders the sent question in the timeline after creating a new group', async () => {
+    const ui = userEvent.setup();
+    const now = '2026-01-11T00:00:00.000Z';
+
+    // Reuse a single task payload so the chat bubble text is deterministic in tests. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+    const createdTask = {
+      id: 't_new',
+      eventType: 'chat',
+      status: 'queued',
+      payload: { __chat: { text: 'Hello from test' } },
+      retries: 0,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    vi.mocked(api.executeChat).mockResolvedValueOnce({
+      taskGroup: {
+        id: 'g_new',
+        kind: 'chat',
+        bindingKey: 'b1',
+        title: 'Group new',
+        repoId: 'r1',
+        robotId: 'bot1',
+        createdAt: now,
+        updatedAt: now
+      },
+      task: createdTask as any
+    });
+    // Ensure refresh calls always return the newly sent task so the timeline stays populated. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([createdTask as any]);
+
+    const view = renderPage();
+
+    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
+
+    const textarea = await screen.findByPlaceholderText(
+      'Ask something… (Enter to send, Shift+Enter for newline)'
+    );
+    await ui.type(textarea, 'Hello from test');
+
+    const sendButton = screen.getByRole('button', { name: /Send/i });
+    await ui.click(sendButton);
+
+    await waitFor(() => expect(api.executeChat).toHaveBeenCalled());
+
+    // Simulate the route change so the chat timeline is active for the new group. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+    view.rerender(
+      <AntdApp>
+        <TaskGroupChatPage taskGroupId="g_new" />
+      </AntdApp>
+    );
+
+    expect(await screen.findByText('Hello from test')).toBeInTheDocument();
+    expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
+    expect(document.querySelector('.hc-chat-item--enter')).toBeTruthy();
+  });
+
   test('does not submit when robot is missing (Enter-to-send)', async () => {
     const ui = userEvent.setup();
 
@@ -317,5 +376,56 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
     chatBody.dispatchEvent(new Event('scroll'));
 
     expect(await screen.findByText('Task 1')).toBeInTheDocument();
+  });
+
+  test('keeps chat pinned to bottom when async log rendering expands height', async () => {
+    // Mock ResizeObserver so we can simulate async height changes in tests. docs/en/developer/plans/taskgroupscrollbottom20260123/task_plan.md taskgroupscrollbottom20260123
+    const originalResizeObserver = window.ResizeObserver;
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
+    const cafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+    let observerInstance: { el?: Element | null; cb?: ResizeObserverCallback } | null = null;
+
+    class MockResizeObserver {
+      cb: ResizeObserverCallback;
+      el: Element | null = null;
+
+      constructor(cb: ResizeObserverCallback) {
+        this.cb = cb;
+        observerInstance = this;
+      }
+
+      observe(el: Element) {
+        this.el = el;
+      }
+
+      disconnect() {
+        this.el = null;
+      }
+    }
+
+    (window as any).ResizeObserver = MockResizeObserver;
+
+    renderPage({ taskGroupId: 'g1', taskLogsEnabled: false });
+
+    await waitFor(() => expect(api.fetchTaskGroupTasks).toHaveBeenCalled());
+
+    const chatBody = document.querySelector('.hc-chat-body') as HTMLElement;
+    expect(chatBody).toBeTruthy();
+
+    Object.defineProperty(chatBody, 'clientHeight', { value: 400, configurable: true });
+    Object.defineProperty(chatBody, 'scrollHeight', { value: 400, configurable: true });
+    chatBody.scrollTop = 0;
+
+    Object.defineProperty(chatBody, 'scrollHeight', { value: 900, configurable: true });
+    observerInstance?.cb?.([{ target: chatBody } as ResizeObserverEntry], observerInstance as any);
+
+    expect(chatBody.scrollTop).toBe(900);
+
+    (window as any).ResizeObserver = originalResizeObserver;
+    rafSpy.mockRestore();
+    cafSpy.mockRestore();
   });
 });

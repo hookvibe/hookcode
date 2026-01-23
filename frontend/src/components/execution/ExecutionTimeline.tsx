@@ -1,6 +1,6 @@
 import { FC, type ReactNode, useMemo, useState } from 'react';
 import { Space, Tag, Typography } from 'antd';
-import { CaretDownOutlined, CaretRightOutlined, CodeOutlined, FileTextOutlined, MessageOutlined, EditOutlined } from '@ant-design/icons';
+import { CaretDownOutlined, CaretRightOutlined, CodeOutlined, FileTextOutlined, MessageOutlined, MoreOutlined } from '@ant-design/icons';
 import { Think, ThoughtChain, type ThoughtChainItemType } from '@ant-design/x';
 import type { ExecutionFileDiff, ExecutionItem } from '../../utils/executionLog';
 import { useT } from '../../i18n';
@@ -137,7 +137,7 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
       const text = line ? clampText(line, 140) : t('execViewer.item.reasoning');
       return (
         <Space size={8} style={{ minWidth: 0 }}>
-          <EditOutlined />
+          <MoreOutlined />
           <Typography.Text strong ellipsis={{ tooltip: line || undefined }} style={{ minWidth: 0 }}>
             {text}
           </Typography.Text>
@@ -147,7 +147,7 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
 
     return (
       <Space size={8} wrap>
-        <EditOutlined />
+        <MoreOutlined />
         <Typography.Text strong>{t('execViewer.item.unknown')}</Typography.Text>
       </Space>
     );
@@ -258,14 +258,14 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
     if (item.kind === 'reasoning') {
       const running = toThoughtStatus(item) === 'loading';
       return (
-        <ExecutionThink title={t('execViewer.item.reasoning')} icon={<EditOutlined />} loading={running} blink={running} defaultExpanded={false}>
+        <ExecutionThink title={t('execViewer.item.reasoning')} icon={<MoreOutlined />} loading={running} blink={running} defaultExpanded={false}>
           <pre className="hc-exec-output hc-exec-output--mono">{item.text || '-'}</pre>
         </ExecutionThink>
       );
     }
 
     return (
-      <ExecutionThink title={t('execViewer.item.unknown')} icon={<EditOutlined />} defaultExpanded={false}>
+      <ExecutionThink title={t('execViewer.item.unknown')} icon={<MoreOutlined />} defaultExpanded={false}>
         <pre className="hc-exec-output hc-exec-output--mono">{JSON.stringify((item as any).raw ?? item, null, 2)}</pre>
       </ExecutionThink>
     );
