@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { applyExecutionLogLine, buildExecutionTimeline, createEmptyTimeline, parseExecutionLogLine } from '../utils/executionLog';
 
+// Extend execution log parsing tests for Claude Code JSONL support. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123
+
 describe('executionLog', () => {
   test('parseExecutionLogLine parses Codex command_execution items', () => {
     const line = JSON.stringify({
@@ -16,13 +18,14 @@ describe('executionLog', () => {
     });
 
     const parsed = parseExecutionLogLine(line);
-    expect(parsed.kind).toBe('item');
-    if (parsed.kind !== 'item') return;
-    expect(parsed.item.kind).toBe('command_execution');
-    if (parsed.item.kind !== 'command_execution') return;
-    expect(parsed.item.command).toContain('ls');
-    expect(parsed.item.output).toBe('hello');
-    expect(parsed.item.exitCode).toBe(0);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].kind).toBe('item');
+    if (parsed[0].kind !== 'item') return;
+    expect(parsed[0].item.kind).toBe('command_execution');
+    if (parsed[0].item.kind !== 'command_execution') return;
+    expect(parsed[0].item.command).toContain('ls');
+    expect(parsed[0].item.output).toBe('hello');
+    expect(parsed[0].item.exitCode).toBe(0);
   });
 
   test('parseExecutionLogLine parses HookCode file diff events', () => {
@@ -37,12 +40,60 @@ describe('executionLog', () => {
     });
 
     const parsed = parseExecutionLogLine(line);
-    expect(parsed.kind).toBe('file_diff');
-    if (parsed.kind !== 'file_diff') return;
-    expect(parsed.itemId).toBe('item_file_1');
-    expect(parsed.diff.path).toBe('README.md');
-    expect(parsed.diff.oldText).toBe('a');
-    expect(parsed.diff.newText).toBe('b');
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].kind).toBe('file_diff');
+    if (parsed[0].kind !== 'file_diff') return;
+    expect(parsed[0].itemId).toBe('item_file_1');
+    expect(parsed[0].diff.path).toBe('README.md');
+    expect(parsed[0].diff.oldText).toBe('a');
+    expect(parsed[0].diff.newText).toBe('b');
+  });
+
+  test('parseExecutionLogLine parses Claude Code assistant text messages', () => {
+    const line = JSON.stringify({
+      type: 'assistant',
+      message: {
+        id: 'msg_1',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Hello from Claude Code' }]
+      }
+    });
+
+    const parsed = parseExecutionLogLine(line);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].kind).toBe('item');
+    if (parsed[0].kind !== 'item') return;
+    expect(parsed[0].item.kind).toBe('agent_message');
+    if (parsed[0].item.kind !== 'agent_message') return;
+    expect(parsed[0].item.text).toContain('Claude Code');
+  });
+
+  test('buildExecutionTimeline merges Claude Code tool_use and tool_result entries', () => {
+    const lines = [
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          id: 'msg_2',
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'tooluse_1', name: 'Glob', input: { pattern: '*' } }]
+        }
+      }),
+      JSON.stringify({
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'tooluse_1', content: 'matched.txt' }]
+        }
+      })
+    ];
+
+    const timeline = buildExecutionTimeline(lines);
+    const tool = timeline.items.find((item) => item.id === 'tooluse_1');
+    expect(tool?.kind).toBe('command_execution');
+    if (tool?.kind !== 'command_execution') return;
+    expect(tool.command).toContain('Glob');
+    expect(tool.output).toContain('matched.txt');
+    expect(tool.status).toBe('completed');
   });
 
   test('buildExecutionTimeline merges started/completed items and attaches diffs', () => {
@@ -92,4 +143,3 @@ describe('executionLog', () => {
     expect(applied.items.length).toBe(1);
   });
 });
-
