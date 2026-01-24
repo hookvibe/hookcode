@@ -72,7 +72,12 @@ import {
 } from './dto/repositories-swagger.dto';
 import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
 import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
-import { normalizeRepoWorkflowMode, resolveRepoWorkflowMode } from '../../services/repoWorkflowMode';
+import {
+  ensureGithubForkRepo,
+  ensureGitlabForkProject,
+  normalizeRepoWorkflowMode,
+  resolveRepoWorkflowMode
+} from '../../services/repoWorkflowMode'; // Import fork workflow helpers for controller checks. docs/en/developer/plans/repoctrlfix20260124/task_plan.md repoctrlfix20260124
 import { TestRepoRobotWorkflowDto } from './dto/test-repo-robot-workflow.dto';
 
 const normalizeProvider = (value: unknown): RepoProvider => {
@@ -900,6 +905,7 @@ export class RepositoriesController {
       const cloneUsername = normalizeNullableTrimmedString(body?.cloneUsername, 'cloneUsername');
       const repoCredentialRemark = normalizeNullableTrimmedString(body?.repoCredentialRemark, 'repoCredentialRemark');
       // Capture explicit workflow mode for robot creation (auto/direct/fork). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      // De-duplicate repoWorkflowMode input parsing to avoid scope redeclare errors. docs/en/developer/plans/repoctrlfix20260124/task_plan.md repoctrlfix20260124
       const repoWorkflowMode = normalizeRepoWorkflowModeInput(body?.repoWorkflowMode);
 
       // Enforce explicit scope selection (robot/user/repo) now that both user/repo credentials can have multiple profiles.
@@ -932,9 +938,6 @@ export class RepositoriesController {
       const defaultBranch = body?.defaultBranch === undefined ? undefined : normalizeDefaultBranch(body?.defaultBranch);
       const defaultBranchRole =
         body?.defaultBranchRole === undefined ? undefined : normalizeDefaultBranchRole(body?.defaultBranchRole);
-      // Capture explicit workflow mode updates for the robot. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
-      const repoWorkflowMode =
-        body?.repoWorkflowMode === undefined ? undefined : normalizeRepoWorkflowModeInput(body?.repoWorkflowMode);
       const promptDefault = typeof body?.promptDefault === 'string' ? body.promptDefault.trim() : '';
       if (!promptDefault) {
         throw new BadRequestException({ error: 'promptDefault is required' });
@@ -1131,6 +1134,8 @@ export class RepositoriesController {
       const defaultBranch = body?.defaultBranch === undefined ? undefined : normalizeDefaultBranch(body?.defaultBranch);
       const defaultBranchRole =
         body?.defaultBranchRole === undefined ? undefined : normalizeDefaultBranchRole(body?.defaultBranchRole);
+      // Normalize repo workflow mode patch input for robot updates. docs/en/developer/plans/repoctrlfix20260124/task_plan.md repoctrlfix20260124
+      const repoWorkflowMode = normalizeRepoWorkflowModeInput(body?.repoWorkflowMode);
       const promptDefault =
         body?.promptDefault === undefined ? undefined : typeof body?.promptDefault === 'string' ? body.promptDefault.trim() : '';
       if (body?.promptDefault !== undefined && !promptDefault) {
