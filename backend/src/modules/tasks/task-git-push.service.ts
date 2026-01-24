@@ -1,13 +1,11 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { stat } from 'fs/promises';
-import path from 'path';
 import {
-  BUILD_ROOT,
+  buildTaskGroupWorkspaceDir,
   collectGitStatusSnapshot,
   getRepoCloneUrl,
   getRepoSlug,
   injectBasicAuth,
-  resolveCheckoutRef,
   resolveExecution,
   runCommandCapture,
   shDoubleQuote
@@ -57,12 +55,9 @@ export class TaskGitPushService {
       throw new ForbiddenException({ error: 'Robot is not allowed to push', code: 'GIT_PUSH_FORBIDDEN' });
     }
 
-    const branchHint = safeTrim(gitStatus.final?.branch || gitStatus.baseline?.branch);
-    const checkout = resolveCheckoutRef({ task, payload, repo: execution.repo, robot: execution.robot });
-    const ref = branchHint && branchHint !== 'HEAD' ? branchHint : checkout.ref;
-    const refSlug = ref ? ref.replace(/[^\w.-]/g, '_') : 'default';
     const repoSlug = getRepoSlug(execution.provider, payload, task.id);
-    const repoDir = path.join(BUILD_ROOT, `${execution.provider}__${repoSlug}__${refSlug}`);
+    // Reuse the task-group workspace so pushes target the same checkout used by the task. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    const repoDir = buildTaskGroupWorkspaceDir({ taskGroupId: task.groupId, taskId: task.id, provider: execution.provider, repoSlug });
 
     try {
       await stat(repoDir);

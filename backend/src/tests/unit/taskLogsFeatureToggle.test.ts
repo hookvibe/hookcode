@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { TasksController } from '../../modules/tasks/tasks.controller';
 import { HttpException } from '@nestjs/common';
 import { TaskLogStream } from '../../modules/tasks/task-log-stream.service';
+import { TaskGitPushService } from '../../modules/tasks/task-git-push.service'; // Provide TaskGitPushService token for unit test DI. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
 import { TaskRunner } from '../../modules/tasks/task-runner.service';
 import { TaskService } from '../../modules/tasks/task.service';
 import { isTaskLogsDbEnabled, isTaskLogsEnabled, isTaskLogsVisibleEnabled } from '../../config/features';
@@ -39,12 +40,16 @@ describe('task logs feature toggles (TASK_LOGS_DB_ENABLED / TASK_LOGS_VISIBLE_EN
     const taskService = { getTask: jest.fn() } as any;
     const taskLogStream = { subscribe: jest.fn() } as any;
     const taskRunner = {} as any;
+    // Stub TaskGitPushService to satisfy TasksController DI in unit tests. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+    const taskGitPushService = {} as any;
     const moduleRef = await Test.createTestingModule({
       controllers: [TasksController],
       providers: [
         { provide: TaskService, useValue: taskService },
         { provide: TaskLogStream, useValue: taskLogStream },
-        { provide: TaskRunner, useValue: taskRunner }
+        { provide: TaskRunner, useValue: taskRunner },
+        // Provide TaskGitPushService in the test module to match controller constructor. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+        { provide: TaskGitPushService, useValue: taskGitPushService }
       ]
     }).compile();
     const ctrl = moduleRef.get(TasksController);
@@ -85,12 +90,16 @@ describe('task logs feature toggles (TASK_LOGS_DB_ENABLED / TASK_LOGS_VISIBLE_EN
     } as any;
     const taskLogStream = { subscribe: jest.fn() } as any;
     const taskRunner = {} as any;
+    // Stub TaskGitPushService to satisfy TasksController DI in unit tests. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+    const taskGitPushService = {} as any;
     const moduleRef = await Test.createTestingModule({
       controllers: [TasksController],
       providers: [
         { provide: TaskService, useValue: taskService },
         { provide: TaskLogStream, useValue: taskLogStream },
-        { provide: TaskRunner, useValue: taskRunner }
+        { provide: TaskRunner, useValue: taskRunner },
+        // Provide TaskGitPushService in the test module to match controller constructor. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+        { provide: TaskGitPushService, useValue: taskGitPushService }
       ]
     }).compile();
     const ctrl = moduleRef.get(TasksController);
@@ -115,12 +124,16 @@ describe('task logs feature toggles (TASK_LOGS_DB_ENABLED / TASK_LOGS_VISIBLE_EN
     const taskService = { getTask: jest.fn() } as any;
     const taskLogStream = { subscribe: jest.fn() } as any;
     const taskRunner = {} as any;
+    // Stub TaskGitPushService to satisfy TasksController DI in unit tests. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+    const taskGitPushService = {} as any;
     const moduleRef = await Test.createTestingModule({
       controllers: [TasksController],
       providers: [
         { provide: TaskService, useValue: taskService },
         { provide: TaskLogStream, useValue: taskLogStream },
-        { provide: TaskRunner, useValue: taskRunner }
+        { provide: TaskRunner, useValue: taskRunner },
+        // Provide TaskGitPushService in the test module to match controller constructor. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+        { provide: TaskGitPushService, useValue: taskGitPushService }
       ]
     }).compile();
     const ctrl = moduleRef.get(TasksController);

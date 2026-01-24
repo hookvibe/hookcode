@@ -75,6 +75,8 @@ import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAhea
  */
 // Export agent workspace root for shared git operations. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 export const BUILD_ROOT = path.join(__dirname, 'build');
+// Centralize task-group workspace root so each group maps to a single checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+export const TASK_GROUP_WORKSPACE_ROOT = path.join(BUILD_ROOT, 'task-groups');
 const MAX_LOG_LINES = 1000;
 
 let taskService: TaskService;
@@ -107,6 +109,19 @@ const formatRef = (ref?: string) => ref?.replace(/^refs\/heads\//, '');
 const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 const isUuidLike = (value: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+// Build task-group workspace paths with a taskId fallback when group ids are missing. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+export const buildTaskGroupWorkspaceDir = (params: {
+  taskGroupId?: string | null;
+  taskId: string;
+  provider: RepoProvider;
+  repoSlug: string;
+}): string => {
+  const workspaceKey = safeTrim(params.taskGroupId) || safeTrim(params.taskId) || 'task';
+  const providerKey = safeTrim(params.provider) || 'repo';
+  const slugKey = safeTrim(params.repoSlug) || 'repo';
+  return path.join(TASK_GROUP_WORKSPACE_ROOT, `${workspaceKey}__${providerKey}__${slugKey}`);
+};
 
 const pickCredentialProfile = (
   creds: { profiles?: Array<{ id?: string; apiKey?: string; apiBaseUrl?: string }> | null; defaultProfileId?: string } | null | undefined,
@@ -524,6 +539,34 @@ async function callAgent(
     await appendLine(line);
   };
 
+  const appendThoughtChainLine = async (payload: Record<string, unknown>) => {
+    // Emit structured JSONL log entries for ThoughtChain rendering. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    await appendLine(JSON.stringify(payload));
+  };
+
+  const appendThoughtChainCommand = async (params: {
+    id: string;
+    status: 'started' | 'completed' | 'failed';
+    command: string;
+    output?: string;
+    exitCode?: number | null;
+  }) => {
+    // Normalize git workspace logs into command_execution items for the UI timeline. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    const status = params.status === 'started' ? 'in_progress' : params.status;
+    const type = params.status === 'started' ? 'item.started' : 'item.completed';
+    await appendThoughtChainLine({
+      type,
+      item: {
+        id: params.id,
+        type: 'command_execution',
+        status,
+        command: redactSensitiveText(params.command),
+        aggregated_output: params.output ? redactSensitiveText(params.output) : undefined,
+        exit_code: typeof params.exitCode === 'number' ? params.exitCode : undefined
+      }
+    });
+  };
+
   const finalizeGitStatus = (finalCapture: {
     snapshot?: TaskGitStatusSnapshot;
     workingTree?: TaskGitStatusWorkingTree;
@@ -576,16 +619,17 @@ async function callAgent(
       robot: execution.robot
     });
     const checkoutRef = checkout.ref;
-    const refSlug = checkoutRef ? checkoutRef.replace(/[^\w.-]/g, '_') : 'default';
     // Keep repoDir in outer scope so failure handlers can still inspect git state. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-    repoDir = path.join(BUILD_ROOT, `${execution.provider}__${repoSlug}__${refSlug}`);
+    // Bind the workspace to task group ids so each group has a dedicated repo checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    repoDir = buildTaskGroupWorkspaceDir({ taskGroupId, taskId: task.id, provider: execution.provider, repoSlug });
 
     if (!repoUrl) {
       await appendLog('Repository URL not found; cannot proceed');
       throw new Error('missing repo url');
     }
 
-    await mkdir(BUILD_ROOT, { recursive: true });
+    // Ensure the task-group workspace root exists before clone/pull operations. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    await mkdir(TASK_GROUP_WORKSPACE_ROOT, { recursive: true });
 
     await appendLog(`Preparing work directory ${repoDir}`);
     if (checkoutRef) {
@@ -593,13 +637,32 @@ async function callAgent(
     } else {
       await appendLog('No checkout branch specified; using the repository default branch');
     }
-    let repoExists = false;
+    // Treat task-group workspaces as ready only when a .git directory exists to avoid partial clones. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    const workspaceLabel = taskGroupId ? `task group ${taskGroupId}` : `task ${task.id}`;
+    const workspaceItemId = `task_group_workspace_${taskGroupId ?? task.id}`;
+    const gitDir = path.join(repoDir, '.git');
+    let workspaceReady = false;
+    let repoDirExists = false;
     try {
       await stat(repoDir);
-      repoExists = true;
+      repoDirExists = true;
     } catch (_) {
-      repoExists = false;
+      repoDirExists = false;
     }
+    if (repoDirExists) {
+      try {
+        await stat(gitDir);
+        workspaceReady = true;
+      } catch (_) {
+        workspaceReady = false;
+      }
+    }
+    if (repoDirExists && !workspaceReady) {
+      await appendLog('Workspace directory exists without git metadata; recreating workspace');
+      await rm(repoDir, { recursive: true, force: true });
+    }
+    // Only allow git network sync during the first task-group workspace initialization. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    const allowNetworkPull = !workspaceReady;
 
     const cloneRepo = async () => {
       const injected = upstreamInjected;
@@ -642,24 +705,28 @@ async function callAgent(
     });
     const upstreamInjected = injectBasicAuth(repoUrl, cloneAuth); // Ensure fetch/pull always uses upstream even after remotes drift. 24yz61mdik7tqdgaa152
 
-    if (!repoExists) {
-      await cloneRepo();
-    } else {
-      await appendLog(`Updating repository ${repoDir}`);
+    // Emit a ThoughtChain command entry for task-group repo preparation. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    if (!workspaceReady) {
+      const cloneCommand = `git clone ${upstreamInjected.displayUrl} ${repoDir} (${workspaceLabel})`;
+      await appendThoughtChainCommand({ id: workspaceItemId, status: 'started', command: cloneCommand });
       try {
-        await streamCommand(`cd ${repoDir} && git remote set-url origin ${shDoubleQuote(upstreamInjected.execUrl)}`, appendRawLog, {
-          env: { GIT_TERMINAL_PROMPT: '0' },
-          redact: redactSensitiveText
-        });
-        await streamCommand(`cd ${repoDir} && git fetch origin`, appendRawLog, {
-          env: { GIT_TERMINAL_PROMPT: '0' },
-          redact: redactSensitiveText
-        });
-      } catch (err: any) {
-        await appendLog(`git fetch failed; trying to re-clone: ${err.message || err}`);
-        await rm(repoDir, { recursive: true, force: true });
         await cloneRepo();
+        await appendThoughtChainCommand({ id: workspaceItemId, status: 'completed', command: cloneCommand });
+      } catch (err: any) {
+        await appendThoughtChainCommand({
+          id: workspaceItemId,
+          status: 'failed',
+          command: cloneCommand,
+          output: err?.message || String(err)
+        });
+        throw err;
       }
+    } else {
+      await appendThoughtChainCommand({
+        id: workspaceItemId,
+        status: 'completed',
+        command: `Reuse task group workspace (skip git pull): ${repoDir} (${workspaceLabel})`
+      });
     }
 
     if (checkoutRef) {
@@ -669,18 +736,23 @@ async function callAgent(
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
         });
-        await streamCommand(
-          `cd ${repoDir} && git pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`,
-          appendRawLog,
-          {
-            env: { GIT_TERMINAL_PROMPT: '0' },
-            redact: redactSensitiveText
-          }
-        );
+        if (allowNetworkPull) {
+          await streamCommand(
+            `cd ${repoDir} && git pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`,
+            appendRawLog,
+            {
+              env: { GIT_TERMINAL_PROMPT: '0' },
+              redact: redactSensitiveText
+            }
+          );
+        } else {
+          // Keep logs explicit when skipping network pulls for existing task-group workspaces. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+          await appendLog(`Skipping git pull for existing ${workspaceLabel} workspace`);
+        }
       } catch (err: any) {
         await appendLog(`Checkout/pull failed: ${err.message || err}`);
       }
-    } else if (repoExists) {
+    } else if (allowNetworkPull) {
       try {
         await appendLog('Updating default branch');
         await streamCommand(`cd ${repoDir} && git pull --no-rebase`, appendRawLog, {

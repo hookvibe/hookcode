@@ -11,7 +11,10 @@ jest.mock('fs/promises', () => ({
 jest.mock('../../agent/agent', () => {
   return {
     __esModule: true,
-    BUILD_ROOT: '/tmp/build',
+    // Mock the task-group workspace builder so push paths stay aligned with agent behavior. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    buildTaskGroupWorkspaceDir: jest
+      .fn()
+      .mockImplementation(({ taskGroupId, taskId, provider, repoSlug }) => `/tmp/build/task-groups/${taskGroupId ?? taskId}__${provider}__${repoSlug}`),
     collectGitStatusSnapshot: jest.fn(),
     getRepoCloneUrl: jest.fn().mockReturnValue('https://example.com/upstream.git'),
     getRepoSlug: jest.fn().mockReturnValue('org__repo'),
@@ -23,7 +26,7 @@ jest.mock('../../agent/agent', () => {
   };
 });
 
-import { collectGitStatusSnapshot, resolveExecution, runCommandCapture } from '../../agent/agent';
+import { buildTaskGroupWorkspaceDir, collectGitStatusSnapshot, resolveExecution, runCommandCapture } from '../../agent/agent';
 import { TaskGitPushService } from '../../modules/tasks/task-git-push.service';
 
 describe('TaskGitPushService', () => {
@@ -35,6 +38,7 @@ describe('TaskGitPushService', () => {
     const taskService = {
       getTask: jest.fn().mockResolvedValue({
         id: 't1',
+        groupId: 'g1',
         payload: {},
         result: { gitStatus: { enabled: true, push: { status: 'pushed' } } }
       })
@@ -49,6 +53,7 @@ describe('TaskGitPushService', () => {
     const taskService = {
       getTask: jest.fn().mockResolvedValue({
         id: 't2',
+        groupId: 'g2',
         payload: {},
         result: {
           repoWorkflow: { mode: 'fork', upstream: { cloneUrl: 'https://example.com/up.git' }, fork: { cloneUrl: 'https://example.com/fork.git' } },
@@ -85,6 +90,10 @@ describe('TaskGitPushService', () => {
     const service = new TaskGitPushService(taskService, {} as any);
 
     await expect(service.pushTask('t2')).rejects.toBeInstanceOf(ConflictException);
+    // Route pushes through the task-group workspace builder to match agent checkout paths. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    expect(buildTaskGroupWorkspaceDir).toHaveBeenCalledWith(
+      expect.objectContaining({ taskGroupId: 'g2', taskId: 't2', provider: 'github', repoSlug: 'org__repo' })
+    );
     // Capture push failure in task git status so UI can display error. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
     expect(taskService.updateResult).toHaveBeenCalledWith(
       't2',
@@ -98,6 +107,7 @@ describe('TaskGitPushService', () => {
         .fn()
         .mockResolvedValueOnce({
           id: 't3',
+          groupId: 'g3',
           payload: {},
           result: {
             repoWorkflow: { mode: 'fork', upstream: { cloneUrl: 'https://example.com/up.git' }, fork: { cloneUrl: 'https://example.com/fork.git' } },
@@ -106,6 +116,7 @@ describe('TaskGitPushService', () => {
         })
         .mockResolvedValueOnce({
           id: 't3',
+          groupId: 'g3',
           payload: {},
           result: {
             gitStatus: { enabled: true, push: { status: 'pushed' } }
@@ -159,6 +170,7 @@ describe('TaskGitPushService', () => {
     const taskService = {
       getTask: jest.fn().mockResolvedValue({
         id: 't4',
+        groupId: 'g4',
         payload: {},
         result: {
           repoWorkflow: { mode: 'fork', upstream: { cloneUrl: 'https://example.com/up.git' }, fork: { cloneUrl: 'https://example.com/fork.git' } },
