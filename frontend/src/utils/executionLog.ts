@@ -15,6 +15,12 @@ export type ExecutionFileDiff = {
   newText?: string;
 };
 
+// Represent todo_list entries so the exec viewer can render task progress instead of "unknown". docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123
+export type ExecutionTodoItem = {
+  text: string;
+  completed: boolean;
+};
+
 export type ExecutionItem =
   | {
       kind: 'command_execution';
@@ -42,6 +48,12 @@ export type ExecutionItem =
       id: string;
       status: ExecutionItemStatus;
       text: string;
+    }
+  | {
+      kind: 'todo_list';
+      id: string;
+      status: ExecutionItemStatus;
+      items: ExecutionTodoItem[];
     }
   | {
       kind: 'unknown';
@@ -339,6 +351,21 @@ export const parseExecutionLogLine = (line: string): ParsedLine[] => {
     return [{ kind: 'item', item: { kind: 'reasoning', id: itemId, status, text } }];
   }
 
+  if (itemType === 'todo_list') {
+    // Capture todo_list payloads as structured items for the timeline. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123
+    const items: ExecutionTodoItem[] = Array.isArray(itemRaw.items)
+      ? itemRaw.items
+          .map((entry: unknown) => {
+            if (!isRecord(entry)) return null;
+            const text = asString(entry.text).trim();
+            if (!text) return null;
+            return { text, completed: entry.completed === true };
+          })
+          .filter((entry): entry is ExecutionTodoItem => Boolean(entry))
+      : [];
+    return [{ kind: 'item', item: { kind: 'todo_list', id: itemId, status, items } }];
+  }
+
   return [{ kind: 'item', item: { kind: 'unknown', id: itemId, status, itemType, raw: itemRaw } }];
 };
 
@@ -396,6 +423,13 @@ const mergeItems = (prev: ExecutionItem, next: ExecutionItem): ExecutionItem => 
     const n = next;
     const p = prev as Extract<ExecutionItem, { kind: 'reasoning' }>;
     return { ...p, status: n.status || p.status, text: n.text || p.text };
+  }
+
+  if (next.kind === 'todo_list') {
+    // Merge todo_list updates by preferring the latest items payload. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123
+    const n = next;
+    const p = prev as Extract<ExecutionItem, { kind: 'todo_list' }>;
+    return { ...p, status: n.status || p.status, items: n.items?.length ? n.items : p.items };
   }
 
   return next;

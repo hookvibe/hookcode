@@ -42,15 +42,25 @@
 
 ### Phase 3: Implementation
 <!-- WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. -->
-- **Status:** in_progress
+- **Status:** complete
 - Actions taken:
   - Implemented git status capture in agent flow (baseline + final + push check).
   - Wired git status persistence through TaskRunner and AgentExecutionError.
   - Added TaskGitStatusPanel for task detail + task group UIs.
   - Added i18n strings and unit tests for git status utilities.
   - Fixed push status handling for empty `git ls-remote` output.
+  - Added task-level git push API and service with fork-only guards.
+  - Moved task group git status panel to bottom and aligned full-width styling.
+  - Wired frontend push action with loading/error feedback in git status panel.
+  - Added unit tests for git push service.
+  - Added push guards for workspace head drift and push-remote mismatch with localized UI errors.
+  - Labeled push success with target and added mismatch warning copy in the git status panel.
 - Files created/modified:
   - backend/src/agent/agent.ts
+  - backend/src/modules/tasks/task-git-push.service.ts
+  - backend/src/modules/tasks/tasks.controller.ts
+  - backend/src/modules/tasks/tasks.module.ts
+  - backend/src/tests/unit/taskGitPush.test.ts
   - backend/src/modules/tasks/task-runner.service.ts
   - backend/src/tests/unit/gitStatus.test.ts
   - backend/src/tests/unit/gitWorkflow.test.ts
@@ -60,14 +70,33 @@
   - frontend/src/pages/TaskDetailPage.tsx
   - frontend/src/i18n/messages/en-US.ts
   - frontend/src/i18n/messages/zh-CN.ts
+  - frontend/src/api.ts
+  - frontend/src/styles.css
   - backend/src/agent/agent.ts
   - backend/src/tests/unit/gitStatus.test.ts
+
+### Phase 4: Testing & Verification
+<!-- WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. -->
+- **Status:** complete
+- Actions taken:
+  - Ran backend unit tests for the git push service.
+  - Reviewed UI layout changes in code to confirm panel placement and width rules.
+  - Re-ran git push unit tests after adding head/remote mismatch guards.
+- Files created/modified:
+  - backend/src/tests/unit/taskGitPush.test.ts
+  - frontend/src/components/chat/TaskConversationItem.tsx
+  - frontend/src/components/tasks/TaskGitStatusPanel.tsx
+  - frontend/src/styles.css
+  - frontend/src/i18n/messages/en-US.ts
+  - frontend/src/i18n/messages/zh-CN.ts
 
 ### Phase 5: Delivery
 <!-- WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. -->
 - **Status:** complete
 - Actions taken:
   - Added change log entry for this session.
+  - Updated changelog entry to reflect git push action + git status panel layout changes.
+  - Updated changelog entry to include head/remote mismatch push guards.
 - Files created/modified:
   - docs/en/change-log/0.0.0.md
 
@@ -76,13 +105,14 @@
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | backend jest (gitStatus) | `pnpm -C backend test -- gitStatus` | Pass selected unit tests | PASS | ✓ |
+| backend jest (taskGitPush) | `pnpm -C backend test -- taskGitPush` | Pass git push service tests | PASS | ✓ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
 {/* Keep ALL errors - they help avoid repetition */}
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-|           |       | 1       |            |
+| 2026-01-23 16:20 | taskGitPush tests failed (injectBasicAuth undefined after resetAllMocks) | 1 | Replaced resetAllMocks with clearAllMocks in taskGitPush test. |
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}

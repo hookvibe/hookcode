@@ -71,7 +71,8 @@ import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAhea
  *   which powers console SSE (`backend/src/routes/tasks.ts`) and the frontend log viewer (`frontend/src/components/TaskLogViewer.tsx`).
  * - Security: redacts sensitive info in external logs (tokens / URL basic auth) to avoid storing secrets in DB or provider comments.
  */
-const BUILD_ROOT = path.join(__dirname, 'build');
+// Export agent workspace root for shared git operations. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const BUILD_ROOT = path.join(__dirname, 'build');
 const MAX_LOG_LINES = 1000;
 
 let taskService: TaskService;
@@ -147,7 +148,8 @@ const toErrorSummary = (err: unknown): Record<string, unknown> => {
   }
   return { message: String(err) };
 };
-const shDoubleQuote = (value: string) =>
+// Export shell-escape helper for shared git commands. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const shDoubleQuote = (value: string) =>
   `"${String(value)
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
@@ -179,7 +181,8 @@ const resolveBranchByLegacyRole = (repo: Repository | null, role: RepoRobot['def
   return '';
 };
 
-const resolveCheckoutRef = (params: {
+// Export checkout ref resolution so push actions reuse task branch selection. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const resolveCheckoutRef = (params: {
   task: Task;
   payload: any;
   repo: Repository | null;
@@ -227,7 +230,8 @@ const redactTokensInText = (text: string): string =>
 const redactSensitiveText = (text: string): string =>
   redactTokensInText(redactUrlAuthInText(text));
 
-const injectBasicAuth = (
+// Export git auth injection helper for push flows. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const injectBasicAuth = (
   rawUrl: string,
   auth?: { username: string; password: string }
 ): { execUrl: string; displayUrl: string } => {
@@ -271,7 +275,8 @@ const buildGitlabLogDetails = (logs: string[]): string => {
   return `<details${open}><summary>${escapeHtml(summary)}</summary>\n\n<pre><code>${detailsBody}</code></pre>\n\n</details>`;
 };
 
-const getRepoCloneUrl = (provider: RepoProvider, payload: any): string | undefined => {
+// Export repo URL helper for git push actions. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const getRepoCloneUrl = (provider: RepoProvider, payload: any): string | undefined => {
   if (provider === 'gitlab') {
     const project = payload?.project ?? {};
     return project.git_http_url || project.http_url || project.http_url_to_repo;
@@ -283,7 +288,8 @@ const getRepoCloneUrl = (provider: RepoProvider, payload: any): string | undefin
   return undefined;
 };
 
-const getRepoSlug = (provider: RepoProvider, payload: any, fallback: string): string => {
+// Export repo slug helper to align workspace paths across actions. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const getRepoSlug = (provider: RepoProvider, payload: any, fallback: string): string => {
   if (provider === 'gitlab') {
     const project = payload?.project ?? {};
     return (
@@ -350,7 +356,8 @@ interface ResolvedExecution {
   github?: GithubService;
 }
 
-const resolveExecution = async (
+// Export execution resolver for shared push flows. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const resolveExecution = async (
   task: Task,
   payload: any,
   log: (msg: string) => Promise<void>
@@ -1457,7 +1464,8 @@ interface CaptureOptions {
   redact?: (text: string) => string;
 }
 
-const runCommandCapture = async (
+// Export command capture for shared git operations outside the agent run. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const runCommandCapture = async (
   command: string,
   options: CaptureOptions = {}
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
@@ -1492,7 +1500,8 @@ const runCommandCapture = async (
   });
 };
 
-const collectGitStatusSnapshot = async (params: {
+// Export git status capture so push actions can refresh status. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const collectGitStatusSnapshot = async (params: {
   repoDir: string;
   includeWorkingTree?: boolean;
 }): Promise<{

@@ -81,13 +81,6 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
         </Card>
       </div>
 
-      {mergedTask?.result?.gitStatus?.enabled ? (
-        <div className="hc-chat-item__assistant">
-          {/* Show git status in task groups so write-enabled changes are visible in chat. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
-          <TaskGitStatusPanel task={mergedTask} variant="compact" />
-        </div>
-      ) : null}
-
       {/* 3) Thought chain (logs) */}
       <div className="hc-chat-item__assistant">
         <Card size="small" className="hc-chat-logs-card" styles={{ body: { padding: 12 } }}>
@@ -114,6 +107,13 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
           ) : (
             <Typography.Text type="secondary">{t('chat.message.resultEmpty')}</Typography.Text>
           )}
+        </div>
+      ) : null}
+
+      {mergedTask?.result?.gitStatus?.enabled ? (
+        <div className="hc-chat-item__assistant">
+          {/* Place git status at the bottom of each chat item with full width. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
+          <TaskGitStatusPanel task={mergedTask} variant="compact" />
         </div>
       ) : null}
     </div>

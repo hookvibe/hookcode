@@ -285,6 +285,12 @@ export const retryTask = async (taskId: string, options?: { force?: boolean }): 
   return data.task;
 };
 
+export const pushTaskGitChanges = async (taskId: string): Promise<Task> => {
+  // Trigger a git push for forked task changes and return the updated task. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/git/push`);
+  return data.task;
+};
+
 export const deleteTask = async (taskId: string): Promise<void> => {
   await api.delete(`/tasks/${taskId}`);
 };

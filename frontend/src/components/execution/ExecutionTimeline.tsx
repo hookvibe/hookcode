@@ -1,6 +1,6 @@
 import { FC, type ReactNode, useMemo, useState } from 'react';
 import { Space, Tag, Typography } from 'antd';
-import { CaretDownOutlined, CaretRightOutlined, CodeOutlined, FileTextOutlined, MessageOutlined, MoreOutlined } from '@ant-design/icons';
+import { CaretDownOutlined, CaretRightOutlined, CheckSquareOutlined, CodeOutlined, FileTextOutlined, MessageOutlined, MoreOutlined } from '@ant-design/icons';
 import { Think, ThoughtChain, type ThoughtChainItemType } from '@ant-design/x';
 import type { ExecutionFileDiff, ExecutionItem } from '../../utils/executionLog';
 import { useT } from '../../i18n';
@@ -145,6 +145,19 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
       );
     }
 
+    if (item.kind === 'todo_list') {
+      // Surface todo_list progress in the timeline header for quick scanning. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123
+      const total = item.items.length;
+      const completed = item.items.filter((entry) => entry.completed).length;
+      return (
+        <Space size={8} wrap>
+          <CheckSquareOutlined />
+          <Typography.Text strong>{t('execViewer.item.todoList')}</Typography.Text>
+          {total ? <Typography.Text type="secondary">{t('execViewer.todo.progress', { done: completed, total })}</Typography.Text> : null}
+        </Space>
+      );
+    }
+
     return (
       <Space size={8} wrap>
         <MoreOutlined />
@@ -180,6 +193,11 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
 
     if (item.kind === 'reasoning') {
       // Move reasoning snippets into ThoughtChain titles to keep the node scan-friendly without duplicate lines. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
+      return null;
+    }
+
+    if (item.kind === 'todo_list') {
+      // The todo_list header already includes progress, so keep the description clean. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123
       return null;
     }
 
@@ -260,6 +278,27 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
       return (
         <ExecutionThink title={t('execViewer.item.reasoning')} icon={<MoreOutlined />} loading={running} blink={running} defaultExpanded={false}>
           <pre className="hc-exec-output hc-exec-output--mono">{item.text || '-'}</pre>
+        </ExecutionThink>
+      );
+    }
+
+    if (item.kind === 'todo_list') {
+      // Render todo_list items with completion styling to avoid the "unknown event" fallback. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123
+      const running = toThoughtStatus(item) === 'loading';
+      return (
+        <ExecutionThink title={t('execViewer.item.todoList')} icon={<CheckSquareOutlined />} loading={running} blink={running} defaultExpanded={false}>
+          {item.items.length ? (
+            <div className="hc-exec-todo">
+              {item.items.map((entry, index) => (
+                <div key={`${entry.text}-${index}`} className={`hc-exec-todo__item${entry.completed ? ' is-complete' : ''}`}>
+                  <span className="hc-exec-todo__marker" />
+                  <Typography.Text delete={entry.completed}>{entry.text}</Typography.Text>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Typography.Text type="secondary">{t('execViewer.todo.empty')}</Typography.Text>
+          )}
         </ExecutionThink>
       );
     }

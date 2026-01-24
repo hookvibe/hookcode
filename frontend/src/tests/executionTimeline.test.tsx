@@ -73,4 +73,29 @@ describe('ExecutionTimeline', () => {
     ).not.toThrow();
     expect(container.querySelector('.hc-exec-thought-chain')).toBeTruthy();
   });
+
+  test('renders todo_list items with completion markers', async () => {
+    // Validate todo_list rendering to avoid "unknown event" fallbacks. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123
+    const user = userEvent.setup();
+    const items: ExecutionItem[] = [
+      {
+        kind: 'todo_list',
+        id: 'todo_1',
+        status: 'in_progress',
+        items: [
+          { text: 'First task', completed: false },
+          { text: 'Second task', completed: true }
+        ]
+      }
+    ];
+
+    const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    const toggle = container.querySelector('.hc-exec-think-title');
+    expect(toggle).toBeTruthy();
+    await user.click(toggle as HTMLElement);
+    expect(await screen.findByText('First task')).toBeInTheDocument();
+    expect(await screen.findByText('Second task')).toBeInTheDocument();
+    expect(container.querySelector('.hc-exec-todo__item.is-complete')).toBeTruthy();
+  });
 });

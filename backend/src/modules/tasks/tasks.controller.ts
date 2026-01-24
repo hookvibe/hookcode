@@ -27,6 +27,7 @@ import {
 import type { Request, Response } from 'express';
 import type { TaskLogStreamEvent } from './task-log-stream.service';
 import { TaskLogStream } from './task-log-stream.service';
+import { TaskGitPushService } from './task-git-push.service';
 import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
 import type { TaskStatus } from '../../types/task';
@@ -54,7 +55,8 @@ export class TasksController {
   constructor(
     private readonly taskService: TaskService,
     private readonly taskLogStream: TaskLogStream,
-    private readonly taskRunner: TaskRunner
+    private readonly taskRunner: TaskRunner,
+    private readonly taskGitPushService: TaskGitPushService
   ) {}
 
   private normalizeTaskStatusFilter(value: unknown): TaskStatus | 'success' | undefined {
@@ -475,6 +477,33 @@ export class TasksController {
       if (err instanceof HttpException) throw err;
       console.error('[tasks] retry failed', err);
       throw new InternalServerErrorException({ error: 'Failed to retry task' });
+    }
+  }
+
+  @Post(':id/git/push')
+  @ApiOperation({
+    summary: 'Push git changes',
+    description: 'Push forked repo changes captured by a write-enabled task.',
+    operationId: 'tasks_git_push'
+  })
+  @ApiOkResponse({ description: 'OK', type: GetTaskResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  async pushGit(@Param('id') id: string) {
+    try {
+      // Push forked changes and return refreshed git status for the UI. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+      const task = await this.taskGitPushService.pushTask(id);
+      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      const sanitized = sanitizeTaskForViewer(decorated, {
+        canViewLogs: Boolean(decorated?.permissions?.canManage) && isTaskLogsEnabled(),
+        includeOutputText: true
+      });
+      return { task: sanitized };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[tasks] push failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to push changes' });
     }
   }
 
