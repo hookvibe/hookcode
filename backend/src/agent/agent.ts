@@ -56,6 +56,8 @@ import {
 } from '../utils/repoPayload';
 // Reuse a shared console URL builder so provider messages consistently link back to the task detail page. docs/en/developer/plans/taskdetailbacklink20260122k4p8/task_plan.md taskdetailbacklink20260122k4p8
 import { getTaskConsoleUrl } from '../utils/taskConsoleUrl';
+// Build repo-external task output paths to avoid polluting working directories. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
+import { buildTaskOutputFilePath } from '../utils/taskOutputPath';
 // Keep git workflow helpers and config keys centralized for hook guard logic. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
 import { canTokenPushToUpstream, GIT_CONFIG_KEYS, normalizeGitRemoteUrl, toRepoWebUrl } from '../utils/gitWorkflow';
 // Pull git status helpers to report repo changes after write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
@@ -1025,12 +1027,19 @@ exit 0
       throw new Error(`unsupported model provider: ${modelProvider}`);
     }
 
-    const outputLastMessageFile = isClaudeCodeProvider
+    const outputLastMessageFileName = isClaudeCodeProvider
       ? 'claude-output.txt'
       : isGeminiCliProvider
         ? 'gemini-output.txt'
         : 'codex-output.txt';
-    await rm(path.join(repoDir, outputLastMessageFile), { force: true });
+    // Store provider outputs under a task-scoped directory outside the repo to avoid git pollution. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
+    const outputSelection = buildTaskOutputFilePath({ taskId: task.id, fileName: outputLastMessageFileName, repoDir });
+    const outputLastMessageFile = outputSelection.filePath;
+    if (outputSelection.selection.source === 'repo-conflict') {
+      await appendLog('Configured task output dir points inside the repo; falling back to safe default output root.');
+    }
+    await mkdir(outputSelection.dir, { recursive: true });
+    await rm(outputLastMessageFile, { force: true });
 
     const codexCfg = isCodexProvider ? normalizeCodexRobotProviderConfig(execution.robot.modelProviderConfigRaw) : null;
     const claudeCfg = isClaudeCodeProvider ? normalizeClaudeCodeRobotProviderConfig(execution.robot.modelProviderConfigRaw) : null;

@@ -46,7 +46,7 @@ export interface TaskResult {
     totalTokens: number;
   };
   /**
-   * Redacted final output captured from `codex-output.txt`.
+   * Redacted final output captured from provider output files (codex/claude/gemini) stored outside the repo. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
    * - Intended to be safe for broader visibility than raw execution logs.
    */
   outputText?: string;
