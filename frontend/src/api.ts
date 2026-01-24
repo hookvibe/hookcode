@@ -614,6 +614,8 @@ export interface RepoRobot {
   defaultBranch?: string;
   // Compatibility: legacy field.
   defaultBranchRole?: 'main' | 'dev' | 'test';
+  // Repo workflow mode selection (auto/direct/fork). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork';
   activatedAt?: string;
   lastTestAt?: string;
   lastTestOk?: boolean;
@@ -920,6 +922,7 @@ export const createRepoRobot = async (
     defaultBranch?: string | null;
     // Compatibility: legacy field accepted by backend (main/dev/test).
     defaultBranchRole?: 'main' | 'dev' | 'test' | null;
+    repoWorkflowMode?: 'auto' | 'direct' | 'fork' | null;
     enabled?: boolean;
     isDefault?: boolean;
   }
@@ -945,6 +948,7 @@ export const updateRepoRobot = async (
     defaultBranch: string | null;
     // Compatibility: legacy field accepted by backend (main/dev/test).
     defaultBranchRole: 'main' | 'dev' | 'test' | null;
+    repoWorkflowMode: 'auto' | 'direct' | 'fork' | null;
     enabled: boolean;
     isDefault: boolean;
   }>
@@ -959,6 +963,19 @@ export const testRepoRobot = async (
   params?: { branch?: string; reason?: string }
 ): Promise<{ ok: boolean; robot: RepoRobot; message?: string }> => {
   const { data } = await api.post<{ ok: boolean; robot: RepoRobot; message?: string }>(`/repos/${repoId}/robots/${robotId}/test`, params);
+  return data;
+};
+
+// Trigger a direct/fork workflow check for a robot configuration. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+export const testRepoRobotWorkflow = async (
+  repoId: string,
+  robotId: string,
+  params?: { mode?: 'auto' | 'direct' | 'fork' | null }
+): Promise<{ ok: boolean; mode: 'auto' | 'direct' | 'fork'; robot?: RepoRobot; message?: string }> => {
+  const { data } = await api.post<{ ok: boolean; mode: 'auto' | 'direct' | 'fork'; robot?: RepoRobot; message?: string }>(
+    `/repos/${repoId}/robots/${robotId}/workflow/test`,
+    params
+  );
   return data;
 };
 

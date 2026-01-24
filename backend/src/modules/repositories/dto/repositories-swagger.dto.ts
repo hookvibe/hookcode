@@ -217,6 +217,10 @@ export class RepoRobotSwaggerDto {
   @ApiPropertyOptional({ nullable: true, enum: ['main', 'dev', 'test'] })
   defaultBranchRole?: 'main' | 'dev' | 'test' | null;
 
+  // Surface the robot workflow mode so UI can render direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  @ApiPropertyOptional({ nullable: true, enum: ['auto', 'direct', 'fork'] })
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork' | null;
+
   @ApiPropertyOptional({ nullable: true, format: 'date-time' })
   activatedAt?: string | null;
 
@@ -329,6 +333,21 @@ export class UpdateRepoRobotResponseDto {
 export class TestRobotResponseDto {
   @ApiProperty()
   ok!: boolean;
+
+  @ApiPropertyOptional()
+  message?: string;
+
+  @ApiPropertyOptional({ type: RepoRobotSwaggerDto })
+  robot?: RepoRobotSwaggerDto;
+}
+
+// Response shape for repo workflow check actions (direct/fork). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+export class TestRobotWorkflowResponseDto {
+  @ApiProperty()
+  ok!: boolean;
+
+  @ApiProperty()
+  mode!: 'auto' | 'direct' | 'fork';
 
   @ApiPropertyOptional()
   message?: string;

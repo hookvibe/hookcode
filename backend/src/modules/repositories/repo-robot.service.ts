@@ -22,6 +22,7 @@ import {
   toPublicGeminiCliRobotProviderConfig
 } from '../../modelProviders/geminiCli';
 import { inferRobotPermission } from '../../services/robotPermission';
+import { normalizeRepoWorkflowMode } from '../../services/repoWorkflowMode';
 
 const toIso = (value: unknown): string => {
   if (value instanceof Date) return value.toISOString();
@@ -129,6 +130,8 @@ const recordToRobot = (row: any): RepoRobot => ({
   modelProviderConfig: toPublicModelProviderConfig(row.modelProvider ? String(row.modelProvider) : CODEX_PROVIDER_KEY, row.modelProviderConfig),
   defaultBranch: normalizeDefaultBranch(row.defaultBranch),
   defaultBranchRole: normalizeDefaultBranchRole(row.defaultBranchRole),
+  // Surface repo workflow mode for UI control and agent enforcement. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  repoWorkflowMode: normalizeRepoWorkflowMode(row.repoWorkflowMode ?? row.repo_workflow_mode) ?? undefined,
   activatedAt: row.activatedAt ? toIso(row.activatedAt) : undefined,
   lastTestAt: row.lastTestAt ? toIso(row.lastTestAt) : undefined,
   lastTestOk: row.lastTestOk === null || row.lastTestOk === undefined ? undefined : Boolean(row.lastTestOk),
@@ -163,6 +166,8 @@ export interface CreateRepoRobotInput {
   modelProviderConfig?: unknown;
   defaultBranch?: string | null;
   defaultBranchRole?: RobotDefaultBranchRole | null;
+  // Allow explicit workflow mode selection when creating robots. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork' | string | null;
   isDefault?: boolean;
 }
 
@@ -179,6 +184,8 @@ export interface UpdateRepoRobotInput {
   modelProviderConfig?: unknown;
   defaultBranch?: string | null;
   defaultBranchRole?: RobotDefaultBranchRole | null;
+  // Allow explicit workflow mode updates on robots. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork' | string | null;
   enabled?: boolean;
   isDefault?: boolean;
 }
@@ -254,6 +261,13 @@ export class RepoRobotService {
     const defaultBranch =
       input.defaultBranch === undefined ? null : input.defaultBranch ? String(input.defaultBranch).trim() : null;
     const defaultBranchRole = input.defaultBranchRole === undefined ? null : input.defaultBranchRole;
+    // Normalize explicit workflow mode input for robot creation (auto/direct/fork). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+    const repoWorkflowModeRaw = input.repoWorkflowMode === undefined ? null : input.repoWorkflowMode;
+    const repoWorkflowMode =
+      repoWorkflowModeRaw === null ? null : normalizeRepoWorkflowMode(repoWorkflowModeRaw);
+    if (repoWorkflowModeRaw !== null && !repoWorkflowMode) {
+      throw new Error('repoWorkflowMode must be auto, direct, or fork');
+    }
     // New robots default to "pending activation": they can only be enabled after the token test passes.
     const enabled = false;
     const isDefault = input.isDefault === undefined ? false : Boolean(input.isDefault);
@@ -275,6 +289,8 @@ export class RepoRobotService {
         repoTokenUserEmail: null,
         repoTokenRepoRole: null,
         repoTokenRepoRoleJson: Prisma.DbNull,
+        // Persist repo workflow mode so task execution can enforce direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        repoWorkflowMode: repoWorkflowMode ?? null,
         promptDefault,
         language,
         modelProvider,
@@ -385,6 +401,14 @@ export class RepoRobotService {
       input.defaultBranchRole === undefined
         ? existing.defaultBranchRole ?? null
         : input.defaultBranchRole;
+    // Normalize workflow mode updates while keeping legacy robots on auto by default. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+    const nextRepoWorkflowModeRaw =
+      input.repoWorkflowMode === undefined ? existing.repoWorkflowMode ?? null : input.repoWorkflowMode;
+    const nextRepoWorkflowMode =
+      nextRepoWorkflowModeRaw === null ? null : normalizeRepoWorkflowMode(nextRepoWorkflowModeRaw);
+    if (nextRepoWorkflowModeRaw !== null && !nextRepoWorkflowMode) {
+      throw new Error('repoWorkflowMode must be auto, direct, or fork');
+    }
     const sourceChanged = input.repoCredentialSource !== undefined && nextRepoCredentialSource !== existingSource;
     const profileChanged =
       input.repoCredentialProfileId !== undefined &&
@@ -426,6 +450,8 @@ export class RepoRobotService {
         modelProviderConfig: nextModelProviderConfig as any,
         defaultBranch: nextDefaultBranch,
         defaultBranchRole: nextDefaultBranchRole as any,
+        // Store the chosen workflow mode so agent workflows can honor it. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        repoWorkflowMode: nextRepoWorkflowMode ?? null,
         activatedAt: nextActivatedAt ? new Date(nextActivatedAt) : nextActivatedAt,
         lastTestAt: nextLastTestAt ? new Date(nextLastTestAt) : nextLastTestAt,
         lastTestOk: nextLastTestOk as any,

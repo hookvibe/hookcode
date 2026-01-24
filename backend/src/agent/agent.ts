@@ -60,6 +60,7 @@ import { getTaskConsoleUrl } from '../utils/taskConsoleUrl';
 import { buildTaskOutputFilePath } from '../utils/taskOutputPath';
 // Keep git workflow helpers and config keys centralized for hook guard logic. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
 import { canTokenPushToUpstream, GIT_CONFIG_KEYS, normalizeGitRemoteUrl, toRepoWebUrl } from '../utils/gitWorkflow';
+import { ensureGithubForkRepo, ensureGitlabForkProject, resolveRepoWorkflowMode } from '../services/repoWorkflowMode';
 // Pull git status helpers to report repo changes after write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAheadBehind } from '../utils/gitStatus';
 
@@ -827,108 +828,6 @@ exit 0
       );
     };
 
-    const isProviderStatusError = (provider: RepoProvider, status: number, err: unknown): boolean => {
-      const message = err instanceof Error ? err.message : String(err);
-      return message.startsWith(`[${provider}] ${status} `);
-    };
-
-    const ensureGithubForkRepo = async (params: {
-      upstream: { owner: string; repo: string };
-    }): Promise<{ slug: string; webUrl?: string; cloneUrl?: string } | null> => {
-      if (!execution!.github) return null;
-      const me = await execution!.github.getCurrentUser();
-      const forkOwner = safeTrim(me?.login);
-      if (!forkOwner) throw new Error('github current user login is missing');
-
-      const forkSlug = `${forkOwner}/${params.upstream.repo}`;
-      try {
-        const existing = await execution!.github.getRepository(forkOwner, params.upstream.repo);
-        const parentFull = safeTrim((existing as any)?.parent?.full_name);
-        const expectedParent = `${params.upstream.owner}/${params.upstream.repo}`;
-        if ((existing as any)?.fork && parentFull.toLowerCase() === expectedParent.toLowerCase()) {
-          return {
-            slug: forkSlug,
-            webUrl: safeTrim((existing as any)?.html_url) || undefined,
-            cloneUrl: safeTrim((existing as any)?.clone_url) || undefined
-          };
-        }
-        throw new Error(`existing repo ${forkSlug} is not a fork of ${expectedParent}`);
-      } catch (err: any) {
-        if (!isProviderStatusError('github', 404, err)) throw err;
-      }
-
-      await appendLog(`Creating fork ${forkSlug} for upstream PR workflow`);
-      try {
-        await execution!.github.createFork(params.upstream.owner, params.upstream.repo);
-      } catch (err: any) {
-        // If the fork already exists, GitHub may return a conflict; fall back to polling. 24yz61mdik7tqdgaa152
-        await appendLog(`Fork request failed (will retry lookup): ${err?.message || err}`);
-      }
-
-      const deadline = Date.now() + 60_000;
-      while (Date.now() < deadline) {
-        try {
-          const forkRepo = await execution!.github.getRepository(forkOwner, params.upstream.repo);
-          return {
-            slug: forkSlug,
-            webUrl: safeTrim((forkRepo as any)?.html_url) || undefined,
-            cloneUrl: safeTrim((forkRepo as any)?.clone_url) || undefined
-          };
-        } catch (err: any) {
-          if (!isProviderStatusError('github', 404, err)) throw err;
-          await sleep(1500);
-        }
-      }
-      throw new Error(`fork not ready after timeout: ${forkSlug}`);
-    };
-
-    const ensureGitlabForkProject = async (params: {
-      upstreamProject: string | number;
-    }): Promise<{ slug: string; webUrl?: string; cloneUrl?: string } | null> => {
-      if (!execution!.gitlab) return null;
-      const upstream = await execution!.gitlab.getProject(params.upstreamProject);
-      const upstreamId = upstream.id;
-
-      const forks = await execution!.gitlab.listProjectForks(upstreamId, { owned: true, perPage: 100, page: 1 });
-      if (forks.length) {
-        const picked = forks[0];
-        return {
-          slug: safeTrim(picked.path_with_namespace),
-          webUrl: safeTrim((picked as any)?.web_url) || undefined,
-          cloneUrl: safeTrim((picked as any)?.http_url_to_repo) || undefined
-        };
-      }
-
-      await appendLog(`Creating fork for upstream MR workflow (project ${upstreamId})`);
-      let forked: any;
-      try {
-        forked = await execution!.gitlab.forkProject(upstreamId, { mrDefaultTargetSelf: false });
-      } catch (err: any) {
-        if (!isProviderStatusError('gitlab', 409, err)) throw err;
-        const retry = await execution!.gitlab.listProjectForks(upstreamId, { owned: true, perPage: 100, page: 1 });
-        if (!retry.length) throw err;
-        forked = retry[0];
-      }
-
-      const forkId = typeof forked?.id === 'number' ? forked.id : null;
-      if (!forkId) throw new Error('gitlab fork response is missing project id');
-
-      const deadline = Date.now() + 60_000;
-      while (Date.now() < deadline) {
-        const current = await execution!.gitlab.getProject(forkId);
-        const importStatus = safeTrim((current as any)?.import_status).toLowerCase();
-        if (!importStatus || importStatus === 'finished') {
-          return {
-            slug: safeTrim(current.path_with_namespace),
-            webUrl: safeTrim((current as any)?.web_url) || undefined,
-            cloneUrl: safeTrim((current as any)?.http_url_to_repo) || undefined
-          };
-        }
-        await sleep(1500);
-      }
-      throw new Error(`fork not ready after timeout: gitlab project ${forkId}`);
-    };
-
     const configureGitWorkflow = async () => {
       const repoCredentialSource = inferRobotRepoProviderCredentialSource(execution!.robot);
       const auth = resolveGitCloneAuth({
@@ -981,23 +880,82 @@ exit 0
         { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
       );
 
+      const expectedUpstreamUrl = upstream.cloneUrl || repoUrl;
+      // Resolve the robot-configured workflow mode (auto/direct/fork) for this run. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      const workflowMode = resolveRepoWorkflowMode((execution!.robot as any)?.repoWorkflowMode);
       const writeEnabled = execution!.robot.permission === 'write';
       const upstreamCanPush = canTokenPushToUpstream(execution!.provider, execution!.robot.repoTokenRepoRole);
 
-      if (!writeEnabled) {
-        repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
-        await persistLogsBestEffort();
-        return;
-      }
-
-      const expectedUpstreamUrl = upstream.cloneUrl || repoUrl;
-      // Always reset origin push URL first to avoid stale fork pushUrl when fork setup is skipped/fails. 24yz61mdik7tqdgaa152
+      // Always reset origin push URL first to avoid stale fork pushUrl when workflow changes. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
       await streamCommand(
         `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(upstreamInjected.execUrl)}`,
         appendRawLog,
         { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
       );
       await installGitPrePushGuard({ expectedUpstream: expectedUpstreamUrl, expectedPush: expectedUpstreamUrl });
+
+      if (workflowMode === 'direct') {
+        // Respect explicit direct mode even when upstream push is unavailable. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
+        await appendLog('Repo workflow mode: direct (skip fork setup)');
+        await persistLogsBestEffort();
+        return;
+      }
+
+      if (workflowMode === 'fork') {
+        // Enforce explicit fork mode by creating/using a fork before push configuration. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        if (!writeEnabled) {
+          await appendLog('Repo workflow mode: fork (read-only run, skipping push configuration)');
+        }
+        if (execution!.provider === 'github' && upstream.github) {
+          const fork = await ensureGithubForkRepo({ github: execution!.github!, upstream: upstream.github, log: appendLog });
+          const forkCloneUrl = safeTrim(fork?.cloneUrl);
+          if (!fork || !forkCloneUrl) {
+            throw new Error('fork workflow requested but fork repository clone URL is missing');
+          }
+
+          const forkInjected = injectBasicAuth(forkCloneUrl, auth);
+          await streamCommand(
+            `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
+            appendRawLog,
+            { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
+          );
+          await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
+          repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
+          await appendLog(`Repo workflow mode: fork (upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug})`);
+          await persistLogsBestEffort();
+          return;
+        }
+
+        if (execution!.provider === 'gitlab' && upstream.gitlabProject) {
+          const fork = await ensureGitlabForkProject({ gitlab: execution!.gitlab!, upstreamProject: upstream.gitlabProject, log: appendLog });
+          const forkCloneUrl = safeTrim(fork?.cloneUrl) || (safeTrim(fork?.webUrl) ? `${safeTrim(fork?.webUrl)}.git` : '');
+          if (!fork || !forkCloneUrl) {
+            throw new Error('fork workflow requested but fork project clone URL is missing');
+          }
+
+          const forkInjected = injectBasicAuth(forkCloneUrl, auth);
+          await streamCommand(
+            `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
+            appendRawLog,
+            { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
+          );
+          await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
+          repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
+          await appendLog(`Repo workflow mode: fork (upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug})`);
+          await persistLogsBestEffort();
+          return;
+        }
+
+        throw new Error(`fork workflow requested but provider ${execution!.provider} is unsupported or upstream is missing`);
+      }
+
+      if (!writeEnabled) {
+        // Default to direct workflow for read-only runs when mode is auto. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
+        await persistLogsBestEffort();
+        return;
+      }
 
       if (upstreamCanPush) {
         repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
@@ -1006,7 +964,7 @@ exit 0
       }
 
       if (execution!.provider === 'github' && upstream.github) {
-        const fork = await ensureGithubForkRepo({ upstream: upstream.github });
+        const fork = await ensureGithubForkRepo({ github: execution!.github!, upstream: upstream.github, log: appendLog });
         const forkCloneUrl = safeTrim(fork?.cloneUrl);
         if (!fork || !forkCloneUrl) {
           await appendLog('Fork workflow skipped: fork repository clone URL is missing');
@@ -1029,7 +987,7 @@ exit 0
       }
 
       if (execution!.provider === 'gitlab' && upstream.gitlabProject) {
-        const fork = await ensureGitlabForkProject({ upstreamProject: upstream.gitlabProject });
+        const fork = await ensureGitlabForkProject({ gitlab: execution!.gitlab!, upstreamProject: upstream.gitlabProject, log: appendLog });
         const forkCloneUrl = safeTrim(fork?.cloneUrl) || (safeTrim(fork?.webUrl) ? `${safeTrim(fork?.webUrl)}.git` : '');
         if (!fork || !forkCloneUrl) {
           await appendLog('Fork workflow skipped: fork project clone URL is missing');

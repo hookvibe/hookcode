@@ -136,6 +136,8 @@ model RepoRobot {
   repoTokenUserEmail    String?   @map("repo_token_user_email")
   repoTokenRepoRole     String?   @map("repo_token_repo_role")
   repoTokenRepoRoleJson Json?     @map("repo_token_repo_role_json") @db.JsonB
+  /// Store explicit robot workflow mode (auto/direct/fork) for repo pull control. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  repoWorkflowMode      String?   @map("repo_workflow_mode")
   promptDefault         String?   @map("prompt_default")
   language              String?
   modelProvider         String    @default("codex") @map("model_provider")

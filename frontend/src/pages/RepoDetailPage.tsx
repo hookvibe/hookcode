@@ -46,6 +46,7 @@ import {
   listRepoModelProviderModels,
   unarchiveRepo,
   testRepoRobot,
+  testRepoRobotWorkflow, // Add workflow-mode test API to validate direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   updateRepo,
   updateRepoAutomation,
   updateRepoRobot
@@ -110,6 +111,8 @@ type RobotFormValues = {
   promptDefault?: string;
   language: string;
   defaultBranch?: string | null;
+  // Track the robot workflow mode selection in the edit form. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork';
   isDefault: boolean;
   modelProvider: ModelProvider;
   modelProviderConfig: Partial<CodexRobotProviderConfigPublic | ClaudeCodeRobotProviderConfigPublic | GeminiCliRobotProviderConfigPublic> & {
@@ -284,6 +287,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [robotChangingToken, setRobotChangingToken] = useState(false);
   const [robotChangingModelApiKey, setRobotChangingModelApiKey] = useState(false);
   const [robotTestingId, setRobotTestingId] = useState<string | null>(null);
+  // Track workflow check loading state per robot in the settings modal. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  const [robotWorkflowTestingId, setRobotWorkflowTestingId] = useState<string | null>(null);
   const [robotTogglingId, setRobotTogglingId] = useState<string | null>(null);
   const [robotDeletingId, setRobotDeletingId] = useState<string | null>(null);
 
@@ -795,6 +800,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         promptDefault: '',
         language: locale,
         defaultBranch: null,
+        // Default new robots to auto workflow (follow existing behavior). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        repoWorkflowMode: 'auto',
         isDefault: false,
         modelProvider: 'codex',
         modelProviderConfig: buildDefaultModelProviderConfig('codex')
@@ -825,6 +832,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         promptDefault: robot.promptDefault ?? '',
         language: typeof robot.language === 'string' && robot.language.trim() ? robot.language.trim() : locale,
         defaultBranch: robot.defaultBranch ?? null,
+        // Populate workflow mode from the robot record (fallback to auto). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        repoWorkflowMode: (robot.repoWorkflowMode ?? 'auto') as any,
         isDefault: Boolean(robot.isDefault),
         modelProvider: modelProvider as any,
         modelProviderConfig: {
@@ -998,6 +1007,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         const shouldSendModelApiKey =
           credentialSource === 'robot' && (!editingRobot || robotChangingModelApiKey || !editingRobotHasApiKey);
 
+        // Persist the selected repo workflow mode so the backend can enforce direct/fork. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        const workflowMode = values.repoWorkflowMode ?? 'auto';
         const payload: any = {
           name: values.name,
           ...(shouldSendToken ? { token: repoCredentialSource === 'robot' ? tokenValue : null } : {}),
@@ -1043,6 +1054,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                 sandbox_workspace_write: { network_access: Boolean(cfg?.sandbox_workspace_write?.network_access) }
               },
           defaultBranch: values.defaultBranch === undefined ? undefined : values.defaultBranch,
+          repoWorkflowMode: workflowMode,
           isDefault: values.isDefault
         };
 
@@ -1097,6 +1109,35 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       }
     },
     [message, repo, repoArchived, t]
+  );
+
+  const handleTestRobotWorkflow = useCallback(
+    async () => {
+      // Validate the selected repo workflow mode using the saved robot credentials. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      if (!repo || repoArchived) return; // Block workflow checks for archived repos to keep view-only state. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      if (!editingRobot?.id) {
+        message.warning(t('repos.robotForm.workflowMode.saveRequired'));
+        return;
+      }
+      const modeRaw = robotForm.getFieldValue('repoWorkflowMode');
+      const mode = modeRaw === 'direct' || modeRaw === 'fork' || modeRaw === 'auto' ? modeRaw : 'auto';
+      setRobotWorkflowTestingId(editingRobot.id);
+      try {
+        const result = await testRepoRobotWorkflow(repo.id, editingRobot.id, { mode });
+        if (result.ok) {
+          message.success(t('repos.robotForm.workflowMode.checkOk'));
+        } else {
+          message.warning(t('repos.robotForm.workflowMode.checkFailed', { message: result.message || 'unknown' }));
+        }
+      } catch (err: any) {
+        console.error(err);
+        const detail = err?.response?.data?.error || err?.message || 'unknown';
+        message.error(t('repos.robotForm.workflowMode.checkFailed', { message: detail }));
+      } finally {
+        setRobotWorkflowTestingId(null);
+      }
+    },
+    [editingRobot, message, repo, repoArchived, robotForm, t]
   );
 
   const handleToggleRobotEnabled = useCallback(
@@ -2257,6 +2298,27 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                   />
                 );
               }}
+            </Form.Item>
+
+            {/* Provide explicit workflow selection and a validation action for repo pull behavior. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124 */}
+            <Form.Item label={t('repos.robotForm.workflowMode')}>
+              <Space wrap size={12}>
+                <Form.Item name="repoWorkflowMode" noStyle>
+                  <Radio.Group
+                    options={[
+                      { value: 'auto', label: t('repos.robotForm.workflowMode.auto') },
+                      { value: 'direct', label: t('repos.robotForm.workflowMode.direct') },
+                      { value: 'fork', label: t('repos.robotForm.workflowMode.fork') }
+                    ]}
+                  />
+                </Form.Item>
+                <Button
+                  onClick={() => void handleTestRobotWorkflow()}
+                  loading={robotWorkflowTestingId === editingRobot?.id}
+                >
+                  {t('repos.robotForm.workflowMode.check')}
+                </Button>
+              </Space>
             </Form.Item>
 
             <Form.Item shouldUpdate noStyle>

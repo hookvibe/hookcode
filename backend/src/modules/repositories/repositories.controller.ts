@@ -65,12 +65,15 @@ import {
   ListRepoWebhookDeliveriesResponseDto,
   ListRepositoriesResponseDto,
   TestRobotResponseDto,
+  TestRobotWorkflowResponseDto,
   UnarchiveRepositoryResponseDto,
   UpdateRepoRobotResponseDto,
   UpdateRepositoryResponseDto
 } from './dto/repositories-swagger.dto';
 import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
 import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
+import { normalizeRepoWorkflowMode, resolveRepoWorkflowMode } from '../../services/repoWorkflowMode';
+import { TestRepoRobotWorkflowDto } from './dto/test-repo-robot-workflow.dto';
 
 const normalizeProvider = (value: unknown): RepoProvider => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -113,6 +116,15 @@ const normalizeRepoCredentialSource = (
   if (!raw) return null;
   if (raw === 'robot' || raw === 'user' || raw === 'repo') return raw;
   throw new Error('repoCredentialSource must be robot/user/repo or null');
+};
+
+const normalizeRepoWorkflowModeInput = (value: unknown): 'auto' | 'direct' | 'fork' | null | undefined => {
+  // Parse workflow mode inputs for robot create/update + checks. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const normalized = normalizeRepoWorkflowMode(value);
+  if (!normalized) throw new Error('repoWorkflowMode must be auto/direct/fork or null');
+  return normalized;
 };
 
 const normalizeArchiveScope = (value: unknown): ArchiveScope => {
@@ -887,6 +899,8 @@ export class RepositoriesController {
       const repoCredentialProfileId = normalizeNullableTrimmedString(body?.repoCredentialProfileId, 'repoCredentialProfileId');
       const cloneUsername = normalizeNullableTrimmedString(body?.cloneUsername, 'cloneUsername');
       const repoCredentialRemark = normalizeNullableTrimmedString(body?.repoCredentialRemark, 'repoCredentialRemark');
+      // Capture explicit workflow mode for robot creation (auto/direct/fork). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      const repoWorkflowMode = normalizeRepoWorkflowModeInput(body?.repoWorkflowMode);
 
       // Enforce explicit scope selection (robot/user/repo) now that both user/repo credentials can have multiple profiles.
       const repoCredentialSource: 'robot' | 'user' | 'repo' = (() => {
@@ -918,6 +932,9 @@ export class RepositoriesController {
       const defaultBranch = body?.defaultBranch === undefined ? undefined : normalizeDefaultBranch(body?.defaultBranch);
       const defaultBranchRole =
         body?.defaultBranchRole === undefined ? undefined : normalizeDefaultBranchRole(body?.defaultBranchRole);
+      // Capture explicit workflow mode updates for the robot. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      const repoWorkflowMode =
+        body?.repoWorkflowMode === undefined ? undefined : normalizeRepoWorkflowModeInput(body?.repoWorkflowMode);
       const promptDefault = typeof body?.promptDefault === 'string' ? body.promptDefault.trim() : '';
       if (!promptDefault) {
         throw new BadRequestException({ error: 'promptDefault is required' });
@@ -1022,6 +1039,7 @@ export class RepositoriesController {
         language,
         modelProvider,
         modelProviderConfig,
+        repoWorkflowMode,
         isDefault
       });
 
@@ -1042,7 +1060,8 @@ export class RepositoriesController {
         message.includes('promptDefault is required') ||
         message.includes('repoCredential') ||
         message.includes('credentialProfileId') ||
-        message.includes('token must be null')
+        message.includes('token must be null') ||
+        message.includes('repoWorkflowMode must be')
       ) {
         throw new BadRequestException({ error: message });
       }
@@ -1267,6 +1286,7 @@ export class RepositoriesController {
         enabled,
         modelProvider,
         modelProviderConfig,
+        repoWorkflowMode,
         isDefault
       });
       if (!robot) throw new NotFoundException({ error: 'Robot not found' });
@@ -1288,7 +1308,8 @@ export class RepositoriesController {
         message.includes('promptDefault is required') ||
         message.includes('repoCredential') ||
         message.includes('credentialProfileId') ||
-        message.includes('token must be null')
+        message.includes('token must be null') ||
+        message.includes('repoWorkflowMode must be')
       ) {
         throw new BadRequestException({ error: message });
       }
@@ -1486,6 +1507,134 @@ export class RepositoriesController {
       if (err instanceof HttpException) throw err;
       console.error('[repos] test robot failed', err);
       throw new InternalServerErrorException({ error: 'Failed to test robot' });
+    }
+  }
+
+  @Post(':id/robots/:robotId/workflow/test')
+  @ApiOperation({
+    summary: 'Test robot repo workflow (direct/fork)',
+    description: 'Validate the selected repo workflow mode by checking direct access or fork availability.',
+    operationId: 'repos_test_robot_workflow'
+  })
+  @ApiOkResponse({ description: 'OK', type: TestRobotWorkflowResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async testRobotWorkflow(
+    @Param('id') id: string,
+    @Param('robotId') robotId: string,
+    @Req() req: Request,
+    @Body() body: TestRepoRobotWorkflowDto
+  ) {
+    // Validate robot workflow mode by checking direct access or fork availability. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+    let resolvedMode: 'auto' | 'direct' | 'fork' = 'auto';
+    try {
+      const repoId = id;
+      const repo = await this.repositoryService.getById(repoId);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block workflow tests for archived repos to keep archived state stable. qnp1mtxhzikhbi0xspbc
+
+      const existing = await this.repoRobotService.getByIdWithToken(robotId);
+      if (!existing || existing.repoId !== repoId) {
+        throw new NotFoundException({ error: 'Robot not found' });
+      }
+
+      const requestedMode =
+        body?.mode === undefined ? undefined : normalizeRepoWorkflowModeInput(body?.mode);
+      resolvedMode = resolveRepoWorkflowMode(requestedMode ?? existing.repoWorkflowMode);
+
+      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+      const source = inferRobotRepoProviderCredentialSource(existing);
+      const token = resolveRobotProviderToken({
+        provider: repo.provider,
+        robot: existing,
+        userCredentials,
+        repoCredentials: repoScopedCredentials?.repoProvider ?? null,
+        source
+      });
+      if (!token) {
+        throw new BadRequestException({
+          error: 'repo provider token is required for workflow test (configure per-robot, account-level, or repo-scoped credentials)'
+        });
+      }
+
+      const externalId = (repo.externalId ?? '').trim();
+      const repoIdentity = externalId || (repo.name ?? '').trim();
+      if (!repoIdentity) {
+        throw new BadRequestException({ error: 'repo identity is required for workflow test (externalId or name)' });
+      }
+
+      const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
+
+      const pickAutoMode = (canPush: boolean): 'direct' | 'fork' => {
+        // Keep auto mode aligned with agent workflow rules. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        if (existing.permission !== 'write') return 'direct';
+        return canPush ? 'direct' : 'fork';
+      };
+
+      if (repo.provider === 'github') {
+        const github = new GithubService({ token, apiBaseUrl });
+        let repoInfo: any;
+        if (repoIdentity.includes('/')) {
+          const [owner, repoName] = repoIdentity.split('/');
+          if (!owner || !repoName) throw new BadRequestException({ error: 'invalid github repo identity (expected owner/repo)' });
+          repoInfo = await github.getRepository(owner, repoName);
+        } else {
+          repoInfo = await github.getRepositoryById(repoIdentity);
+        }
+
+        const perms = (repoInfo as any)?.permissions ?? null;
+        const canPush = Boolean(perms?.admin || perms?.maintain || perms?.push);
+        const finalMode = resolvedMode === 'auto' ? pickAutoMode(canPush) : resolvedMode;
+        resolvedMode = finalMode;
+
+        if (finalMode === 'direct') {
+          if (existing.permission === 'write' && !canPush) {
+            return { ok: false, mode: finalMode, message: 'token lacks upstream push permission for direct workflow', robot: existing };
+          }
+          return { ok: true, mode: finalMode, message: 'direct workflow check ok', robot: existing };
+        }
+
+        const fullName = String((repoInfo as any)?.full_name ?? '').trim();
+        const [owner, repoName] = fullName.includes('/') ? fullName.split('/') : repoIdentity.split('/');
+        if (!owner || !repoName) throw new BadRequestException({ error: 'github repo identity is missing for fork workflow' });
+        await ensureGithubForkRepo({ github, upstream: { owner, repo: repoName } });
+        return { ok: true, mode: finalMode, message: 'fork workflow check ok', robot: existing };
+      }
+
+      if (repo.provider === 'gitlab') {
+        const gitlab = new GitlabService({ token, baseUrl: apiBaseUrl });
+        const project = await gitlab.getProject(repoIdentity);
+        const me = await gitlab.getCurrentUser();
+        const member = await gitlab.getProjectMember(project.id, me.id);
+
+        const accessLevel = typeof (member as any)?.access_level === 'number' ? (member as any).access_level : -1;
+        const canPush = accessLevel >= 30;
+        const finalMode = resolvedMode === 'auto' ? pickAutoMode(canPush) : resolvedMode;
+        resolvedMode = finalMode;
+
+        if (finalMode === 'direct') {
+          if (existing.permission === 'write' && !canPush) {
+            return { ok: false, mode: finalMode, message: 'token lacks upstream push permission for direct workflow', robot: existing };
+          }
+          return { ok: true, mode: finalMode, message: 'direct workflow check ok', robot: existing };
+        }
+
+        await ensureGitlabForkProject({ gitlab, upstreamProject: project.id });
+        return { ok: true, mode: finalMode, message: 'fork workflow check ok', robot: existing };
+      }
+
+      throw new BadRequestException({ error: `unsupported provider: ${repo.provider}` });
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      const message = err?.message ? String(err.message) : 'robot workflow test failed';
+      if (message.includes('repoWorkflowMode must be')) {
+        throw new BadRequestException({ error: message });
+      }
+      return { ok: false, mode: resolvedMode, message };
     }
   }
 

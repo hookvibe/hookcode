@@ -74,4 +74,10 @@ export class UpdateRepoRobotDto {
   @IsOptional()
   @Allow()
   modelProviderConfig?: unknown;
+
+  // Accept workflow mode selection for robot updates. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  @ApiPropertyOptional({ nullable: true, description: 'Repo workflow mode (auto/direct/fork).' })
+  @IsOptional()
+  @IsString()
+  repoWorkflowMode?: string | null;
 }

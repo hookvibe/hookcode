@@ -111,6 +111,10 @@ export interface RepoRobot {
    */
   defaultBranch?: string;
   /**
+   * Repository workflow mode (auto/direct/fork) used to control upstream vs fork behavior. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+   */
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork';
+  /**
    * Compatibility field: legacy branch roles (main/dev/test).
    */
   defaultBranchRole?: RobotDefaultBranchRole;

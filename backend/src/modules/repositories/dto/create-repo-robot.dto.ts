@@ -65,6 +65,12 @@ export class CreateRepoRobotDto {
   @Allow()
   modelProviderConfig?: unknown;
 
+  // Accept workflow mode selection for robot creation. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  @ApiPropertyOptional({ nullable: true, description: 'Repo workflow mode (auto/direct/fork).' })
+  @IsOptional()
+  @IsString()
+  repoWorkflowMode?: string | null;
+
   @ApiPropertyOptional({ description: 'Whether set as default robot for the repo.' })
   @IsOptional()
   @IsBoolean()
