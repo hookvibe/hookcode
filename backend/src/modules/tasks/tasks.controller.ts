@@ -36,6 +36,7 @@ import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { computeTaskLogsDelta, extractTaskLogsSnapshot, sliceLogsTail } from '../../services/taskLogs';
 import { isTruthy } from '../../utils/env';
 import { normalizeString, parsePositiveInt } from '../../utils/parse';
+import { extractTaskSchedule } from '../../utils/timeWindow';
 import { AllowQueryToken } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
@@ -477,6 +478,50 @@ export class TasksController {
       if (err instanceof HttpException) throw err;
       console.error('[tasks] retry failed', err);
       throw new InternalServerErrorException({ error: 'Failed to retry task' });
+    }
+  }
+
+  @Post(':id/execute-now')
+  @ApiOperation({
+    summary: 'Execute task now',
+    description: 'Override the configured time window so a queued task can execute immediately.',
+    operationId: 'tasks_execute_now'
+  })
+  @ApiOkResponse({ description: 'OK', type: RetryTaskResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  async executeNow(@Param('id') id: string) {
+    try {
+      const existing = await this.taskService.getTask(id);
+      if (!existing) {
+        throw new NotFoundException({ error: 'Task not found' });
+      }
+      if (existing.archivedAt) {
+        throw new ConflictException({ error: 'Task is archived; execute-now is blocked' });
+      }
+      if (existing.status !== 'queued') {
+        throw new ConflictException({ error: 'Task is not queued' });
+      }
+      const schedule = extractTaskSchedule(existing.payload);
+      if (!schedule) {
+        throw new ConflictException({ error: 'Task has no time window to override' });
+      }
+
+      // Allow manual override for time-windowed tasks and trigger the worker. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      const task = await this.taskService.setTaskScheduleOverride(id, true);
+      if (!task) {
+        throw new ConflictException({ error: 'Task schedule override failed' });
+      }
+      if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
+        this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
+      }
+      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      return { task: decorated };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[tasks] execute-now failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to execute task now' });
     }
   }
 

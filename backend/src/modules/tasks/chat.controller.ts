@@ -5,6 +5,7 @@ import { RepositoryService } from '../repositories/repository.service';
 import { buildChatTaskPayload } from '../../services/chatPayload';
 import { isTruthy } from '../../utils/env';
 import { normalizeString } from '../../utils/parse';
+import { attachTaskSchedule, normalizeTimeWindow, resolveTaskSchedule } from '../../utils/timeWindow';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
@@ -91,6 +92,14 @@ export class ChatController {
       if (!robot || robot.repoId !== repoId) throw new NotFoundException({ error: 'Robot not found' });
       if (!robot.enabled) throw new BadRequestException({ error: 'Robot is disabled' });
 
+      // Parse optional chat-level time windows for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      const timeWindowRaw = (body as any)?.timeWindow;
+      const timeWindow =
+        timeWindowRaw === undefined || timeWindowRaw === null ? null : normalizeTimeWindow(timeWindowRaw);
+      if (timeWindowRaw !== undefined && timeWindowRaw !== null && !timeWindow) {
+        throw new BadRequestException({ error: 'timeWindow is invalid' });
+      }
+
       const group = taskGroupId
         ? await this.taskService.getTaskGroup(taskGroupId)
         : await this.taskService.createManualTaskGroup({
@@ -110,7 +119,12 @@ export class ChatController {
         throw new BadRequestException({ error: 'Robot prompt template is required' });
       }
 
-      const payload = buildChatTaskPayload({ repo, text, author: 'console' });
+      // Resolve chat > robot time windows and persist scheduling metadata on the task payload. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      const schedule = resolveTaskSchedule({
+        chatWindow: timeWindow,
+        robotWindow: robot.timeWindow ?? null
+      });
+      const payload = attachTaskSchedule(buildChatTaskPayload({ repo, text, author: 'console' }), schedule);
       const title = `Chat · ${robot.name} · ${normalizeSnippet(text, 80) || 'Task'}`.trim();
 
       const created = await this.taskService.createTaskInGroup(

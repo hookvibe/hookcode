@@ -1,6 +1,7 @@
 import { Tag } from 'antd';
 import type { Task, TaskStatus } from '../api';
 import type { TFunction } from '../i18n';
+import { formatTimeWindowLabel } from './timeWindow';
 
 /**
  * Task UI helpers (Frontend Chat).
@@ -37,6 +38,12 @@ export const queuedHintText = (t: TFunction, task?: Task | null): string | null 
   const ahead = typeof q.ahead === 'number' && Number.isFinite(q.ahead) ? q.ahead : 0;
   const processing = typeof q.processing === 'number' && Number.isFinite(q.processing) ? q.processing : 0;
 
+  if (q.reasonCode === 'outside_time_window') {
+    const windowLabel = formatTimeWindowLabel(q.timeWindow);
+    const sourceLabel = q.timeWindow ? t(`tasks.queue.timeWindow.source.${q.timeWindow.source}` as any) : t('tasks.queue.hint.unknown');
+    // Highlight time-window gating so users understand queued tasks. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    return t('tasks.queue.hint.timeWindow', { window: windowLabel || '--:--', source: sourceLabel });
+  }
   if (q.reasonCode === 'queue_backlog') return t('tasks.queue.hint.backlog', { ahead, processing });
   if (q.reasonCode === 'inline_worker_disabled') return t('tasks.queue.hint.inlineWorkerDisabled');
   if (q.reasonCode === 'no_active_worker') return t('tasks.queue.hint.noActiveWorker');

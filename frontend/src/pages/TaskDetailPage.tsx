@@ -12,7 +12,7 @@ import {
   UserOutlined
 } from '@ant-design/icons';
 import type { Task, TaskRepoSummary, TaskRobotSummary } from '../api';
-import { deleteTask, fetchTask, retryTask } from '../api';
+import { deleteTask, executeTaskNow, fetchTask, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../router';
 import { MarkdownViewer } from '../components/MarkdownViewer';
@@ -529,6 +529,26 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     [message, refresh, t, task]
   );
 
+  const handleExecuteNow = useCallback(async () => {
+    // Allow manual execution when tasks are blocked by time windows. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    if (!task) return;
+    if (!task.permissions?.canManage) {
+      message.warning(t('tasks.empty.noPermission'));
+      return;
+    }
+    setRetrying(true);
+    try {
+      await executeTaskNow(task.id);
+      message.success(t('toast.task.executeNowSuccess'));
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.task.executeNowFailed'));
+    } finally {
+      setRetrying(false);
+    }
+  }, [message, refresh, t, task]);
+
   const handleDelete = useCallback(async () => {
     if (!task) return;
     if (!task.permissions?.canManage) {
@@ -562,9 +582,15 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   const headerActions = task ? (
     <Space size={8}>
       {task.status === 'queued' && canManageTask ? (
-        <Button icon={<PlayCircleOutlined />} onClick={() => void handleRetry()} loading={retrying}>
-          {t('tasks.retry')}
-        </Button>
+        task.queue?.reasonCode === 'outside_time_window' ? (
+          <Button icon={<PlayCircleOutlined />} onClick={() => void handleExecuteNow()} loading={retrying}>
+            {t('tasks.executeNow')}
+          </Button>
+        ) : (
+          <Button icon={<PlayCircleOutlined />} onClick={() => void handleRetry()} loading={retrying}>
+            {t('tasks.retry')}
+          </Button>
+        )
       ) : null}
 
       {task.status === 'failed' && canManageTask ? (

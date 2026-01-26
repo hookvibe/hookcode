@@ -2,7 +2,7 @@ import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'r
 import { App, Button, Card, Empty, Input, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import type { Task, TaskStatus, TaskStatusStats } from '../api';
-import { fetchTaskStats, fetchTasks, retryTask } from '../api';
+import { executeTaskNow, fetchTaskStats, fetchTasks, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildTaskHash, buildTasksHash } from '../router';
 import { clampText, getTaskTitle, queuedHintText, statusTag } from '../utils/task';
@@ -161,6 +161,29 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     [message, refresh, t]
   );
 
+  const handleExecuteNow = useCallback(
+    async (task: Task) => {
+      // Allow manual execution when tasks are blocked by time windows. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      if (!task?.id) return;
+      if (!task.permissions?.canManage) {
+        message.warning(t('tasks.empty.noPermission'));
+        return;
+      }
+      setRetryingTaskId(task.id);
+      try {
+        await executeTaskNow(task.id);
+        message.success(t('toast.task.executeNowSuccess'));
+        await refresh();
+      } catch (err) {
+        console.error(err);
+        message.error(t('toast.task.executeNowFailed'));
+      } finally {
+        setRetryingTaskId((prev) => (prev === task.id ? null : prev));
+      }
+    },
+    [message, refresh, t]
+  );
+
   const refreshAll = useCallback(async () => {
     // Refresh both list and stats to keep the summary strip consistent with the loaded tasks. 3iz4jx8bsy7q7d6b3jr3
     await Promise.all([refresh(), refreshStats()]);
@@ -311,20 +334,36 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
                       <Space size={6} wrap>
                         {statusTag(t, task.status)}
                         {task.status === 'queued' && task.permissions?.canManage ? (
-                          /* Render a retry affordance beside the queued status tag. f3a9c2d8e1b7f4a0c6d1 */
-                          <Tooltip title={t('tasks.retry')}>
-                            <Button
-                              size="small"
-                              type="text"
-                              icon={<PlayCircleOutlined />}
-                              aria-label={t('tasks.retry')}
-                              loading={retryingTaskId === task.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void handleRetry(task);
-                              }}
-                            />
-                          </Tooltip>
+                          task.queue?.reasonCode === 'outside_time_window' ? (
+                            <Tooltip title={t('tasks.executeNow')}>
+                              <Button
+                                size="small"
+                                type="text"
+                                icon={<PlayCircleOutlined />}
+                                aria-label={t('tasks.executeNow')}
+                                loading={retryingTaskId === task.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleExecuteNow(task);
+                                }}
+                              />
+                            </Tooltip>
+                          ) : (
+                            /* Render a retry affordance beside the queued status tag. f3a9c2d8e1b7f4a0c6d1 */
+                            <Tooltip title={t('tasks.retry')}>
+                              <Button
+                                size="small"
+                                type="text"
+                                icon={<PlayCircleOutlined />}
+                                aria-label={t('tasks.retry')}
+                                loading={retryingTaskId === task.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleRetry(task);
+                                }}
+                              />
+                            </Tooltip>
+                          )
                         ) : null}
                       </Space>
                     </Space>

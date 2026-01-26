@@ -1,5 +1,19 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "sourceRoot": "src"
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "builder": {
+      "type": "swc",
+      "options": {
+        "swcrcPath": ".swcrc"
+      }
+    },
+    "typeCheck": true,
+    "assets": [],
+    "watchAssets": false
+  },
+  "watchOptions": {
+    "ignored": ["**/agent/build/**", "**/node_modules/**", "**/dist/**"]
+  }
 }

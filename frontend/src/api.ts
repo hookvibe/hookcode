@@ -23,7 +23,26 @@ export const api = axios.create({
 export type ArchiveScope = 'active' | 'archived' | 'all'; // Keep archive filtering consistent with backend query params. qnp1mtxhzikhbi0xspbc
 
 export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
-export type TaskQueueReasonCode = 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
+export type TaskQueueReasonCode =
+  | 'queue_backlog'
+  | 'no_active_worker'
+  | 'inline_worker_disabled'
+  | 'outside_time_window'
+  | 'unknown';
+
+// Shared hour-level time window shape for scheduling inputs. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+export interface TimeWindow {
+  startHour: number;
+  endHour: number;
+}
+
+export interface TaskQueueTimeWindow {
+  // Provide time window metadata for queued task explanations. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  startHour: number;
+  endHour: number;
+  source: 'robot' | 'trigger' | 'chat';
+  timezone: 'server';
+}
 
 export interface TaskQueueDiagnosis {
   // Surface queued-task diagnosis so the UI can explain long-waiting tasks. f3a9c2d8e1b7f4a0c6d1
@@ -33,6 +52,7 @@ export interface TaskQueueDiagnosis {
   processing: number;
   staleProcessing: number;
   inlineWorkerEnabled: boolean;
+  timeWindow?: TaskQueueTimeWindow;
 }
 
 export interface DependencyInstallStep {
@@ -227,6 +247,7 @@ export const executeChat = async (params: {
   robotId: string;
   text: string;
   taskGroupId?: string;
+  timeWindow?: TimeWindow | null;
 }): Promise<{ taskGroup: TaskGroup; task: Task }> => {
   // Business context:
   // - Manual trigger without Webhooks (frontend Chat page + chat embeds under task/taskGroup pages).
@@ -314,6 +335,12 @@ export const fetchTask = async (taskId: string): Promise<Task> => {
 export const retryTask = async (taskId: string, options?: { force?: boolean }): Promise<Task> => {
   const params = options?.force ? { force: 'true' } : undefined;
   const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/retry`, null, { params });
+  return data.task;
+};
+
+export const executeTaskNow = async (taskId: string): Promise<Task> => {
+  // Override time-window gating for queued tasks. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/execute-now`);
   return data.task;
 };
 
@@ -656,6 +683,8 @@ export interface RepoRobot {
   defaultBranchRole?: 'main' | 'dev' | 'test';
   // Repo workflow mode selection (auto/direct/fork). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   repoWorkflowMode?: 'auto' | 'direct' | 'fork';
+  // Optional hour-level execution window for this robot. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindow;
   activatedAt?: string;
   lastTestAt?: string;
   lastTestOk?: boolean;
@@ -697,6 +726,8 @@ export interface AutomationRule {
   enabled: boolean;
   match?: AutomationMatch;
   actions: AutomationAction[];
+  // Trigger-level scheduling window for this rule. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindow;
 }
 
 export interface AutomationEventConfig {
@@ -965,6 +996,8 @@ export const createRepoRobot = async (
     // Compatibility: legacy field accepted by backend (main/dev/test).
     defaultBranchRole?: 'main' | 'dev' | 'test' | null;
     repoWorkflowMode?: 'auto' | 'direct' | 'fork' | null;
+    // Optional execution window for robot-level scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    timeWindow?: TimeWindow | null;
     enabled?: boolean;
     isDefault?: boolean;
   }
@@ -993,6 +1026,8 @@ export const updateRepoRobot = async (
     // Compatibility: legacy field accepted by backend (main/dev/test).
     defaultBranchRole: 'main' | 'dev' | 'test' | null;
     repoWorkflowMode: 'auto' | 'direct' | 'fork' | null;
+    // Optional execution window for robot-level scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    timeWindow: TimeWindow | null;
     enabled: boolean;
     isDefault: boolean;
   }>

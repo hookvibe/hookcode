@@ -73,4 +73,56 @@ describe('repoAutomation config 校验', () => {
 
     expect(() => validateAutomationConfigOrThrow(config)).not.toThrow();
   });
+
+  // Validate timeWindow validation errors for automation rules. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  test('throws RULE_TIME_WINDOW_INVALID when rule.timeWindow is invalid', () => {
+    const config: RepoAutomationConfig = {
+      version: 2,
+      events: {
+        issue: {
+          enabled: true,
+          rules: [
+            {
+              id: 'rule-1',
+              name: 'rule 1',
+              enabled: true,
+              timeWindow: { startHour: -1, endHour: 2 } as any,
+              actions: [{ id: 'act-1', robotId: 'rb-1', enabled: true }]
+            }
+          ]
+        }
+      }
+    };
+
+    try {
+      validateAutomationConfigOrThrow(config);
+      throw new Error('expected validateAutomationConfigOrThrow to throw');
+    } catch (err: any) {
+      expect(err).toBeInstanceOf(RepoAutomationConfigValidationError);
+      expect(err.code).toBe('RULE_TIME_WINDOW_INVALID');
+    }
+  });
+
+  // Ensure valid timeWindow values pass validation. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  test('accepts valid rule.timeWindow values', () => {
+    const config: RepoAutomationConfig = {
+      version: 2,
+      events: {
+        issue: {
+          enabled: true,
+          rules: [
+            {
+              id: 'rule-1',
+              name: 'rule 1',
+              enabled: true,
+              timeWindow: { startHour: 2, endHour: 4 },
+              actions: [{ id: 'act-1', robotId: 'rb-1', enabled: true }]
+            }
+          ]
+        }
+      }
+    };
+
+    expect(() => validateAutomationConfigOrThrow(config)).not.toThrow();
+  });
 });

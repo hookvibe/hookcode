@@ -32,6 +32,7 @@ import type {
   RepoRobot,
   RepoScopedCredentialsPublic,
   Repository,
+  TimeWindow,
   UserModelCredentialsPublic,
   UserModelProviderCredentialProfilePublic,
   UserRepoProviderCredentialProfilePublic
@@ -70,6 +71,7 @@ import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivity
 import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
 import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
 import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailProviderActivityRow';
+import { TimeWindowPicker } from '../components/TimeWindowPicker';
 
 /**
  * RepoDetailPage:
@@ -113,6 +115,8 @@ type RobotFormValues = {
   defaultBranch?: string | null;
   // Track the robot workflow mode selection in the edit form. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   repoWorkflowMode?: 'auto' | 'direct' | 'fork';
+  // Track robot-level scheduling windows in the editor. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindow | null;
   isDefault: boolean;
   // Expose dependency overrides in the robot editor to control install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   dependencyOverride: boolean;
@@ -809,6 +813,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         defaultBranch: null,
         // Default new robots to auto workflow (follow existing behavior). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
         repoWorkflowMode: 'auto',
+        // Default to no scheduling window until explicitly configured. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        timeWindow: null,
         isDefault: false,
         // Default dependency overrides to "inherit" so robots follow `.hookcode.yml` unless explicitly changed. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
         dependencyOverride: false,
@@ -854,6 +860,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         defaultBranch: robot.defaultBranch ?? null,
         // Populate workflow mode from the robot record (fallback to auto). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
         repoWorkflowMode: (robot.repoWorkflowMode ?? 'auto') as any,
+        // Hydrate robot-level time windows into the editor state. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        timeWindow: robot.timeWindow ?? null,
         isDefault: Boolean(robot.isDefault),
         // Hydrate dependency overrides from the robot record to keep the editor consistent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
         dependencyOverride,
@@ -1092,6 +1100,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               },
           defaultBranch: values.defaultBranch === undefined ? undefined : values.defaultBranch,
           repoWorkflowMode: workflowMode,
+          // Persist robot-level time windows for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+          timeWindow: values.timeWindow ?? null,
           dependencyConfig,
           isDefault: values.isDefault
         };
@@ -2357,6 +2367,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                   {t('repos.robotForm.workflowMode.check')}
                 </Button>
               </Space>
+            </Form.Item>
+
+            {/* Provide robot-level scheduling controls for time-window execution. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
+            <Form.Item label={t('repos.robotForm.timeWindow')} name="timeWindow">
+              <TimeWindowPicker disabled={repoArchived} size="middle" />
             </Form.Item>
 
             <Form.Item shouldUpdate noStyle>

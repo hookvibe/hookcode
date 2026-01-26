@@ -1,3 +1,5 @@
+import type { TimeWindow } from './timeWindow';
+
 export type AutomationEventKey =
   | 'issue'
   | 'commit'
@@ -50,6 +52,8 @@ export interface AutomationRule {
   enabled: boolean;
   match?: AutomationMatch;
   actions: AutomationAction[];
+  // Add optional time window scheduling at the trigger (rule) level. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindow;
 }
 
 export interface AutomationEventConfig {

@@ -16,6 +16,7 @@ import {
 import { resolveAutomationActions } from '../../services/automationEngine';
 import type { RepoProvider } from '../../types/repository';
 import type { RepoRobot } from '../../types/repoRobot';
+import { attachTaskSchedule, isTimeWindowActive, resolveTaskSchedule } from '../../utils/timeWindow';
 
 /**
  * Webhook endpoints (trigger mode):
@@ -911,7 +912,23 @@ export const handleGitlabWebhook = async (req: Request, res: Response, deps: Web
           ? `${robot.name} · ${eventType}`
           : undefined;
 
-      const task = await taskService.createTask(eventType, payload, {
+      // Resolve trigger/robot time windows and skip duplicate queued tasks while waiting. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      const schedule = resolveTaskSchedule({
+        triggerWindow: action.timeWindow ?? null,
+        robotWindow: robot?.timeWindow ?? null,
+        ruleId: action.ruleId
+      });
+      const scheduleActive = schedule ? isTimeWindowActive(schedule.window) : true;
+      if (schedule && schedule.source === 'trigger' && !scheduleActive) {
+        const alreadyQueued = await taskService.hasQueuedTaskForRule({
+          repoId,
+          robotId: action.robotId,
+          ruleId: schedule.ruleId ?? action.ruleId
+        });
+        if (alreadyQueued) continue;
+      }
+
+      const task = await taskService.createTask(eventType, attachTaskSchedule(payload, schedule), {
         ...baseMeta,
         title,
         repoId,
@@ -1206,7 +1223,23 @@ export const handleGithubWebhook = async (req: Request, res: Response, deps: Web
           ? `${robot.name} · ${eventType}`
           : undefined;
 
-      const task = await taskService.createTask(eventType, payload, {
+      // Resolve trigger/robot time windows and skip duplicate queued tasks while waiting. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      const schedule = resolveTaskSchedule({
+        triggerWindow: action.timeWindow ?? null,
+        robotWindow: robot?.timeWindow ?? null,
+        ruleId: action.ruleId
+      });
+      const scheduleActive = schedule ? isTimeWindowActive(schedule.window) : true;
+      if (schedule && schedule.source === 'trigger' && !scheduleActive) {
+        const alreadyQueued = await taskService.hasQueuedTaskForRule({
+          repoId,
+          robotId: action.robotId,
+          ruleId: schedule.ruleId ?? action.ruleId
+        });
+        if (alreadyQueued) continue;
+      }
+
+      const task = await taskService.createTask(eventType, attachTaskSchedule(payload, schedule), {
         ...baseMeta,
         title,
         repoId,

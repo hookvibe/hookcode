@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { stat } from 'fs/promises';
 import {
+  buildGitProxyFlags,
   buildTaskGroupWorkspaceDir,
   collectGitStatusSnapshot,
   getRepoCloneUrl,
@@ -128,7 +129,9 @@ export class TaskGitPushService {
       throw new ConflictException({ error: 'Cannot push detached HEAD', code: 'GIT_PUSH_DETACHED_HEAD' });
     }
 
-    const pushRes = await runGit(`git push origin ${shDoubleQuote(branch)}`);
+    // Use gitProxyFlags to pass proxy config to git push. gitproxyfix20260127
+    const gitProxyFlags = buildGitProxyFlags();
+    const pushRes = await runGit(`git ${gitProxyFlags} push origin ${shDoubleQuote(branch)}`);
     if (pushRes.exitCode !== 0) {
       const next = this.buildPushFailureStatus(gitStatus, 'push_failed', 'push: command_failed');
       await this.taskService.updateResult(task.id, { gitStatus: next });

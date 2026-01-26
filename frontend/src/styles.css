@@ -1653,7 +1653,8 @@ button.hc-tasks-status-tile--active {
 }
 
 .hc-chat-welcome__card {
-  width: min(720px, 94vw);
+  /* Clamp TaskGroup chat widths to container size to avoid horizontal scroll. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(720px, 100%);
   background: var(--hc-surface);
   border-color: var(--hc-border);
   border-radius: 12px;
@@ -1718,7 +1719,8 @@ button.hc-tasks-status-tile--active {
 }
 
 .hc-chat-bubble {
-  max-width: min(820px, 86vw);
+  /* Keep chat bubbles within the page container to prevent overflow on narrow layouts. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  max-width: min(820px, 100%);
   padding: 10px 14px;
   border-radius: 16px;
   border: 1px solid var(--hc-border);
@@ -1734,14 +1736,16 @@ button.hc-tasks-status-tile--active {
 }
 
 .hc-chat-task-card {
-  width: min(820px, 86vw);
+  /* Keep task cards within the chat container width (avoid horizontal scrollbars). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
   background: var(--hc-surface);
   border-color: var(--hc-border);
   border-radius: 12px;
 }
 
 .hc-chat-logs-card {
-  width: min(820px, 86vw);
+  /* Keep log cards within the chat container width (avoid horizontal scrollbars). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
   /* Remove the Card surface background for TaskGroup execution logs. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a */
   background: transparent;
   border-color: transparent;
@@ -1750,7 +1754,8 @@ button.hc-tasks-status-tile--active {
 }
 /* Stretch git status cards to match chat item width in the task group timeline. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */
 .hc-chat-git-status {
-  width: min(820px, 86vw);
+  /* Keep git status panels within the chat container width. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
 }
 /* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */
 
@@ -1816,9 +1821,139 @@ html[data-theme='dark'] {
   text-align: center;
 }
 
+/* Add execution timeline spacing, entry transitions, and running indicator styling. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@keyframes hc-exec-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node'] {
+  animation: hc-exec-item-enter 220ms ease-out;
+  will-change: opacity, transform;
+}
+
+.hc-exec-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  color: var(--muted);
+}
+
+.hc-exec-running__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hc-exec-running__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  opacity: 0.3;
+  animation: hc-exec-running-dot 1.2s ease-in-out infinite;
+}
+
+.hc-exec-running__dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.hc-exec-running__dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes hc-exec-running-dot {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.3;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-exec-thought-chain [class$='thought-chain-node'] {
+    animation: none;
+  }
+
+  .hc-exec-running__dot {
+    animation: none;
+  }
+}
+
 /* Style Ant Design X ThoughtChain snippets to match existing execution log typography. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
 .hc-exec-thought-chain {
   width: 100%;
+}
+
+/* Ensure ThoughtChain nodes wrap inside the chat container (avoid horizontal scroll). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-thought-chain [class$='thought-chain-node'],
+.hc-exec-thought-chain [class$='thought-chain-node-box'],
+.hc-exec-thought-chain [class$='thought-chain-node-header'] {
+  min-width: 0;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-box'] {
+  flex: 1;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-title'],
+.hc-exec-thought-chain [class$='thought-chain-node-description'] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-title'] {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+/* Constrain ThoughtChain content blocks and markdown/code so long text never overflows the card. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-thought-chain [class$='thought-chain-node-content'],
+.hc-exec-thought-chain [class$='thought-chain-node-content-box'] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-title'] .ant-space {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.hc-exec-thought-chain .markdown-result,
+.hc-exec-thought-chain .markdown-result pre,
+.hc-exec-thought-chain .markdown-result pre code,
+.hc-exec-thought-chain .markdown-result code {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.hc-exec-thought-chain .markdown-result table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 /* Replace Think's default arrow with Caret icons rendered in the title. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
@@ -1831,11 +1966,13 @@ html[data-theme='dark'] {
   display: none;
 }
 
+/* Allow Execution Think titles to wrap in narrow chat containers. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
 .hc-exec-think-title {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .hc-exec-think-title__caret {
@@ -1845,6 +1982,22 @@ html[data-theme='dark'] {
 
 .hc-exec-think-title__mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+/* Ensure long command/file labels wrap instead of overflowing ThoughtChain cards. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-think-title__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Allow command/file titles in ThoughtChain headers to wrap instead of overflowing. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-title-text {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .hc-exec-thought__desc {
@@ -1875,8 +2028,11 @@ html[data-theme='dark'] {
   word-break: break-word;
 }
 
+/* Keep exec output lines within the chat width to prevent horizontal scroll. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
 .hc-exec-output {
   margin-top: 8px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .hc-exec-output--mono {
@@ -1916,6 +2072,21 @@ html[data-theme='dark'] {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* Render inline diff blocks inside the file-change collapse. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.hc-exec-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 12px;
 }
 
 .hc-exec-file {
@@ -1998,9 +2169,12 @@ html[data-theme='dark'] {
   user-select: none;
 }
 
+/* Keep diff lines wrapping inside the ThoughtChain content box. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
 .hc-diff__content {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .hc-diff__leading {
@@ -2729,8 +2903,41 @@ html[data-theme='dark'] {
 
 .hc-composer-footer {
   display: flex;
+  /* Arrange composer footer into left icon + selectors and right actions. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hc-composer-footer-left {
+  /* Keep the time-window icon aligned left for quick access. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-composer-footer-right {
+  /* Keep repo/robot selectors grouped with the send action on the right. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 8px;
+}
+
+.hc-timewindow-toggle {
+  /* Minimal icon affordance for the chat time-window popover. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  color: var(--text-secondary);
+}
+
+.hc-timewindow-toggle.is-active {
+  /* Highlight the icon when a time window is selected. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  color: var(--primary);
+}
+
+.hc-timewindow-label {
+  /* Keep the time window label compact and readable. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  font-size: 12px;
 }
 
 /* =============================================================================

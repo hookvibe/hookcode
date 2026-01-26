@@ -51,6 +51,16 @@ vi.mock('../api', () => {
       updatedAt: '2026-01-11T00:00:00.000Z',
       permissions: { canManage: true }
     })),
+    executeTaskNow: vi.fn(async () => ({
+      id: 't1',
+      eventType: 'chat',
+      title: 'Task t1',
+      status: 'queued',
+      retries: 1,
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+      permissions: { canManage: true }
+    })),
     deleteTask: vi.fn(async () => undefined)
   };
 });
@@ -174,6 +184,34 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
 
     await ui.click(screen.getByRole('button', { name: /Retry/i }));
     await waitFor(() => expect(api.retryTask).toHaveBeenCalledWith('tq1', undefined));
+  });
+
+  // Ensure time-window blocked queued tasks show execute-now action. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  test('shows execute-now when queued task is outside time window', async () => {
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchTask).mockResolvedValueOnce({
+      id: 'tq2',
+      eventType: 'chat',
+      title: 'Task tq2',
+      status: 'queued',
+      retries: 0,
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+      permissions: { canManage: true },
+      queue: { reasonCode: 'outside_time_window', ahead: 0, queuedTotal: 1, processing: 0, staleProcessing: 0, inlineWorkerEnabled: true },
+      repoId: 'r1',
+      repoProvider: 'gitlab',
+      repo: { id: 'r1', provider: 'gitlab', name: 'Repo r1', enabled: true },
+      robotId: 'bot1',
+      robot: { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true },
+      payload: { user_name: 'Alice', user_username: 'alice' }
+    } as any);
+
+    renderPage({ taskId: 'tq2' });
+
+    await waitFor(() => expect(api.fetchTask).toHaveBeenCalled());
+    await ui.click(screen.getByRole('button', { name: /Run now/i }));
+    await waitFor(() => expect(api.executeTaskNow).toHaveBeenCalledWith('tq2'));
   });
 
   test('shows prompt patch template + rendered preview side-by-side', async () => {

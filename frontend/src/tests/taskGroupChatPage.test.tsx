@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
@@ -161,12 +161,22 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
         repoId: 'r1',
         robotId: 'bot1',
         text: 'Hello from test',
-        taskGroupId: undefined
+        taskGroupId: undefined,
+        // Include timeWindow to match the chat payload shape. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
+        timeWindow: null
       })
     );
 
     expect(window.location.hash).toBe('#/task-groups/g_new');
     expect(textarea).toHaveValue('');
+  });
+
+  // Ensure the time-window control renders as a compact icon button. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  test('renders time window icon button in the composer', async () => {
+    renderPage();
+
+    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: 'Execution window' })).toBeInTheDocument();
   });
 
   // Validate optimistic in-place rendering on new group creation without a skeleton. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
@@ -334,6 +344,131 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
       expect(screen.queryByText('Group g1')).not.toBeInTheDocument();
       expect(screen.queryByText('Task 1')).not.toBeInTheDocument();
     });
+  });
+
+  // Keep loaded chat content visible when a locale change triggers a blocking refresh. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
+  test('keeps loaded timeline visible during locale-triggered refresh', async () => {
+    const now = '2026-01-11T00:00:00.000Z';
+
+    const task = {
+      id: 't_keep',
+      eventType: 'chat',
+      payload: { __chat: { text: 'Keep this message' } },
+      status: 'queued',
+      retries: 0,
+      createdAt: now,
+      updatedAt: now
+    } as any;
+
+    const group = {
+      id: 'g1',
+      kind: 'chat',
+      bindingKey: 'b1',
+      title: 'Group g1',
+      repoId: 'r1',
+      robotId: 'bot1',
+      createdAt: now,
+      updatedAt: now
+    } as any;
+
+    setLocale('zh-CN');
+    vi.mocked(api.fetchTaskGroup).mockResolvedValueOnce(group);
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValueOnce([task]);
+
+    renderPage({ taskGroupId: 'g1' });
+
+    expect(await screen.findByText('Keep this message')).toBeInTheDocument();
+    expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
+
+    let resolveGroup!: (value: any) => void;
+    let resolveTasks!: (value: any) => void;
+    const groupPromise = new Promise((res) => {
+      resolveGroup = res as any;
+    });
+    const tasksPromise = new Promise((res) => {
+      resolveTasks = res as any;
+    });
+
+    vi.mocked(api.fetchTaskGroup).mockImplementationOnce(async () => (await groupPromise) as any);
+    vi.mocked(api.fetchTaskGroupTasks).mockImplementationOnce(async () => (await tasksPromise) as any);
+
+    act(() => {
+      setLocale('en-US');
+    });
+
+    await waitFor(() => expect(api.fetchTaskGroup).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Keep this message')).toBeInTheDocument();
+    expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
+
+    resolveGroup(group);
+    resolveTasks([task]);
+
+    await waitFor(() => expect(api.fetchTaskGroupTasks).toHaveBeenCalledTimes(2));
+  });
+
+  // Preserve timeline content during refresh failures to avoid UX resets. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126
+  test('keeps timeline content when refresh polling hits a network failure', async () => {
+    const now = '2026-01-11T00:00:00.000Z';
+    const tasks = [
+      {
+        id: 't_keep',
+        eventType: 'chat',
+        payload: { __chat: { text: 'Keep this message' } },
+        status: 'queued',
+        retries: 0,
+        createdAt: now,
+        updatedAt: now
+      }
+    ];
+
+    const group = {
+      id: 'g1',
+      kind: 'chat',
+      bindingKey: 'b1',
+      title: 'Group g1',
+      repoId: 'r1',
+      robotId: 'bot1',
+      createdAt: now,
+      updatedAt: now
+    } as any;
+
+    const networkError = Object.assign(new Error('Network Error'), { response: undefined });
+    const originalSetInterval = window.setInterval;
+    const originalClearInterval = window.clearInterval;
+    const intervalSpy = vi.spyOn(window, 'setInterval');
+    const clearSpy = vi.spyOn(window, 'clearInterval');
+    let intervalCallback: (() => void) | null = null;
+
+    intervalSpy.mockImplementation(((callback: TimerHandler, timeout?: number, ...args: any[]) => {
+      if (timeout === 5000) {
+        intervalCallback = callback as () => void;
+        return 1 as any;
+      }
+      return originalSetInterval(callback, timeout as number, ...args);
+    }) as typeof window.setInterval);
+    clearSpy.mockImplementation((id?: number) => originalClearInterval(id as number));
+
+    vi.mocked(api.fetchTaskGroup).mockResolvedValueOnce(group);
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValueOnce(tasks as any);
+    vi.mocked(api.fetchTaskGroup).mockRejectedValueOnce(networkError as any);
+    vi.mocked(api.fetchTaskGroupTasks).mockRejectedValueOnce(networkError as any);
+
+    try {
+      renderPage({ taskGroupId: 'g1' });
+
+      expect(await screen.findByText('Keep this message')).toBeInTheDocument();
+
+      await waitFor(() => expect(api.fetchTaskGroup).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(intervalCallback).not.toBeNull());
+      intervalCallback?.();
+
+      await waitFor(() => expect(api.fetchTaskGroup).toHaveBeenCalledTimes(2));
+      expect(screen.getByText('Keep this message')).toBeInTheDocument();
+      expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
+    } finally {
+      intervalSpy.mockRestore();
+      clearSpy.mockRestore();
+    }
   });
 
   test('renders only the latest 3 tasks by default and loads older tasks when scrolling up', async () => {

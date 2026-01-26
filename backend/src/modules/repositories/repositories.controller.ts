@@ -950,6 +950,8 @@ export class RepositoriesController {
       // Cast dependency override payloads for service-level validation. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
       const dependencyConfig = body?.dependencyConfig as RobotDependencyConfig | null | undefined;
       const isDefault = typeof body?.isDefault === 'boolean' ? body.isDefault : undefined;
+      // Forward robot-level time window inputs to the service for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      const timeWindow = body?.timeWindow;
 
       let repoScopedCredentials:
         | Awaited<ReturnType<RepositoryService['getRepoScopedCredentials']>>
@@ -1048,6 +1050,7 @@ export class RepositoriesController {
         modelProviderConfig,
         dependencyConfig,
         repoWorkflowMode,
+        timeWindow,
         isDefault
       });
 
@@ -1070,7 +1073,9 @@ export class RepositoriesController {
         message.includes('credentialProfileId') ||
         message.includes('token must be null') ||
         message.includes('repoWorkflowMode must be') ||
-        message.includes('dependencyConfig')
+        message.includes('dependencyConfig') ||
+        // Treat timeWindow validation errors as client input problems. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        message.includes('timeWindow')
       ) {
         throw new BadRequestException({ error: message });
       }
@@ -1152,6 +1157,8 @@ export class RepositoriesController {
       }
       const enabled = typeof body?.enabled === 'boolean' ? body.enabled : undefined;
       const isDefault = typeof body?.isDefault === 'boolean' ? body.isDefault : undefined;
+      // Forward robot-level time window updates to the service for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      const timeWindow = body?.timeWindow;
 
       const token =
         body?.token === undefined ? undefined : normalizeNullableTrimmedString(body?.token, 'token');
@@ -1303,6 +1310,7 @@ export class RepositoriesController {
         // Persist dependency overrides from robot patch requests. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
         dependencyConfig,
         repoWorkflowMode,
+        timeWindow,
         isDefault
       });
       if (!robot) throw new NotFoundException({ error: 'Robot not found' });
@@ -1326,7 +1334,9 @@ export class RepositoriesController {
         message.includes('credentialProfileId') ||
         message.includes('token must be null') ||
         message.includes('repoWorkflowMode must be') ||
-        message.includes('dependencyConfig')
+        message.includes('dependencyConfig') ||
+        // Treat timeWindow validation errors as client input problems. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        message.includes('timeWindow')
       ) {
         throw new BadRequestException({ error: message });
       }

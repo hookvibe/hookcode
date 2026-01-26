@@ -223,6 +223,46 @@ export const shDoubleQuote = (value: string) =>
     .replace(/`/g, '\\`')
     .replace(/\$/g, '\\$')}"`;
 
+/**
+ * Build git proxy flags from GIT_HTTP_PROXY env var.
+ * Returns `-c http.proxy=<proxy> -c https.proxy=<proxy>` if set, otherwise empty string.
+ * gitproxyfix20260127
+ */
+export const buildGitProxyFlags = (): string => {
+  const proxy = (process.env.GIT_HTTP_PROXY ?? '').trim();
+  if (!proxy) return '';
+  return `-c http.proxy=${shDoubleQuote(proxy)} -c https.proxy=${shDoubleQuote(proxy)}`;
+};
+
+/**
+ * Configure repo-local git proxy settings to override user's global ~/.gitconfig.
+ *
+ * Problem: User's ~/.gitconfig may have http.proxy=127.0.0.1:7890 which is unreachable
+ * from Codex/Claude sandbox. When the model executes `git push`, it reads ~/.gitconfig
+ * and fails because 127.0.0.1 inside sandbox points to sandbox itself, not host machine.
+ *
+ * Solution: Set repo-local git config (in .git/config) which has higher priority than
+ * ~/.gitconfig. This ensures all git commands in the repo use the correct proxy.
+ *
+ * docs/en/developer/plans/gitproxyfix20260127/task_plan.md gitproxyfix20260127
+ */
+export const configureRepoLocalGitProxy = async (repoDir: string): Promise<void> => {
+  const proxy = (process.env.GIT_HTTP_PROXY ?? '').trim();
+  if (!proxy) return;
+
+  // Set repo-local http.proxy and https.proxy to override ~/.gitconfig settings.
+  // Repo-local config (.git/config) has higher priority than user global (~/.gitconfig).
+  // gitproxyfix20260127
+  const { execSync } = await import('child_process');
+  try {
+    execSync(`git config --local http.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
+    execSync(`git config --local https.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
+  } catch (err) {
+    // Best-effort: log warning but don't fail the task if proxy config fails
+    console.warn('[agent] Failed to configure repo-local git proxy:', err);
+  }
+};
+
 const resolveRepoDefaultBranch = (repo: Repository | null): string => {
   if (!repo) return '';
   const branches = Array.isArray(repo.branches) ? repo.branches : [];
@@ -714,14 +754,18 @@ async function callAgent(
     // Only allow git network sync during the first task-group workspace initialization. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
     const allowNetworkPull = !workspaceReady;
 
+    // Build git proxy flags from GIT_HTTP_PROXY env var for network operations. gitproxyfix20260127
+    const gitProxyFlags = buildGitProxyFlags();
+
     const cloneRepo = async () => {
       const injected = upstreamInjected;
 
       if (checkoutRef) {
         try {
           await appendLog(`Cloning repository (branch ${checkoutRef}) ${injected.displayUrl}`);
+          // Use gitProxyFlags to pass proxy config to git commands. gitproxyfix20260127
           await streamCommand(
-            `git clone --branch ${shDoubleQuote(checkoutRef)} ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
+            `git ${gitProxyFlags} clone --branch ${shDoubleQuote(checkoutRef)} ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
             appendRawLog,
             {
               env: { GIT_TERMINAL_PROMPT: '0' },
@@ -735,8 +779,9 @@ async function callAgent(
       }
 
       await appendLog(`Cloning repository ${injected.displayUrl}`);
+      // Use gitProxyFlags to pass proxy config to git commands. gitproxyfix20260127
       await streamCommand(
-        `git clone ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
+        `git ${gitProxyFlags} clone ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
         appendRawLog,
         {
           env: { GIT_TERMINAL_PROMPT: '0' },
@@ -761,6 +806,9 @@ async function callAgent(
       await appendThoughtChainCommand({ id: workspaceItemId, status: 'started', command: cloneCommand });
       try {
         await cloneRepo();
+        // Configure repo-local git proxy to override ~/.gitconfig (e.g., 127.0.0.1 → LAN IP).
+        // This ensures model-executed git commands use the correct proxy. gitproxyfix20260127
+        await configureRepoLocalGitProxy(repoDir);
         await appendThoughtChainCommand({ id: workspaceItemId, status: 'completed', command: cloneCommand });
       } catch (err: any) {
         await appendThoughtChainCommand({
@@ -787,8 +835,9 @@ async function callAgent(
           redact: redactSensitiveText
         });
         if (allowNetworkPull) {
+          // Use gitProxyFlags to pass proxy config to git pull. gitproxyfix20260127
           await streamCommand(
-            `cd ${repoDir} && git pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`,
+            `cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`,
             appendRawLog,
             {
               env: { GIT_TERMINAL_PROMPT: '0' },
@@ -805,7 +854,8 @@ async function callAgent(
     } else if (allowNetworkPull) {
       try {
         await appendLog('Updating default branch');
-        await streamCommand(`cd ${repoDir} && git pull --no-rebase`, appendRawLog, {
+        // Use gitProxyFlags to pass proxy config to git pull. gitproxyfix20260127
+        await streamCommand(`cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase`, appendRawLog, {
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
         });
@@ -1681,6 +1731,8 @@ export const collectGitStatusSnapshot = async (params: {
   const errors: string[] = [];
   const gitEnv = { GIT_TERMINAL_PROMPT: '0' };
   const runGit = (cmd: string) => runCommandCapture(`cd ${shDoubleQuote(params.repoDir)} && ${cmd}`, { env: gitEnv });
+  // Build git proxy flags for network commands like ls-remote. gitproxyfix20260127
+  const gitProxyFlags = buildGitProxyFlags();
 
   const branchRes = await runGit('git rev-parse --abbrev-ref HEAD');
   const branch = branchRes.exitCode === 0 ? branchRes.stdout.trim() : '';
@@ -1728,7 +1780,8 @@ export const collectGitStatusSnapshot = async (params: {
 
   let pushTargetSha: string | undefined;
   if (pushRemoteRaw && branch && branch !== 'HEAD') {
-    const lsRemoteRes = await runGit(`git ls-remote --heads ${shDoubleQuote(pushRemoteRaw)} ${shDoubleQuote(branch)}`);
+    // Use gitProxyFlags to pass proxy config to ls-remote. gitproxyfix20260127
+    const lsRemoteRes = await runGit(`git ${gitProxyFlags} ls-remote --heads ${shDoubleQuote(pushRemoteRaw)} ${shDoubleQuote(branch)}`);
     if (lsRemoteRes.exitCode === 0) {
       const line = lsRemoteRes.stdout.trim().split(/\r?\n/)[0] ?? '';
       const sha = line.split(/\s+/)[0] ?? '';

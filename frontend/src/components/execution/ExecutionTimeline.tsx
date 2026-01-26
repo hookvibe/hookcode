@@ -39,6 +39,14 @@ const firstLine = (raw: string): string => {
   return (line ?? '').trim();
 };
 
+// Summarize execution detail text for richer headers and inline labels. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
+const summarizePaths = (paths: string[], maxItems = 3, maxLen = 160): string => {
+  const usable = paths.map((entry) => String(entry ?? '').trim()).filter(Boolean);
+  if (!usable.length) return '';
+  const sample = usable.slice(0, maxItems).map((entry) => formatPath(entry)).filter(Boolean).join(', ');
+  return sample ? clampText(sample, maxLen) : '';
+};
+
 type ExecutionThinkProps = {
   title: ReactNode;
   icon?: ReactNode;
@@ -101,20 +109,38 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
   // Simplify item headers (no "Completed" tag / exit code text); rely on ThoughtChain status icons instead. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
   const buildTitle = (item: ExecutionItem): ReactNode => {
     if (item.kind === 'command_execution') {
+      // Use command detail text in the header to avoid generic "Command" labels. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
+      const commandRaw = item.command?.trim();
+      const commandSummary = commandRaw ? clampText(commandRaw, 160) : '';
+      const commandLabel = commandSummary ? t('execViewer.item.commandDetail', { command: commandSummary }) : t('execViewer.item.command');
       return (
-        <Space size={8} wrap>
+        <Space size={8} wrap style={{ minWidth: 0 }}>
           <CodeOutlined />
-          <Typography.Text strong>{t('execViewer.item.command')}</Typography.Text>
+          {/* Allow command titles to wrap within the ThoughtChain header to avoid overflow. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */}
+          <Typography.Text strong className="hc-exec-title-text" title={commandRaw || undefined}>
+            {commandLabel}
+          </Typography.Text>
         </Space>
       );
     }
 
     if (item.kind === 'file_change') {
+      // Summarize changed file paths in the header to make file steps descriptive. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
+      const filePaths = (item.changes.length ? item.changes.map((entry) => entry.path) : (item.diffs ?? []).map((entry) => entry.path)).filter(
+        (entry) => entry
+      );
+      const summary = summarizePaths(filePaths, 3, 160);
+      const fullSummary = filePaths.join('\n');
+      const fileLabel = summary ? t('execViewer.item.filesDetail', { summary }) : t('execViewer.item.files');
+      const fileCount = item.changes.length || item.diffs?.length || 0;
       return (
-        <Space size={8} wrap>
+        <Space size={8} wrap style={{ minWidth: 0 }}>
           <FileTextOutlined />
-          <Typography.Text strong>{t('execViewer.item.files')}</Typography.Text>
-          <Typography.Text type="secondary">{t('execViewer.files.count', { count: item.changes.length })}</Typography.Text>
+          {/* Allow file-change titles to wrap within the ThoughtChain header to avoid overflow. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */}
+          <Typography.Text strong className="hc-exec-title-text" title={fullSummary || summary || undefined}>
+            {fileLabel}
+          </Typography.Text>
+          {fileCount ? <Typography.Text type="secondary">{t('execViewer.files.count', { count: fileCount })}</Typography.Text> : null}
         </Space>
       );
     }
@@ -123,9 +149,10 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
       const line = firstLine(item.text);
       const text = line ? clampText(line, 140) : t('execViewer.item.message');
       return (
-        <Space size={8} style={{ minWidth: 0 }}>
+        <Space size={8} wrap style={{ minWidth: 0 }}>
           <MessageOutlined />
-          <Typography.Text strong ellipsis={{ tooltip: line || undefined }} style={{ minWidth: 0 }}>
+          {/* Allow message headers to wrap in narrow chat cards instead of truncating. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */}
+          <Typography.Text strong className="hc-exec-title-text" title={line || undefined}>
             {text}
           </Typography.Text>
         </Space>
@@ -136,9 +163,10 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
       const line = firstLine(item.text);
       const text = line ? clampText(line, 140) : t('execViewer.item.reasoning');
       return (
-        <Space size={8} style={{ minWidth: 0 }}>
+        <Space size={8} wrap style={{ minWidth: 0 }}>
           <MoreOutlined />
-          <Typography.Text strong ellipsis={{ tooltip: line || undefined }} style={{ minWidth: 0 }}>
+          {/* Allow reasoning headers to wrap in narrow chat cards instead of truncating. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */}
+          <Typography.Text strong className="hc-exec-title-text" title={line || undefined}>
             {text}
           </Typography.Text>
         </Space>
@@ -173,17 +201,8 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
     }
 
     if (item.kind === 'file_change') {
-      const sample = item.changes
-        .slice(0, 3)
-        .map((c) => formatPath(c.path))
-        .filter(Boolean)
-        .join(', ');
-      if (!sample) return null;
-      return (
-        <Typography.Text type="secondary" className="hc-exec-thought__desc" ellipsis={{ tooltip: item.changes.map((c) => c.path).join('\n') }}>
-          {clampText(sample, 160)}
-        </Typography.Text>
-      );
+      // Keep file summaries in the title so descriptions do not duplicate path lists. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
+      return null;
     }
 
     if (item.kind === 'agent_message') {
@@ -209,7 +228,8 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
       const running = toThoughtStatus(item) === 'loading';
       return (
         <ExecutionThink
-          title={<span className="hc-exec-think-title__mono">{clampText(item.command || '-', 180)}</span>}
+          // Show a stable output label here since the command is already in the step header. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
+          title={t('execViewer.section.commandOutput')}
           icon={<CodeOutlined />}
           hideIcon
           loading={running}
@@ -225,42 +245,53 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
       const running = toThoughtStatus(item) === 'loading';
       const diffs = item.diffs ?? [];
       return (
-        <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-          <ExecutionThink title={t('execViewer.item.files')} icon={<FileTextOutlined />} loading={running} blink={running} defaultExpanded={false}>
-            {item.changes.length ? (
-              <div className="hc-exec-files">
-                {item.changes.map((change, idx) => (
-                  <div key={`${idx}-${change.path}`} className="hc-exec-file">
-                    <Typography.Text className="hc-exec-file__path" ellipsis={{ tooltip: change.path }}>
-                      {formatPath(change.path)}
-                    </Typography.Text>
-                    {change.kind ? (
-                      <Tag color="default" style={{ marginInlineStart: 8 }}>
-                        {change.kind}
-                      </Tag>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <Typography.Text type="secondary">{t('execViewer.files.empty')}</Typography.Text>
-            )}
-          </ExecutionThink>
+        <ExecutionThink
+          // Keep a single collapsible block for file changes to avoid duplicate expanders. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
+          title={t('execViewer.section.fileDetails')}
+          icon={<FileTextOutlined />}
+          loading={running}
+          blink={running}
+          defaultExpanded={false}
+        >
+          {item.changes.length ? (
+            <div className="hc-exec-files">
+              {item.changes.map((change, idx) => (
+                <div key={`${idx}-${change.path}`} className="hc-exec-file">
+                  <Typography.Text className="hc-exec-file__path" ellipsis={{ tooltip: change.path }}>
+                    {formatPath(change.path)}
+                  </Typography.Text>
+                  {change.kind ? (
+                    <Tag color="default" style={{ marginInlineStart: 8 }}>
+                      {change.kind}
+                    </Tag>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Typography.Text type="secondary">{t('execViewer.files.empty')}</Typography.Text>
+          )}
 
           {diffs.length ? (
-            diffs.map((diff) => (
-              <ExecutionThink key={diffKey(diff)} title={<span className="hc-exec-think-title__mono">{diff.path}</span>} icon={<FileTextOutlined />} defaultExpanded={false}>
-                {diff.oldText !== undefined && diff.newText !== undefined ? (
-                  <DiffView oldText={diff.oldText} newText={diff.newText} showLineNumbers={showLineNumbers} showPlusMinusSymbols wrapLines={wrapDiffLines} />
-                ) : (
-                  <pre className="hc-exec-output hc-exec-output--mono">{diff.unifiedDiff}</pre>
-                )}
-              </ExecutionThink>
-            ))
+            <div className="hc-exec-diff-list">
+              {diffs.map((diff) => (
+                <div key={diffKey(diff)} className="hc-exec-diff">
+                  <Typography.Text className="hc-exec-diff__file" ellipsis={{ tooltip: diff.path }}>
+                    {formatPath(diff.path)}
+                  </Typography.Text>
+                  {/* Render diffs inline so file changes use one collapse affordance. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */}
+                  {diff.oldText !== undefined && diff.newText !== undefined ? (
+                    <DiffView oldText={diff.oldText} newText={diff.newText} showLineNumbers={showLineNumbers} showPlusMinusSymbols wrapLines={wrapDiffLines} />
+                  ) : (
+                    <pre className="hc-exec-output hc-exec-output--mono">{diff.unifiedDiff}</pre>
+                  )}
+                </div>
+              ))}
+            </div>
           ) : (
             <Typography.Text type="secondary">{t('execViewer.diff.pending')}</Typography.Text>
           )}
-        </Space>
+        </ExecutionThink>
       );
     }
 
@@ -322,6 +353,8 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
       })),
     [visibleItems, showLineNumbers, t, wrapDiffLines]
   );
+  // Track running items so we can show a live indicator at the bottom. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
+  const showRunningIndicator = visibleItems.some((item) => toThoughtStatus(item) === 'loading');
 
   if (!chainItems.length) {
     // Avoid conditional hooks by rendering the empty state after all hooks have executed. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
@@ -333,7 +366,20 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
   }
 
   return (
-    // Replace per-step Cards with Ant Design X ThoughtChain/Think to improve scanability of structured logs. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
-    <ThoughtChain items={chainItems} rootClassName="hc-exec-thought-chain" line="solid" />
+    <div className="hc-exec-timeline">
+      {/* Replace per-step Cards with Ant Design X ThoughtChain/Think to improve scanability of structured logs. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */}
+      <ThoughtChain items={chainItems} rootClassName="hc-exec-thought-chain" line="solid" />
+      {showRunningIndicator ? (
+        <div className="hc-exec-running" role="status" aria-live="polite">
+          {/* Show an animated in-progress marker at the bottom during execution. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */}
+          <span className="hc-exec-running__dots" aria-hidden="true">
+            <span className="hc-exec-running__dot" />
+            <span className="hc-exec-running__dot" />
+            <span className="hc-exec-running__dot" />
+          </span>
+          <Typography.Text type="secondary">{t('execViewer.status.running')}</Typography.Text>
+        </div>
+      ) : null}
+    </div>
   );
 };

@@ -1,5 +1,7 @@
-import { Allow, IsBoolean, IsOptional, IsString } from 'class-validator';
+import { Allow, IsBoolean, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { TimeWindowDto } from '../../common/dto/time-window.dto';
 
 export class CreateRepoRobotDto {
   @ApiPropertyOptional()
@@ -81,4 +83,11 @@ export class CreateRepoRobotDto {
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
+
+  @ApiPropertyOptional({ type: TimeWindowDto, nullable: true, description: 'Hour-level execution window (server time).' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TimeWindowDto)
+  // Accept robot-level time window configuration at creation. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindowDto | null;
 }

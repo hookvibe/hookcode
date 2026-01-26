@@ -1,7 +1,7 @@
 import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { App, Button, Input, Select, Space, Typography } from 'antd';
-import { SendOutlined } from '@ant-design/icons';
-import type { RepoRobot, Repository, Task, TaskGroup } from '../api';
+import { App, Button, Input, Popover, Select, Space, Typography } from 'antd';
+import { ClockCircleOutlined, SendOutlined } from '@ant-design/icons';
+import type { RepoRobot, Repository, Task, TaskGroup, TimeWindow } from '../api';
 import { executeChat, fetchTask, fetchTaskGroup, fetchTaskGroupTasks, listRepoRobots, listRepos } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildTaskGroupHash, buildTaskHash } from '../router';
@@ -9,6 +9,8 @@ import { TaskConversationItem } from '../components/chat/TaskConversationItem';
 import { PageNav } from '../components/nav/PageNav';
 import { isTerminalStatus } from '../utils/task';
 import { ChatTimelineSkeleton } from '../components/skeletons/ChatTimelineSkeleton';
+import { TimeWindowPicker } from '../components/TimeWindowPicker';
+import { formatTimeWindowLabel } from '../utils/timeWindow';
 
 /**
  * TaskGroupChatPage:
@@ -48,7 +50,6 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [robots, setRobots] = useState<RepoRobot[]>([]);
   const [robotId, setRobotId] = useState('');
 
-  const [groupLoading, setGroupLoading] = useState(false);
   const [group, setGroup] = useState<TaskGroup | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskDetailsById, setTaskDetailsById] = useState<Record<string, Task | null>>({});
@@ -57,6 +58,10 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
 
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  // Track optional chat-level time windows for manual scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  const [chatTimeWindow, setChatTimeWindow] = useState<TimeWindow | null>(null);
+  // Compute a concise label for the chat time window icon badge. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  const chatTimeWindowLabel = useMemo(() => formatTimeWindowLabel(chatTimeWindow), [chatTimeWindow]);
 
   const pollTimerRef = useRef<number | null>(null);
   const chatBodyRef = useRef<HTMLDivElement | null>(null);
@@ -69,6 +74,10 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const optimisticGroupIdRef = useRef<string | null>(null);
   const groupRequestSeqRef = useRef(0);
   const groupRequestInFlightRef = useRef(false);
+  // Throttle polling error toasts so network flaps don't spam the UI. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126
+  const lastGroupRefreshNoticeAtRef = useRef(0);
+  const GROUP_REFRESH_NOTICE_COOLDOWN_MS = 15000;
+  const GROUP_REFRESH_NOTICE_KEY = 'task-group-refresh-warning';
 
   const repoLocked = Boolean(taskGroupId);
 
@@ -211,18 +220,15 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         setGroup(null);
         setTasks([]);
         setTaskDetailsById({});
-        setGroupLoading(false);
         return;
       }
 
       const mode = options?.mode ?? 'blocking';
+      // Loading UI is derived from group-id readiness so stale flags cannot lock the skeleton. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
       if (mode === 'refreshing' && groupRequestInFlightRef.current) return;
 
       const requestSeq = (groupRequestSeqRef.current += 1);
       groupRequestInFlightRef.current = true;
-
-      const shouldBlock = mode === 'blocking' || !groupRef.current;
-      if (shouldBlock) setGroupLoading(true);
 
       try {
         const [g, taskList] = await Promise.all([fetchTaskGroup(targetGroupId), fetchTaskGroupTasks(targetGroupId, { limit: 50 })]);
@@ -235,15 +241,30 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       } catch (err) {
         if (groupRequestSeqRef.current !== requestSeq) return;
         console.error(err);
-        message.error(t('toast.chat.groupLoadFailed'));
-        groupRef.current = null;
-        setGroup(null);
-        setTasks([]);
-        setTaskDetailsById({});
+        const error = err as any;
+        const status = error?.response?.status as number | undefined;
+        const isNetworkFailure = !error?.response;
+        // Preserve the last snapshot on transient refresh failures to prevent UI resets. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126
+        const shouldPreserveSnapshot = Boolean(groupRef.current) && (isNetworkFailure || (status !== undefined && status >= 500));
+        const shouldThrottleNotice = mode === 'refreshing';
+        if (shouldThrottleNotice) {
+          const now = Date.now();
+          if (now - lastGroupRefreshNoticeAtRef.current >= GROUP_REFRESH_NOTICE_COOLDOWN_MS) {
+            lastGroupRefreshNoticeAtRef.current = now;
+            message.warning({ content: t('toast.chat.groupLoadFailed'), key: GROUP_REFRESH_NOTICE_KEY, duration: 3 });
+          }
+        } else {
+          message.error(t('toast.chat.groupLoadFailed'));
+        }
+        if (!shouldPreserveSnapshot) {
+          groupRef.current = null;
+          setGroup(null);
+          setTasks([]);
+          setTaskDetailsById({});
+        }
       } finally {
         if (groupRequestSeqRef.current !== requestSeq) return;
         groupRequestInFlightRef.current = false;
-        setGroupLoading(false);
       }
     },
     [message, t]
@@ -338,7 +359,9 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
           repoId,
           robotId,
           text: trimmed,
-          taskGroupId: taskGroupId || undefined
+          taskGroupId: taskGroupId || undefined,
+          // Pass chat-level time windows when configured. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+          timeWindow: chatTimeWindow
         });
         message.success(t('toast.chat.executeSuccess'));
         setDraft('');
@@ -366,7 +389,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         setSending(false);
       }
     },
-    [message, refreshGroupDetail, repoId, robotId, sending, t, taskGroupId]
+    [chatTimeWindow, message, refreshGroupDetail, repoId, robotId, sending, t, taskGroupId]
   );
 
   const canRunChatInGroup = Boolean(
@@ -391,6 +414,10 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     setTaskPagingPinnedToLatest(false);
     setTaskHiddenCount(Math.max(0, currentHidden - TASK_PAGE_SIZE));
   }, [pinnedHiddenCount, taskHiddenCount, taskPagingPinnedToLatest]);
+
+  // Use group-id readiness to gate blocking UI states so stale loading flags cannot mask loaded content. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
+  const isGroupReady = !taskGroupId || group?.id === taskGroupId;
+  const isGroupBlocking = Boolean(taskGroupId) && !isGroupReady;
 
   const handleChatScroll = useCallback(() => {
     const container = chatBodyRef.current;
@@ -421,7 +448,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     const container = chatBodyRef.current;
     if (!container) return;
     if (!taskGroupId) return;
-    if (groupLoading) return;
+    // Skip auto-scroll while the active group is still blocking to prevent stale loaders from freezing layout. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
+    if (isGroupBlocking) return;
     if (!visibleTasks.length) return;
     if (chatPrependScrollRestoreRef.current) return;
 
@@ -435,25 +463,31 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     if (chatAutoScrollEnabledRef.current) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [groupLoading, taskGroupId, visibleTasks.length, orderedTasks.length, taskHiddenCount]);
+  }, [isGroupBlocking, taskGroupId, visibleTasks.length, orderedTasks.length, taskHiddenCount]);
 
   useEffect(() => {
     // Keep the chat pinned to the bottom when async log rendering changes height and the user hasn't scrolled away. docs/en/developer/plans/taskgroupscrollbottom20260123/task_plan.md taskgroupscrollbottom20260123
     const container = chatBodyRef.current;
     if (!container) return;
-    if (typeof ResizeObserver === 'undefined') return;
 
     let rafId: number | null = null;
     let lastHeight = container.scrollHeight;
 
-    const observer = new ResizeObserver(() => {
+    const shouldPinToBottom = () => {
+      // Track content-driven height changes so slow log loads still land at the bottom. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
+      if (!taskGroupId) return false;
+      // Avoid pinning while the group is in a blocking load to keep skeleton state consistent. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
+      if (isGroupBlocking) return false;
+      if (chatPrependScrollRestoreRef.current) return false;
+      if (!chatAutoScrollEnabledRef.current) return false;
+      return true;
+    };
+
+    const schedulePin = () => {
       const nextHeight = container.scrollHeight;
       if (nextHeight === lastHeight) return;
       lastHeight = nextHeight;
-      if (!taskGroupId) return;
-      if (groupLoading) return;
-      if (chatPrependScrollRestoreRef.current) return;
-      if (!chatAutoScrollEnabledRef.current) return;
+      if (!shouldPinToBottom()) return;
 
       if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
@@ -462,18 +496,24 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         if (!target) return;
         target.scrollTop = target.scrollHeight;
       });
-    });
+    };
 
-    observer.observe(container);
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedulePin) : null;
+    resizeObserver?.observe(container);
+
+    const mutationObserver =
+      typeof MutationObserver !== 'undefined' ? new MutationObserver(schedulePin) : null;
+    mutationObserver?.observe(container, { childList: true, subtree: true, characterData: true });
 
     return () => {
-      observer.disconnect();
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [groupLoading, taskGroupId]);
+  }, [isGroupBlocking, taskGroupId]);
 
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const isCentered = !taskGroupId || (orderedTasks.length === 0 && !groupLoading);
+  const isCentered = !taskGroupId || (orderedTasks.length === 0 && !isGroupBlocking);
   const composerMode: 'centered' | 'inline' = isCentered ? 'centered' : 'inline';
   const composerTextAreaAutoSize = useMemo(
     () =>
@@ -511,52 +551,85 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         </div>
 
         <div className="hc-composer-footer">
-          <Space size={0} wrap style={{ gap: 4 }}>
-            <Select
-              variant="borderless"
-              showSearch
-              optionFilterProp="label"
-              style={{ width: 'auto', minWidth: 100 }}
-              placeholder={t('chat.repoPlaceholder')}
-              loading={reposLoading}
-              value={repoId || undefined}
-              disabled={repoLocked}
-              aria-label={t('chat.repo')}
-              onChange={(value) => setRepoId(String(value))}
-              options={repoOptions}
-              popupMatchSelectWidth={false}
-              size="small"
-              className="hc-select-subtle"
-            />
-            <span style={{ color: 'var(--border)', userSelect: 'none', margin: '0 4px' }}>|</span>
-            <Select
-              variant="borderless"
-              showSearch
-              optionFilterProp="label"
-              style={{ width: 'auto', minWidth: 100 }}
-              placeholder={t('chat.form.robotPlaceholder')}
-              loading={robotsLoading}
-              value={robotId || undefined}
-              aria-label={t('chat.form.robot')}
-              onChange={(value) => setRobotId(String(value))}
-              options={robotOptions}
-              disabled={!canRunChatInGroup}
-              popupMatchSelectWidth={false}
-              size="small"
-              className="hc-select-subtle"
-            />
-          </Space>
+          {/* Keep the time-window icon on the far left for a compact composer. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
+          <div className="hc-composer-footer-left">
+            <Popover
+              trigger="click"
+              placement="bottomLeft"
+              content={
+                <TimeWindowPicker
+                  value={chatTimeWindow}
+                  onChange={setChatTimeWindow}
+                  disabled={!canRunChatInGroup}
+                  size="small"
+                  showTimezoneHint={false}
+                />
+              }
+            >
+              <Button
+                size="small"
+                type="text"
+                aria-label={t('chat.form.timeWindow')}
+                title={t('chat.form.timeWindow')}
+                disabled={!canRunChatInGroup}
+                icon={<ClockCircleOutlined />}
+                className={chatTimeWindowLabel ? 'hc-timewindow-toggle is-active' : 'hc-timewindow-toggle'}
+              />
+            </Popover>
+            {chatTimeWindowLabel ? (
+              <Typography.Text type="secondary" className="hc-timewindow-label">
+                {chatTimeWindowLabel}
+              </Typography.Text>
+            ) : null}
+          </div>
 
-          <Button
-            type="primary"
-            shape="round"
-            icon={<SendOutlined />}
-            loading={sending}
-            disabled={!canSend}
-            onClick={() => void handleSend(draft)}
-          >
-            {t('chat.form.send')}
-          </Button>
+          <div className="hc-composer-footer-right">
+            <Space size={0} wrap style={{ gap: 4 }}>
+              <Select
+                variant="borderless"
+                showSearch
+                optionFilterProp="label"
+                style={{ width: 'auto', minWidth: 100 }}
+                placeholder={t('chat.repoPlaceholder')}
+                loading={reposLoading}
+                value={repoId || undefined}
+                disabled={repoLocked}
+                aria-label={t('chat.repo')}
+                onChange={(value) => setRepoId(String(value))}
+                options={repoOptions}
+                popupMatchSelectWidth={false}
+                size="small"
+                className="hc-select-subtle"
+              />
+              <span style={{ color: 'var(--border)', userSelect: 'none', margin: '0 4px' }}>|</span>
+              <Select
+                variant="borderless"
+                showSearch
+                optionFilterProp="label"
+                style={{ width: 'auto', minWidth: 100 }}
+                placeholder={t('chat.form.robotPlaceholder')}
+                loading={robotsLoading}
+                value={robotId || undefined}
+                aria-label={t('chat.form.robot')}
+                onChange={(value) => setRobotId(String(value))}
+                options={robotOptions}
+                disabled={!canRunChatInGroup}
+                popupMatchSelectWidth={false}
+                size="small"
+                className="hc-select-subtle"
+              />
+            </Space>
+            <Button
+              type="primary"
+              shape="round"
+              icon={<SendOutlined />}
+              loading={sending}
+              disabled={!canSend}
+              onClick={() => void handleSend(draft)}
+            >
+              {t('chat.form.send')}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -581,8 +654,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       />
 
       <div className="hc-chat-body" ref={chatBodyRef} onScroll={handleChatScroll}>
-        {groupLoading && taskGroupId ? (
-          // Render skeleton chat items instead of a generic Empty+icon while the group is loading. ro3ln7zex8d0wyynfj0m
+        {isGroupBlocking ? (
+          // Render skeleton chat items while the active task group is blocking on data. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
           <ChatTimelineSkeleton testId="hc-chat-group-skeleton" ariaLabel={t('common.loading')} />
         ) : isCentered ? (
           <div className="hc-chat-centered-view">
@@ -613,7 +686,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         )}
       </div>
 
-      {!isCentered && !groupLoading && (
+      {/* Keep the inline composer visible once the group is ready, even if a stale load flag lingers. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126 */}
+      {!isCentered && !isGroupBlocking && (
         <div className="hc-chat-footer-composer">{composerNode}</div>
       )}
     </div>

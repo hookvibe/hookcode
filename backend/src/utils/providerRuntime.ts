@@ -74,18 +74,49 @@ export const createAsyncLineLogger = (params: {
   return { enqueue, flushBestEffort };
 };
 
+/**
+ * Build merged environment for model provider execution (e.g., Codex/Claude sandbox).
+ *
+ * Key behavior:
+ * - If GIT_HTTP_PROXY is set, inject http_proxy/https_proxy/HTTP_PROXY/HTTPS_PROXY into the env.
+ *   This ensures git commands inside the sandbox use the correct proxy instead of the
+ *   user's ~/.gitconfig (which may have 127.0.0.1 that is unreachable from sandbox).
+ * - Env var proxy has higher priority than git config, so this overrides any global settings.
+ *
+ * docs/en/developer/plans/gitproxyfix20260127/task_plan.md gitproxyfix20260127
+ */
 export const buildMergedProcessEnv = (
   overrides?: Record<string, string | undefined>
 ): Record<string, string> | undefined => {
-  if (!overrides || Object.keys(overrides).length === 0) return undefined;
-
   const env: Record<string, string> = {};
+
+  // Copy current process env
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === 'string') env[key] = value;
   }
-  for (const [key, value] of Object.entries(overrides)) {
-    if (typeof value === 'string') env[key] = value;
+
+  // Apply overrides
+  if (overrides) {
+    for (const [key, value] of Object.entries(overrides)) {
+      if (typeof value === 'string') env[key] = value;
+    }
   }
+
+  // Inject proxy env vars from GIT_HTTP_PROXY so git commands inside sandbox use correct proxy.
+  // This overrides any proxy set in ~/.gitconfig (e.g., 127.0.0.1 which is unreachable from sandbox).
+  // gitproxyfix20260127
+  const gitHttpProxy = (process.env.GIT_HTTP_PROXY ?? '').trim();
+  if (gitHttpProxy) {
+    // Set both lowercase and uppercase variants for maximum compatibility
+    env.http_proxy = gitHttpProxy;
+    env.https_proxy = gitHttpProxy;
+    env.HTTP_PROXY = gitHttpProxy;
+    env.HTTPS_PROXY = gitHttpProxy;
+  }
+
+  // Return undefined if env is effectively empty (only if no changes were made)
+  if (Object.keys(env).length === 0) return undefined;
+
   return env;
 };
 

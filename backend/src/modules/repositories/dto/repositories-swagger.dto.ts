@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { TimeWindowDto } from '../../common/dto/time-window.dto';
 import {
   ModelProviderCredentialsPublicDto,
   RepoProviderCredentialsPublicDto
@@ -224,6 +225,10 @@ export class RepoRobotSwaggerDto {
   // Surface the robot workflow mode so UI can render direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   @ApiPropertyOptional({ nullable: true, enum: ['auto', 'direct', 'fork'] })
   repoWorkflowMode?: 'auto' | 'direct' | 'fork' | null;
+
+  @ApiPropertyOptional({ type: TimeWindowDto, nullable: true })
+  // Expose robot-level time windows for scheduling UI. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindowDto | null;
 
   @ApiPropertyOptional({ nullable: true, format: 'date-time' })
   activatedAt?: string | null;

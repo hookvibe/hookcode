@@ -5,6 +5,7 @@ import { useT } from '../../i18n';
 import { ScrollableTable } from '../ScrollableTable';
 import { TriggerRuleModal } from './TriggerRuleModal';
 import { findClause, getEventConfig, normalizeAutomationConfig, removeRule, setEventConfig, upsertRule } from './utils';
+import { formatTimeWindowLabel } from '../../utils/timeWindow';
 
 /**
  * RepoAutomationPanel:
@@ -180,6 +181,7 @@ export const RepoAutomationPanel: FC<Props> = ({ repo, robots, value, onChange, 
     const assignees = findValues(rule, (c) => c.field === 'issue.assignees' && c.op === 'containsAny');
     const mentionRobotIds = findValues(rule, (c) => c.field === 'comment.mentionRobotIds' && c.op === 'containsAny' && !c.negate);
     const mentionLegacy = findValues(rule, (c) => c.field === 'comment.mentions' && c.op === 'containsAny' && !c.negate);
+    const timeWindowLabel = formatTimeWindowLabel(rule.timeWindow);
 
     const mentionLabelForRobotId = (id: string): string => {
       const r = robotsById.get(id);
@@ -233,6 +235,12 @@ export const RepoAutomationPanel: FC<Props> = ({ repo, robots, value, onChange, 
             {t('repoAutomation.ruleSummary.mention', { keyword: v })}
           </Tag>
         ))}
+        {timeWindowLabel ? (
+          <Tag key={`tw:${timeWindowLabel}`} color="purple">
+            {/* Highlight trigger-level time windows in rule summaries. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
+            {t('repoAutomation.ruleSummary.timeWindow', { window: timeWindowLabel })}
+          </Tag>
+        ) : null}
         {!rule.match && <Typography.Text type="secondary">{t('repoAutomation.ruleSummary.noCondition')}</Typography.Text>}
       </Space>
     );

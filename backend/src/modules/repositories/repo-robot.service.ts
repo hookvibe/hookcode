@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { db } from '../../db';
 import type { RepoRobot, RobotPermission, RobotDefaultBranchRole } from '../../types/repoRobot';
 import type { RobotDependencyConfig } from '../../types/dependency';
+import type { TimeWindow } from '../../types/timeWindow';
 import {
   CODEX_PROVIDER_KEY,
   mergeCodexRobotProviderConfig,
@@ -24,6 +25,7 @@ import {
 } from '../../modelProviders/geminiCli';
 import { inferRobotPermission } from '../../services/robotPermission';
 import { normalizeRepoWorkflowMode } from '../../services/repoWorkflowMode';
+import { normalizeTimeWindow } from '../../utils/timeWindow';
 
 const toIso = (value: unknown): string => {
   if (value instanceof Date) return value.toISOString();
@@ -61,6 +63,12 @@ const normalizeLanguage = (value: unknown): string | undefined => {
   if (value === undefined || value === null) return undefined;
   const raw = String(value).trim();
   return raw ? raw : undefined;
+};
+
+const buildTimeWindow = (start: unknown, end: unknown): TimeWindow | undefined => {
+  // Normalize stored hour columns into a scheduling window for API output. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  const normalized = normalizeTimeWindow({ startHour: start, endHour: end });
+  return normalized ?? undefined;
 };
 
 const normalizeDependencyConfig = (value: unknown): RobotDependencyConfig | null | undefined => {
@@ -151,6 +159,8 @@ const recordToRobot = (row: any): RepoRobot => ({
   defaultBranchRole: normalizeDefaultBranchRole(row.defaultBranchRole),
   // Surface repo workflow mode for UI control and agent enforcement. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   repoWorkflowMode: normalizeRepoWorkflowMode(row.repoWorkflowMode ?? row.repo_workflow_mode) ?? undefined,
+  // Surface robot-level time windows for execution scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow: buildTimeWindow(row.timeWindowStartHour, row.timeWindowEndHour),
   activatedAt: row.activatedAt ? toIso(row.activatedAt) : undefined,
   lastTestAt: row.lastTestAt ? toIso(row.lastTestAt) : undefined,
   lastTestOk: row.lastTestOk === null || row.lastTestOk === undefined ? undefined : Boolean(row.lastTestOk),
@@ -188,6 +198,8 @@ export interface CreateRepoRobotInput {
   defaultBranchRole?: RobotDefaultBranchRole | null;
   // Allow explicit workflow mode selection when creating robots. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   repoWorkflowMode?: 'auto' | 'direct' | 'fork' | string | null;
+  // Optional hour-level scheduling window for robot executions. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindow | null;
   isDefault?: boolean;
 }
 
@@ -207,6 +219,8 @@ export interface UpdateRepoRobotInput {
   defaultBranchRole?: RobotDefaultBranchRole | null;
   // Allow explicit workflow mode updates on robots. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   repoWorkflowMode?: 'auto' | 'direct' | 'fork' | string | null;
+  // Optional hour-level scheduling window for robot executions. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindow | null;
   enabled?: boolean;
   isDefault?: boolean;
 }
@@ -291,6 +305,13 @@ export class RepoRobotService {
     if (repoWorkflowModeRaw !== null && !repoWorkflowMode) {
       throw new Error('repoWorkflowMode must be auto, direct, or fork');
     }
+    // Normalize robot-level time windows for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    const timeWindowInput = input.timeWindow;
+    const timeWindow =
+      timeWindowInput === undefined || timeWindowInput === null ? null : normalizeTimeWindow(timeWindowInput);
+    if (timeWindowInput !== undefined && timeWindowInput !== null && !timeWindow) {
+      throw new Error('timeWindow must include startHour/endHour between 0 and 23');
+    }
     // New robots default to "pending activation": they can only be enabled after the token test passes.
     const enabled = false;
     const isDefault = input.isDefault === undefined ? false : Boolean(input.isDefault);
@@ -314,6 +335,9 @@ export class RepoRobotService {
         repoTokenRepoRoleJson: Prisma.DbNull,
         // Persist repo workflow mode so task execution can enforce direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
         repoWorkflowMode: repoWorkflowMode ?? null,
+        // Persist robot-level time window hours for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        timeWindowStartHour: timeWindow ? timeWindow.startHour : null,
+        timeWindowEndHour: timeWindow ? timeWindow.endHour : null,
         promptDefault,
         language,
         modelProvider,
@@ -436,6 +460,25 @@ export class RepoRobotService {
     if (nextRepoWorkflowModeRaw !== null && !nextRepoWorkflowMode) {
       throw new Error('repoWorkflowMode must be auto, direct, or fork');
     }
+    // Normalize robot-level time window updates for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    const nextTimeWindowInput = input.timeWindow;
+    const nextTimeWindow =
+      nextTimeWindowInput === undefined
+        ? existing.timeWindow ?? null
+        : nextTimeWindowInput === null
+          ? null
+          : normalizeTimeWindow(nextTimeWindowInput);
+    if (nextTimeWindowInput !== undefined && nextTimeWindowInput !== null && !nextTimeWindow) {
+      throw new Error('timeWindow must include startHour/endHour between 0 and 23');
+    }
+    const timeWindowUpdate =
+      nextTimeWindowInput === undefined
+        ? {}
+        : {
+            // Persist robot-level time window updates for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+            timeWindowStartHour: nextTimeWindow ? nextTimeWindow.startHour : null,
+            timeWindowEndHour: nextTimeWindow ? nextTimeWindow.endHour : null
+          };
     const sourceChanged = input.repoCredentialSource !== undefined && nextRepoCredentialSource !== existingSource;
     const profileChanged =
       input.repoCredentialProfileId !== undefined &&
@@ -480,6 +523,7 @@ export class RepoRobotService {
         defaultBranchRole: nextDefaultBranchRole as any,
         // Store the chosen workflow mode so agent workflows can honor it. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
         repoWorkflowMode: nextRepoWorkflowMode ?? null,
+        ...timeWindowUpdate,
         activatedAt: nextActivatedAt ? new Date(nextActivatedAt) : nextActivatedAt,
         lastTestAt: nextLastTestAt ? new Date(nextLastTestAt) : nextLastTestAt,
         lastTestOk: nextLastTestOk as any,

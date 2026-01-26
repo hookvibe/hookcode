@@ -211,10 +211,27 @@ export class TaskPermissionsDto {
   canManage!: boolean;
 }
 
+
+
+export class TaskQueueTimeWindowDto {
+  // Surface resolved time window metadata for queue explanations. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  @ApiProperty()
+  startHour!: number;
+
+  @ApiProperty()
+  endHour!: number;
+
+  @ApiProperty({ enum: ['robot', 'trigger', 'chat'] })
+  source!: 'robot' | 'trigger' | 'chat';
+
+  @ApiProperty({ enum: ['server'] })
+  timezone!: 'server';
+}
+
 export class TaskQueueDiagnosisDto {
   // Describe queued task diagnosis for the console UI. f3a9c2d8e1b7f4a0c6d1
-  @ApiProperty({ enum: ['queue_backlog', 'no_active_worker', 'inline_worker_disabled', 'unknown'] })
-  reasonCode!: 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
+  @ApiProperty({ enum: ['queue_backlog', 'no_active_worker', 'inline_worker_disabled', 'outside_time_window', 'unknown'] })
+  reasonCode!: 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'outside_time_window' | 'unknown';
 
   @ApiProperty()
   ahead!: number;
@@ -230,6 +247,9 @@ export class TaskQueueDiagnosisDto {
 
   @ApiProperty()
   inlineWorkerEnabled!: boolean;
+
+  @ApiPropertyOptional({ type: TaskQueueTimeWindowDto })
+  timeWindow?: TaskQueueTimeWindowDto;
 }
 
 export class TaskWithMetaDto {
