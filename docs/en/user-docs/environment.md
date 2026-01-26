@@ -97,16 +97,6 @@ Admin tools can be enabled on separate ports:
 
 Only expose these ports on trusted networks.
 
-### Email (registration / verification)
-
-Email providers:
-
-- `EMAIL_PROVIDER=smtp|console|noop`
-
-SMTP settings:
-
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
-
 ### Worker mode
 
 Inline worker:

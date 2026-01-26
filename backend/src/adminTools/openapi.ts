@@ -89,7 +89,8 @@ export const createOpenApiSpec = (params: {
     .addTag('Repos', s(locale, '仓库与机器人配置', 'Repositories & robots'))
     .addTag('Tasks', s(locale, '任务队列与日志', 'Tasks & logs'))
     .addTag('Task Groups', s(locale, '任务分组', 'Task groups'))
-    .addTag('Webhook', s(locale, 'Webhook 入口（GitLab/GitHub）', 'Webhook endpoints (GitLab/GitHub)'));
+    .addTag('Webhook', s(locale, 'Webhook 入口（GitLab/GitHub）', 'Webhook endpoints (GitLab/GitHub)'))
+    .addTag('OpenAPI', s(locale, 'OpenAPI 文档', 'OpenAPI docs')); // Include the OpenAPI docs tag for spec consumers. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126
 
   const config = builder.build();
 
@@ -105,4 +106,3 @@ export const createOpenApiSpec = (params: {
 
   return doc;
 };
-

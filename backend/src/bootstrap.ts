@@ -11,9 +11,11 @@ import { closeDb, ensureSchema } from './db';
 import { isTruthy } from './utils/env';
 import { isAdminToolsEmbeddedEnabled } from './adminTools/config';
 import { startAdminTools, type AdminToolsHandle } from './adminTools/startAdminTools';
+import { createOpenApiSpec } from './adminTools/openapi';
 import { TaskService } from './modules/tasks/task.service';
 import { UserService } from './modules/users/user.service';
 import { RuntimeService } from './services/runtimeService';
+import { OpenApiSpecStore } from './modules/openapi/openapi-spec.store';
 
 dotenv.config();
 
@@ -116,6 +118,20 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
 
   app.setGlobalPrefix(globalPrefix, options.globalPrefixExclude ? { exclude: options.globalPrefixExclude } : undefined);
   await app.init();
+
+  try {
+    // Cache OpenAPI specs for docs rendering via /api/openapi.json. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126
+    const openApiBaseUrl = (
+      process.env.OPENAPI_BASE_URL ||
+      process.env.ADMIN_TOOLS_API_BASE_URL ||
+      `http://${host}:${port}/${globalPrefix}`
+    ).trim();
+    const openApiSpecStore = app.get(OpenApiSpecStore);
+    openApiSpecStore.setSpec('en-US', createOpenApiSpec({ apiBaseUrl: openApiBaseUrl, app, locale: 'en-US' }));
+    openApiSpecStore.setSpec('zh-CN', createOpenApiSpec({ apiBaseUrl: openApiBaseUrl, app, locale: 'zh-CN' }));
+  } catch (err) {
+    console.warn(`${logTag} openapi spec generation failed`, err);
+  }
 
   const runtimeService = app.get(RuntimeService);
   try {

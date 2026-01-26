@@ -6,6 +6,13 @@ title: Open API Docs
 
 This section documents HookCode’s backend APIs (served under the `/api` global prefix by default).
 
+<!-- Highlight the OpenAPI-driven docs workflow. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+
+## OpenAPI-linked docs
+
+Each API page now renders per-operation sections powered by the OpenAPI spec. Configure the spec URL, API base, and token once at the top of each page to enable Try It requests.
+Default spec URL: `/api/openapi.json` (requires auth when `AUTH_ENABLED=true`).
+
 ## Base URL
 
 In the console, the API base is configured via `VITE_API_BASE_URL` (frontend build-time).
@@ -40,4 +47,3 @@ These support `?token=<token>` for clients that cannot set headers (e.g. `EventS
 - [Repositories](./repositories)
 - [Tasks, Task Groups & Chat](./tasks-and-groups)
 - [Webhooks, Events, Tools & Health](./webhooks-events-tools)
-

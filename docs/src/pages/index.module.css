@@ -1,25 +1,122 @@
-/* Add section buttons layout for 4-way docs switcher. docs/en/developer/plans/z91bv632ewan7oocdkb4/task_plan.md z91bv632ewan7oocdkb4 */
-
+/* Center the glass hero layout for the docs landing page. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
 .main {
-  padding: 6rem 1.5rem;
+  min-height: 70vh;
+  padding: 6rem 1.5rem 5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
+/* Build the hero card as a layered glass panel with depth. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
 .hero {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
   text-align: center;
-}
-
-.tagline {
-  margin-top: 0.75rem;
-  opacity: 0.85;
-  font-size: 1.1rem;
-}
-
-.buttons {
-  margin-top: 2rem;
+  padding: 3rem 2.5rem;
+  border: 1px solid var(--glass-border-strong);
+  background: var(--glass-surface-strong);
+  border-radius: 28px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  position: relative;
+  overflow: hidden;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 1.25rem;
+  animation: hero-float 500ms ease-out both;
+}
+
+/* Add a luminous glass sheen overlay for the hero surface. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.75), rgba(59, 130, 246, 0.12));
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Ensure hero content sits above decorative overlays. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Tune the hero heading for balanced line breaks. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.hero h1 {
+  font-size: clamp(1.8rem, 1.3rem + 1.2vw, 2.4rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+/* Keep the tagline airy and readable on glass surfaces. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.tagline {
+  margin: 0.35rem auto 0;
+  max-width: 34rem;
+  opacity: 0.9;
+  font-size: 1.1rem;
+  color: var(--ifm-color-content-secondary);
+}
+
+/* Arrange CTA buttons with a soft staggered entrance. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.buttons {
+  margin-top: 1.6rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   justify-content: center;
-  gap: 0.75rem;
+  gap: 0.9rem;
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+  animation: buttons-rise 480ms ease-out 120ms both;
+}
+
+/* Define the primary hero entrance animation. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+@keyframes hero-float {
+  0% {
+    transform: translateY(18px) scale(0.98);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Define the staggered CTA reveal motion. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+@keyframes buttons-rise {
+  0% {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Tighten spacing for smaller screens without losing glass depth. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+@media (max-width: 640px) {
+  .main {
+    padding: 4.5rem 1.25rem 4rem;
+  }
+
+  .hero {
+    padding: 2.5rem 1.6rem;
+  }
+
+  .buttons {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Respect reduced motion preferences for hero animations. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+@media (prefers-reduced-motion: reduce) {
+  .hero,
+  .buttons {
+    animation: none;
+  }
 }
