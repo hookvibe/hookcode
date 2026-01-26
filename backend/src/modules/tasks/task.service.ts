@@ -128,6 +128,8 @@ const taskRecordToTask = (row: any): Task => ({
   issueId: row.issueId ?? undefined,
   retries: typeof row.retries === 'number' ? row.retries : Number(row.retries ?? 0),
   result: row.result ?? undefined,
+  // Map dependency install results from task rows into API output. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyResult: row.dependencyResult ?? row.dependency_result ?? undefined,
   createdAt: toIso(row.createdAt),
   updatedAt: toIso(row.updatedAt)
 });
@@ -151,6 +153,8 @@ const rowToTaskFromSql = (row: any): Task => ({
   issueId: row.issue_id ?? undefined,
   retries: typeof row.retries === 'number' ? row.retries : Number(row.retries ?? 0),
   result: row.result_json ?? undefined,
+  // Preserve dependency install results when using raw SQL task queries. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyResult: row.dependency_result ?? row.dependencyResult ?? undefined,
   createdAt: toIso(row.created_at),
   updatedAt: toIso(row.updated_at)
 });
@@ -1142,6 +1146,27 @@ export class TaskService {
         data: {
           result: mergedResult as any,
           status: status ?? undefined,
+          updatedAt: now
+        }
+      });
+      return taskRecordToTask(row);
+    } catch (err) {
+      if (isNotFoundError(err)) return undefined;
+      throw err;
+    }
+  }
+
+  async updateDependencyResult(
+    id: string,
+    dependencyResult: Task['dependencyResult'] | null
+  ): Promise<Task | undefined> {
+    // Persist dependency install outcomes alongside task state for UI/diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const now = new Date();
+    try {
+      const row = await db.task.update({
+        where: { id },
+        data: {
+          dependencyResult: dependencyResult === null ? null : (dependencyResult as any),
           updatedAt: now
         }
       });

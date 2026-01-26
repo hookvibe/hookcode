@@ -63,6 +63,10 @@ import { canTokenPushToUpstream, GIT_CONFIG_KEYS, normalizeGitRemoteUrl, toRepoW
 import { ensureGithubForkRepo, ensureGitlabForkProject, resolveRepoWorkflowMode } from '../services/repoWorkflowMode';
 // Pull git status helpers to report repo changes after write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAheadBehind } from '../utils/gitStatus';
+import { installDependencies, DependencyInstallerError } from './dependencyInstaller';
+import { RuntimeService } from '../services/runtimeService';
+import { HookcodeConfigService } from '../services/hookcodeConfigService';
+import type { DependencyResult, HookcodeConfig, RobotDependencyConfig } from '../types/dependency';
 
 /**
  * Core task execution (callAgent):
@@ -85,6 +89,8 @@ let taskLogStream: TaskLogStream;
 let repositoryService: RepositoryService;
 let repoRobotService: RepoRobotService;
 let userService: UserService;
+let runtimeService: RuntimeService;
+let hookcodeConfigService: HookcodeConfigService;
 
 export const setAgentServices = (services: {
   taskService: TaskService;
@@ -92,16 +98,21 @@ export const setAgentServices = (services: {
   repositoryService: RepositoryService;
   repoRobotService: RepoRobotService;
   userService: UserService;
+  runtimeService: RuntimeService;
+  hookcodeConfigService: HookcodeConfigService;
 }) => {
+  // Inject runtime/config services so dependency installs run inside the agent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   taskService = services.taskService;
   taskLogStream = services.taskLogStream;
   repositoryService = services.repositoryService;
   repoRobotService = services.repoRobotService;
   userService = services.userService;
+  runtimeService = services.runtimeService;
+  hookcodeConfigService = services.hookcodeConfigService;
 };
 
 const assertAgentServicesReady = () => {
-  if (!taskService || !taskLogStream || !repositoryService || !repoRobotService || !userService) {
+  if (!taskService || !taskLogStream || !repositoryService || !repoRobotService || !userService || !runtimeService || !hookcodeConfigService) {
     throw new Error('[agent] services are not initialized (missing setAgentServices call)');
   }
 };
@@ -110,6 +121,44 @@ const formatRef = (ref?: string) => ref?.replace(/^refs\/heads\//, '');
 const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 const isUuidLike = (value: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+const normalizeRobotDependencyConfig = (value: unknown): RobotDependencyConfig | null => {
+  // Normalize robot dependency overrides to a safe, typed shape. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const enabled = typeof raw.enabled === 'boolean' ? raw.enabled : undefined;
+  const allowCustomInstall = typeof raw.allowCustomInstall === 'boolean' ? raw.allowCustomInstall : undefined;
+  const failureModeRaw = typeof raw.failureMode === 'string' ? raw.failureMode.trim().toLowerCase() : '';
+  const failureMode = failureModeRaw === 'soft' || failureModeRaw === 'hard' ? failureModeRaw : undefined;
+  return { enabled, allowCustomInstall, failureMode };
+};
+
+// Provide package hints for custom runtime Docker images. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+const INSTALL_HINTS: Record<string, string> = {
+  python: 'python3 py3-pip',
+  java: 'openjdk17-jre maven',
+  ruby: 'ruby ruby-bundler',
+  go: 'go',
+  node: 'nodejs npm'
+};
+
+const buildRuntimeMissingMessage = (language: string): string => {
+  // Provide actionable guidance when a required runtime is missing. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const hint = INSTALL_HINTS[language] ?? language;
+  return [
+    `Runtime "${language}" is required but not installed.`,
+    '',
+    'To add runtime support, build a custom Docker image:',
+    '',
+    '1. Create backend/Dockerfile.custom:',
+    '   FROM node:18-alpine',
+    `   RUN apk add --no-cache ${hint}`,
+    '',
+    '2. Update docker/docker-compose.yml to use backend/Dockerfile.custom.',
+    '',
+    'See docs: /docs/en/user-docs/custom-dockerfile'
+  ].join('\n');
+};
 
 // Build task-group workspace paths with a taskId fallback when group ids are missing. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
 export const buildTaskGroupWorkspaceDir = (params: {
@@ -1019,6 +1068,57 @@ exit 0
       await appendLog(`Git workflow setup failed (continuing): ${err?.message || err}`);
     }
 
+    let dependencyResult: DependencyResult | null = null;
+    const robotDependencyConfig = normalizeRobotDependencyConfig((execution.robot as any).dependencyConfig);
+    let hookcodeConfig: HookcodeConfig | null = null;
+    try {
+      // Parse repository dependency configuration to determine install steps. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      hookcodeConfig = await hookcodeConfigService.parseConfig(repoDir);
+    } catch (err: any) {
+      await appendLog(`Failed to parse .hookcode.yml: ${err?.message || err}`);
+      throw err;
+    }
+
+    // Apply robot overrides and run dependency installs before model execution. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (hookcodeConfig?.dependency && robotDependencyConfig?.enabled === false) {
+      await appendLog('Dependency installation disabled by robot configuration');
+      dependencyResult = { status: 'skipped', steps: [], totalDuration: 0 };
+      await taskService.updateDependencyResult(task.id, dependencyResult);
+    } else if (hookcodeConfig?.dependency) {
+      try {
+        dependencyResult = await installDependencies({
+          workspaceDir: repoDir,
+          config: hookcodeConfig,
+          runtimeService,
+          failureMode: robotDependencyConfig?.failureMode,
+          allowCustomInstall: robotDependencyConfig?.allowCustomInstall,
+          appendLog,
+          runCommand: async ({ command, cwd, timeoutMs }) => {
+            const { exitCode, output } = await runCommandWithLogs(
+              `cd ${shDoubleQuote(cwd)} && ${command}`,
+              appendRawLog,
+              { timeoutMs, redact: redactSensitiveText }
+            );
+            return { exitCode, output };
+          },
+          appendThoughtChainCommand
+        });
+        await taskService.updateDependencyResult(task.id, dependencyResult);
+      } catch (err: any) {
+        if (err instanceof DependencyInstallerError) {
+          dependencyResult = err.result;
+          await taskService.updateDependencyResult(task.id, dependencyResult);
+          if (err.code === 'RUNTIME_MISSING') {
+            const message = err.message;
+            const match = message.match(/Runtime \"([^\"]+)\"/);
+            const language = match ? match[1] : 'unknown';
+            await appendLog(buildRuntimeMissingMessage(language));
+          }
+        }
+        throw err;
+      }
+    }
+
     if (writeEnabled) {
       // Capture a baseline git snapshot before running the model to detect later changes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
       gitStatus = { enabled: true, capturedAt: new Date().toISOString(), errors: [] };
@@ -1427,23 +1527,35 @@ exit 0
 
 export { callAgent };
 
-async function streamCommand(
+const runCommandWithLogs = async (
   command: string,
   log: (msg: string) => Promise<void>,
   options: StreamOptions = {}
-): Promise<void> {
-  // All external commands (git/codex) in `callAgent()` go through this function: split stdout/stderr by line and write into task logs.
+): Promise<{ exitCode: number; output: string }> => {
+  // Capture streaming command output for dependency installs while keeping log behavior consistent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   const redact = options.redact ?? redactSensitiveText;
-  await new Promise<void>((resolve, reject) => {
+  return await new Promise((resolve, reject) => {
     const child = spawn('sh', ['-c', command], {
       env: { ...process.env, ...(options.env ?? {}) },
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
+    let timedOut = false;
+    let timer: NodeJS.Timeout | null = null;
+    if (options.timeoutMs && options.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGKILL');
+      }, options.timeoutMs);
+    }
+
     let chain = Promise.resolve();
+    const outputLines: string[] = [];
     const enqueue = (line: string) => {
-      chain = chain.then(() => log(redact(line))).catch((err) => {
-        console.error('[streamCommand] log failed', err);
+      const redacted = redact(line);
+      outputLines.push(redacted);
+      chain = chain.then(() => log(redacted)).catch((err) => {
+        console.error('[runCommandWithLogs] log failed', err);
       });
     };
 
@@ -1475,27 +1587,43 @@ async function streamCommand(
     child.stderr.on('data', (data: Buffer) => stderrBuffer.push(data));
 
     child.on('error', (err) => {
+      if (timer) clearTimeout(timer);
       reject(err);
     });
     child.on('close', async (code) => {
+      if (timer) clearTimeout(timer);
       stdoutBuffer.flush();
       stderrBuffer.flush();
 
-      if (code === 0) {
-        await chain;
-        resolve();
-      } else {
-        enqueue(`[exit ${code}] ${command}`);
-        await chain;
-        reject(new Error(`command failed with code ${code}`));
+      const exitCode = timedOut ? -1 : typeof code === 'number' ? code : -1;
+      if (timedOut) {
+        enqueue(`[timeout] ${command}`);
+      } else if (exitCode !== 0) {
+        enqueue(`[exit ${exitCode}] ${command}`);
       }
+
+      await chain;
+      resolve({ exitCode, output: outputLines.join('\n') });
     });
   });
+};
+
+async function streamCommand(
+  command: string,
+  log: (msg: string) => Promise<void>,
+  options: StreamOptions = {}
+): Promise<void> {
+  // Stream command output into task logs while preserving failure handling. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const result = await runCommandWithLogs(command, log, options);
+  if (result.exitCode !== 0) {
+    throw new Error(`command failed with code ${result.exitCode}`);
+  }
 }
 
 interface StreamOptions {
   env?: Record<string, string | undefined>;
   redact?: (text: string) => string;
+  timeoutMs?: number;
 }
 
 interface CaptureOptions {

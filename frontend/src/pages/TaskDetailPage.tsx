@@ -1,5 +1,5 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, App, Avatar, Button, Card, Col, Descriptions, Empty, Popconfirm, Row, Space, Steps, Tag, Typography } from 'antd';
+import { Alert, App, Avatar, Button, Card, Col, Descriptions, Empty, Input, Popconfirm, Radio, Row, Select, Space, Steps, Switch, Tag, Typography } from 'antd';
 import {
   ClockCircleOutlined,
   CodeOutlined,
@@ -102,6 +102,17 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     [locale]
   );
 
+  const formatDuration = useCallback((durationMs?: number) => {
+    // Format dependency install durations for task diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) return '-';
+    if (durationMs < 1000) return `${Math.round(durationMs)}ms`;
+    const totalSeconds = Math.round(durationMs / 1000);
+    if (totalSeconds < 60) return `${totalSeconds}s`;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }, []);
+
   const canManageTask = Boolean(task?.permissions?.canManage);
   const canOpenRepo = Boolean(task?.repo?.id ?? task?.repoId);
   const canOpenGroup = Boolean(task?.groupId);
@@ -182,6 +193,192 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
       forkWebUrl: forkWebUrl || ''
     };
   }, [task?.result]);
+
+  // Capture dependency install results for the task detail sidebar. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const dependencyResult = task?.dependencyResult ?? null;
+  const dependencySteps = useMemo(
+    () => (Array.isArray(dependencyResult?.steps) ? dependencyResult?.steps ?? [] : []),
+    [dependencyResult]
+  );
+
+  // Track dependency UI filters/expansion state to support richer diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  type DependencyFilter = 'all' | 'success' | 'failed' | 'skipped';
+  type DependencySortKey = 'default' | 'status' | 'duration' | 'language' | 'workdir';
+  const [dependencyFilter, setDependencyFilter] = useState<DependencyFilter>('all');
+  const [dependencyKeyword, setDependencyKeyword] = useState('');
+  const [dependencySortKey, setDependencySortKey] = useState<DependencySortKey>('default');
+  const [dependencySortDirection, setDependencySortDirection] = useState<'asc' | 'desc'>('asc');
+  const [dependencyGroupByWorkdir, setDependencyGroupByWorkdir] = useState(false);
+  const [dependencyExpandedKeys, setDependencyExpandedKeys] = useState<Set<string>>(new Set());
+
+  // Normalize dependency steps with stable keys for filter + collapse controls. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const dependencyStepEntries = useMemo(
+    () =>
+      dependencySteps.map((step, index) => ({
+        step,
+        index,
+        key: `${step.language}-${index}`
+      })),
+    [dependencySteps]
+  );
+
+  const filteredDependencyEntries = useMemo(() => {
+    // Filter dependency steps so operators can focus on failures or skips. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const keyword = dependencyKeyword.trim().toLowerCase();
+    return dependencyStepEntries.filter((entry) => {
+      const step = entry.step;
+      if (dependencyFilter !== 'all' && step.status !== dependencyFilter) return false;
+      if (!keyword) return true;
+      const haystack = [
+        step.language,
+        step.command,
+        step.error,
+        step.reason,
+        step.workdir,
+        step.status
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+      return haystack.some((value) => value.includes(keyword));
+    });
+  }, [dependencyFilter, dependencyKeyword, dependencyStepEntries]);
+
+  const sortedDependencyEntries = useMemo(() => {
+    // Sort dependency steps for consistent ordering and debugging focus. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (dependencySortKey === 'default') return filteredDependencyEntries;
+    const direction = dependencySortDirection === 'desc' ? -1 : 1;
+    const statusWeight = (status: string) => {
+      if (status === 'failed') return 3;
+      if (status === 'skipped') return 2;
+      return 1;
+    };
+    const compareString = (a: string, b: string) => a.localeCompare(b);
+    const compareNumber = (a?: number, b?: number) => {
+      const aNum = typeof a === 'number' ? a : Number.POSITIVE_INFINITY;
+      const bNum = typeof b === 'number' ? b : Number.POSITIVE_INFINITY;
+      return aNum - bNum;
+    };
+    return [...filteredDependencyEntries].sort((left, right) => {
+      const leftStep = left.step;
+      const rightStep = right.step;
+      let diff = 0;
+      switch (dependencySortKey) {
+        case 'status':
+          diff = statusWeight(leftStep.status) - statusWeight(rightStep.status);
+          break;
+        case 'duration':
+          diff = compareNumber(leftStep.duration, rightStep.duration);
+          break;
+        case 'language':
+          diff = compareString(leftStep.language, rightStep.language);
+          break;
+        case 'workdir':
+          diff = compareString(leftStep.workdir ?? '', rightStep.workdir ?? '');
+          break;
+        default:
+          diff = 0;
+      }
+      if (diff === 0) {
+        diff = left.index - right.index;
+      }
+      return diff * direction;
+    });
+  }, [dependencySortDirection, dependencySortKey, filteredDependencyEntries]);
+
+  const groupedDependencyEntries = useMemo(() => {
+    // Group dependency steps by workdir when requested for multi-project repos. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (!dependencyGroupByWorkdir) {
+      return [{ groupKey: 'all', label: '', entries: sortedDependencyEntries }];
+    }
+    const groups: Array<{ groupKey: string; entries: typeof sortedDependencyEntries }> = [];
+    const seen = new Map<string, { groupKey: string; entries: typeof sortedDependencyEntries }>();
+    sortedDependencyEntries.forEach((entry) => {
+      const raw = entry.step.workdir?.trim() || '.';
+      const existing = seen.get(raw);
+      if (existing) {
+        existing.entries.push(entry);
+        return;
+      }
+      const nextGroup = { groupKey: raw, entries: [entry] };
+      seen.set(raw, nextGroup);
+      groups.push(nextGroup);
+    });
+    return groups;
+  }, [dependencyGroupByWorkdir, sortedDependencyEntries]);
+
+  const dependencyCounts = useMemo(() => {
+    // Summarize dependency step counts for quick status scanning. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    return dependencySteps.reduce(
+      (acc, step) => {
+        if (step.status === 'success') acc.success += 1;
+        if (step.status === 'failed') acc.failed += 1;
+        if (step.status === 'skipped') acc.skipped += 1;
+        return acc;
+      },
+      { success: 0, failed: 0, skipped: 0 }
+    );
+  }, [dependencySteps]);
+
+  useEffect(() => {
+    // Auto-expand failed dependency steps to surface errors by default. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (!dependencyResult) {
+      setDependencyExpandedKeys(new Set());
+      return;
+    }
+    const next = new Set<string>();
+    dependencyStepEntries.forEach((entry) => {
+      if (entry.step.status === 'failed') next.add(entry.key);
+    });
+    setDependencyExpandedKeys(next);
+    setDependencyFilter('all');
+  }, [dependencyResult, dependencyStepEntries]);
+  const renderDependencyStatusTag = useCallback(
+    (status: 'success' | 'partial' | 'skipped' | 'failed') => {
+      // Render dependency status tags consistently across summary + steps. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      const color = status === 'success' ? 'green' : status === 'partial' ? 'gold' : status === 'failed' ? 'red' : 'default';
+      const label =
+        status === 'success'
+          ? t('tasks.dependency.status.success')
+          : status === 'partial'
+            ? t('tasks.dependency.status.partial')
+            : status === 'failed'
+              ? t('tasks.dependency.status.failed')
+              : t('tasks.dependency.status.skipped');
+      return <Tag color={color}>{label}</Tag>;
+    },
+    [t]
+  );
+
+  const toggleDependencyStep = useCallback((key: string) => {
+    // Toggle dependency step details for focused debugging. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    setDependencyExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const expandAllDependencySteps = useCallback(() => {
+    // Expand visible dependency steps to reveal full command/error details. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    setDependencyExpandedKeys((prev) => {
+      const next = new Set(prev);
+      sortedDependencyEntries.forEach((entry) => next.add(entry.key));
+      return next;
+    });
+  }, [sortedDependencyEntries]);
+
+  const collapseAllDependencySteps = useCallback(() => {
+    // Collapse visible dependency steps to keep the panel compact. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    setDependencyExpandedKeys((prev) => {
+      const next = new Set(prev);
+      sortedDependencyEntries.forEach((entry) => next.delete(entry.key));
+      return next;
+    });
+  }, [sortedDependencyEntries]);
 
   const resultText = useMemo(() => extractTaskResultText(task), [task]);
   const showResult = Boolean(task && isTerminalStatus(task.status));
@@ -744,6 +941,217 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                   <Alert type="info" showIcon message={t('tasks.repoMissing')} style={{ marginTop: 12 }} />
                 ) : null}
               </Card>
+              {dependencyResult ? (
+                <div style={{ marginTop: 12 }}>
+                  {/* Show dependency install outcomes to help debug missing runtimes or install failures. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+                  <Card size="small" title={t('tasks.dependency.title')} className="hc-card">
+                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                      <Space size={8} wrap>
+                        {renderDependencyStatusTag(dependencyResult.status)}
+                        <Typography.Text type="secondary">
+                          {t('tasks.dependency.totalDuration', { duration: formatDuration(dependencyResult.totalDuration) })}
+                        </Typography.Text>
+                      </Space>
+
+                      {dependencySteps.length ? (
+                        <>
+                          <Space size={12} wrap>
+                            {/* Filter dependency steps by status to focus troubleshooting. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+                            <Space size={6} wrap align="center">
+                              <Typography.Text type="secondary">{t('tasks.dependency.filter.label')}</Typography.Text>
+                              <Radio.Group
+                                optionType="button"
+                                buttonStyle="solid"
+                                value={dependencyFilter}
+                                onChange={(event) => setDependencyFilter(event.target.value)}
+                                aria-label={t('tasks.dependency.filter.label')}
+                                data-testid="dependency-filter"
+                                options={[
+                                  { label: t('tasks.dependency.filter.all'), value: 'all' },
+                                  { label: t('tasks.dependency.filter.failed'), value: 'failed' },
+                                  { label: t('tasks.dependency.filter.skipped'), value: 'skipped' },
+                                  { label: t('tasks.dependency.filter.success'), value: 'success' }
+                                ]}
+                              />
+                            </Space>
+                            <Input
+                              allowClear
+                              value={dependencyKeyword}
+                              onChange={(event) => setDependencyKeyword(event.target.value)}
+                              placeholder={t('tasks.dependency.filter.keyword')}
+                              style={{ minWidth: 220 }}
+                              aria-label={t('tasks.dependency.filter.keyword')}
+                              data-testid="dependency-keyword"
+                            />
+                            <Space size={6} wrap>
+                              <Button size="small" onClick={expandAllDependencySteps} disabled={!sortedDependencyEntries.length}>
+                                {t('tasks.dependency.expandAll')}
+                              </Button>
+                              <Button size="small" onClick={collapseAllDependencySteps} disabled={!sortedDependencyEntries.length}>
+                                {t('tasks.dependency.collapseAll')}
+                              </Button>
+                            </Space>
+                          </Space>
+
+                          {/* Provide sorting + grouping toggles for dependency diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+                          <Space size={12} wrap>
+                            <Space size={6} wrap align="center">
+                              <Typography.Text type="secondary">{t('tasks.dependency.sort.label')}</Typography.Text>
+                              <Select
+                                size="small"
+                                value={dependencySortKey}
+                                onChange={(value) => setDependencySortKey(value)}
+                                aria-label={t('tasks.dependency.sort.label')}
+                                style={{ minWidth: 160 }}
+                                options={[
+                                  { value: 'default', label: t('tasks.dependency.sort.default') },
+                                  { value: 'status', label: t('tasks.dependency.sort.status') },
+                                  { value: 'duration', label: t('tasks.dependency.sort.duration') },
+                                  { value: 'language', label: t('tasks.dependency.sort.language') },
+                                  { value: 'workdir', label: t('tasks.dependency.sort.workdir') }
+                                ]}
+                              />
+                            </Space>
+                            <Space size={6} wrap align="center">
+                              <Typography.Text type="secondary">{t('tasks.dependency.sort.direction')}</Typography.Text>
+                              <Select
+                                size="small"
+                                value={dependencySortDirection}
+                                onChange={(value) => setDependencySortDirection(value)}
+                                aria-label={t('tasks.dependency.sort.direction')}
+                                style={{ minWidth: 140 }}
+                                options={[
+                                  { value: 'asc', label: t('tasks.dependency.sort.asc') },
+                                  { value: 'desc', label: t('tasks.dependency.sort.desc') }
+                                ]}
+                              />
+                            </Space>
+                            <Space size={6} wrap align="center">
+                              <Typography.Text type="secondary">{t('tasks.dependency.group.label')}</Typography.Text>
+                              <Switch
+                                checked={dependencyGroupByWorkdir}
+                                onChange={(checked) => setDependencyGroupByWorkdir(checked)}
+                                aria-label={t('tasks.dependency.group.label')}
+                              />
+                            </Space>
+                          </Space>
+
+                          <Space size={6} wrap>
+                            <Tag color="green">
+                              {t('tasks.dependency.status.success')} {dependencyCounts.success}
+                            </Tag>
+                            <Tag color="red">
+                              {t('tasks.dependency.status.failed')} {dependencyCounts.failed}
+                            </Tag>
+                            <Tag color="default">
+                              {t('tasks.dependency.status.skipped')} {dependencyCounts.skipped}
+                            </Tag>
+                          </Space>
+
+                          {sortedDependencyEntries.length ? (
+                            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                              {groupedDependencyEntries.map((group) => {
+                                const groupLabel =
+                                  group.groupKey === '.'
+                                    ? t('tasks.dependency.group.root')
+                                    : group.groupKey;
+                                const groupCounts = group.entries.reduce(
+                                  (acc, entry) => {
+                                    if (entry.step.status === 'success') acc.success += 1;
+                                    if (entry.step.status === 'failed') acc.failed += 1;
+                                    if (entry.step.status === 'skipped') acc.skipped += 1;
+                                    return acc;
+                                  },
+                                  { success: 0, failed: 0, skipped: 0 }
+                                );
+                                return (
+                                  <Space key={group.groupKey} direction="vertical" size={8} style={{ width: '100%' }}>
+                                    {dependencyGroupByWorkdir ? (
+                                      <Space size={8} wrap>
+                                        <Tag>{t('tasks.dependency.group.workdir', { workdir: groupLabel })}</Tag>
+                                        <Typography.Text type="secondary">
+                                          {t('tasks.dependency.group.count', { count: group.entries.length })}
+                                        </Typography.Text>
+                                        <Tag color="green">
+                                          {t('tasks.dependency.status.success')} {groupCounts.success}
+                                        </Tag>
+                                        <Tag color="red">
+                                          {t('tasks.dependency.status.failed')} {groupCounts.failed}
+                                        </Tag>
+                                        <Tag color="default">
+                                          {t('tasks.dependency.status.skipped')} {groupCounts.skipped}
+                                        </Tag>
+                                      </Space>
+                                    ) : null}
+
+                                    {group.entries.map((entry) => {
+                                      const step = entry.step;
+                                      const isExpanded = dependencyExpandedKeys.has(entry.key);
+                                      return (
+                                        <Card
+                                          key={entry.key}
+                                          size="small"
+                                          className="hc-inner-card"
+                                          styles={{ body: { padding: 12 } }}
+                                          data-testid={`dependency-step-${entry.index}`}
+                                          title={
+                                            <Space size={8} wrap>
+                                              <Tag>{step.language}</Tag>
+                                              {renderDependencyStatusTag(step.status)}
+                                              {step.workdir && !dependencyGroupByWorkdir ? (
+                                                <Typography.Text type="secondary">
+                                                  {t('tasks.dependency.workdir', { workdir: step.workdir })}
+                                                </Typography.Text>
+                                              ) : null}
+                                              {typeof step.duration === 'number' ? (
+                                                <Typography.Text type="secondary">
+                                                  {t('tasks.dependency.stepDuration', { duration: formatDuration(step.duration) })}
+                                                </Typography.Text>
+                                              ) : null}
+                                            </Space>
+                                          }
+                                          extra={
+                                            <Button
+                                              type="link"
+                                              size="small"
+                                              onClick={() => toggleDependencyStep(entry.key)}
+                                              aria-expanded={isExpanded}
+                                            >
+                                              {isExpanded ? t('tasks.dependency.collapse') : t('tasks.dependency.expand')}
+                                            </Button>
+                                          }
+                                        >
+                                          {isExpanded ? (
+                                            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                                              {step.command ? (
+                                                <Typography.Text>{t('tasks.dependency.command', { command: step.command })}</Typography.Text>
+                                              ) : null}
+                                              {step.reason ? (
+                                                <Typography.Text type="secondary">{t('tasks.dependency.reason', { reason: step.reason })}</Typography.Text>
+                                              ) : null}
+                                              {step.error ? (
+                                                <Typography.Text type="danger">{t('tasks.dependency.error', { error: step.error })}</Typography.Text>
+                                              ) : null}
+                                            </Space>
+                                          ) : null}
+                                        </Card>
+                                      );
+                                    })}
+                                  </Space>
+                                );
+                              })}
+                            </Space>
+                          ) : (
+                            <Typography.Text type="secondary">{t('tasks.dependency.filter.empty')}</Typography.Text>
+                          )}
+                        </>
+                      ) : (
+                        <Typography.Text type="secondary">{t('tasks.dependency.empty')}</Typography.Text>
+                      )}
+                    </Space>
+                  </Card>
+                </div>
+              ) : null}
               {task.result?.gitStatus?.enabled ? (
                 <div style={{ marginTop: 12 }}>
                   {/* Render git status in task detail so write-enabled changes are visible. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}

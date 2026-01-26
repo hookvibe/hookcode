@@ -65,6 +65,12 @@ export class CreateRepoRobotDto {
   @Allow()
   modelProviderConfig?: unknown;
 
+  @ApiPropertyOptional({ description: 'Dependency overrides (enabled/failureMode/allowCustomInstall).' })
+  @IsOptional()
+  @Allow()
+  // Accept dependency override payloads for robot creation. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyConfig?: unknown;
+
   // Accept workflow mode selection for robot creation. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   @ApiPropertyOptional({ nullable: true, description: 'Repo workflow mode (auto/direct/fork).' })
   @IsOptional()

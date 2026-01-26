@@ -27,7 +27,9 @@ vi.mock('../api', () => {
       gitlab: { profiles: [], defaultProfileId: null },
       github: { profiles: [], defaultProfileId: null }
     })),
-    fetchAdminToolsMeta: vi.fn(async () => ({ enabled: true, ports: { prisma: 7215, swagger: 7216 } }))
+    fetchAdminToolsMeta: vi.fn(async () => ({ enabled: true, ports: { prisma: 7215, swagger: 7216 } })),
+    // Provide runtime API mocks for the environment tab. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    fetchSystemRuntimes: vi.fn(async () => ({ runtimes: [], detectedAt: null }))
   };
 });
 

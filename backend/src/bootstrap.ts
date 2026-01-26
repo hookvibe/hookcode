@@ -13,6 +13,7 @@ import { isAdminToolsEmbeddedEnabled } from './adminTools/config';
 import { startAdminTools, type AdminToolsHandle } from './adminTools/startAdminTools';
 import { TaskService } from './modules/tasks/task.service';
 import { UserService } from './modules/users/user.service';
+import { RuntimeService } from './services/runtimeService';
 
 dotenv.config();
 
@@ -115,6 +116,15 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
 
   app.setGlobalPrefix(globalPrefix, options.globalPrefixExclude ? { exclude: options.globalPrefixExclude } : undefined);
   await app.init();
+
+  const runtimeService = app.get(RuntimeService);
+  try {
+    // Detect available runtimes once on startup for dependency installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const runtimes = await runtimeService.detectRuntimes();
+    console.log(`${logTag} detected runtimes`, runtimes.map((rt) => `${rt.language}@${rt.version}`));
+  } catch (err) {
+    console.warn(`${logTag} runtime detection failed`, err);
+  }
 
   const userService = app.get(UserService);
   await userService.ensureBootstrapUser();

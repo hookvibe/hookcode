@@ -1,3 +1,5 @@
+import type { RobotDependencyConfig } from './dependency';
+
 export type RobotPermission = 'read' | 'write';
 
 /**
@@ -104,6 +106,10 @@ export interface RepoRobot {
    * Model provider config (structure varies by provider; API responses are redacted for safety).
    */
   modelProviderConfig?: unknown;
+  /**
+   * Dependency management overrides for this robot (enable/disable, failure mode, custom install). docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+   */
+  dependencyConfig?: RobotDependencyConfig;
   /**
    * Default checkout branch (branch name):
    * - Fallback branch for tasks without explicit branch info (e.g. commit comments, MR comments, issues)

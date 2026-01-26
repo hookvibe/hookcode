@@ -140,6 +140,41 @@ export class TaskResultDto {
   gitStatus?: TaskGitStatusDto;
 }
 
+export class DependencyInstallStepDto {
+  // Swagger DTO for dependency install steps recorded per task. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  @ApiProperty({ enum: ['node', 'python', 'java', 'ruby', 'go'] })
+  language!: 'node' | 'python' | 'java' | 'ruby' | 'go';
+
+  @ApiPropertyOptional()
+  command?: string;
+
+  @ApiPropertyOptional()
+  workdir?: string;
+
+  @ApiProperty({ enum: ['success', 'skipped', 'failed'] })
+  status!: 'success' | 'skipped' | 'failed';
+
+  @ApiPropertyOptional()
+  duration?: number;
+
+  @ApiPropertyOptional()
+  error?: string;
+
+  @ApiPropertyOptional()
+  reason?: string;
+}
+
+export class DependencyResultDto {
+  @ApiProperty({ enum: ['success', 'partial', 'skipped', 'failed'] })
+  status!: 'success' | 'partial' | 'skipped' | 'failed';
+
+  @ApiProperty({ type: DependencyInstallStepDto, isArray: true })
+  steps!: DependencyInstallStepDto[];
+
+  @ApiProperty()
+  totalDuration!: number;
+}
+
 export class TaskRepoSummaryDto {
   @ApiProperty()
   id!: string;
@@ -218,6 +253,10 @@ export class TaskWithMetaDto {
 
   @ApiPropertyOptional()
   projectId?: number;
+
+  // Surface dependency install results on task responses. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  @ApiPropertyOptional({ type: DependencyResultDto })
+  dependencyResult?: DependencyResultDto;
 
   @ApiPropertyOptional({ enum: ['gitlab', 'github'], nullable: true })
   repoProvider?: 'gitlab' | 'github' | null;

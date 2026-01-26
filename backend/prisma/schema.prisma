@@ -25,6 +25,8 @@ model Task {
   issueId      Int?     @map("issue_id")
   retries      Int      @default(0)
   result       Json?    @map("result_json") @db.JsonB
+  /// Persist dependency install outcomes for multi-language repos. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyResult Json? @map("dependency_result") @db.JsonB
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
@@ -142,6 +144,8 @@ model RepoRobot {
   language              String?
   modelProvider         String    @default("codex") @map("model_provider")
   modelProviderConfig   Json?     @map("model_provider_config_json") @db.JsonB
+  /// Store dependency management overrides per robot. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyConfig      Json?     @map("dependency_config_json") @db.JsonB
   defaultBranchRole     String?   @map("default_branch_role")
   defaultBranch         String?   @map("default_branch")
   activatedAt           DateTime? @map("activated_at") @db.Timestamptz(6)

@@ -320,4 +320,31 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
 
     await waitFor(() => expect(modelInput).toHaveValue('gpt-4o'));
   });
+
+  test('shows dependency override controls in robot editor', async () => {
+    // Validate dependency override UI toggles for robot-level install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    await ui.click(screen.getByRole('button', { name: /new robot/i }));
+
+    const failureModeLabel = await screen.findByText('Failure mode');
+    const failureModeItem = failureModeLabel.closest('.ant-form-item');
+    expect(failureModeItem).toBeTruthy();
+    const failureModeSelect = failureModeItem?.querySelector('.ant-select');
+    expect(failureModeSelect).toHaveClass('ant-select-disabled');
+
+    const overrideLabel = screen.getByText('Override dependency behavior');
+    const overrideItem = overrideLabel.closest('.ant-form-item');
+    expect(overrideItem).toBeTruthy();
+    const overrideSwitch = within(overrideItem as HTMLElement).getByRole('switch');
+    await ui.click(overrideSwitch);
+
+    const failureModeSelectAfter = failureModeItem?.querySelector('.ant-select');
+    expect(failureModeSelectAfter).not.toHaveClass('ant-select-disabled');
+  });
 });

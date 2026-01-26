@@ -35,6 +35,36 @@ export interface TaskQueueDiagnosis {
   inlineWorkerEnabled: boolean;
 }
 
+export interface DependencyInstallStep {
+  // Dependency install steps returned by task APIs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  language: 'node' | 'python' | 'java' | 'ruby' | 'go';
+  command?: string;
+  workdir?: string;
+  status: 'success' | 'skipped' | 'failed';
+  duration?: number;
+  error?: string;
+  reason?: string;
+}
+
+export interface DependencyResult {
+  status: 'success' | 'partial' | 'skipped' | 'failed';
+  steps: DependencyInstallStep[];
+  totalDuration: number;
+}
+
+export interface RuntimeInfo {
+  // Runtime metadata returned by `/api/system/runtimes`. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  language: 'node' | 'python' | 'java' | 'ruby' | 'go';
+  version: string;
+  path: string;
+  packageManager?: string;
+}
+
+export interface SystemRuntimesResponse {
+  runtimes: RuntimeInfo[];
+  detectedAt?: string;
+}
+
 export type TaskEventType =
   | 'issue'
   | 'commit'
@@ -82,6 +112,8 @@ export interface Task {
   retries: number;
   queue?: TaskQueueDiagnosis;
   result?: TaskResult;
+  // Capture dependency install results for display/diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyResult?: DependencyResult;
   createdAt: string;
   updatedAt: string;
   repo?: TaskRepoSummary;
@@ -504,6 +536,12 @@ export const fetchAdminToolsMeta = async (): Promise<AdminToolsMeta> => {
   return data;
 };
 
+export const fetchSystemRuntimes = async (): Promise<SystemRuntimesResponse> => {
+  // Fetch detected runtimes for the environment panel. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const { data } = await api.get<SystemRuntimesResponse>('/system/runtimes');
+  return data;
+};
+
 export type RepoProvider = 'gitlab' | 'github';
 
 export interface RepositoryBranch {
@@ -611,6 +649,8 @@ export interface RepoRobot {
   language?: string;
   modelProvider?: ModelProvider;
   modelProviderConfig?: CodexRobotProviderConfigPublic | ClaudeCodeRobotProviderConfigPublic | GeminiCliRobotProviderConfigPublic;
+  // Dependency overrides for multi-language installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyConfig?: { enabled?: boolean; failureMode?: 'soft' | 'hard'; allowCustomInstall?: boolean };
   defaultBranch?: string;
   // Compatibility: legacy field.
   defaultBranchRole?: 'main' | 'dev' | 'test';
@@ -919,6 +959,8 @@ export const createRepoRobot = async (
     language?: string | null;
     modelProvider?: ModelProvider | null;
     modelProviderConfig?: unknown;
+    // Dependency overrides for robot-level install control. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    dependencyConfig?: { enabled?: boolean; failureMode?: 'soft' | 'hard'; allowCustomInstall?: boolean } | null;
     defaultBranch?: string | null;
     // Compatibility: legacy field accepted by backend (main/dev/test).
     defaultBranchRole?: 'main' | 'dev' | 'test' | null;
@@ -945,6 +987,8 @@ export const updateRepoRobot = async (
     language: string | null;
     modelProvider: ModelProvider | null;
     modelProviderConfig: unknown;
+    // Dependency overrides for robot-level install control. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    dependencyConfig: { enabled?: boolean; failureMode?: 'soft' | 'hard'; allowCustomInstall?: boolean } | null;
     defaultBranch: string | null;
     // Compatibility: legacy field accepted by backend (main/dev/test).
     defaultBranchRole: 'main' | 'dev' | 'test' | null;

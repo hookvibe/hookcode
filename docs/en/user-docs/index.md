@@ -13,9 +13,13 @@ User-facing documentation for HookCode (deployment, configuration, and day-to-da
 - [Repository configuration](./config/repositories)
 - [Robot configuration](./config/robots)
 - [Automation triggers](./config/triggers)
+{/* Add entry for repository dependency configuration. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+- [Dependency configuration (.hookcode.yml)](./config/hookcode-yml)
 
 ## Reference
 
 - [Environment variables & config](./environment)
+{/* Add custom Docker image guidance for multi-language runtimes. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+- [Custom Docker images for runtimes](./custom-dockerfile)
 - [Features](./features)
 - [Troubleshooting](./troubleshooting)

@@ -10,10 +10,14 @@ const sidebars: SidebarsConfig = {
       label: 'Configuration',
       items: [
         'user-docs/config/repositories',
+        // Add dependency config documentation entry. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        'user-docs/config/hookcode-yml',
         'user-docs/config/robots',
         'user-docs/config/triggers',
       ],
     },
+    // Expose custom Docker image guidance for additional runtimes. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    'user-docs/custom-dockerfile',
     'user-docs/environment',
     'user-docs/features',
     'user-docs/troubleshooting',

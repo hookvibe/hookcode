@@ -211,6 +211,10 @@ export class RepoRobotSwaggerDto {
   @ApiPropertyOptional()
   modelProviderConfig?: unknown;
 
+  @ApiPropertyOptional()
+  // Document dependency overrides on robot records. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyConfig?: unknown;
+
   @ApiPropertyOptional({ nullable: true })
   defaultBranch?: string | null;
 

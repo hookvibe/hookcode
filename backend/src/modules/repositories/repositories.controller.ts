@@ -45,6 +45,7 @@ import type { RobotDefaultBranchRole } from '../../types/repoRobot';
 import { CODEX_PROVIDER_KEY, normalizeCodexRobotProviderConfig } from '../../modelProviders/codex';
 import { CLAUDE_CODE_PROVIDER_KEY, normalizeClaudeCodeRobotProviderConfig } from '../../modelProviders/claudeCode';
 import { GEMINI_CLI_PROVIDER_KEY, normalizeGeminiCliRobotProviderConfig } from '../../modelProviders/geminiCli';
+import type { RobotDependencyConfig } from '../../types/dependency';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
 import { CreateRepoRobotDto } from './dto/create-repo-robot.dto';
@@ -945,6 +946,9 @@ export class RepositoriesController {
       const language = typeof body?.language === 'string' ? body.language.trim() : undefined;
       const modelProvider = body?.modelProvider;
       const modelProviderConfig = body?.modelProviderConfig;
+      // Capture dependency overrides from robot creation payloads. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      // Cast dependency override payloads for service-level validation. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      const dependencyConfig = body?.dependencyConfig as RobotDependencyConfig | null | undefined;
       const isDefault = typeof body?.isDefault === 'boolean' ? body.isDefault : undefined;
 
       let repoScopedCredentials:
@@ -1042,6 +1046,7 @@ export class RepositoriesController {
         language,
         modelProvider,
         modelProviderConfig,
+        dependencyConfig,
         repoWorkflowMode,
         isDefault
       });
@@ -1064,7 +1069,8 @@ export class RepositoriesController {
         message.includes('repoCredential') ||
         message.includes('credentialProfileId') ||
         message.includes('token must be null') ||
-        message.includes('repoWorkflowMode must be')
+        message.includes('repoWorkflowMode must be') ||
+        message.includes('dependencyConfig')
       ) {
         throw new BadRequestException({ error: message });
       }
@@ -1131,6 +1137,9 @@ export class RepositoriesController {
       const modelProvider =
         body?.modelProvider === undefined ? undefined : typeof body?.modelProvider === 'string' ? body.modelProvider : undefined;
       const modelProviderConfig = body?.modelProviderConfig;
+      // Accept dependency overrides on robot updates. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      // Cast dependency override payloads for service-level validation. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      const dependencyConfig = body?.dependencyConfig as RobotDependencyConfig | null | undefined;
       const defaultBranch = body?.defaultBranch === undefined ? undefined : normalizeDefaultBranch(body?.defaultBranch);
       const defaultBranchRole =
         body?.defaultBranchRole === undefined ? undefined : normalizeDefaultBranchRole(body?.defaultBranchRole);
@@ -1291,6 +1300,8 @@ export class RepositoriesController {
         enabled,
         modelProvider,
         modelProviderConfig,
+        // Persist dependency overrides from robot patch requests. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        dependencyConfig,
         repoWorkflowMode,
         isDefault
       });
@@ -1314,7 +1325,8 @@ export class RepositoriesController {
         message.includes('repoCredential') ||
         message.includes('credentialProfileId') ||
         message.includes('token must be null') ||
-        message.includes('repoWorkflowMode must be')
+        message.includes('repoWorkflowMode must be') ||
+        message.includes('dependencyConfig')
       ) {
         throw new BadRequestException({ error: message });
       }

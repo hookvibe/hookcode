@@ -24,7 +24,22 @@ vi.mock('../api', () => {
       repo: { id: 'r1', provider: 'gitlab', name: 'Repo r1', enabled: true },
       robotId: 'bot1',
       robot: { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true },
-      payload: { user_name: 'Alice', user_username: 'alice', user_avatar: 'https://example.com/avatar.png' }
+      payload: { user_name: 'Alice', user_username: 'alice', user_avatar: 'https://example.com/avatar.png' },
+      dependencyResult: {
+        status: 'failed',
+        totalDuration: 12000,
+        steps: [
+          { language: 'node', command: 'pnpm install --frozen-lockfile', status: 'success', duration: 5000 },
+          {
+            language: 'python',
+            command: 'pip install -r requirements.txt',
+            status: 'failed',
+            duration: 7000,
+            workdir: 'backend',
+            error: 'exit code 1'
+          }
+        ]
+      }
     })),
     retryTask: vi.fn(async () => ({
       id: 't1',
@@ -85,6 +100,41 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     expect(await screen.findByText('No output')).toBeInTheDocument();
     await ui.click(screen.getByText('Raw webhook payload'));
     expect(await screen.findByText(/user_name/i)).toBeInTheDocument();
+
+    // Show dependency install results in the task sidebar for debugging. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    expect(screen.getByText('Dependency installs')).toBeInTheDocument();
+    expect(screen.getByText('Workdir: backend')).toBeInTheDocument();
+    expect(screen.getByText('Error: exit code 1')).toBeInTheDocument();
+
+    // Validate dependency filter + sort + grouping toggles in task detail UI. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const filterGroup = screen.getByTestId('dependency-filter');
+    await ui.click(within(filterGroup).getByText('Failed'));
+    expect(screen.getAllByTestId(/dependency-step-/)).toHaveLength(1);
+
+    await ui.click(within(filterGroup).getByText('All'));
+    const showButtons = screen.getAllByRole('button', { name: 'Show details' });
+    await ui.click(showButtons[0]);
+    expect(screen.getByText('Command: pnpm install --frozen-lockfile')).toBeInTheDocument();
+
+    const keywordInput = screen.getByPlaceholderText('Search command, error, workdir, language');
+    await ui.type(keywordInput, 'pip');
+    expect(screen.getAllByTestId(/dependency-step-/)).toHaveLength(1);
+    await ui.clear(keywordInput);
+
+    const sortSelect = screen.getByLabelText('Sort');
+    await ui.click(sortSelect);
+    await ui.click(screen.getByText('Duration'));
+
+    const directionSelect = screen.getByLabelText('Direction');
+    await ui.click(directionSelect);
+    await ui.click(screen.getByText('Descending'));
+
+    const sortedSteps = screen.getAllByTestId(/dependency-step-/);
+    expect(within(sortedSteps[0]).getByText('python')).toBeInTheDocument();
+
+    const groupSwitch = screen.getByRole('switch', { name: 'Group by workdir' });
+    await ui.click(groupSwitch);
+    expect(screen.getByText('Workdir: backend')).toBeInTheDocument();
 
     await ui.click(screen.getByRole('button', { name: /Retry/i }));
     await waitFor(() => expect(api.retryTask).toHaveBeenCalledWith('t1', undefined));

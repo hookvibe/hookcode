@@ -1,5 +1,6 @@
 import type { RepoProvider } from './repository';
 import type { RobotPermission } from './repoRobot';
+import type { DependencyResult } from './dependency';
 
 export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
 
@@ -157,6 +158,8 @@ export interface Task {
   // Provide a best-effort explanation for long-waiting queued tasks in the console UI. f3a9c2d8e1b7f4a0c6d1
   queue?: TaskQueueDiagnosis;
   result?: TaskResult;
+  // Persist dependency install outcomes for multi-language repos. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyResult?: DependencyResult;
   createdAt: string;
   updatedAt: string;
 }

@@ -114,6 +114,13 @@ type RobotFormValues = {
   // Track the robot workflow mode selection in the edit form. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   repoWorkflowMode?: 'auto' | 'direct' | 'fork';
   isDefault: boolean;
+  // Expose dependency overrides in the robot editor to control install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyOverride: boolean;
+  dependencyConfig: {
+    enabled: boolean;
+    failureMode: 'inherit' | 'soft' | 'hard';
+    allowCustomInstall: boolean;
+  };
   modelProvider: ModelProvider;
   modelProviderConfig: Partial<CodexRobotProviderConfigPublic | ClaudeCodeRobotProviderConfigPublic | GeminiCliRobotProviderConfigPublic> & {
     credentialSource?: 'user' | 'repo' | 'robot';
@@ -803,6 +810,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         // Default new robots to auto workflow (follow existing behavior). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
         repoWorkflowMode: 'auto',
         isDefault: false,
+        // Default dependency overrides to "inherit" so robots follow `.hookcode.yml` unless explicitly changed. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        dependencyOverride: false,
+        dependencyConfig: {
+          enabled: true,
+          failureMode: 'inherit',
+          allowCustomInstall: false
+        },
         modelProvider: 'codex',
         modelProviderConfig: buildDefaultModelProviderConfig('codex')
       };
@@ -821,6 +835,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       const credentialProfileId =
         credentialSource === 'robot' ? null : typeof cfg?.credentialProfileId === 'string' ? cfg.credentialProfileId.trim() || null : null;
 
+      // Normalize dependency override fields from the robot payload for the editor state. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      const dependencyOverride = Boolean(robot.dependencyConfig);
+      const dependencyConfig = (robot.dependencyConfig ?? {}) as any;
+      const dependencyFailureMode =
+        dependencyConfig.failureMode === 'soft' || dependencyConfig.failureMode === 'hard' ? dependencyConfig.failureMode : 'inherit';
+
       return {
         ...base,
         name: robot.name || robot.id,
@@ -835,6 +855,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         // Populate workflow mode from the robot record (fallback to auto). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
         repoWorkflowMode: (robot.repoWorkflowMode ?? 'auto') as any,
         isDefault: Boolean(robot.isDefault),
+        // Hydrate dependency overrides from the robot record to keep the editor consistent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        dependencyOverride,
+        dependencyConfig: {
+          enabled: dependencyConfig.enabled === undefined ? true : Boolean(dependencyConfig.enabled),
+          failureMode: dependencyFailureMode,
+          allowCustomInstall: Boolean(dependencyConfig.allowCustomInstall)
+        },
         modelProvider: modelProvider as any,
         modelProviderConfig: {
           credentialSource,
@@ -1009,6 +1036,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
         // Persist the selected repo workflow mode so the backend can enforce direct/fork. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
         const workflowMode = values.repoWorkflowMode ?? 'auto';
+        // Map dependency override UI fields into API payload for robot-level install control. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        const dependencyOverride = Boolean(values.dependencyOverride);
+        const dependencyFailureMode = values.dependencyConfig?.failureMode;
+        const dependencyConfig = dependencyOverride
+          ? {
+              enabled: Boolean(values.dependencyConfig?.enabled),
+              allowCustomInstall: Boolean(values.dependencyConfig?.allowCustomInstall),
+              ...(dependencyFailureMode === 'soft' || dependencyFailureMode === 'hard' ? { failureMode: dependencyFailureMode } : {})
+            }
+          : null;
         const payload: any = {
           name: values.name,
           ...(shouldSendToken ? { token: repoCredentialSource === 'robot' ? tokenValue : null } : {}),
@@ -1055,6 +1092,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               },
           defaultBranch: values.defaultBranch === undefined ? undefined : values.defaultBranch,
           repoWorkflowMode: workflowMode,
+          dependencyConfig,
           isDefault: values.isDefault
         };
 
@@ -2646,6 +2684,59 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                 style={{ marginTop: 12 }}
               />
             ) : null}
+          </Card>
+
+          <div style={{ height: 12 }} />
+
+          {/* Add robot dependency override controls for per-robot install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+          <Card size="small" title={t('repos.robotForm.section.dependency')} className="hc-inner-card" styles={{ body: { padding: 12 } }}>
+            <Form.Item label={t('repos.robotForm.dependency.override')} name="dependencyOverride" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+
+            <Form.Item shouldUpdate noStyle>
+              {({ getFieldValue }) => {
+                const overrideEnabled = Boolean(getFieldValue('dependencyOverride'));
+                return (
+                  <>
+                    <Alert
+                      type="info"
+                      showIcon
+                      message={overrideEnabled ? t('repos.robotForm.dependency.overrideEnabledTip') : t('repos.robotForm.dependency.overrideDisabledTip')}
+                      style={{ marginBottom: 12 }}
+                    />
+
+                    <Row gutter={16}>
+                      <Col xs={24} md={12}>
+                        <Form.Item label={t('repos.robotForm.dependency.enabled')} name={['dependencyConfig', 'enabled']} valuePropName="checked">
+                          <Switch disabled={!overrideEnabled} />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={12}>
+                        <Form.Item label={t('repos.robotForm.dependency.failureMode')} name={['dependencyConfig', 'failureMode']}>
+                          <Select
+                            disabled={!overrideEnabled}
+                            options={[
+                              { value: 'inherit', label: t('repos.robotForm.dependency.failureMode.inherit') },
+                              { value: 'soft', label: t('repos.robotForm.dependency.failureMode.soft') },
+                              { value: 'hard', label: t('repos.robotForm.dependency.failureMode.hard') }
+                            ]}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Form.Item
+                      label={t('repos.robotForm.dependency.allowCustomInstall')}
+                      name={['dependencyConfig', 'allowCustomInstall']}
+                      valuePropName="checked"
+                    >
+                      <Switch disabled={!overrideEnabled} />
+                    </Form.Item>
+                  </>
+                );
+              }}
+            </Form.Item>
           </Card>
         </Form>
       </ResponsiveDialog>

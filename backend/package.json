@@ -46,7 +46,9 @@
     "nodemailer": "^7.0.12",
     "pg": "^8.12.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "yaml": "^2.4.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",

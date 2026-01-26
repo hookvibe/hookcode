@@ -32,11 +32,13 @@ import { ACCENT_PRESET_OPTIONS } from '../theme/accent';
 import {
   changeMyPassword,
   fetchAdminToolsMeta,
+  fetchSystemRuntimes,
   fetchMe,
   fetchMyModelCredentials,
   listMyModelProviderModels,
   updateMe,
   updateMyModelCredentials,
+  type RuntimeInfo,
   type UserModelCredentialsPublic,
   type UserModelProviderCredentialProfilePublic,
   type UserRepoProviderCredentialProfilePublic
@@ -68,7 +70,7 @@ import { getBooleanEnv } from '../utils/env';
 type ThemePreference = 'system' | 'light' | 'dark';
 type ProviderKey = 'gitlab' | 'github';
 type ModelProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
-type PanelTab = 'account' | 'credentials' | 'tools' | 'settings';
+type PanelTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings';
 
 const DEFAULT_PORTS = { prisma: 7215, swagger: 7216 } as const;
 
@@ -122,6 +124,10 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
   const [toolsPorts, setToolsPorts] = useState(DEFAULT_PORTS);
   const [toolsLoading, setToolsLoading] = useState(false);
+  // Track detected runtimes for the environment panel. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
+  const [runtimesLoading, setRuntimesLoading] = useState(false);
+  const [runtimesDetectedAt, setRuntimesDetectedAt] = useState<string | null>(null);
 
   const [repoProfileFormOpen, setRepoProfileFormOpen] = useState(false);
   const [repoProfileProvider, setRepoProfileProvider] = useState<ProviderKey>('gitlab');
@@ -157,6 +163,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         account: 'panel.tabs.account',
         credentials: 'panel.tabs.credentials',
         tools: 'panel.tabs.tools',
+        environment: 'panel.tabs.environment',
         settings: 'panel.tabs.settings'
       }) as const,
     []
@@ -168,6 +175,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         account: 'panel.header.desc.account',
         credentials: 'panel.header.desc.credentials',
         tools: 'panel.header.desc.tools',
+        environment: 'panel.header.desc.environment',
         settings: 'panel.header.desc.settings'
       }) as const,
     []
@@ -179,6 +187,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         account: <UserOutlined />,
         credentials: <KeyOutlined />,
         tools: <CloudServerOutlined />,
+        environment: <GlobalOutlined />,
         settings: <SettingOutlined />
       }) as const,
     []
@@ -250,12 +259,32 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     }
   }, [canUseAccountApis, token]);
 
+  const refreshRuntimes = useCallback(async () => {
+    // Load detected runtimes for the environment panel. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (!canUseAccountApis) return;
+    setRuntimesLoading(true);
+    try {
+      const data = await fetchSystemRuntimes();
+      setRuntimes(Array.isArray(data?.runtimes) ? data.runtimes : []);
+      setRuntimesDetectedAt(data?.detectedAt ?? null);
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.runtimes.fetchFailed'));
+      setRuntimes([]);
+      setRuntimesDetectedAt(null);
+    } finally {
+      setRuntimesLoading(false);
+    }
+  }, [canUseAccountApis, message, t]);
+
   useEffect(() => {
     if (!open) return;
     void refreshUser();
     if (activeTab === 'credentials') void refreshCredentials();
     if (activeTab === 'tools') void refreshToolsMeta();
-  }, [activeTab, open, refreshCredentials, refreshToolsMeta, refreshUser]);
+    // Refresh runtime detection when switching to the environment tab. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (activeTab === 'environment') void refreshRuntimes();
+  }, [activeTab, open, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   useEffect(() => {
     // UX guard: when not authenticated, keep the panel focused on local-only settings to avoid 401 redirects.
@@ -269,8 +298,9 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     if (activeTab === 'account') return userLoading;
     if (activeTab === 'credentials') return credLoading;
     if (activeTab === 'tools') return toolsLoading;
+    if (activeTab === 'environment') return runtimesLoading;
     return false;
-  }, [activeTab, canUseAccountApis, credLoading, toolsLoading, userLoading]);
+  }, [activeTab, canUseAccountApis, credLoading, runtimesLoading, toolsLoading, userLoading]);
 
   const refreshActiveTab = useCallback(async () => {
     if (!canUseAccountApis) return;
@@ -278,7 +308,8 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     if (activeTab === 'account') await refreshUser();
     if (activeTab === 'credentials') await refreshCredentials();
     if (activeTab === 'tools') await refreshToolsMeta();
-  }, [activeTab, canUseAccountApis, refreshCredentials, refreshToolsMeta, refreshUser]);
+    if (activeTab === 'environment') await refreshRuntimes();
+  }, [activeTab, canUseAccountApis, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   const logout = useCallback(() => {
     Modal.confirm({
@@ -897,6 +928,45 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
           </div>
         );
 
+      case 'environment':
+        // Render runtime availability for multi-language dependency installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        return (
+          <div className="hc-settings-section">
+            <div className="hc-settings-section-title">{t('panel.environment.availableTitle')}</div>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+              {t('panel.environment.tip')}
+            </Typography.Paragraph>
+            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+              {runtimesLoading ? (
+                <Card loading size="small" />
+              ) : runtimes.length ? (
+                runtimes.map((rt) => (
+                  <Card key={`${rt.language}-${rt.version}`} size="small" className="hc-panel-card">
+                    <Space size={8} wrap>
+                      <Tag color="green">{rt.language}</Tag>
+                      <Typography.Text>{rt.version}</Typography.Text>
+                      <Typography.Text type="secondary">{rt.packageManager || '-'}</Typography.Text>
+                    </Space>
+                    <div style={{ marginTop: 6 }}>
+                      <Typography.Text type="secondary">{rt.path}</Typography.Text>
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <Typography.Text type="secondary">{t('panel.environment.empty')}</Typography.Text>
+              )}
+            </Space>
+            <Divider style={{ margin: '16px 0' }} />
+            <Space size={8} wrap>
+              <Typography.Text type="secondary">{t('panel.environment.detectedAt')}</Typography.Text>
+              <Typography.Text type="secondary">{runtimesDetectedAt || '-'}</Typography.Text>
+            </Space>
+            <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
+              {t('panel.environment.customImageHint')}
+            </Typography.Paragraph>
+          </div>
+        );
+
       case 'settings':
       default:
         return (
@@ -1008,6 +1078,8 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
             <div className="hc-user-panel__nav-header">{t('panel.nav.group.integrations')}</div>
             {renderNavItem('credentials')}
             {renderNavItem('tools')}
+            {/* Add environment tab for runtime visibility. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+            {renderNavItem('environment')}
           </div>
 
           <div className="hc-user-panel__nav-group">

@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { db } from '../../db';
 import type { RepoRobot, RobotPermission, RobotDefaultBranchRole } from '../../types/repoRobot';
+import type { RobotDependencyConfig } from '../../types/dependency';
 import {
   CODEX_PROVIDER_KEY,
   mergeCodexRobotProviderConfig,
@@ -60,6 +61,22 @@ const normalizeLanguage = (value: unknown): string | undefined => {
   if (value === undefined || value === null) return undefined;
   const raw = String(value).trim();
   return raw ? raw : undefined;
+};
+
+const normalizeDependencyConfig = (value: unknown): RobotDependencyConfig | null | undefined => {
+  // Normalize robot dependency overrides for storage and API output. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'object') throw new Error('dependencyConfig must be an object');
+  const raw = value as Record<string, unknown>;
+  const enabled = typeof raw.enabled === 'boolean' ? raw.enabled : undefined;
+  const allowCustomInstall = typeof raw.allowCustomInstall === 'boolean' ? raw.allowCustomInstall : undefined;
+  const failureModeRaw = typeof raw.failureMode === 'string' ? raw.failureMode.trim().toLowerCase() : '';
+  if (failureModeRaw && failureModeRaw !== 'soft' && failureModeRaw !== 'hard') {
+    throw new Error('dependencyConfig.failureMode must be soft or hard');
+  }
+  const failureMode = failureModeRaw ? (failureModeRaw as RobotDependencyConfig['failureMode']) : undefined;
+  return { enabled, allowCustomInstall, failureMode };
 };
 
 const normalizeRepoCredentialSource = (value: unknown): 'robot' | 'user' | 'repo' | undefined => {
@@ -128,6 +145,8 @@ const recordToRobot = (row: any): RepoRobot => ({
   language: normalizeLanguage(row.language),
   modelProvider: row.modelProvider ? String(row.modelProvider) : CODEX_PROVIDER_KEY,
   modelProviderConfig: toPublicModelProviderConfig(row.modelProvider ? String(row.modelProvider) : CODEX_PROVIDER_KEY, row.modelProviderConfig),
+  // Expose robot dependency overrides for execution behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyConfig: row.dependencyConfig ?? undefined,
   defaultBranch: normalizeDefaultBranch(row.defaultBranch),
   defaultBranchRole: normalizeDefaultBranchRole(row.defaultBranchRole),
   // Surface repo workflow mode for UI control and agent enforcement. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
@@ -164,6 +183,7 @@ export interface CreateRepoRobotInput {
   language?: string | null;
   modelProvider?: string;
   modelProviderConfig?: unknown;
+  dependencyConfig?: RobotDependencyConfig | null;
   defaultBranch?: string | null;
   defaultBranchRole?: RobotDefaultBranchRole | null;
   // Allow explicit workflow mode selection when creating robots. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
@@ -182,6 +202,7 @@ export interface UpdateRepoRobotInput {
   language?: string | null;
   modelProvider?: string;
   modelProviderConfig?: unknown;
+  dependencyConfig?: RobotDependencyConfig | null;
   defaultBranch?: string | null;
   defaultBranchRole?: RobotDefaultBranchRole | null;
   // Allow explicit workflow mode updates on robots. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
@@ -257,6 +278,8 @@ export class RepoRobotService {
     const language = input.language === undefined ? null : input.language ? String(input.language).trim() : null;
     const modelProvider = normalizeModelProvider(input.modelProvider);
     const modelProviderConfig = normalizeModelProviderConfig(modelProvider, input.modelProviderConfig);
+    // Normalize dependency overrides before persisting robot configuration. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const dependencyConfig = normalizeDependencyConfig(input.dependencyConfig);
     const permission = inferRobotPermission({ modelProvider, modelProviderConfig });
     const defaultBranch =
       input.defaultBranch === undefined ? null : input.defaultBranch ? String(input.defaultBranch).trim() : null;
@@ -295,6 +318,7 @@ export class RepoRobotService {
         language,
         modelProvider,
         modelProviderConfig,
+        dependencyConfig: dependencyConfig === undefined ? null : (dependencyConfig as any),
         defaultBranchRole,
         defaultBranch,
         activatedAt: null,
@@ -390,6 +414,9 @@ export class RepoRobotService {
       input.modelProviderConfig === undefined
         ? (existing.modelProviderConfigRaw ?? null)
         : mergeModelProviderConfig(nextModelProvider, { existing: existing.modelProviderConfigRaw ?? null, next: input.modelProviderConfig });
+    // Apply dependency override updates when the robot is patched. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const nextDependencyConfig =
+      input.dependencyConfig === undefined ? normalizeDependencyConfig(existing.dependencyConfig ?? null) : normalizeDependencyConfig(input.dependencyConfig);
     const nextPermission = inferRobotPermission({ modelProvider: nextModelProvider, modelProviderConfig: nextModelProviderConfig });
     const nextDefaultBranch =
       input.defaultBranch === undefined
@@ -448,6 +475,7 @@ export class RepoRobotService {
         language: nextLanguage,
         modelProvider: nextModelProvider,
         modelProviderConfig: nextModelProviderConfig as any,
+        dependencyConfig: nextDependencyConfig === undefined ? undefined : (nextDependencyConfig as any),
         defaultBranch: nextDefaultBranch,
         defaultBranchRole: nextDefaultBranchRole as any,
         // Store the chosen workflow mode so agent workflows can honor it. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
