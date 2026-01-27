@@ -61,8 +61,8 @@ describe('codex exec', () => {
         promptFile,
         model: 'gpt-5.2',
         sandbox: 'read-only',
+        // Codex tests rely on default-on network access since config binding was removed. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
         modelReasoningEffort: 'medium',
-        networkAccess: false,
         apiKey: 'test-key',
         outputLastMessageFile: 'codex-output.txt',
         logLine: async (line) => {
@@ -128,8 +128,8 @@ describe('codex exec', () => {
         promptFile,
         model: 'gpt-5.2',
         sandbox: 'read-only',
+        // Codex tests rely on default-on network access since config binding was removed. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
         modelReasoningEffort: 'medium',
-        networkAccess: false,
         apiKey: 'test-key',
         outputLastMessageFile: 'codex-output.txt',
         logLine: never,

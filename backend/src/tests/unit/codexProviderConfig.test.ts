@@ -12,8 +12,8 @@ describe('codex provider config', () => {
     expect(cfg.credentialSource).toBe('user');
     expect(cfg.model).toBe('gpt-5.1-codex-max');
     expect(cfg.sandbox).toBe('read-only');
+    // Codex config no longer exposes network access toggles. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
     expect(cfg.model_reasoning_effort).toBe('medium');
-    expect(cfg.sandbox_workspace_write.network_access).toBe(false);
   });
 
   test('mergeCodexRobotProviderConfig 在未提供 apiKey 时保留旧 apiKey', () => {
@@ -22,16 +22,16 @@ describe('codex provider config', () => {
       credential: { apiBaseUrl: 'https://a.example', apiKey: 'key-1' },
       model: 'gpt-5.2',
       sandbox: 'read-only',
-      model_reasoning_effort: 'low',
-      sandbox_workspace_write: { network_access: false }
+      // Codex config no longer persists network access settings. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+      model_reasoning_effort: 'low'
     };
     const next = {
       credentialSource: 'robot',
       credential: { apiBaseUrl: 'https://b.example' },
       model: 'gpt-5.1-codex-mini',
       sandbox: 'workspace-write',
-      model_reasoning_effort: 'high',
-      sandbox_workspace_write: { network_access: true }
+      // Codex config no longer persists network access settings. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+      model_reasoning_effort: 'high'
     };
 
     const merged = mergeCodexRobotProviderConfig({ existing, next });
@@ -45,8 +45,8 @@ describe('codex provider config', () => {
       credential: { apiBaseUrl: 'https://a.example', apiKey: 'key-1' },
       model: 'gpt-5.2',
       sandbox: 'read-only',
-      model_reasoning_effort: 'low',
-      sandbox_workspace_write: { network_access: false }
+      // Codex config no longer exposes network access toggles. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+      model_reasoning_effort: 'low'
     };
 
     const pub = toPublicCodexRobotProviderConfig(cfg) as any;
@@ -59,8 +59,8 @@ describe('codex provider config', () => {
       repoDir: '/repo',
       model: 'gpt-5.2',
       sandbox: 'read-only',
-      modelReasoningEffort: 'high',
-      networkAccess: true
+      // Codex thread options always enable network access. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+      modelReasoningEffort: 'high'
     });
 
     expect(opts.model).toBe('gpt-5.2');
@@ -78,8 +78,8 @@ describe('codex provider config', () => {
       repoDir: '/repo',
       model: 'gpt-5.1-codex-max',
       sandbox: 'workspace-write',
-      modelReasoningEffort: 'medium',
-      networkAccess: false
+      // Codex thread options always enable network access. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+      modelReasoningEffort: 'medium'
     });
     expect(opts.sandboxMode).toBe('workspace-write');
     expect(opts.additionalDirectories).toEqual(['/repo/.git']);

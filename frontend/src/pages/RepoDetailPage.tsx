@@ -796,8 +796,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
           credentialProfileId: null,
           model: 'gpt-5.2',
           sandbox: 'read-only',
-          model_reasoning_effort: 'medium',
-          sandbox_workspace_write: { network_access: false }
+          // Codex defaults omit network access since it is always enabled now. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+          model_reasoning_effort: 'medium'
         } as any;
       };
 
@@ -885,12 +885,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               : undefined,
           model: cfg?.model ?? providerDefaults.model,
           sandbox: cfg?.sandbox ?? providerDefaults.sandbox,
+          // Only non-Codex providers keep network access in config; Codex is always enabled. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
           ...(modelProvider === 'codex'
             ? { model_reasoning_effort: cfg?.model_reasoning_effort ?? (providerDefaults as any).model_reasoning_effort }
-            : {}),
-          sandbox_workspace_write: {
-            network_access: Boolean(cfg?.sandbox_workspace_write?.network_access ?? providerDefaults?.sandbox_workspace_write?.network_access)
-          }
+            : {
+                sandbox_workspace_write: {
+                  network_access: Boolean(cfg?.sandbox_workspace_write?.network_access ?? providerDefaults?.sandbox_workspace_write?.network_access)
+                }
+              })
         }
       };
     },
@@ -1080,8 +1082,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                     : undefined,
                 model: cfg.model,
                 sandbox: normalizeCodexSandbox(cfg.sandbox),
-                model_reasoning_effort: normalizeCodexReasoningEffort(cfg.model_reasoning_effort),
-                sandbox_workspace_write: { network_access: Boolean(cfg?.sandbox_workspace_write?.network_access) }
+                // Codex payload omits network access because it is always enabled. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+                model_reasoning_effort: normalizeCodexReasoningEffort(cfg.model_reasoning_effort)
               }
             : {
                 credentialSource,
@@ -2466,8 +2468,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                       credentialProfileId: null,
                                       model: 'gpt-5.2',
                                       sandbox: 'read-only',
-                                      model_reasoning_effort: 'medium',
-                                      sandbox_workspace_write: { network_access: false }
+                                      // Codex defaults omit network access since it is always enabled now. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+                                      model_reasoning_effort: 'medium'
                                     };
                               // UX: switching model provider resets the provider-specific config to avoid invalid mixes.
                               setRobotChangingModelApiKey(false);
@@ -2670,11 +2672,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                           </Form.Item>
                         </Col>
                       ) : null}
-                      <Col xs={24} md={isCodex ? 12 : 24}>
-                        <Form.Item label={t('repos.robotForm.networkAccess')} name={['modelProviderConfig', 'sandbox_workspace_write', 'network_access']} valuePropName="checked">
-                          <Switch disabled={networkAccessDisabled} />
-                        </Form.Item>
-                      </Col>
+                      {/* Hide network access toggle for Codex because it is always enabled. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127 */}
+                      {!isCodex ? (
+                        <Col xs={24} md={24}>
+                          <Form.Item label={t('repos.robotForm.networkAccess')} name={['modelProviderConfig', 'sandbox_workspace_write', 'network_access']} valuePropName="checked">
+                            <Switch disabled={networkAccessDisabled} />
+                          </Form.Item>
+                        </Col>
+                      ) : null}
                     </Row>
                   </Card>
                 );

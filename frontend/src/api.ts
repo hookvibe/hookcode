@@ -619,8 +619,8 @@ export interface CodexRobotProviderConfigPublic {
   credential?: { apiBaseUrl?: string; hasApiKey: boolean; remark?: string };
   model: CodexModel;
   sandbox: CodexSandbox;
+  // Codex network access is always enabled and no longer part of the config payload. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
   model_reasoning_effort: CodexReasoningEffort;
-  sandbox_workspace_write: { network_access: boolean };
 }
 
 export type ClaudeCodeSandbox = 'workspace-write' | 'read-only';

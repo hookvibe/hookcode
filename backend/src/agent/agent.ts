@@ -1229,8 +1229,9 @@ exit 0
       : isClaudeCodeProvider
         ? claudeCfg!.sandbox
         : geminiCfg!.sandbox;
+    // Codex network access is always enabled; only non-Codex providers read robot config. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
     const networkAccess = isCodexProvider
-      ? codexCfg!.sandbox_workspace_write.network_access
+      ? true
       : isClaudeCodeProvider
         ? claudeCfg!.sandbox_workspace_write.network_access
         : geminiCfg!.sandbox_workspace_write.network_access;
@@ -1306,8 +1307,8 @@ exit 0
         promptFile,
         model: codexCfg!.model,
         sandbox: codexCfg!.sandbox,
+        // Codex execution now defaults to network access enabled regardless of robot config. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
         modelReasoningEffort: codexCfg!.model_reasoning_effort,
-        networkAccess,
         resumeThreadId: resumeThreadId || undefined,
         apiKey,
         apiBaseUrl: apiBaseUrl || undefined,
