@@ -1,0 +1,4329 @@
+/* =============================================================================
+ * Global theme variables (light/dark) for the static chat demo.
+ *
+ * Business context:
+ * - Module: Frontend Chat / Styles.
+ * - Purpose: provide CSS variables that work with `<html data-theme="...">`.
+ *
+ * Change record:
+ * - 2026-01-11: Added base tokens + Agent Chat page layout styles.
+ * - 2026-01-11: Add task list card styles for the migrated Tasks page.
+ * - 2026-01-12: Modernize layout + palette (soft surfaces, accent-tinted states, consistent elevation).
+ * - 2026-01-13: Redesign dark mode to a neutral near-black base (less navy/blue), keeping accent glows subtle.
+ * - 2026-01-13: Unify input/control styling across the app (single-border, consistent surface, theme-aware placeholder/icons).
+ * ========================================================================== */
+
+:root {
+  /* =============================================================================
+   * Design system tokens
+   *
+   * Business context:
+   * - Module: Frontend Chat / Styles / Theme.
+   * - Purpose: keep the UI modern, neutral, and consistent across pages while still
+   *   allowing a user-configurable accent color (see `--accent*` in App.tsx).
+   *
+   * Usage:
+   * - Prefer `--hc-*` variables for component surfaces/borders/shadows.
+   * - Use `--hc-accent-*` helpers instead of hard-coding any specific accent hue.
+   *
+   * Change record (2026-01-12):
+   * - Refresh the base palette to a "soft neutral" look (light/dark).
+   * - Add reusable elevation + accent-derived tokens for consistent focus/active states.
+   * ========================================================================== */
+
+  /* Refresh base tokens for a modern minimal theme. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+  --bg: #f6f7f9;
+  --text: #111827;
+  --muted: #6b7280;
+  --card-bg: #ffffff;
+  --border: #e5e7eb;
+  --page-padding: 24px;
+  --hc-page-max: 1040px;
+
+  /* Layout/background: keep the surface clean and minimal. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+  --hc-content-bg: transparent;
+  --hc-app-bg: var(--bg);
+
+  /* Surfaces/borders: tuned to look good with both UI kit and custom components. */
+  --hc-sider-bg: rgba(255, 255, 255, 0.9);
+  --hc-surface: #ffffff;
+  --hc-surface-elevated: #ffffff;
+  --hc-hover: rgba(17, 24, 39, 0.05);
+  --hc-border: #e5e7eb;
+
+  /* Form controls (inputs/selects/pickers):
+   * - Visual goal: a consistent "soft surface" control across light/dark pages + modals.
+   * - UX: keep a single border (avoid nested input borders) and a clear focus ring.
+   *
+   * Change record:
+   * - 2026-01-13: Extract theme-aware control tokens for consistent input styling across pages.
+   */
+  --hc-control-bg: #f9fafb;
+  --hc-control-bg-hover: #f3f4f6;
+  --hc-control-bg-disabled: #f3f4f6;
+  --hc-control-placeholder: color-mix(in srgb, var(--muted) 82%, transparent);
+  --hc-control-icon: color-mix(in srgb, var(--muted) 84%, transparent);
+
+  /* User panel surfaces: keep the modal readable and visually separated from the page background. */
+  /* Usage: applied by `.hc-user-modal` + `.hc-user-panel` (UserPanelPopover.tsx). */
+  --hc-panel-bg: var(--hc-surface-elevated);
+
+  /* Scrollbars:
+   * - UX: keep scrollbars readable without looking "heavy" in both themes.
+   * - Notes: prefer OS-native scrollbars via `color-scheme`; Firefox uses `scrollbar-color`. docs/en/developer/plans/qh23ler2y5yeesg6hqel/task_plan.md qh23ler2y5yeesg6hqel
+   */
+  --hc-scrollbar-track: rgba(17, 24, 39, 0.06);
+  --hc-scrollbar-thumb: rgba(17, 24, 39, 0.18);
+  --hc-scrollbar-thumb-hover: rgba(17, 24, 39, 0.28);
+
+  /* Elevation: shared shadows to avoid "random" shadows across the app. */
+  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --hc-shadow-md: 0 10px 24px rgba(0, 0, 0, 0.08);
+  --hc-shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.12);
+
+  /* Accent-derived helpers (do NOT hardcode accent colors in component styles). */
+  --hc-accent-soft: color-mix(in srgb, var(--accent) 12%, #ffffff);
+  --hc-accent-soft-hover: color-mix(in srgb, var(--accent) 16%, #ffffff);
+  --hc-accent-border: color-mix(in srgb, var(--accent) 34%, var(--hc-border));
+  --hc-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+
+  /* Chat-specific surfaces. */
+  --hc-bubble-user-bg: var(--hc-accent-soft);
+  --hc-bubble-assisthc-ui-bg: var(--hc-surface-elevated);
+  --hc-code-bg: rgba(15, 23, 42, 0.06);
+  --hc-top-right-safe: 120px;
+
+  /* Accent color (overridden by App.tsx via CSS variables). */
+  --accent: #2563eb;
+  --accent-hover: #3b82f6;
+  --accent-active: #1d4ed8;
+
+  /* Native controls: hint UA to render built-in UI (incl. scrollbars) for light mode. */
+  color-scheme: light;
+
+  color: var(--text);
+  background-color: var(--bg);
+  font-family: "Space Grotesk", "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+:root[data-theme='dark'] {
+  /* Dark palette: neutral, near-black base (avoid the "navy cast" while keeping accent configurable). */
+  /* Change record (2026-01-13): shift the base background/surfaces to neutral blacks and reduce ambient accent tint. */
+  --bg: #0b0b0c;
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --card-bg: #111113;
+  --border: #2b2b2f;
+
+  --hc-content-bg: transparent;
+  --hc-app-bg: var(--bg);
+
+  --hc-sider-bg: rgba(17, 17, 19, 0.9);
+  --hc-surface: #131316;
+  --hc-surface-elevated: #151518;
+  --hc-hover: rgba(244, 244, 245, 0.06);
+  --hc-border: #2b2b2f;
+
+  /* User panel surfaces (2026-01-13):
+   * - Visual goal: avoid large "pure black" blocks in the settings modal; use a neutral gray surface instead.
+   * - Pitfall: do not tie this to `--bg`, otherwise blue accents can make the panel look tinted.
+   */
+  --hc-panel-bg: #18181b;
+
+  /* Form controls (dark): keep inputs readable and consistent with the neutral gray surfaces. */
+  /* Change record (2026-01-13): use a slightly lighter control surface than cards to improve affordance on dark pages. */
+  --hc-control-bg: #1a1a1d;
+  --hc-control-bg-hover: #222226;
+  --hc-control-bg-disabled: #1c1c1f;
+  --hc-control-placeholder: color-mix(in srgb, var(--muted) 82%, transparent);
+  --hc-control-icon: color-mix(in srgb, var(--muted) 84%, transparent);
+
+  /* Scrollbars (dark): avoid the "white track" when scrollbars become visible on dark surfaces. */
+  /* Change record (2026-01-13): adapt scrollbars to match the neutral dark palette. */
+  --hc-scrollbar-track: rgba(244, 244, 245, 0.08);
+  --hc-scrollbar-thumb: rgba(244, 244, 245, 0.22);
+  --hc-scrollbar-thumb-hover: rgba(244, 244, 245, 0.32);
+
+  /* Native controls: hint UA to render built-in UI (incl. scrollbars) for dark mode. */
+  color-scheme: dark;
+
+  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --hc-shadow-md: 0 12px 28px rgba(0, 0, 0, 0.45);
+  --hc-shadow-lg: 0 22px 52px rgba(0, 0, 0, 0.55);
+
+  --hc-accent-soft: color-mix(in srgb, var(--accent) 20%, var(--bg));
+  --hc-accent-soft-hover: color-mix(in srgb, var(--accent) 26%, var(--bg));
+  --hc-accent-border: color-mix(in srgb, var(--accent) 38%, var(--hc-border));
+  --hc-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent);
+
+  --hc-bubble-user-bg: var(--hc-accent-soft);
+  --hc-bubble-assisthc-ui-bg: var(--hc-surface-elevated);
+  --hc-code-bg: rgba(244, 244, 245, 0.08);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --hc-top-right-safe: 56px;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  /* Fallback first, then the accent-tinted gradient background. */
+  background: var(--hc-app-bg);
+  color: var(--text);
+  transition: background-color 0.25s ease, color 0.25s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =============================================================================
+ * Scrollbars (light/dark)
+ *
+ * Business context:
+ * - Module: Frontend Chat / Styles / Theme.
+ * - Purpose: keep scrollbars readable in dark mode (avoid a white track) while staying subtle in light mode.
+ *
+ * Notes:
+ * - Firefox uses `scrollbar-color`; Chromium/WebKit rely on `color-scheme` + OS-native scrollbars.
+ * - `color-scheme` (set in `:root`) helps native UI match the active theme.
+ *
+ * Change record:
+ * - 2026-01-13: Add theme-aware scrollbar tokens and apply them globally.
+ * - Restore OS-native scrollbars by dropping global WebKit overrides to match legacy UI docs. docs/en/developer/plans/qh23ler2y5yeesg6hqel/task_plan.md qh23ler2y5yeesg6hqel
+ * ========================================================================== */
+
+:root {
+  scrollbar-color: var(--hc-scrollbar-thumb) var(--hc-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+/* =============================================================================
+ * Minimal UI primitives (custom UI kit-compatible classes).
+ * docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127
+ * ========================================================================== */
+
+.hc-icon-spin {
+  animation: hc-spin 1s linear infinite;
+}
+
+@keyframes hc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.hc-ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-control-bg);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+}
+
+.hc-ui-btn:hover {
+  background: var(--hc-control-bg-hover);
+  border-color: var(--hc-accent-border);
+}
+
+.hc-ui-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.hc-ui-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.hc-ui-btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.hc-ui-btn-text,
+.hc-ui-btn-link {
+  background: transparent;
+  border-color: transparent;
+}
+
+.hc-ui-btn-link {
+  color: var(--accent);
+}
+
+.hc-ui-btn-dangerous {
+  color: #ef4444;
+  border-color: color-mix(in srgb, #ef4444 35%, var(--hc-border));
+  background: color-mix(in srgb, #ef4444 6%, transparent);
+}
+
+.hc-ui-btn-dangerous:hover {
+  border-color: #ef4444;
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+}
+
+.hc-ui-btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.hc-ui-btn-lg {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.hc-ui-btn-round {
+  border-radius: 999px;
+}
+
+.hc-ui-btn-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  padding: 0;
+}
+
+.hc-ui-btn-block {
+  width: 100%;
+}
+
+.hc-ui-btn-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.hc-ui-btn-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: hc-spin 0.8s linear infinite;
+}
+
+.hc-ui-typography {
+  color: var(--text);
+}
+
+.hc-ui-typography-secondary {
+  color: var(--muted);
+}
+
+.hc-ui-typography-danger {
+  color: #ef4444;
+}
+
+.hc-ui-typography-link {
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.hc-ui-typography-strong {
+  font-weight: 600;
+}
+
+.hc-ui-typography-code {
+  font-family: "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+  background: var(--hc-hover);
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.hc-ui-typography-delete {
+  text-decoration: line-through;
+}
+
+.hc-ui-typography-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-ui-typography-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+/* Add paragraph + copy controls for typography utilities. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+.hc-ui-typography-paragraph {
+  margin: 0;
+}
+
+.hc-ui-typography-copyable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-ui-typography-copy {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hc-ui-typography-copy:hover {
+  color: var(--text);
+}
+
+.hc-ui-card {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 14px;
+  box-shadow: var(--hc-shadow-sm);
+  overflow: hidden;
+}
+
+.hc-ui-card-hoverable:hover {
+  box-shadow: var(--hc-shadow-md);
+}
+
+.hc-ui-card-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+}
+
+.hc-ui-card-head-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hc-ui-card-body {
+  padding: 16px;
+}
+
+.hc-ui-input,
+.hc-ui-input-affix-wrapper,
+.hc-ui-picker {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-control-bg);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.hc-ui-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-ui-picker input {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+}
+
+.hc-ui-picker-separator {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hc-ui-picker-clear {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.hc-ui-input-affix-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-ui-input-prefix,
+.hc-ui-input-suffix {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+}
+
+.hc-ui-input-affix-wrapper .hc-ui-input {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.hc-ui-input:focus,
+.hc-ui-input-affix-wrapper:focus-within,
+.hc-ui-picker:focus-within {
+  outline: none;
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-ui-input-clear-icon {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.hc-ui-input-textarea {
+  width: 100%;
+  min-height: 80px;
+}
+
+/* Ensure select dropdowns position correctly in the custom UI kit. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+.hc-ui-select {
+  width: 100%;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-control-bg);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--text);
+  position: relative;
+}
+
+.hc-ui-select-disabled {
+  /* Dim disabled selects to make read-only states obvious. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.hc-ui-select-multiple {
+  padding: 8px;
+}
+
+.hc-ui-select-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hc-ui-select-selection-item {
+  background: var(--hc-accent-soft);
+  border: 1px solid var(--hc-accent-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-ui-select-selection-item-remove {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.hc-ui-select-selection-search-input {
+  border: none;
+  background: transparent;
+  min-width: 80px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.hc-ui-select-add {
+  margin-top: 6px;
+  width: 100%;
+  border: 1px dashed var(--hc-border);
+  background: transparent;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-ui-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 999px;
+  background: var(--hc-control-bg);
+  border: 1px solid var(--hc-border);
+  color: var(--text);
+}
+
+.hc-ui-tag-icon {
+  display: inline-flex;
+}
+
+.hc-ui-tooltip-wrapper,
+.hc-ui-popover-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.hc-ui-tooltip,
+.hc-ui-popover {
+  position: absolute;
+  z-index: 1000;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--hc-surface-elevated);
+  border: 1px solid var(--hc-border);
+  box-shadow: var(--hc-shadow-md);
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.hc-ui-popconfirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.hc-ui-popconfirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.hc-ui-tooltip-bottom,
+.hc-ui-popover-bottom {
+  top: 110%;
+  left: 0;
+}
+
+.hc-ui-tooltip-top,
+.hc-ui-popover-top {
+  bottom: 110%;
+  left: 0;
+}
+
+.hc-ui-dropdown-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hc-ui-dropdown-menu-item {
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.hc-ui-dropdown-menu-item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-ui-modal-root,
+.hc-ui-drawer-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.hc-ui-modal-mask,
+.hc-ui-drawer-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.hc-ui-modal-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.hc-ui-modal-centered {
+  align-items: center;
+}
+
+.hc-ui-modal {
+  background: var(--hc-surface-elevated);
+  border-radius: 16px;
+  border: 1px solid var(--hc-border);
+  box-shadow: var(--hc-shadow-lg);
+  max-width: 90vw;
+  width: 520px;
+}
+
+.hc-ui-modal-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-ui-modal-header,
+.hc-ui-modal-footer {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-ui-modal-footer {
+  border-top: 1px solid var(--hc-border);
+  border-bottom: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.hc-ui-modal-body {
+  padding: 16px;
+}
+
+.hc-ui-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  background: var(--hc-surface-elevated);
+  border-left: 1px solid var(--hc-border);
+  box-shadow: var(--hc-shadow-lg);
+}
+
+.hc-ui-drawer-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-ui-drawer-body {
+  padding: 16px;
+  overflow-y: auto;
+}
+
+/* Add footer/extra slots for custom drawers used in responsive dialogs. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+.hc-ui-drawer-extra {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.hc-ui-drawer-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--hc-border);
+}
+
+.hc-ui-tabs-nav {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-ui-tabs-tab {
+  border: none;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.hc-ui-tabs-tab-active {
+  background: var(--hc-accent-soft);
+  color: var(--accent);
+}
+
+.hc-ui-tabs-content {
+  padding-top: 12px;
+}
+
+/* Normalize menu list styling for the custom UI kit. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+.hc-ui-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hc-ui-menu-item {
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.hc-ui-menu-item-icon {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.hc-ui-menu-item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-ui-menu-item-selected {
+  background: var(--hc-accent-soft);
+  color: var(--accent);
+}
+
+/* Enable clickable step items with consistent button reset styling. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+.hc-ui-steps {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hc-ui-steps-item {
+  cursor: pointer;
+  appearance: none;
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--hc-border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: var(--hc-control-bg);
+}
+
+.hc-ui-steps-sm .hc-ui-steps-item {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.hc-ui-steps-item-active {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+  color: var(--accent);
+}
+
+.hc-ui-descriptions-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-ui-descriptions-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
+  gap: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--hc-border);
+}
+
+.hc-ui-descriptions-item-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hc-ui-descriptions-item-content {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.hc-ui-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-ui-list-item {
+  padding: 8px 0;
+}
+
+.hc-ui-table {
+  width: 100%;
+}
+
+.hc-ui-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.hc-ui-table th,
+.hc-ui-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hc-border);
+  font-size: 12px;
+}
+
+.hc-ui-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Provide inline pagination text + size selector styling for profile lists. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+.hc-ui-pagination-info {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-ui-pagination-size {
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  background: var(--hc-control-bg);
+  color: var(--text);
+}
+
+.hc-ui-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--hc-control-bg);
+  border: 1px solid var(--hc-border);
+}
+
+.hc-ui-badge-green {
+  color: #16a34a;
+  border-color: rgba(22, 163, 74, 0.3);
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.hc-ui-badge-red {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.hc-ui-badge-blue {
+  color: #2563eb;
+  border-color: rgba(37, 99, 235, 0.3);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.hc-ui-badge-purple {
+  color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.3);
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.hc-ui-badge-yellow,
+.hc-ui-badge-orange {
+  color: #ca8a04;
+  border-color: rgba(202, 138, 4, 0.3);
+  background: rgba(202, 138, 4, 0.08);
+}
+
+.hc-ui-tag-green {
+  color: #16a34a;
+  border-color: rgba(22, 163, 74, 0.35);
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.hc-ui-tag-red {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.hc-ui-tag-orange {
+  color: #ea580c;
+  border-color: rgba(234, 88, 12, 0.35);
+  background: rgba(234, 88, 12, 0.1);
+}
+
+.hc-ui-tag-purple {
+  color: #7c3aed;
+  border-color: rgba(124, 58, 237, 0.35);
+  background: rgba(124, 58, 237, 0.1);
+}
+
+.hc-ui-tag-geekblue,
+.hc-ui-tag-blue {
+  color: #2563eb;
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.hc-ui-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-ui-progress-inner {
+  width: 120px;
+  height: 6px;
+  background: var(--hc-hover);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.hc-ui-progress-bg {
+  height: 100%;
+  background: var(--accent);
+}
+
+.hc-ui-progress-text {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-ui-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Add input/button skeleton sizing for custom UI placeholders. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+.hc-ui-skeleton-title,
+.hc-ui-skeleton-paragraph li,
+.hc-ui-skeleton-input,
+.hc-ui-skeleton-button {
+  background: var(--hc-hover);
+  border-radius: 8px;
+}
+
+.hc-ui-skeleton-title {
+  height: 12px;
+  width: 60%;
+}
+
+.hc-ui-skeleton-paragraph {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.hc-ui-skeleton-paragraph li {
+  height: 10px;
+}
+
+.hc-ui-skeleton-button {
+  height: 28px;
+  width: 100%;
+}
+
+.hc-ui-skeleton-input {
+  height: 28px;
+  width: 100%;
+}
+
+.hc-ui-skeleton-input-sm,
+.hc-ui-skeleton-button-sm {
+  height: 22px;
+}
+
+.hc-ui-skeleton-input-lg,
+.hc-ui-skeleton-button-lg {
+  height: 36px;
+}
+
+.hc-ui-alert {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface);
+}
+
+.hc-ui-alert-message {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.hc-ui-alert-description {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-ui-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--hc-hover);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.hc-ui-form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.hc-ui-form-item-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-ui-form-item-explain {
+  font-size: 11px;
+  color: #ef4444;
+}
+
+.hc-ui-row {
+  width: 100%;
+}
+
+.hc-ui-col {
+  min-width: 0;
+  width: var(--col-xs, auto);
+}
+
+@media (min-width: 768px) {
+  /* Respect md column widths for responsive form layouts. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+  .hc-ui-col {
+    width: var(--col-md, var(--col-xs, auto));
+  }
+}
+
+.hc-ui-empty {
+  text-align: center;
+  color: var(--muted);
+}
+
+.hc-ui-empty-image {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 8px;
+  border-radius: 12px;
+  background: var(--hc-hover);
+}
+
+.hc-ui-switch {
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-control-bg);
+  position: relative;
+}
+
+.hc-ui-switch-handle {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: var(--hc-shadow-sm);
+  transition: transform 0.2s ease;
+}
+
+.hc-ui-switch-checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.hc-ui-switch-checked .hc-ui-switch-handle {
+  transform: translateX(16px);
+}
+
+.hc-ui-radio-group-button {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hc-ui-radio-button {
+  border: 1px solid var(--hc-border);
+  border-radius: 999px;
+  background: var(--hc-control-bg);
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.hc-ui-radio-button-checked {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+  color: var(--accent);
+}
+
+.hc-toast-stack {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+}
+
+.hc-toast {
+  background: var(--hc-surface-elevated);
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: var(--hc-shadow-md);
+  font-size: 12px;
+}
+
+.hc-toast--success {
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.hc-toast--error {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.hc-toast--warning {
+  border-color: rgba(234, 179, 8, 0.4);
+}
+
+.hc-toast--info {
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.hc-thought-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hc-thought-chain__item {
+  border: 1px solid var(--hc-border);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--hc-surface);
+}
+
+.hc-thought-chain__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.hc-thought-chain__status {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted);
+  margin-top: 6px;
+}
+
+.hc-thought-chain__item--loading .hc-thought-chain__status {
+  background: var(--accent);
+}
+
+.hc-thought-chain__title {
+  font-weight: 600;
+}
+
+.hc-think {
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--hc-surface);
+}
+
+.hc-think__header {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.hc-think__body {
+  padding: 10px 12px;
+  border-top: 1px solid var(--hc-border);
+}
+
+/* =============================================================================
+ * App Shell (Home/Tasks/Groups)
+ * ========================================================================== */
+
+.hc-shell {
+  height: 100vh;
+  background: var(--hc-content-bg);
+}
+
+.hc-sider {
+  background: var(--hc-sider-bg) !important;
+  border-right: 1px solid var(--hc-border);
+  /* Visual polish: keep the sidebar readable over the app gradient background. */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.hc-sider .hc-ui-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hc-sider__inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hc-sider__top {
+  padding: 16px 12px 10px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-sider__brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.hc-sider__brandRow--collapsed {
+  /* Center the sidebar toggle when collapsed so the top row only shows the trigger. l7pvyrepxb0mx2ipdh2y */
+  justify-content: center;
+}
+
+.hc-sider__brand {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.hc-sider__primary.hc-ui-btn {
+  justify-content: flex-start;
+  border-radius: 10px;
+  height: 40px;
+  /* background: var(--hc-accent-soft); */
+  /* border: 1px solid var(--hc-accent-border); */
+  color: var(--text);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.hc-sider__primary.hc-ui-btn:hover {
+  background: var(--hc-accent-soft-hover) !important;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--hc-border)) !important;
+}
+
+.hc-sider__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 8px 14px;
+}
+
+.hc-sider__bottom {
+  border-top: 1px solid var(--hc-border);
+  padding: 10px 8px 14px;
+}
+
+.hc-sider-bottom__item.hc-ui-btn {
+  width: 100%;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text);
+  justify-content: center;
+}
+
+.hc-sider-bottom__item.hc-ui-btn:hover {
+  background: var(--hc-hover) !important;
+}
+
+.hc-sider-bottom__item--active.hc-ui-btn {
+  /* UX: active nav should be visible even with custom accent presets. qnp1mtxhzikhbi0xspbc */
+  background: var(--hc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
+.hc-sider-nav {
+  padding: 0 6px 10px;
+}
+
+.hc-sider-nav__item.hc-ui-btn {
+  width: 100%;
+  justify-content: flex-start;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text);
+}
+
+.hc-sider-nav__item.hc-ui-btn:hover {
+  background: var(--hc-hover) !important;
+}
+
+.hc-sider-nav__item--active.hc-ui-btn {
+  /* UX: active nav should be visible even with custom accent presets. */
+  background: var(--hc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
+/* Collapsed sidebar alignment:
+ * - UI kit adds `hc-ui-layout-sider-collapsed` on the `<aside>` element.
+ * - Our buttons are full-width blocks; keep icon-only buttons centered when labels are hidden.
+ */
+.hc-sider.hc-ui-layout-sider-collapsed .hc-sider__primary.hc-ui-btn,
+.hc-sider.hc-ui-layout-sider-collapsed .hc-sider-nav__item.hc-ui-btn,
+.hc-sider.hc-ui-layout-sider-collapsed .hc-sider-section__titleBtn.hc-ui-btn {
+  justify-content: center;
+}
+
+.hc-sider.hc-ui-layout-sider-collapsed .hc-sider-section__header {
+  justify-content: center;
+  padding: 0;
+}
+
+/* Stop the Processing spinner when there are no processing tasks in collapsed sidebar mode. l7pvyrepxb0mx2ipdh2y */
+/* Stop the spinner animation when processing count is zero in collapsed mode. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+.hc-sider-processingIcon--idle.hc-icon-spin,
+.hc-sider-processingIcon--idle.hc-icon-spin svg {
+  animation: none !important;
+}
+
+.hc-sider__sectionLabel {
+  display: block;
+  padding: 8px 10px 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hc-sider-section {
+  margin-bottom: 6px;
+}
+
+.hc-sider-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 6px;
+}
+
+.hc-sider-section__titleBtn.hc-ui-btn {
+  flex: 1;
+  justify-content: flex-start;
+  color: var(--text);
+}
+
+/* Layout note:
+ * - UI kit Button wraps children into a `<span>`; make that wrapper flex-grow so the label/count row can align.
+ */
+.hc-sider-section__titleBtn.hc-ui-btn > span:not(.hc-ui-btn-icon) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-sider-section__titleBtn.hc-ui-btn:hover {
+  background: var(--hc-hover) !important;
+}
+
+.hc-sider-section__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+}
+
+.hc-sider-section__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-sider-section__count {
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 36px;
+  text-align: center;
+}
+
+.hc-sider-section__navBtn.hc-ui-btn {
+  /* Hover UX: count ↔ arrow navigation control for status headers. kwq0evw438cxawea0lcj */
+  color: var(--muted);
+  min-width: 36px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 10px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.hc-sider-section__header:hover .hc-sider-section__count {
+  display: none;
+}
+
+.hc-sider-section__header:hover .hc-sider-section__navBtn {
+  display: inline-flex;
+}
+
+.hc-sider-section__navBtn.hc-ui-btn:hover {
+  background: var(--hc-hover) !important;
+  color: var(--text);
+}
+
+.hc-sider-section__toggle.hc-ui-btn {
+  color: var(--muted);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hc-sider-section__toggle.hc-ui-btn:hover {
+  background: var(--hc-hover) !important;
+  color: var(--text);
+}
+
+.hc-sider-section__items {
+  padding: 4px 6px 6px;
+}
+
+.hc-sider-item.hc-ui-btn {
+  justify-content: flex-start;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--text);
+  /* UX: icon + title layout (task status icon moved from section header to each task row). */
+  gap: 8px;
+}
+
+.hc-sider-item.hc-ui-btn:hover {
+  background: var(--hc-hover) !important;
+}
+
+.hc-sider-item--active.hc-ui-btn {
+  /* UX: keep sidebar selection visible for task detail pages (match nav/task-group selection affordance). */
+  background: var(--hc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
+.hc-sider-item--more.hc-ui-btn {
+  /* UX: treat "View all" as a secondary action inside the preview list. */
+  color: var(--muted);
+}
+
+.hc-sider-item--more.hc-ui-btn:hover {
+  color: var(--text);
+}
+
+.hc-sider-item__icon {
+  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+/* Status hint colors (keep subtle so the title stays the primary focus). */
+.hc-sider-item__icon--processing {
+  color: var(--accent);
+}
+
+.hc-sider-item__icon--success {
+  color: #16a34a;
+}
+
+.hc-sider-item__icon--failed {
+  color: #ef4444;
+}
+
+.hc-sider-item__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.hc-sider-taskItem.hc-ui-btn {
+  /* Support 2-line task labels (event+identifier on line 1, repo on line 2) in expanded sidebar mode. mks8pr4r3m1fo9oqx9av */
+  height: auto;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  align-items: center;
+}
+
+.hc-sider-taskItem.hc-ui-btn .hc-sider-item__icon {
+  margin-top: 2px;
+}
+
+.hc-sider-item__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hc-sider-item__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.hc-sider-item__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hc-sider-empty {
+  display: block;
+  /* UX: align the empty hint text with task titles (after the status icon column). */
+  padding: 8px 10px 8px 34px;
+  font-size: 12px;
+}
+
+.hc-sider-menu.hc-ui-menu {
+  background: transparent;
+  border-inline-end: none;
+  color: var(--text);
+}
+
+.hc-sider-menu .hc-ui-menu-item {
+  border-radius: 10px;
+  margin-inline: 6px;
+  margin-block: 2px;
+}
+
+.hc-sider-menu .hc-ui-menu-item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-sider-menu .hc-ui-menu-item-selected {
+  background: var(--hc-accent-soft) !important;
+}
+
+.hc-sider-menu .hc-ui-menu-item-selected .hc-ui-menu-item-icon {
+  color: var(--accent);
+}
+
+.hc-sider-menu .hc-ui-menu-item-selected::after {
+  /* Visual polish: UI kit adds an "active bar" by default; hide it to match our card-like selection. */
+  display: none;
+}
+
+.hc-sider-menu .hc-ui-menu-item-icon {
+  color: var(--muted);
+}
+
+.hc-content {
+  background: var(--hc-content-bg);
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* =============================================================================
+ * Page layout blocks
+ * ========================================================================== */
+
+.hc-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.hc-page__header {
+  /* Layout note: keep the header as a single-row nav bar (title/meta shrink + clip instead of wrapping). */
+  padding: 14px 18px;
+  /* Visual refresh (2026-01-12):
+   * - Remove the solid header surface so the header blends with the app background.
+   * - Keep a softened divider + blur so content remains readable over the accent-tinted gradient.
+   */
+  /* border-bottom: 1px solid color-mix(in srgb, var(--hc-border) 82%, var(--hc-accent-soft)); */
+  background: transparent;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.hc-page__title {
+  display: block;
+  font-size: 16px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+/* =============================================================================
+ * Shared PageNav (1-row header bar)
+ * ========================================================================== */
+
+.hc-nav__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.hc-nav__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.hc-nav__meta .hc-ui-typography {
+  white-space: nowrap;
+}
+
+.hc-nav__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.hc-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.hc-nav__user {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* =============================================================================
+ * PageNav buttons (transparent header)
+ *
+ * Business context:
+ * - Module: Frontend Chat / Navigation / PageNav.
+ * - Purpose: make header actions blend with the app gradient once the header background is removed.
+ *
+ * Change record:
+ * - 2026-01-12: Remove the header surface background; redesign action/user trigger buttons as "soft pills".
+ * ========================================================================== */
+
+.hc-nav__actions .hc-ui-btn,
+.hc-user-trigger .hc-ui-btn {
+  border-radius: 999px;
+  height: 32px;
+  padding-inline: 12px;
+}
+
+.hc-nav__actions .hc-ui-btn:not(.hc-ui-btn-primary):not(.hc-ui-btn-dangerous),
+.hc-user-trigger .hc-ui-btn {
+  background: color-mix(in srgb, var(--hc-hover) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hc-border) 72%, transparent);
+  color: var(--text);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-nav__actions .hc-ui-btn:not(.hc-ui-btn-primary):not(.hc-ui-btn-dangerous):hover,
+.hc-user-trigger .hc-ui-btn:hover {
+  background: color-mix(in srgb, var(--hc-hover) 55%, var(--hc-accent-soft));
+  border-color: var(--hc-accent-border);
+}
+
+.hc-nav__actions .hc-ui-btn:not(.hc-ui-btn-primary):not(.hc-ui-btn-dangerous):focus-visible,
+.hc-user-trigger .hc-ui-btn:focus-visible {
+  box-shadow: var(--hc-focus-ring);
+}
+
+/* Primary action: keep it "accent first" but add subtle elevation so it reads on a transparent header. */
+.hc-nav__actions .hc-ui-btn-primary {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-hover) 26%, var(--accent)) 0%,
+    var(--accent) 100%
+  );
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--hc-border));
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-nav__actions .hc-ui-btn-primary:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 24%, var(--accent-hover)) 0%,
+    var(--accent-hover) 100%
+  );
+  border-color: color-mix(in srgb, var(--accent-hover) 68%, var(--hc-border));
+}
+
+.hc-nav__actions .hc-ui-btn-primary:active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 20%, var(--accent-active)) 0%,
+    var(--accent-active) 100%
+  );
+  border-color: color-mix(in srgb, var(--accent-active) 70%, var(--hc-border));
+}
+
+/* Danger action: use a soft red surface (instead of a harsh solid fill) to match the glassy layout. */
+.hc-nav__actions .hc-ui-btn-dangerous {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 38%, var(--hc-border));
+  color: color-mix(in srgb, #ef4444 86%, var(--text));
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-nav__actions .hc-ui-btn-dangerous:hover {
+  background: color-mix(in srgb, #ef4444 16%, transparent);
+  border-color: color-mix(in srgb, #ef4444 54%, var(--hc-border));
+  color: color-mix(in srgb, #ef4444 92%, var(--text));
+}
+
+.hc-nav__actions .hc-ui-btn-dangerous:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in srgb, #ef4444 26%, transparent);
+}
+
+@media (max-width: 768px) {
+  /* Mobile UX: keep the nav strictly 1-row by hiding the optional meta. */
+  .hc-nav__meta {
+    display: none;
+  }
+
+  /* Mobile UX: render nav action buttons as icon-only without losing a11y labels. */
+  .hc-nav__actions .hc-ui-btn {
+    position: relative;
+    padding-inline: 10px;
+  }
+
+  .hc-nav__actions .hc-ui-btn .hc-ui-btn-icon + span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+.hc-page__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px;
+}
+
+.hc-page__body > * {
+  /* Layout intent: keep page content comfortably readable on wide screens without changing page markup. */
+  width: 100%;
+  max-width: var(--hc-page-max);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hc-toolbar {
+  margin-bottom: 12px;
+}
+
+/* =============================================================================
+ * Tasks page: status summary strip + filter visibility
+ * - Purpose: show active deep-link filters (e.g. `#/tasks?status=success`) directly in the UI. 3iz4jx8bsy7q7d6b3jr3
+ * ========================================================================== */
+
+.hc-tasks-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* Layout: place status filters above a full-width search row. 3iz4jx8bsy7q7d6b3jr3 */
+.hc-tasks-search {
+  width: 100%;
+}
+
+.hc-tasks-status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+button.hc-tasks-status-tile {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+button.hc-tasks-status-tile:hover {
+  background: var(--hc-accent-soft-hover);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+button.hc-tasks-status-tile:focus-visible {
+  outline: none;
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-focus-ring);
+}
+
+button.hc-tasks-status-tile--active {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-tasks-status-tile__label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-tasks-status-tile__value {
+  display: block;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.hc-tasks-status-tile--skeleton.hc-ui-skeleton-button {
+  height: 58px;
+  border-radius: 12px;
+}
+
+.hc-tasks-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hc-card-list {
+  max-width: var(--hc-page-max);
+  margin: 0 auto;
+}
+
+.hc-task-card {
+  background: var(--hc-surface) !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 12px;
+}
+
+.hc-repo-card {
+  background: var(--hc-surface) !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 12px;
+}
+
+.hc-card {
+  background: var(--hc-surface) !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 12px;
+}
+
+/* Elevation: apply consistent shadows to the cards we control via custom classes. */
+.hc-task-card.hc-ui-card,
+.hc-repo-card.hc-ui-card,
+.hc-card.hc-ui-card {
+  box-shadow: var(--hc-shadow-sm);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.hc-task-card.hc-ui-card.hc-ui-card-hoverable:hover,
+.hc-repo-card.hc-ui-card.hc-ui-card-hoverable:hover,
+.hc-card.hc-ui-card.hc-ui-card-hoverable:hover {
+  box-shadow: var(--hc-shadow-md);
+  border-color: var(--hc-accent-border) !important;
+}
+
+/* =============================================================================
+ * Task detail meta cards
+ * - Business context: Frontend Chat / Tasks / Task detail.
+ * - Purpose: show Repository / Robot / Author at the top for quick scanning (legacy parity).
+ * - Change record: 2026-01-12 - Added during frontend -> frontend-chat migration.
+ * ========================================================================== */
+
+.hc-task-meta {
+  margin-bottom: 12px;
+}
+
+.hc-task-meta__card {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  height: 100%;
+}
+
+.hc-task-meta__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--hc-surface);
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.hc-task-meta__label {
+  font-size: 12px;
+}
+
+.hc-task-meta__value {
+  margin-top: 4px;
+}
+
+/* =============================================================================
+ * Repo detail full-width layout
+ * - Business context: Frontend Chat / Repos / Repo detail.
+ * - Purpose: remove the global max-width constraint so repo detail content can use the full screen width.
+ * - Change record: 2026-01-17 - Make repo detail page full-width. 58w1q3n5nr58flmempxe
+ * ========================================================================== */
+
+.hc-repo-detail-page .hc-page__body {
+  /* Layout intent: repo detail contains wide tables/editors and should use the full available width. */
+  align-items: stretch;
+}
+
+.hc-repo-detail-page .hc-page__body > * {
+  /* Override `.hc-page__body > * { max-width: var(--hc-page-max) }` for this page only. */
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* =============================================================================
+ * Repo detail dashboard
+ * - Business context: Frontend Chat / Repos / Repo detail.
+ * - Purpose: replace the tabbed repo detail with a board-style dashboard layout.
+ * - Change record: 2026-01-18 - Remove top-level tab switching and add KPI + charts. u55e45ffi8jng44erdzp
+ * ========================================================================== */
+
+.hc-repo-summary-strip {
+  padding: 0 0 14px; /* Keep KPI strip aligned with page body padding (strip now renders inside `.hc-page__body`). u55e45ffi8jng44erdzp */
+  border-bottom: 1px solid var(--hc-border);
+}
+
+/* Keep dashboard regions visually stable by reserving space for empty/minimal modules. u55e45ffi8jng44erdzp */
+.hc-repo-dashboard__region {
+  width: 100%;
+}
+
+.hc-repo-dashboard__slot {
+  width: 100%;
+  min-height: var(--hc-repo-dashboard-min-h, 320px);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.hc-repo-dashboard__slot > .hc-ui-card {
+  flex: 1 1 auto;
+}
+
+.hc-repo-dashboard__slot--sm {
+  --hc-repo-dashboard-min-h: 260px;
+}
+
+.hc-repo-dashboard__slot--md {
+  --hc-repo-dashboard-min-h: 320px;
+}
+
+.hc-repo-dashboard__slot--lg {
+  --hc-repo-dashboard-min-h: 360px;
+}
+
+.hc-repo-dashboard__slot--xl {
+  --hc-repo-dashboard-min-h: 420px;
+}
+
+@media (max-width: 768px) {
+  .hc-repo-dashboard__slot--lg {
+    --hc-repo-dashboard-min-h: 320px;
+  }
+
+  .hc-repo-dashboard__slot--xl {
+    --hc-repo-dashboard-min-h: 360px;
+  }
+}
+
+.hc-repo-summary-strip__scroller {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  align-items: stretch; /* Keep summary tiles equal-height per row. u55e45ffi8jng44erdzp */
+  gap: 12px;
+}
+
+.hc-repo-summary-strip__card {
+  height: 100%;
+  min-width: 0;
+}
+
+.hc-repo-summary-strip__card--interactive {
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Add column spacing/dividers and keep activity rows compact to prevent overflow in repo provider activity. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc */
+.hc-provider-activity-card.hc-ui-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-provider-activity-card.hc-ui-card > .hc-ui-card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.hc-provider-activity-columns {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.hc-provider-activity-columns > .hc-ui-col {
+  display: flex;
+  min-width: 0;
+}
+
+.hc-provider-activity-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-provider-activity-item:last-child {
+  border-bottom: none;
+}
+
+.hc-provider-activity-column {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .hc-provider-activity-column--divider {
+    border-left: 1px solid var(--hc-border);
+    padding-left: 16px;
+  }
+}
+
+.hc-provider-activity-list {
+  width: 100%;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__mainLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__titleWrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__side {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.hc-provider-activity-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.hc-repo-summary-strip__card--interactive:hover {
+  background: var(--hc-accent-soft-hover);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-repo-summary-strip__card--interactive:focus-visible {
+  outline: none;
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-repo-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hc-repo-activity__top {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.hc-repo-activity__gauge {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-repo-activity__metrics {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 10px;
+}
+
+.hc-repo-activity__metric {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.hc-repo-activity__metric-label {
+  font-size: 12px;
+}
+
+.hc-repo-activity__metric-value {
+  display: block;
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+/* Show the latest tasks inside the repo dashboard metric tiles without breaking the grid layout. aw85xyfsp5zfg6ihq3jr */
+.hc-repo-activity__metric-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hc-repo-activity__metric-tasks {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hc-repo-activity__metric-taskBtn.hc-ui-btn {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.hc-repo-activity__metric-taskBtn.hc-ui-btn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-repo-activity__block {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.hc-repo-activity__block-title {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.hc-repo-activity__dist-bar {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  background: var(--hc-surface);
+}
+
+.hc-repo-activity__dist-seg {
+  height: 100%;
+}
+
+.hc-repo-activity__legend {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.hc-repo-activity__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-repo-activity__legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc-border) 70%, transparent);
+}
+
+.hc-repo-activity__bars {
+  height: 140px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+.hc-repo-activity__bar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hc-repo-activity__bar-area {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-end;
+}
+
+.hc-repo-activity__bar-fill {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 72%, #ffffff) 0%, var(--accent) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc-accent-border) 70%, transparent);
+  transition: opacity 0.2s ease;
+}
+
+.hc-repo-activity__bar-fill:hover {
+  opacity: 0.92;
+}
+
+.hc-repo-activity__bar-label {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Add a lightweight SVG line chart style for the repo task volume trend. dashtrendline20260119m9v2 */
+
+.hc-repo-activity__trend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-repo-activity__trend-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-repo-activity__trend-range {
+  display: block;
+  font-size: 11px;
+}
+
+.hc-repo-activity__trend-chart {
+  /* Allow overlaying a Skeleton during the initial chart fetch without unmounting the chart container. nn62s3ci1xhpr7ublh51 */
+  position: relative;
+  height: 150px;
+  border-radius: 12px;
+  background: var(--hc-surface);
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  overflow: hidden;
+  padding: 10px;
+}
+
+.hc-repo-activity__trend-skeleton {
+  /* Keep loading states consistent with other pages while the ECharts canvas is initializing. nn62s3ci1xhpr7ublh51 */
+  position: absolute;
+  inset: 0;
+  padding: 12px 12px 6px;
+  pointer-events: none;
+}
+
+.hc-repo-activity__trend-svg {
+  display: block;
+  width: 100%;
+  height: 150px;
+}
+
+.hc-repo-activity__trend-area {
+  fill: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.hc-repo-activity__trend-line {
+  stroke: var(--accent);
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hc-repo-activity__trend-dot {
+  fill: var(--accent);
+  stroke: color-mix(in srgb, var(--hc-accent-border) 70%, transparent);
+  stroke-width: 1;
+}
+
+.hc-repo-activity__trend-axis {
+  stroke: color-mix(in srgb, var(--hc-border) 65%, transparent);
+  stroke-width: 1;
+}
+
+.hc-repo-activity__trend-tick {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+/* =============================================================================
+ * Task detail full-width layout
+ * - Business context: Frontend Chat / Tasks / Task detail.
+ * - Purpose: remove the global max-width constraint and introduce summary strip + sidebar/workflow layout.
+ * - Change record: 2026-01-17 - Redesign the task detail page layout. tdlayout20260117k8p3
+ * ========================================================================== */
+
+.hc-task-detail-page .hc-page__body {
+  /* Layout intent: this page is a split-pane layout and should use the full available width. */
+  align-items: stretch;
+}
+
+.hc-task-detail-page .hc-page__body > * {
+  /* Override `.hc-page__body > * { max-width: var(--hc-page-max) }` for this page only. */
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.hc-task-summary-strip {
+  padding: 0 18px 14px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-task-summary-strip__scroller {
+  /* Show all summary cards without horizontal scrolling by allowing responsive wrapping. tdstripwrap20260117b5m7 */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  align-items: stretch; /* Keep summary cards equal-height per row. tdsummaryequalh20260117v2n9 */
+  gap: 12px;
+}
+
+.hc-task-summary-strip__card {
+  height: 100%; /* Ensure each summary card fills the grid row height for visual consistency. tdsummaryequalh20260117v2n9 */
+  min-width: 0;
+}
+
+.hc-task-detail-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hc-task-detail-sidebar {
+  flex: 0 0 clamp(280px, 30%, 420px);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  min-width: 0;
+}
+
+.hc-task-detail-workflow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Keep the task detail panel switcher visible while scrolling long logs/results. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121 */
+.hc-task-detail-panel-switcher {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+.hc-task-detail-panel-content {
+  margin-top: 12px;
+}
+
+.hc-task-workflow .hc-ui-steps-item-content,
+.hc-task-workflow .hc-ui-steps-item-description {
+  max-width: none;
+  min-width: 0;
+}
+
+.hc-task-workflow .hc-step-index {
+  /* Display reversed step indices for bottom-up workflow numbering on task detail. tdstepsreverse20260117k1p6 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.hc-task-code-block {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Expand task detail code blocks to remove inner scrolling. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121 */
+.hc-task-code-block--expanded {
+  max-height: none;
+  overflow: visible;
+}
+
+@media (max-width: 1200px) {
+  .hc-task-summary-strip {
+    padding: 0 14px 12px;
+  }
+
+  .hc-task-detail-layout {
+    flex-direction: column;
+  }
+
+  .hc-task-detail-sidebar {
+    flex: 0 0 auto;
+    position: static;
+    width: 100%;
+  }
+}
+
+.hc-inner-card {
+  background: transparent !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 10px;
+}
+
+.hc-list {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+}
+
+.hc-list__item {
+  cursor: pointer;
+}
+
+.hc-list__item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-empty {
+  padding: 48px 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* =============================================================================
+ * Shared helpers (tables)
+ * ========================================================================== */
+
+.table-wrapper {
+  width: 100%;
+  min-width: 0;
+}
+
+.table-wrapper .hc-ui-table-content,
+.table-wrapper .hc-ui-table-body {
+  /* Style the real UI kit scroll containers (avoid an extra scroll layer that can force a vertical scrollbar). docs/en/developer/plans/qh23ler2y5yeesg6hqel/task_plan.md qh23ler2y5yeesg6hqel */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-color: var(--hc-scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.table-wrapper .hc-ui-table-content::-webkit-scrollbar,
+.table-wrapper .hc-ui-table-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.table-wrapper .hc-ui-table-content::-webkit-scrollbar-track,
+.table-wrapper .hc-ui-table-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-wrapper .hc-ui-table-content::-webkit-scrollbar-thumb,
+.table-wrapper .hc-ui-table-body::-webkit-scrollbar-thumb {
+  background-color: var(--hc-scrollbar-thumb);
+  border-radius: 999px;
+  /* Use a transparent border so the thumb looks lighter than a solid "pill" bar. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.table-wrapper .hc-ui-table-content::-webkit-scrollbar-thumb:hover,
+.table-wrapper .hc-ui-table-body::-webkit-scrollbar-thumb:hover {
+  background-color: var(--hc-scrollbar-thumb-hover);
+}
+
+.table-wrapper .hc-ui-table-content::-webkit-scrollbar-corner,
+.table-wrapper .hc-ui-table-body::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.table-cell-ellipsis {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* =============================================================================
+ * Chat view (task group)
+ * ========================================================================== */
+
+.hc-chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 18px;
+  /* Prevent scroll chaining / rubber-band bounce in the TaskGroup chat scroller. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a */
+  overscroll-behavior: contain;
+}
+
+.hc-chat-welcome {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.hc-chat-welcome__card {
+  /* Clamp TaskGroup chat widths to container size to avoid horizontal scroll. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(720px, 100%);
+  background: var(--hc-surface);
+  border-color: var(--hc-border);
+  border-radius: 12px;
+}
+
+.hc-chat-timeline {
+  padding: 18px 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: var(--hc-page-max);
+  margin: 0 auto;
+}
+
+.hc-chat-composer {
+  border-top: 1px solid var(--hc-border);
+  background: transparent;
+  padding: 14px 18px 18px;
+}
+
+.hc-chat-composer__inner {
+  max-width: var(--hc-page-max);
+  margin: 0 auto;
+}
+
+.hc-chat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Animate newly sent chat items as they settle into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */
+@keyframes hc-chat-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hc-chat-item--enter {
+  animation: hc-chat-item-enter 360ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-chat-item--enter {
+    animation: none;
+  }
+}
+
+.hc-chat-item__user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.hc-chat-item__assistant {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.hc-chat-bubble {
+  /* Keep chat bubbles within the page container to prevent overflow on narrow layouts. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  max-width: min(820px, 100%);
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-bubble-assisthc-ui-bg);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-chat-bubble--user {
+  background: var(--hc-bubble-user-bg);
+}
+
+.hc-chat-task-card {
+  /* Keep task cards within the chat container width (avoid horizontal scrollbars). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
+  background: var(--hc-surface);
+  border-color: var(--hc-border);
+  border-radius: 12px;
+}
+
+.hc-chat-logs-card {
+  /* Keep log cards within the chat container width (avoid horizontal scrollbars). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
+  /* Remove the Card surface background for TaskGroup execution logs. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a */
+  background: transparent;
+  border-color: transparent;
+  border-radius: 12px;
+  box-shadow: none;
+}
+/* Stretch git status cards to match chat item width in the task group timeline. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */
+.hc-chat-git-status {
+  /* Keep git status panels within the chat container width. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
+}
+/* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */
+
+/* =============================================================================
+ * Log viewer
+ * ========================================================================== */
+
+.log-viewer {
+  border-radius: 10px;
+}
+
+.log-viewer__header {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.log-viewer__title {
+  font-weight: 700;
+}
+
+/* Avoid nested scroll regions in the log viewer; rely on the outer page/container scroller. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
+.log-viewer__body {
+  padding: 10px 12px;
+}
+
+.log-viewer__pre {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.log-viewer__empty {
+  padding: 16px 0;
+  text-align: center;
+}
+
+/* =============================================================================
+ * Execution viewer (structured logs + diffs) yjlphd6rbkrq521ny796
+ * ========================================================================== */
+
+:root {
+  --hc-diff-added-bg: rgba(34, 197, 94, 0.12);
+  --hc-diff-removed-bg: rgba(239, 68, 68, 0.12);
+  --hc-diff-inline-added-bg: rgba(34, 197, 94, 0.22);
+  --hc-diff-inline-removed-bg: rgba(239, 68, 68, 0.22);
+}
+
+html[data-theme='dark'] {
+  --hc-diff-added-bg: rgba(34, 197, 94, 0.16);
+  --hc-diff-removed-bg: rgba(239, 68, 68, 0.16);
+  --hc-diff-inline-added-bg: rgba(34, 197, 94, 0.26);
+  --hc-diff-inline-removed-bg: rgba(239, 68, 68, 0.26);
+}
+
+.hc-exec-empty {
+  padding: 14px 0;
+  text-align: center;
+}
+
+/* Add execution timeline spacing, entry transitions, and running indicator styling. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@keyframes hc-exec-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node'] {
+  animation: hc-exec-item-enter 220ms ease-out;
+  will-change: opacity, transform;
+}
+
+.hc-exec-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  color: var(--muted);
+}
+
+.hc-exec-running__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hc-exec-running__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  opacity: 0.3;
+  animation: hc-exec-running-dot 1.2s ease-in-out infinite;
+}
+
+.hc-exec-running__dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.hc-exec-running__dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes hc-exec-running-dot {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.3;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-exec-thought-chain [class$='thought-chain-node'] {
+    animation: none;
+  }
+
+  .hc-exec-running__dot {
+    animation: none;
+  }
+}
+
+/* Style legacy UI X ThoughtChain snippets to match existing execution log typography. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
+.hc-exec-thought-chain {
+  width: 100%;
+}
+
+/* Ensure ThoughtChain nodes wrap inside the chat container (avoid horizontal scroll). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-thought-chain [class$='thought-chain-node'],
+.hc-exec-thought-chain [class$='thought-chain-node-box'],
+.hc-exec-thought-chain [class$='thought-chain-node-header'] {
+  min-width: 0;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-box'] {
+  flex: 1;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-title'],
+.hc-exec-thought-chain [class$='thought-chain-node-description'] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-title'] {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+/* Constrain ThoughtChain content blocks and markdown/code so long text never overflows the card. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-thought-chain [class$='thought-chain-node-content'],
+.hc-exec-thought-chain [class$='thought-chain-node-content-box'] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-title'] .hc-ui-space {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.hc-exec-thought-chain .markdown-result,
+.hc-exec-thought-chain .markdown-result pre,
+.hc-exec-thought-chain .markdown-result pre code,
+.hc-exec-thought-chain .markdown-result code {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.hc-exec-thought-chain .markdown-result table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Replace Think's default arrow with Caret icons rendered in the title. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
+.hc-exec-thought-chain [class$='think-status-down-icon'] {
+  display: none;
+}
+
+/* Hide Think icons for command blocks to avoid duplicate command icons (ThoughtChain header already indicates type). docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
+.hc-exec-think--no-icon [class$='think-status-icon'] {
+  display: none;
+}
+
+/* Allow Execution Think titles to wrap in narrow chat containers. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-think-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.hc-exec-think-title__caret {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.hc-exec-think-title__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+/* Ensure long command/file labels wrap instead of overflowing ThoughtChain cards. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-think-title__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Allow command/file titles in ThoughtChain headers to wrap instead of overflowing. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-title-text {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.hc-exec-thought__desc {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.hc-exec-item {
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+/* Remove grey "code block" backgrounds and inner scrollbars; use indentation + Think collapse instead. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
+.hc-exec-code,
+.hc-exec-output {
+  margin: 0;
+  padding: 0 0 0 12px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  overflow: visible;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Keep exec output lines within the chat width to prevent horizontal scroll. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-output {
+  margin-top: 8px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.hc-exec-output--mono {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Style todo_list entries in execution logs with clear completion markers. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */
+.hc-exec-todo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 12px;
+}
+
+.hc-exec-todo__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.hc-exec-todo__marker {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.hc-exec-todo__item.is-complete .hc-exec-todo__marker {
+  background: var(--primary);
+}
+
+.hc-exec-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Render inline diff blocks inside the file-change collapse. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.hc-exec-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 12px;
+}
+
+.hc-exec-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0 2px 12px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.hc-exec-file__path {
+  min-width: 0;
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.hc-exec-diff__file {
+  min-width: 0;
+  max-width: 52vw;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.hc-diff {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.hc-diff__hunk-header {
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.hc-diff__line {
+  display: flex;
+  gap: 10px;
+  padding: 0 12px;
+}
+
+.hc-diff--wrap .hc-diff__line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hc-diff--nowrap .hc-diff__line {
+  white-space: pre;
+}
+
+.hc-diff__line--add {
+  background: var(--hc-diff-added-bg);
+}
+
+.hc-diff__line--remove {
+  background: var(--hc-diff-removed-bg);
+}
+
+.hc-diff__ln {
+  width: 48px;
+  flex: none;
+  text-align: right;
+  color: var(--muted);
+  user-select: none;
+}
+
+.hc-diff__pm {
+  width: 16px;
+  flex: none;
+  color: var(--muted);
+  user-select: none;
+}
+
+/* Keep diff lines wrapping inside the ThoughtChain content box. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-diff__content {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.hc-diff__leading {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.hc-diff__inline-added {
+  background: var(--hc-diff-inline-added-bg);
+  border-radius: 4px;
+  padding: 0 1px;
+}
+
+.hc-diff__inline-removed {
+  background: var(--hc-diff-inline-removed-bg);
+  border-radius: 4px;
+  padding: 0 1px;
+}
+
+/* =============================================================================
+ * Markdown output
+ * ========================================================================== */
+
+.markdown-result {
+  width: 100%;
+  color: var(--text);
+}
+
+.markdown-result code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--hc-code-bg);
+}
+
+.markdown-result pre code {
+  display: block;
+  padding: 10px 12px;
+  overflow: auto;
+}
+
+.markdown-result--expanded {
+  padding-top: 6px;
+}
+
+/* =============================================================================
+ * Login
+ * ========================================================================== */
+
+.hc-login {
+  height: 100vh;
+  background: var(--hc-content-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.hc-login__card {
+  width: min(420px, 94vw);
+  border-radius: 12px;
+  background: var(--hc-surface);
+  border-color: var(--hc-border);
+}
+
+/* =============================================================================
+ * Top-right user panel (modal)
+ *
+ * Design goals:
+ * - Keep the modal size consistent across tabs (scroll inside tab panes).
+ * - Use a modern "soft glass" surface with clear borders and accent-aware active states.
+ *
+ * Change record:
+ * - 2026-01-12: Redesign modal layout to be fixed-size and tab-consistent.
+ * - 2026-01-12: Add responsive layout + accessible nav button styling for mobile and keyboard users.
+ * - 2026-01-15: Tighten paddings and unify dark-mode surfaces (avoid "black/gray blocks") in the panel and its dialogs.
+ * ========================================================================== */
+
+.hc-user-trigger {
+  /* Layout note: the trigger is rendered inside PageNav (rightmost). */
+  display: flex;
+  align-items: center;
+}
+
+.hc-user-trigger .hc-ui-btn {
+  /* Visual parity (2026-01-12): reuse the PageNav "soft pill" action styling on the transparent header. */
+  min-width: 44px;
+}
+
+.hc-user-trigger__label {
+  margin-left: 6px;
+}
+
+@media (max-width: 768px) {
+  .hc-user-trigger__label {
+    display: none;
+  }
+}
+
+.hc-user-modal .hc-ui-modal-content {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  box-shadow: var(--hc-shadow-lg);
+}
+
+.hc-user-modal .hc-ui-modal-header {
+  background: transparent;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-user-modal .hc-ui-modal-title {
+  color: var(--text);
+}
+
+.hc-user-modal .hc-ui-modal-close {
+  color: var(--text);
+}
+
+
+.hc-user-modal .hc-ui-modal-content {
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  /* Visual polish (2026-01-13): keep the whole user panel on a neutral gray surface in dark mode. */
+  background: var(--hc-panel-bg);
+}
+
+.hc-user-modal .hc-ui-modal-body {
+  padding: 0;
+  display: flex;
+  /* UX: keep a fixed-ish "window" size on desktop but avoid viewport overflow on smaller screens. */
+  height: min(680px, calc(100vh - 140px));
+}
+
+/* Surface unification (2026-01-15):
+ * - Business context: Frontend / User panel modal.
+ * - Purpose: keep embedded UI kit cards on the same neutral panel surface in dark mode
+ *   so the modal doesn't look like alternating "black blocks" and "gray blocks".
+ * - Usage: applied to cards rendered inside `UserPanelPopover.tsx`.
+ */
+.hc-user-modal .hc-ui-card {
+  background: var(--hc-panel-bg);
+  border-color: var(--hc-border);
+}
+
+.hc-user-panel {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+/* Density tweak (2026-01-13):
+ * - Business context: Frontend Chat / User panel modal.
+ * - Purpose: show more settings/credentials without excessive scrolling (especially on laptops).
+ * - Change record: reduce paddings/margins and tighten legacy UI component spacing in compact mode.
+ */
+.hc-user-panel[data-density='compact'] .hc-ui-form-vertical .hc-ui-form-item {
+  margin-bottom: 12px;
+}
+
+.hc-user-panel[data-density='compact'] .hc-ui-tag {
+  margin-inline-end: 0;
+  padding: 0 6px;
+  line-height: 18px;
+  font-size: 11px;
+}
+
+/* Sidebar */
+.hc-user-panel__sidebar {
+  width: 240px;
+  /* UX: avoid a darker "black strip" on the left; keep it consistent with the panel surface. */
+  background: var(--hc-panel-bg);
+  border-right: 1px solid var(--hc-border);
+  display: flex;
+  flex-direction: column;
+  /* Layout (2026-01-15): reduce outer padding so the modal feels less "padded". */
+  padding: 12px 8px;
+  flex-shrink: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.hc-user-panel__sidebar-header {
+  padding: 0 6px 10px;
+}
+
+.hc-user-panel__user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-hover) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hc-border) 70%, transparent);
+}
+
+.hc-user-panel__user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Visual parity: keep the avatar chip on the same neutral surface (dark mode was too black). */
+  background: var(--hc-panel-bg);
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  flex: 0 0 auto;
+}
+
+.hc-user-panel__user-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hc-user-panel__user-primary {
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-user-panel__user-secondary {
+  margin-top: 1px;
+  line-height: 1.2;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-user-panel__user-roles {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hc-user-panel__nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-top: 10px;
+}
+
+.hc-user-panel__sidebar-title {
+  padding: 0 12px;
+  margin-bottom: 24px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.hc-user-panel__nav-group {
+  margin-bottom: 16px;
+}
+
+.hc-user-panel__nav-header {
+  padding: 0 12px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hc-settings-nav-item {
+  /* UX/a11y: render navigation entries as real buttons for keyboard access (2026-01-12). */
+  appearance: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin-bottom: 2px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.hc-settings-nav-item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-settings-nav-item:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-settings-nav-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hc-settings-nav-item__icon {
+  width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hc-settings-nav-item__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.hc-settings-nav-item--active {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.hc-user-panel__sidebar-footer {
+  padding: 10px 6px 0;
+  border-top: 1px solid var(--hc-border);
+  margin-top: 10px;
+}
+
+.hc-user-panel__sidebar-footer .hc-ui-btn {
+  width: 100%;
+}
+
+/* Main Content */
+.hc-user-panel__content {
+  flex: 1;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-user-panel__content-header {
+  /* Layout (2026-01-15): reduce outer padding to match the tighter modal surface. */
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--hc-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  /* UX: keep the sticky header visually aligned with the rest of the modal surface. */
+  background: var(--hc-panel-bg); /* Ensure header covers scrolled content */
+}
+
+.hc-user-panel__content-titleArea {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hc-user-panel__content-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.hc-user-panel__content-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-user-panel__content-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-user-panel__header-action {
+  color: var(--muted);
+}
+
+.hc-user-panel__header-action:hover {
+  color: var(--text);
+}
+
+.hc-user-panel__content-body {
+  /* Layout (2026-01-15): reduce outer padding so content matches the main pages' density. */
+  padding: 14px 16px;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  /* Mobile UX: use a full-screen panel layout (single column) and make the nav horizontally scrollable. */
+  .hc-user-modal--mobile .hc-ui-modal-content {
+    border-radius: 0 !important;
+  }
+
+  .hc-user-modal--mobile .hc-ui-modal-body {
+    height: 100vh;
+  }
+
+  .hc-user-panel {
+    flex-direction: column;
+  }
+
+  .hc-user-panel__sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--hc-border);
+    padding: 10px;
+  }
+
+  .hc-user-panel__sidebar-header {
+    padding: 0;
+  }
+
+  .hc-user-panel__nav {
+    padding-top: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hc-user-panel__nav-group {
+    margin-bottom: 0;
+    display: flex;
+    gap: 6px;
+  }
+
+  .hc-user-panel__nav-header {
+    display: none;
+  }
+
+  .hc-settings-nav-item {
+    width: auto;
+    white-space: nowrap;
+    border-radius: 999px;
+    margin-bottom: 0;
+    padding: 5px 10px;
+  }
+
+  .hc-user-panel__sidebar-footer {
+    border-top: none;
+    padding: 10px 0 0;
+    margin-top: 0;
+  }
+
+  .hc-user-panel__content-header {
+    padding: 12px 14px;
+  }
+
+  .hc-user-panel__content-body {
+    padding: 14px;
+    max-width: none;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Sections */
+.hc-settings-section {
+  margin-bottom: 24px;
+}
+
+.hc-settings-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--muted);
+}
+
+/* Cards for Theme Selection */
+.hc-theme-cards {
+  display: flex;
+  gap: 12px;
+}
+
+.hc-theme-card {
+  flex: 1;
+  cursor: pointer;
+}
+
+.hc-theme-card-preview {
+  aspect-ratio: 16/10;
+  background: var(--bg);
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+/* Simplified representations of UI in preview */
+.hc-theme-card-preview::before {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: 10%;
+  right: 10%;
+  height: 12%;
+  background: var(--border);
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+.hc-theme-card-preview::after {
+  content: '';
+  position: absolute;
+  top: 30%;
+  left: 10%;
+  width: 25%;
+  bottom: 10%;
+  background: var(--border);
+  border-radius: 4px;
+  opacity: 0.3;
+}
+
+.hc-theme-card--active .hc-theme-card-preview {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--hc-accent-soft-hover);
+}
+
+.hc-theme-card--light .hc-theme-card-preview {
+  background: #f8fafc;
+}
+.hc-theme-card--light .hc-theme-card-preview::before,
+.hc-theme-card--light .hc-theme-card-preview::after {
+  background: #cbd5e1;
+}
+
+.hc-theme-card--dark .hc-theme-card-preview {
+  /* Visual parity: keep the preview in sync with the actual dark theme base background. */
+  background: #09090b;
+}
+.hc-theme-card--dark .hc-theme-card-preview::before,
+.hc-theme-card--dark .hc-theme-card-preview::after {
+  background: #27272a;
+}
+
+.hc-theme-card--system .hc-theme-card-preview {
+  background: linear-gradient(90deg, #f8fafc 50%, #09090b 50%);
+}
+
+.hc-theme-card-label {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.hc-user-panel__close {
+  /* UX/a11y: close button lives in the panel header; keep it keyboard focusable and visually consistent. */
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.2s, background-color 0.2s;
+}
+.hc-user-panel__close:hover {
+  color: var(--text);
+  background: var(--hc-hover);
+}
+.hc-user-panel__close:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+
+/* =============================================================================
+ * Modern Chat Composer (Refactored)
+ * ========================================================================== */
+
+.hc-chat-centered-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 24px;
+  width: 100%;
+}
+
+.hc-chat-hero {
+  text-align: center;
+  margin-bottom: 40px;
+  max-width: 600px;
+}
+
+.hc-chat-footer-composer {
+  /* border-top: 1px solid var(--hc-border); */
+  /* background: var(--hc-surface); */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 16px 24px 24px;
+  flex: 0 0 auto;
+}
+
+.hc-composer-container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.hc-composer-box {
+  /* Change record (2026-01-12): use the shared surface token; `--hc-card-bg` was never defined. */
+  background: var(--hc-surface-elevated);
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: var(--hc-shadow-sm);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hc-composer-box--inline {
+  /* UX (Chat / Task group): keep the footer composer compact like modern messengers. */
+  padding: 10px 12px;
+  gap: 8px;
+  /* Visual style: avoid a heavy "filled card" in the timeline footer; let the footer surface be the backdrop. */
+  background: transparent;
+  box-shadow: none;
+}
+
+.hc-composer-box:focus-within {
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-md), var(--hc-focus-ring);
+}
+
+.hc-composer-box--inline:focus-within {
+  /* Visual style: keep the inline composer focus ring light-weight to avoid overpowering the chat content. */
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-composer-box--focused {
+  /* UX note: `:focus-within` is not reliable on some mobile keyboards; keep a class hook for parity. */
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-md), var(--hc-focus-ring);
+}
+
+.hc-composer-box--inline.hc-composer-box--focused {
+  box-shadow: var(--hc-focus-ring);
+}
+
+/* Chat composer input (UI kit):
+ * - Business context: Frontend Chat / Task groups / New group + Task group composer.
+ *
+ * Problem:
+ * - The composer container (`.hc-composer-box`) already draws the border + focus ring.
+ * - UI kit Input/TextArea may also draw its own border/background/focus ring, creating a double-border look.
+ *
+ * Fix:
+ * - Keep the inner input borderless/transparent and let `.hc-composer-box:focus-within` be the only focus affordance.
+ *
+ * Change record:
+ * - 2026-01-12: Remove inner input borders/rings in the chat composer to avoid double borders.
+ */
+.hc-composer-box .hc-composer-input,
+.hc-composer-box .hc-composer-input:hover,
+.hc-composer-box .hc-composer-input:focus,
+.hc-composer-box textarea.hc-ui-input,
+.hc-composer-box textarea.hc-ui-input:hover,
+.hc-composer-box textarea.hc-ui-input:focus,
+.hc-composer-box .hc-ui-input-textarea-affix-wrapper.hc-ui-input-affix-wrapper,
+.hc-composer-box .hc-ui-input-textarea-affix-wrapper.hc-ui-input-affix-wrapper:hover,
+.hc-composer-box .hc-ui-input-textarea-affix-wrapper.hc-ui-input-affix-wrapper-focused {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+.hc-composer-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-composer-input-wrapper {
+  width: 100%;
+}
+
+.hc-composer-input.hc-ui-input {
+  resize: none;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  /* UX: keep comfortable padding so the first character never hugs the container edge. */
+  padding: 6px 8px;
+  font-size: 15px; 
+  line-height: 1.5;
+}
+
+.hc-composer-box--inline .hc-composer-input.hc-ui-input,
+.hc-composer-box--inline textarea.hc-ui-input {
+  /* UX: tighter padding for the single-line default composer in task-group view. */
+  padding: 4px 6px;
+}
+
+/* Focus handling:
+ * - The composer container (`.hc-composer-box`) owns the focus ring via `:focus-within`.
+ * - Prevent UI kit global input focus styles from adding an inner ring (double border).
+ *
+ * Change record:
+ * - 2026-01-12: Ensure only one focus ring is visible in the new task-group composer.
+ */
+.hc-shell .hc-composer-box .hc-composer-input.hc-ui-input:focus {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.hc-composer-footer {
+  display: flex;
+  /* Arrange composer footer into left icon + selectors and right actions. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hc-composer-footer-left {
+  /* Keep the time-window icon aligned left for quick access. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-composer-footer-right {
+  /* Keep repo/robot selectors grouped with the send action on the right. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-timewindow-toggle {
+  /* Minimal icon affordance for the chat time-window popover. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  color: var(--text-secondary);
+}
+
+.hc-timewindow-toggle.is-active {
+  /* Highlight the icon when a time window is selected. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  color: var(--primary);
+}
+
+.hc-timewindow-label {
+  /* Keep the time window label compact and readable. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  font-size: 12px;
+}
+
+/* =============================================================================
+ * legacy UI integration (minimal overrides)
+ *
+ * Business context:
+ * - Module: Frontend Chat / Styles / UI kit.
+ * - Purpose: keep UI kit surfaces aligned with our CSS-variable theme (light/dark + accent).
+ *
+ * Change record:
+ * - 2026-01-12: Add subtle surface + focus styling for inputs/selects so the UI feels consistent.
+ * ========================================================================== */
+
+.hc-shell .hc-ui-card,
+.hc-shell .hc-ui-modal-content,
+.hc-shell .hc-ui-popover-inner {
+  /* background: var(--hc-surface-elevated); */
+  /* border-color: var(--hc-border); */
+}
+
+.hc-shell .hc-ui-popover-inner {
+  box-shadow: var(--hc-shadow-md);
+}
+
+/* Compact dialog skin (2026-01-15):
+ * - Business context: Frontend / Dialogs / Credential profile editors.
+ * - Purpose:
+ *   1) Reduce modal padding so dialogs feel closer to the main content density.
+ *   2) Keep header/body/footer on a single surface in dark mode (avoid mixed blacks/greys).
+ *
+ * Usage:
+ * - Add `className="hc-dialog--compact"` to UI kit `Modal` / `ResponsiveDialog` (compact variant).
+ *
+ * Notes:
+ * - We intentionally keep the control surface (`--hc-control-bg`) the same across pages/modals; this class only
+ *   adjusts container padding + dialog surface to match the user panel's neutral background.
+ */
+.hc-shell .hc-dialog--compact .hc-ui-modal-content {
+  background: var(--hc-panel-bg);
+  border: 1px solid var(--hc-border);
+  box-shadow: var(--hc-shadow-lg);
+}
+
+.hc-shell .hc-dialog--compact .hc-ui-modal-header,
+.hc-shell .hc-dialog--compact .hc-ui-modal-body,
+.hc-shell .hc-dialog--compact .hc-ui-modal-footer {
+  background: transparent;
+}
+
+.hc-shell .hc-dialog--compact .hc-ui-modal-header {
+  padding: 12px 16px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-shell .hc-dialog--compact .hc-ui-modal-body {
+  padding: 14px 16px;
+}
+
+.hc-shell .hc-dialog--compact .hc-ui-modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--hc-border);
+}
+
+/* Form controls: make inputs/selects feel consistent with the "soft surface" theme. */
+.hc-shell .hc-ui-input:not(.hc-ui-input-borderless),
+.hc-shell .hc-ui-input-affix-wrapper:not(.hc-ui-input-borderless),
+.hc-shell .hc-ui-input-textarea-affix-wrapper:not(.hc-ui-input-borderless),
+.hc-shell .hc-ui-input-number,
+.hc-shell .hc-ui-picker {
+  /* Visual goal: a single, consistent control surface for all input-like components across pages/modals. */
+  background: var(--hc-control-bg);
+  border-color: var(--hc-border);
+  border-radius: 12px;
+  /* Visual fix: avoid "double border" caused by default inset shadows on some UI kit controls. */
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-shell .hc-ui-input:not(.hc-ui-input-borderless):hover,
+.hc-shell .hc-ui-input-affix-wrapper:not(.hc-ui-input-borderless):hover,
+.hc-shell .hc-ui-input-textarea-affix-wrapper:not(.hc-ui-input-borderless):hover,
+.hc-shell .hc-ui-input-number:hover,
+.hc-shell .hc-ui-picker:hover {
+  background: var(--hc-control-bg-hover);
+  border-color: var(--hc-accent-border);
+}
+
+.hc-shell .hc-ui-input:not(.hc-ui-input-borderless):focus,
+.hc-shell .hc-ui-input-affix-wrapper-focused:not(.hc-ui-input-borderless),
+.hc-shell .hc-ui-input-number-focused,
+.hc-shell .hc-ui-picker-focused {
+  border-color: var(--hc-accent-border) !important;
+  box-shadow: var(--hc-focus-ring) !important;
+}
+
+/* Inputs with prefix/suffix/allowClear (UI kit affix wrapper):
+ * - Problem: UI kit wraps inputs with an affix wrapper, and the nested `.hc-ui-input` can still receive our global focus ring,
+ *   causing a visible "double ring/border" (wrapper ring + inner ring).
+ *
+ * Fix:
+ * - Keep border + focus ring on `.hc-ui-input-affix-wrapper` only; force the nested input to stay fully borderless/no-shadow.
+ *
+ * Reference:
+ * - Same approach as the new task-group composer (`.hc-composer-box`) which draws the border on the container and keeps the inner input clean.
+ *
+ * Change record:
+ * - 2026-01-13: Ensure toolbar search inputs render as a single-border control (no inner ring) across themes.
+ */
+.hc-shell .hc-ui-input-affix-wrapper:not(.hc-ui-input-borderless) .hc-ui-input {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+.hc-shell .hc-ui-input-textarea-affix-wrapper:not(.hc-ui-input-borderless) textarea.hc-ui-input {
+  /* See the note above: textarea affix wrappers can also render a nested ring (double border) on focus. */
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+.hc-shell .hc-ui-input::placeholder,
+.hc-shell textarea.hc-ui-input::placeholder,
+.hc-shell .hc-ui-input-number-input::placeholder,
+.hc-shell .hc-ui-picker-input > input::placeholder {
+  /* UX: keep placeholder readable and consistent across light/dark themes. */
+  color: var(--hc-control-placeholder);
+  opacity: 1;
+}
+
+.hc-shell .hc-ui-input-prefix,
+.hc-shell .hc-ui-input-suffix,
+.hc-shell .hc-ui-input-clear-icon,
+.hc-shell .hc-ui-input-password-icon {
+  color: var(--hc-control-icon);
+}
+
+.hc-shell .hc-ui-input-clear-icon:hover,
+.hc-shell .hc-ui-input-password-icon:hover {
+  color: var(--text);
+}
+
+.hc-shell .hc-ui-input-affix-wrapper-disabled,
+.hc-shell .hc-ui-input-textarea-affix-wrapper-disabled,
+.hc-shell .hc-ui-input[disabled],
+.hc-shell textarea.hc-ui-input[disabled],
+.hc-shell .hc-ui-input-disabled,
+.hc-shell .hc-ui-input-number-disabled,
+.hc-shell .hc-ui-picker-disabled {
+  /* UX: disabled controls should remain obviously non-interactive while keeping the theme surface. */
+  background: var(--hc-control-bg-disabled) !important;
+  border-color: var(--hc-border) !important;
+  box-shadow: none !important;
+}
+
+.hc-shell .hc-ui-select:not(.hc-ui-select-borderless) .hc-ui-select-selector {
+  background: var(--hc-control-bg) !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 12px !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-shell .hc-ui-select:not(.hc-ui-select-borderless):hover .hc-ui-select-selector {
+  background: var(--hc-control-bg-hover) !important;
+  border-color: var(--hc-accent-border) !important;
+}
+
+.hc-shell .hc-ui-select:not(.hc-ui-select-borderless).hc-ui-select-focused .hc-ui-select-selector {
+  border-color: var(--hc-accent-border) !important;
+  box-shadow: var(--hc-focus-ring) !important;
+}
+
+.hc-shell .hc-ui-select .hc-ui-select-selection-placeholder {
+  color: var(--hc-control-placeholder) !important;
+}
+
+.hc-shell .hc-ui-select .hc-ui-select-arrow,
+.hc-shell .hc-ui-select .hc-ui-select-clear {
+  color: var(--hc-control-icon) !important;
+}
+
+.hc-shell .hc-ui-select .hc-ui-select-arrow:hover,
+.hc-shell .hc-ui-select .hc-ui-select-clear:hover {
+  color: var(--text) !important;
+}
+
+.hc-shell .hc-ui-select-disabled .hc-ui-select-selector {
+  background: var(--hc-control-bg-disabled) !important;
+  border-color: var(--hc-border) !important;
+  box-shadow: none !important;
+}
+
+/* Subtle selects for the chat composer (repo/robot pickers). */
+.hc-select-subtle.hc-ui-select .hc-ui-select-selector {
+  background: var(--hc-hover) !important;
+  border: 1px solid var(--hc-border) !important;
+  border-radius: 999px !important;
+  padding-inline: 10px !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.hc-select-subtle.hc-ui-select:hover .hc-ui-select-selector {
+  background: color-mix(in srgb, var(--hc-hover) 70%, var(--hc-accent-soft)) !important;
+  border-color: var(--hc-accent-border) !important;
+}
+
+.hc-select-subtle.hc-ui-select-focused .hc-ui-select-selector,
+.hc-select-subtle.hc-ui-select-open .hc-ui-select-selector {
+  border-color: var(--hc-accent-border) !important;
+  box-shadow: var(--hc-focus-ring) !important;
+}
+
+/* Header back icon: match the modern "pill icon" style used across the app. */
+.hc-nav__back.hc-ui-btn {
+  border-radius: 999px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.hc-nav__back.hc-ui-btn:hover {
+  background: var(--hc-hover) !important;
+  color: var(--text) !important;
+}
+
+/* Add base styles for custom UI dropdowns/toasts used in the UI kit-free rebuild. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127 */
+.hc-ui-select-dropdown {
+  margin-top: 6px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface);
+  border-radius: 12px;
+  box-shadow: var(--hc-shadow-md);
+  padding: 6px;
+  position: absolute;
+  z-index: 40;
+  min-width: 100%;
+}
+
+.hc-ui-select-dropdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.hc-ui-select-dropdown-item {
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.hc-ui-select-dropdown-item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-ui-select-dropdown-item.is-selected {
+  background: var(--hc-accent-soft);
+  border: 1px solid var(--hc-accent-border);
+}
+
+.hc-ui-select-dropdown-empty {
+  padding: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-ui-select-selection-placeholder {
+  color: var(--muted);
+}
+
+.hc-ui-select-borderless {
+  border: none;
+  background: transparent;
+}
+
+.hc-ui-select-sm {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.hc-ui-divider {
+  height: 1px;
+  background: var(--hc-border);
+  margin: 12px 0;
+}
+
+.hc-ui-date-picker-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-control-bg);
+}
+
+.hc-ui-date-picker-range input {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.hc-ui-date-picker-separator {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hc-message-host {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 60;
+}
+
+.hc-message {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface);
+  box-shadow: var(--hc-shadow-sm);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.hc-message-success {
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.hc-message-error {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.hc-message-warning {
+  border-color: rgba(234, 179, 8, 0.4);
+}
+
+.hc-ui-popconfirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}

@@ -1,0 +1,74 @@
+import { describe, expect, test, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { App as UiApp } from '@/ui';
+import { TaskLogViewer } from '../components/TaskLogViewer';
+// Switch to custom UI components to remove legacy UI dependency. docs/en/developer/plans/frontendgemini-migration-20260127/task_plan.md frontendgemini-migration-20260127
+
+describe('TaskLogViewer auto-scroll', () => {
+  test('keeps the nearest scroll container pinned to bottom on new logs', async () => {
+    // Make the auto-scroll scheduling deterministic for tests. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
+    const originalRaf = globalThis.requestAnimationFrame;
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0 as any;
+    });
+
+    try {
+      const view = render(
+        <div data-testid="scroller" style={{ overflowY: 'auto', height: 200 }}>
+          <UiApp>
+            <TaskLogViewer taskId="t1" tail={2} variant="flat" />
+          </UiApp>
+        </div>
+      );
+
+      await waitFor(() => expect((globalThis as any).__eventSourceInstances?.length ?? 0).toBe(1));
+
+      const scroller = view.container.querySelector('[data-testid="scroller"]') as HTMLElement | null;
+      expect(scroller).toBeTruthy();
+      if (!scroller) return;
+
+      Object.defineProperty(scroller, 'scrollHeight', { value: 600, configurable: true });
+      Object.defineProperty(scroller, 'clientHeight', { value: 200, configurable: true });
+      scroller.scrollTop = 380; // within the "at bottom" threshold (< 24px remaining)
+      scroller.dispatchEvent(new Event('scroll'));
+
+      const es = (globalThis as any).__eventSourceInstances[0];
+      es.emit('init', { data: JSON.stringify({ logs: ['line 1', 'line 2', 'line 3'] }) });
+
+      await waitFor(() => expect(scroller.scrollTop).toBe(400));
+    } finally {
+      vi.unstubAllGlobals();
+      if (originalRaf) {
+        globalThis.requestAnimationFrame = originalRaf;
+      }
+    }
+  });
+});
+
+describe('TaskLogViewer reasoning visibility', () => {
+  test('shows reasoning items in flat ThoughtChain by default', async () => {
+    // Validate reasoning visibility in flat ThoughtChain for Codex logs. docs/en/developer/plans/thoughtchain-log-display/task_plan.md thoughtchain-log-display
+    render(
+      <UiApp>
+        <TaskLogViewer taskId="t_reasoning" tail={2} variant="flat" />
+      </UiApp>
+    );
+
+    await waitFor(() => expect((globalThis as any).__eventSourceInstances?.length ?? 0).toBe(1));
+
+    const es = (globalThis as any).__eventSourceInstances[0];
+    es.emit('init', {
+      data: JSON.stringify({
+        logs: [
+          JSON.stringify({
+            type: 'item.completed',
+            item: { id: 'r1', type: 'reasoning', text: 'why this matters' }
+          })
+        ]
+      })
+    });
+
+    expect(await screen.findByText('why this matters')).toBeInTheDocument();
+  });
+});
