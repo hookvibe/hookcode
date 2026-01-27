@@ -11,6 +11,8 @@ jest.mock('fs/promises', () => ({
 jest.mock('../../agent/agent', () => {
   return {
     __esModule: true,
+    // Provide git proxy flags in the agent mock so push commands don't throw in tests. docs/en/developer/plans/gitpushfix20260127/task_plan.md gitpushfix20260127
+    buildGitProxyFlags: jest.fn().mockReturnValue(''),
     // Mock the task-group workspace builder so push paths stay aligned with agent behavior. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
     buildTaskGroupWorkspaceDir: jest
       .fn()
@@ -81,7 +83,8 @@ describe('TaskGitPushService', () => {
       if (cmd.includes('git remote get-url --push origin')) {
         return Promise.resolve({ stdout: 'https://example.com/fork.git', stderr: '', exitCode: 0 });
       }
-      if (cmd.includes('git push origin')) {
+      // Match git push commands even when proxy flags are injected. docs/en/developer/plans/gitpushfix20260127/task_plan.md gitpushfix20260127
+      if (cmd.includes('push origin')) {
         return Promise.resolve({ stdout: '', stderr: 'denied', exitCode: 1 });
       }
       return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
@@ -143,7 +146,8 @@ describe('TaskGitPushService', () => {
       if (cmd.includes('git remote get-url --push origin')) {
         return Promise.resolve({ stdout: 'https://example.com/fork.git', stderr: '', exitCode: 0 });
       }
-      if (cmd.includes('git push origin')) {
+      // Match git push commands even when proxy flags are injected. docs/en/developer/plans/gitpushfix20260127/task_plan.md gitpushfix20260127
+      if (cmd.includes('push origin')) {
         return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
       }
       return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
