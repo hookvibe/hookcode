@@ -69,7 +69,11 @@ vi.mock('../api', () => {
       updatedAt: '2026-01-11T00:00:00.000Z',
       permissions: { canManage: true }
     })),
-    deleteTask: vi.fn(async () => undefined)
+    deleteTask: vi.fn(async () => undefined),
+    // Provide robot provider lookup for task detail provider labels. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+    listRepoRobots: vi.fn(async () => [
+      { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true, modelProvider: 'codex' }
+    ])
   };
 });
 
@@ -92,6 +96,7 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     renderPage({ taskId: 't1' });
 
     await waitFor(() => expect(api.fetchTask).toHaveBeenCalled());
+    await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
     expect(await screen.findByText('Task t1', { selector: '.hc-page__title' })).toBeInTheDocument();
 
     // Regression: ensure the full-width task summary strip still surfaces key fields for quick scanning. tdlayout20260117k8p3
@@ -103,6 +108,8 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     expect(stripScope.getByText('Author')).toBeInTheDocument();
     expect(stripScope.getByText('Repo r1')).toBeInTheDocument();
     expect(stripScope.getByText('Robot bot1')).toBeInTheDocument();
+    // Ensure bound AI provider is visible in the task summary strip. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+    expect(stripScope.getByText('codex')).toBeInTheDocument();
     expect(stripScope.getByText('Alice')).toBeInTheDocument();
     expect(stripScope.getByText(/@alice/i)).toBeInTheDocument();
 

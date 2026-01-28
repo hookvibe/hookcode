@@ -109,6 +109,8 @@ export interface TaskRobotSummary {
   repoId: string;
   name: string;
   permission: RobotPermission;
+  // Expose robot model provider on task summaries for UI display. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+  modelProvider?: ModelProvider;
   enabled: boolean;
 }
 

@@ -7,6 +7,7 @@ import { getTemplateVariableGroups } from '../templateEditorVariables';
 import { ResponsiveDialog } from '../dialogs/ResponsiveDialog';
 import { findClause, uuid } from './utils';
 import { TimeWindowPicker } from '../TimeWindowPicker';
+import { getRobotProviderLabel } from '../../utils/robot';
 
 /**
  * TriggerRuleModal:
@@ -470,6 +471,8 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
               options={robotOptions.map((o) => {
                 const r = o.robot;
                 const status = getRobotStatus(r);
+                // Surface bound AI provider alongside robot badges in automation selectors. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+                const providerLabel = getRobotProviderLabel(r.modelProvider);
                 return {
                   value: o.value,
                   label: (
@@ -477,6 +480,11 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
                       <Badge color={status.color} text={status.short ?? status.text} />
                       <Badge color={getRobotPermissionColor(r)} text={r.permission} />
                       <span>{o.label}</span>
+                      {providerLabel ? (
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {providerLabel}
+                        </Typography.Text>
+                      ) : null}
                     </Space>
                   )
                 } as any;
@@ -504,6 +512,15 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
                     <Space size={8} wrap>
                       <Badge color={status.color} text={status.short ?? status.text} />
                       <span>{r.name}</span>
+                      {/* Show bound AI provider in action tabs for quick identification. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128 */}
+                      {(() => {
+                        const providerLabel = getRobotProviderLabel(r.modelProvider);
+                        return providerLabel ? (
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            {providerLabel}
+                          </Typography.Text>
+                        ) : null;
+                      })()}
                     </Space>
                   ),
                   children: (

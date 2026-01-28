@@ -11,6 +11,7 @@ import { isTerminalStatus } from '../utils/task';
 import { ChatTimelineSkeleton } from '../components/skeletons/ChatTimelineSkeleton';
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
 import { formatTimeWindowLabel } from '../utils/timeWindow';
+import { formatRobotLabelWithProvider } from '../utils/robot';
 
 /**
  * TaskGroupChatPage:
@@ -97,7 +98,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     () =>
       enabledRobots.map((r) => ({
         value: r.id,
-        label: r.name || r.id
+        // Add bound AI provider to robot labels in the picker. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+        label: formatRobotLabelWithProvider(r.name || r.id, r.modelProvider)
       })),
     [enabledRobots]
   );

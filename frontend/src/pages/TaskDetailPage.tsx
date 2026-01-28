@@ -13,8 +13,8 @@ import {
   RobotOutlined,
   UserOutlined
 } from '@ant-design/icons';
-import type { Task, TaskRepoSummary, TaskRobotSummary } from '../api';
-import { deleteTask, executeTaskNow, fetchTask, retryTask } from '../api';
+import type { RepoRobot, Task, TaskRepoSummary, TaskRobotSummary } from '../api';
+import { deleteTask, executeTaskNow, fetchTask, listRepoRobots, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../router';
 import { MarkdownViewer } from '../components/MarkdownViewer';
@@ -36,6 +36,7 @@ import {
 import { buildTaskTemplateContext, renderTemplate } from '../utils/template';
 import { LogViewerSkeleton } from '../components/skeletons/LogViewerSkeleton';
 import { TaskDetailSkeleton } from '../components/skeletons/TaskDetailSkeleton';
+import { getRobotProviderLabel } from '../utils/robot';
 
 /**
  * TaskDetailPage:
@@ -70,6 +71,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   const [task, setTask] = useState<Task | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [repoRobots, setRepoRobots] = useState<RepoRobot[]>([]);
   // Allow collapsing the task detail sidebar to focus on workflow panels. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -91,6 +93,30 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const repoIdResolved = task?.repo?.id ?? task?.repoId;
+    const providerKnown = Boolean(task?.robot?.modelProvider);
+    if (!repoIdResolved || providerKnown) {
+      setRepoRobots([]);
+      return;
+    }
+    let active = true;
+    // Fetch repo robots to map task robot ids to bound AI providers. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+    listRepoRobots(repoIdResolved)
+      .then((data) => {
+        if (!active) return;
+        setRepoRobots(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.error(err);
+        setRepoRobots([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [task?.repo?.id, task?.repoId, task?.robot?.modelProvider]);
 
   const formatDateTime = useCallback(
     (iso: string) => {
@@ -144,6 +170,21 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     }
     return null;
   }, [task]);
+
+  const repoRobotsById = useMemo(() => {
+    // Map repo robots by id to resolve bound AI provider for task views. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+    return new Map(repoRobots.map((r) => [r.id, r]));
+  }, [repoRobots]);
+
+  const robotProviderLabel = useMemo(() => {
+    // Prefer task payload provider, fallback to repo robot lookup when missing. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+    const providerFromTask = task?.robot?.modelProvider ?? null;
+    if (providerFromTask) return getRobotProviderLabel(providerFromTask);
+    const robotIdResolved = task?.robot?.id ?? task?.robotId;
+    if (!robotIdResolved) return null;
+    const providerFromRepo = repoRobotsById.get(robotIdResolved)?.modelProvider ?? null;
+    return getRobotProviderLabel(providerFromRepo);
+  }, [repoRobotsById, task?.robot?.id, task?.robot?.modelProvider, task?.robotId]);
 
   const repoDetailHref = useMemo(() => {
     const repoIdResolved = task?.repo?.id ?? task?.repoId;
@@ -736,6 +777,12 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                     {robotSummary ? (
                       <Space size={8} wrap>
                         <Tag color={robotSummary.permission === 'write' ? 'volcano' : 'blue'}>{robotSummary.permission}</Tag>
+                        {/* Show bound AI provider next to the robot summary in the header. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128 */}
+                        {robotProviderLabel ? (
+                          <Tag color="geekblue" style={{ fontSize: 11, lineHeight: '18px', marginInlineEnd: 0 }}>
+                            {robotProviderLabel}
+                          </Tag>
+                        ) : null}
                         {robotDetailHref ? (
                           <Typography.Link href={robotDetailHref}>{robotSummary.name || robotSummary.id}</Typography.Link>
                         ) : (
@@ -916,6 +963,12 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                     {robotSummary ? (
                       <Space size={8} wrap>
                         <Tag color={robotSummary.permission === 'write' ? 'volcano' : 'blue'}>{robotSummary.permission}</Tag>
+                        {/* Show bound AI provider in task detail metadata. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128 */}
+                        {robotProviderLabel ? (
+                          <Tag color="geekblue" style={{ fontSize: 11, lineHeight: '18px', marginInlineEnd: 0 }}>
+                            {robotProviderLabel}
+                          </Tag>
+                        ) : null}
                         {robotDetailHref ? (
                           <Typography.Link href={robotDetailHref}>{robotSummary.name || robotSummary.id}</Typography.Link>
                         ) : (

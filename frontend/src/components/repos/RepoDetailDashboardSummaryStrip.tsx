@@ -4,6 +4,7 @@ import { Space, Tag, Typography } from 'antd';
 import type { RepoAutomationConfig, RepoRobot, RepoScopedCredentialsPublic, Repository } from '../../api';
 import { useT } from '../../i18n';
 import { normalizeAutomationConfig } from '../repoAutomation/utils';
+import { getRobotProviderLabel } from '../../utils/robot';
 
 export type RepoDetailSectionKey = 'basic' | 'branches' | 'credentials' | 'robots' | 'automation' | 'webhooks';
 
@@ -39,7 +40,10 @@ export const RepoDetailDashboardSummaryStrip: FC<RepoDetailDashboardSummaryStrip
 
   const robotsTotal = robots.length;
   const robotsEnabled = robots.filter((r) => r.enabled).length;
-  const defaultRobotName = safeStr(robots.find((r) => r.isDefault)?.name);
+  const defaultRobot = useMemo(() => robots.find((r) => r.isDefault), [robots]);
+  // Resolve the default robot's provider label for compact summary display. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+  const defaultRobotName = safeStr(defaultRobot?.name);
+  const defaultRobotProvider = getRobotProviderLabel(defaultRobot?.modelProvider);
 
   const automationStats = useMemo(() => {
     const config = normalizeAutomationConfig(automationConfig);
@@ -170,6 +174,12 @@ export const RepoDetailDashboardSummaryStrip: FC<RepoDetailDashboardSummaryStrip
                       <Typography.Text type="secondary" style={{ fontSize: 12 }} className="table-cell-ellipsis" title={defaultRobotName}>
                         {defaultRobotName}
                       </Typography.Text>
+                      {/* Append bound AI provider for the default robot summary. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128 */}
+                      {defaultRobotProvider ? (
+                        <Tag color="geekblue" style={{ fontSize: 11, lineHeight: '18px', marginInlineEnd: 0 }}>
+                          {defaultRobotProvider}
+                        </Tag>
+                      ) : null}
                     </Space>
                   ) : (
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>

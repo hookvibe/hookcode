@@ -65,6 +65,7 @@ import { TemplateEditor } from '../components/TemplateEditor';
 import { ScrollableTable } from '../components/ScrollableTable';
 import { PageNav } from '../components/nav/PageNav';
 import { buildWebhookUrl } from '../utils/webhook';
+import { getRobotProviderLabel } from '../utils/robot';
 import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
 import { RepoDetailDashboardSummaryStrip, type RepoDetailSectionKey } from '../components/repos/RepoDetailDashboardSummaryStrip';
 import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
@@ -1704,16 +1705,27 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                               {
                                 title: t('common.name'),
                                 dataIndex: 'name',
-                                render: (_: any, r: RepoRobot) => (
-                                  <Space direction="vertical" size={0} style={{ width: '100%' }}>
-                                    <Typography.Text strong className="table-cell-ellipsis" title={r.name}>
-                                      {r.name}
-                                    </Typography.Text>
-                                    <Typography.Text type="secondary" className="table-cell-ellipsis" style={{ fontSize: 12 }} title={r.id}>
-                                      {r.id}
-                                    </Typography.Text>
-                                  </Space>
-                                )
+                                render: (_: any, r: RepoRobot) => {
+                                  // Display bound AI provider for robot rows in the repo table. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+                                  const providerLabel = getRobotProviderLabel(r.modelProvider);
+                                  return (
+                                    <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                                      <Space size={6} wrap>
+                                        <Typography.Text strong className="table-cell-ellipsis" title={r.name}>
+                                          {r.name}
+                                        </Typography.Text>
+                                        {providerLabel ? (
+                                          <Tag color="geekblue" style={{ fontSize: 11, lineHeight: '18px', marginInlineEnd: 0 }}>
+                                            {providerLabel}
+                                          </Tag>
+                                        ) : null}
+                                      </Space>
+                                      <Typography.Text type="secondary" className="table-cell-ellipsis" style={{ fontSize: 12 }} title={r.id}>
+                                        {r.id}
+                                      </Typography.Text>
+                                    </Space>
+                                  );
+                                }
                               },
                               {
                                 title: t('common.status'),

@@ -23,6 +23,8 @@ vi.mock('../api', () => {
     repoId: 'r1',
     name: 'Robot 1',
     permission: 'read',
+    // Include bound AI provider to exercise robot label formatting. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+    modelProvider: 'codex',
     enabled: true,
     isDefault: true,
     createdAt: now,
@@ -94,6 +96,8 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
         repoId: 'r1',
         name: 'Robot 1',
         permission: 'read',
+        // Include bound AI provider to exercise robot label formatting. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+        modelProvider: 'codex',
         enabled: true,
         isDefault: true,
         createdAt: now,
@@ -169,6 +173,19 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
 
     expect(window.location.hash).toBe('#/task-groups/g_new');
     expect(textarea).toHaveValue('');
+  });
+
+  // Validate provider labels appear in robot picker text. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+  test('shows bound AI provider in the robot selector', async () => {
+    renderPage();
+
+    await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
+
+    const robotSelect = await screen.findByLabelText('Robot');
+    await waitFor(() => {
+      const selectRoot = robotSelect.closest('.ant-select');
+      expect(selectRoot).toHaveTextContent('Robot 1 / codex');
+    });
   });
 
   // Ensure the time-window control renders as a compact icon button. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
