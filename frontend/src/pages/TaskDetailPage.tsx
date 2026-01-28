@@ -1,13 +1,15 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, App, Avatar, Button, Card, Col, Descriptions, Empty, Input, Popconfirm, Radio, Row, Select, Space, Steps, Switch, Tag, Typography } from 'antd';
+import { Alert, App, Avatar, Button, Card, Col, Descriptions, Empty, Input, Popconfirm, Radio, Row, Select, Space, Switch, Tag, Typography } from 'antd';
 import {
   ClockCircleOutlined,
   CodeOutlined,
   DeleteOutlined,
   GitlabOutlined,
   InfoCircleOutlined,
+  LeftOutlined,
   LinkOutlined,
   PlayCircleOutlined,
+  RightOutlined,
   RobotOutlined,
   UserOutlined
 } from '@ant-design/icons';
@@ -68,6 +70,8 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   const [task, setTask] = useState<Task | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Allow collapsing the task detail sidebar to focus on workflow panels. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!taskId) return;
@@ -111,6 +115,11 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }, []);
+
+  const toggleSidebarCollapse = useCallback(() => {
+    // Toggle the task detail sidebar to declutter the workflow view. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
+    setIsSidebarCollapsed((prev) => !prev);
   }, []);
 
   const canManageTask = Boolean(task?.permissions?.canManage);
@@ -428,39 +437,17 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     () =>
       [
         {
-          key: 'result' as const,
-          title: t('task.page.resultTitle'),
+          // Reorder workflow panels so raw payload leads and result concludes. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
+          key: 'payload' as const,
+          title: t('tasks.payloadRaw'),
           content: (
             <Card size="small" className="hc-card">
-              {showResult ? (
-                resultText ? (
-                  <MarkdownViewer markdown={resultText} className="markdown-result--expanded" />
-                ) : (
-                  <Typography.Text type="secondary">{t('chat.message.resultEmpty')}</Typography.Text>
-                )
+              {payloadPretty ? (
+                <pre className="hc-task-code-block hc-task-code-block--expanded">{payloadPretty}</pre>
               ) : (
-                <Typography.Text type="secondary">{t('task.page.resultPending')}</Typography.Text>
+                <Typography.Text type="secondary">-</Typography.Text>
               )}
             </Card>
-          )
-        },
-        {
-          key: 'logs' as const,
-          title: t('task.page.logsTitle'),
-          content: (
-            <>
-              {/* Render the logs viewer only when logs are enabled to prevent endless SSE reconnects. 0nazpc53wnvljv5yh7c6 */}
-              {effectiveTaskLogsEnabled === false ? (
-                <Alert type="info" showIcon message={t('logViewer.disabled')} />
-              ) : effectiveTaskLogsEnabled === null ? (
-                <>
-                  {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
-                  <LogViewerSkeleton lines={10} ariaLabel={t('common.loading')} />
-                </>
-              ) : task ? (
-                <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} tail={800} variant="flat" />
-              ) : null}
-            </>
           )
         },
         {
@@ -486,21 +473,57 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
           )
         },
         {
-          key: 'payload' as const,
-          title: t('tasks.payloadRaw'),
+          key: 'logs' as const,
+          title: t('task.page.logsTitle'),
           content: (
-            <Card size="small" className="hc-card">
-              {payloadPretty ? (
-                <pre className="hc-task-code-block hc-task-code-block--expanded">{payloadPretty}</pre>
-              ) : (
-                <Typography.Text type="secondary">-</Typography.Text>
-              )}
-            </Card>
+            <>
+              {/* Render the logs viewer only when logs are enabled to prevent endless SSE reconnects. 0nazpc53wnvljv5yh7c6 */}
+              {effectiveTaskLogsEnabled === false ? (
+                <Alert type="info" showIcon message={t('logViewer.disabled')} />
+              ) : effectiveTaskLogsEnabled === null ? (
+                <>
+                  {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
+                  <LogViewerSkeleton lines={10} ariaLabel={t('common.loading')} />
+                </>
+              ) : task ? (
+                <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} tail={800} variant="flat" />
+              ) : null}
+            </>
+          )
+        },
+        {
+          key: 'result' as const,
+          title: t('task.page.resultTitle'),
+          content: (
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Card size="small" className="hc-card">
+                {showResult ? (
+                  resultText ? (
+                    <MarkdownViewer markdown={resultText} className="markdown-result--expanded" />
+                  ) : (
+                    <Typography.Text type="secondary">{t('chat.message.resultEmpty')}</Typography.Text>
+                  )
+                ) : (
+                  <Typography.Text type="secondary">{t('task.page.resultPending')}</Typography.Text>
+                )}
+              </Card>
+              {task?.result?.gitStatus?.enabled ? (
+                <div className="hc-task-detail-result-gitstatus">
+                  {/* Move git status into the Result panel after the main output. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */}
+                  <TaskGitStatusPanel task={task} variant="full" />
+                </div>
+              ) : null}
+            </Space>
           )
         }
       ] as const,
     [effectiveTaskLogsEnabled, payloadPretty, promptPatch, promptPatchRendered, resultText, showResult, t, task]
   );
+
+  const activePanelData = useMemo(() => {
+    // Keep active panel metadata in sync with the custom step tabs. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
+    return workflowPanels.find((panel) => panel.key === activePanel) ?? null;
+  }, [activePanel, workflowPanels]);
 
   const handleRetry = useCallback(
     async (options?: { force?: boolean }) => {
@@ -828,21 +851,66 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
         ) : null}
         {task ? (
           <div className="hc-task-detail-layout">
-            <div className="hc-task-detail-sidebar">
-              <Card size="small" title={t('tasks.detailTitle')} className="hc-card">
-                <Descriptions column={1} size="small" styles={{ label: { width: 132 } }}>
-                  <Descriptions.Item label={t('tasks.field.repo')}>
-                    {repoSummary ? (
-                      <Space size={8} wrap>
-                        <Tag color={repoSummary.provider === 'github' ? 'geekblue' : 'orange'}>{providerLabel(repoSummary.provider)}</Tag>
-                        <Typography.Link onClick={() => (window.location.hash = repoDetailHref || buildRepoHash(repoSummary.id))}>
-                          {repoSummary.name}
-                        </Typography.Link>
-                      </Space>
-                    ) : (
-                      <Typography.Text type="secondary">-</Typography.Text>
-                    )}
-                  </Descriptions.Item>
+            <div className={`hc-task-detail-sidebar${isSidebarCollapsed ? ' hc-task-detail-sidebar--collapsed' : ''}`}>
+              {/* Provide a collapsible control for the task detail sidebar. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */}
+              {isSidebarCollapsed ? (
+                <div className="hc-task-detail-sidebar__toggle">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<RightOutlined />}
+                    onClick={toggleSidebarCollapse}
+                    aria-label={t('common.expandSidebar')}
+                    aria-expanded={false}
+                    aria-controls="task-detail-sidebar-content"
+                    title={t('common.expandSidebar')}
+                    data-testid="task-detail-sidebar-toggle"
+                    className="hc-task-detail-sidebar__toggle-btn"
+                  />
+                </div>
+              ) : null}
+              <div
+                id="task-detail-sidebar-content"
+                className="hc-task-detail-sidebar__content"
+                aria-hidden={isSidebarCollapsed}
+              >
+                <Card
+                  size="small"
+                  title={t('tasks.detailTitle')}
+                  className="hc-card"
+                  extra={
+                    <>
+                      {/* Place the sidebar collapse control beside the Task Detail title. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */}
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<LeftOutlined />}
+                        onClick={toggleSidebarCollapse}
+                        aria-label={t('common.collapseSidebar')}
+                        aria-expanded={true}
+                        aria-controls="task-detail-sidebar-content"
+                        title={t('common.collapseSidebar')}
+                        data-testid="task-detail-sidebar-toggle"
+                        className="hc-task-detail-sidebar__toggle-btn"
+                      >
+                        {t('common.collapseSidebar')}
+                      </Button>
+                    </>
+                  }
+                >
+                  <Descriptions column={1} size="small" styles={{ label: { width: 132 } }}>
+                    <Descriptions.Item label={t('tasks.field.repo')}>
+                      {repoSummary ? (
+                        <Space size={8} wrap>
+                          <Tag color={repoSummary.provider === 'github' ? 'geekblue' : 'orange'}>{providerLabel(repoSummary.provider)}</Tag>
+                          <Typography.Link onClick={() => (window.location.hash = repoDetailHref || buildRepoHash(repoSummary.id))}>
+                            {repoSummary.name}
+                          </Typography.Link>
+                        </Space>
+                      ) : (
+                        <Typography.Text type="secondary">-</Typography.Text>
+                      )}
+                    </Descriptions.Item>
 
                   <Descriptions.Item label={t('tasks.field.robot')}>
                     {robotSummary ? (
@@ -963,15 +1031,15 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                   ) : null}
                 </Descriptions>
 
-                {!canOpenRepo ? (
-                  <Alert type="info" showIcon message={t('tasks.repoMissing')} style={{ marginTop: 12 }} />
-                ) : null}
-              </Card>
-              {dependencyResult ? (
-                <div style={{ marginTop: 12 }}>
-                  {/* Show dependency install outcomes to help debug missing runtimes or install failures. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
-                  <Card size="small" title={t('tasks.dependency.title')} className="hc-card">
-                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                  {!canOpenRepo ? (
+                    <Alert type="info" showIcon message={t('tasks.repoMissing')} style={{ marginTop: 12 }} />
+                  ) : null}
+                </Card>
+                {dependencyResult ? (
+                  <div style={{ marginTop: 12 }}>
+                    {/* Show dependency install outcomes to help debug missing runtimes or install failures. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+                    <Card size="small" title={t('tasks.dependency.title')} className="hc-card">
+                      <Space direction="vertical" size={12} style={{ width: '100%' }}>
                       <Space size={8} wrap>
                         {renderDependencyStatusTag(dependencyResult.status)}
                         <Typography.Text type="secondary">
@@ -1178,34 +1246,41 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                   </Card>
                 </div>
               ) : null}
-              {task.result?.gitStatus?.enabled ? (
-                <div style={{ marginTop: 12 }}>
-                  {/* Render git status in task detail so write-enabled changes are visible. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
-                  <TaskGitStatusPanel task={task} variant="full" />
-                </div>
-              ) : null}
+              </div>
             </div>
 
             <div className="hc-task-detail-workflow">
-              {/* Render a sticky step-bar switcher so only one panel is visible at a time. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121 */}
+              {/* Render a sticky step-tab switcher with corrected ordering and numbering. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */}
               <Card size="small" className="hc-card hc-task-detail-panel-switcher">
-                <Steps
-                  size="small"
-                  current={Math.max(
-                    0,
-                    workflowPanels.findIndex((panel) => panel.key === activePanel)
-                  )}
-                  responsive={false}
-                  onChange={(next) => {
-                    const panel = workflowPanels[next];
-                    if (!panel) return;
-                    setActivePanel(panel.key);
-                  }}
-                  items={workflowPanels.map((panel) => ({ title: panel.title }))}
-                />
+                <div className="hc-task-detail-step-tabs" role="tablist" aria-label={t('task.page.title')}>
+                  {workflowPanels.map((panel, index) => {
+                    const isActive = panel.key === activePanel;
+                    return (
+                      <button
+                        key={panel.key}
+                        type="button"
+                        className={`hc-task-detail-step-tab${isActive ? ' is-active' : ''}`}
+                        onClick={() => setActivePanel(panel.key)}
+                        role="tab"
+                        id={`task-detail-tab-${panel.key}`}
+                        aria-selected={isActive}
+                        aria-controls={`task-detail-panel-${panel.key}`}
+                        data-testid={`task-detail-step-${panel.key}`}
+                      >
+                        <span className="hc-task-detail-step-index">{index + 1}</span>
+                        <span className="hc-task-detail-step-label">{panel.title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </Card>
-              <div className="hc-task-detail-panel-content">
-                {workflowPanels.find((panel) => panel.key === activePanel)?.content ?? null}
+              <div
+                className="hc-task-detail-panel-content"
+                role="tabpanel"
+                id={activePanelData ? `task-detail-panel-${activePanelData.key}` : undefined}
+                aria-labelledby={activePanelData ? `task-detail-tab-${activePanelData.key}` : undefined}
+              >
+                {activePanelData?.content ?? null}
               </div>
             </div>
           </div>

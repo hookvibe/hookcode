@@ -39,6 +39,14 @@ vi.mock('../api', () => {
             error: 'exit code 1'
           }
         ]
+      },
+      // Include git status so the Result panel renders the moved status card. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
+      result: {
+        gitStatus: {
+          enabled: true,
+          workingTree: { staged: [], unstaged: [], untracked: [] },
+          push: { status: 'not_applicable' }
+        }
       }
     })),
     retryTask: vi.fn(async () => ({
@@ -98,18 +106,27 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     expect(stripScope.getByText('Alice')).toBeInTheDocument();
     expect(stripScope.getByText(/@alice/i)).toBeInTheDocument();
 
-    // Regression: ensure the task detail panel switcher uses a step-bar layout and keeps Result as the leftmost step. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121
+    // Regression: ensure the task detail panel switcher uses the reordered step tabs. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
     const switcher = document.querySelector('.hc-task-detail-panel-switcher');
     expect(switcher).toBeTruthy();
-    const stepTitles = Array.from((switcher as HTMLElement).querySelectorAll('.ant-steps-item-title')).map((el) =>
+    const stepTitles = Array.from((switcher as HTMLElement).querySelectorAll('.hc-task-detail-step-label')).map((el) =>
       String(el.textContent || '').trim()
     );
-    expect(stepTitles).toEqual(['Result', 'Live logs', 'Prompt patch (repo config)', 'Raw webhook payload']);
+    expect(stepTitles).toEqual(['Raw webhook payload', 'Prompt patch (repo config)', 'Live logs', 'Result']);
 
-    // Default to Result panel for terminal tasks and allow switching to other panels. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121
+    // Default to Result panel for terminal tasks and allow switching to other panels. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
     expect(await screen.findByText('No output')).toBeInTheDocument();
+    expect(screen.getByText('Git status')).toBeInTheDocument();
     await ui.click(screen.getByText('Raw webhook payload'));
     expect(await screen.findByText(/user_name/i)).toBeInTheDocument();
+
+    // Allow collapsing the task detail sidebar to focus on workflow panels. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
+    const sidebar = document.querySelector('.hc-task-detail-sidebar') as HTMLElement;
+    expect(sidebar).toBeTruthy();
+    await ui.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    expect(sidebar).toHaveClass('hc-task-detail-sidebar--collapsed');
+    await ui.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    expect(sidebar).not.toHaveClass('hc-task-detail-sidebar--collapsed');
 
     // Show dependency install results in the task sidebar for debugging. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
     expect(screen.getByText('Dependency installs')).toBeInTheDocument();

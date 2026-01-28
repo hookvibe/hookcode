@@ -1477,6 +1477,40 @@ button.hc-tasks-status-tile--active {
   top: 0;
   align-self: flex-start;
   min-width: 0;
+  /* Animate sidebar width shifts when collapsing/expanding. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+  transition: flex-basis 200ms ease, width 200ms ease;
+}
+
+.hc-task-detail-sidebar__toggle {
+  /* Keep the collapse toggle visible even when the sidebar content is hidden. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.hc-task-detail-sidebar__toggle-btn.ant-btn {
+  min-width: 32px;
+  padding: 0 8px;
+}
+
+.hc-task-detail-sidebar__content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Collapse the task detail sidebar into a compact rail when toggled. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+.hc-task-detail-sidebar--collapsed {
+  flex: 0 0 44px;
+  width: 44px;
+}
+
+.hc-task-detail-sidebar--collapsed .hc-task-detail-sidebar__toggle {
+  justify-content: center;
+}
+
+.hc-task-detail-sidebar--collapsed .hc-task-detail-sidebar__content {
+  display: none;
 }
 
 .hc-task-detail-workflow {
@@ -1484,31 +1518,99 @@ button.hc-tasks-status-tile--active {
   min-width: 0;
 }
 
-/* Keep the task detail panel switcher visible while scrolling long logs/results. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121 */
+/* Keep the task detail panel switcher visible while scrolling long logs/results. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
 .hc-task-detail-panel-switcher {
   position: sticky;
   top: 0;
   z-index: 4;
+  overflow: visible;
+  padding-bottom: 10px;
 }
 
 .hc-task-detail-panel-content {
   margin-top: 12px;
 }
 
-.hc-task-workflow .ant-steps-item-content,
-.hc-task-workflow .ant-steps-item-description {
-  max-width: none;
-  min-width: 0;
+/* Redesign task detail step tabs with explicit numbering and a pointer highlight. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+.hc-task-detail-step-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
 }
 
-.hc-task-workflow .hc-step-index {
-  /* Display reversed step indices for bottom-up workflow numbering on task detail. tdstepsreverse20260117k1p6 */
+.hc-task-detail-step-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-surface);
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+}
+
+.hc-task-detail-step-tab:hover {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft-hover);
+}
+
+.hc-task-detail-step-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-task-detail-step-tab.is-active {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
+.hc-task-detail-step-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 9px solid var(--hc-accent-soft);
+  filter: drop-shadow(0 1px 0 var(--hc-accent-border));
+}
+
+.hc-task-detail-step-index {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  font-weight: 700;
   font-size: 12px;
   line-height: 1;
+  color: var(--text);
+  flex: 0 0 auto;
+}
+
+.hc-task-detail-step-tab.is-active .hc-task-detail-step-index {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft-hover);
+}
+
+.hc-task-detail-step-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hc-task-code-block {
@@ -1546,6 +1648,12 @@ button.hc-tasks-status-tile--active {
     flex: 0 0 auto;
     position: static;
     width: 100%;
+  }
+
+  /* Keep collapsed sidebar full-width on stacked mobile layouts. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+  .hc-task-detail-sidebar--collapsed {
+    width: 100%;
+    flex: 0 0 auto;
   }
 }
 
