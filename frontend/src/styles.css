@@ -13,6 +13,9 @@
  * - 2026-01-13: Unify input/control styling across the app (single-border, consistent surface, theme-aware placeholder/icons).
  * ========================================================================== */
 
+/* Load Fira Sans/Code for dialog-style execution logs. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
 :root {
   /* =============================================================================
    * Design system tokens
@@ -102,6 +105,13 @@
   --hc-code-bg: rgba(15, 23, 42, 0.06);
   --hc-top-right-safe: 120px;
 
+  /* Execution dialog accents: industrial gray + safety orange for task logs. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+  --hc-exec-accent: #f97316;
+  --hc-exec-accent-soft: color-mix(in srgb, #f97316 16%, #ffffff);
+  --hc-exec-rail: color-mix(in srgb, #64748b 32%, var(--hc-border));
+  --hc-exec-work-bg: color-mix(in srgb, #94a3b8 12%, #ffffff);
+  --hc-exec-role-bg: color-mix(in srgb, #94a3b8 18%, #ffffff);
+
   /* Accent color (overridden by App.tsx via CSS variables). */
   --accent: #2563eb;
   --accent-hover: #3b82f6;
@@ -178,6 +188,13 @@
   --hc-bubble-user-bg: var(--hc-accent-soft);
   --hc-bubble-assistant-bg: var(--hc-surface-elevated);
   --hc-code-bg: rgba(244, 244, 245, 0.08);
+
+  /* Execution dialog accents in dark mode. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+  --hc-exec-accent: #f97316;
+  --hc-exec-accent-soft: color-mix(in srgb, #f97316 24%, var(--bg));
+  --hc-exec-rail: color-mix(in srgb, #94a3b8 30%, var(--hc-border));
+  --hc-exec-work-bg: color-mix(in srgb, #334155 28%, var(--bg));
+  --hc-exec-role-bg: color-mix(in srgb, #334155 42%, var(--hc-surface));
 }
 
 @media (max-width: 768px) {
@@ -1983,6 +2000,263 @@ html[data-theme='dark'] {
   text-align: center;
 }
 
+/* Dialog-style execution log layout (non-bubble, task-centric). docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+.hc-exec-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: "Fira Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.hc-exec-dialog__item {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  animation: hc-exec-item-enter 220ms ease-out;
+  will-change: opacity, transform;
+}
+
+.hc-exec-dialog__item.is-running {
+  border-color: color-mix(in srgb, var(--hc-exec-accent) 45%, var(--hc-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hc-exec-accent) 18%, transparent);
+}
+
+.hc-exec-dialog__item.is-failed {
+  border-color: color-mix(in srgb, #ef4444 40%, var(--hc-border));
+}
+
+.hc-exec-dialog__item.is-completed {
+  border-color: color-mix(in srgb, #22c55e 30%, var(--hc-border));
+}
+
+.hc-exec-dialog__item.is-failed .hc-exec-dialog__dot {
+  background: #ef4444;
+  border-color: color-mix(in srgb, #ef4444 30%, var(--hc-exec-accent-soft));
+}
+
+.hc-exec-dialog__item.is-completed .hc-exec-dialog__dot {
+  background: #22c55e;
+  border-color: color-mix(in srgb, #22c55e 30%, var(--hc-exec-accent-soft));
+}
+
+.hc-exec-dialog__rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-exec-dialog__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--hc-exec-accent);
+  border: 2px solid var(--hc-exec-accent-soft);
+}
+
+.hc-exec-dialog__line {
+  flex: 1;
+  width: 2px;
+  background: var(--hc-exec-rail);
+  border-radius: 999px;
+}
+
+.hc-exec-dialog__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-exec-dialog__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-exec-dialog__role {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--hc-exec-role-bg);
+  border: 1px solid var(--hc-border);
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.hc-exec-dialog__kind {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-exec-dialog__status {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--hc-border);
+  color: var(--muted);
+  background: var(--hc-surface);
+}
+
+.hc-exec-dialog__status.is-running {
+  color: var(--hc-exec-accent);
+  border-color: color-mix(in srgb, var(--hc-exec-accent) 40%, var(--hc-border));
+  background: var(--hc-exec-accent-soft);
+}
+
+.hc-exec-dialog__status.is-failed {
+  color: #ef4444;
+  border-color: color-mix(in srgb, #ef4444 40%, var(--hc-border));
+  background: color-mix(in srgb, #ef4444 12%, var(--hc-surface-elevated));
+}
+
+.hc-exec-dialog__status.is-completed {
+  color: #16a34a;
+  border-color: color-mix(in srgb, #22c55e 35%, var(--hc-border));
+  background: color-mix(in srgb, #22c55e 12%, var(--hc-surface-elevated));
+}
+
+.hc-exec-dialog__speech {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.hc-exec-dialog__line-text {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-exec-dialog__work {
+  border: 1px dashed color-mix(in srgb, var(--hc-exec-rail) 70%, var(--hc-border));
+  background: var(--hc-exec-work-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hc-exec-dialog__work-header {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hc-exec-dialog__work-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hc-exec-dialog__work-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-exec-dialog__mono {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--hc-surface);
+  font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hc-exec-dialog__files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-exec-dialog__file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hc-exec-dialog__file-path {
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.hc-exec-dialog__pill {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border: 1px solid var(--hc-border);
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--hc-surface);
+}
+
+.hc-exec-dialog__diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hc-exec-dialog__diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-exec-dialog__diff-file {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-exec-dialog__todo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-exec-dialog__todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-exec-dialog__todo-item.is-complete {
+  color: var(--muted);
+}
+
+.hc-exec-dialog__todo-marker {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--hc-exec-rail);
+}
+
+.hc-exec-dialog__todo-item.is-complete .hc-exec-dialog__todo-marker {
+  background: color-mix(in srgb, #22c55e 60%, var(--hc-exec-rail));
+}
+
 /* Add execution timeline spacing, entry transitions, and running indicator styling. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
 .hc-exec-timeline {
   display: flex;
@@ -2052,6 +2326,11 @@ html[data-theme='dark'] {
 
 @media (prefers-reduced-motion: reduce) {
   .hc-exec-thought-chain [class$='thought-chain-node'] {
+    animation: none;
+  }
+
+  /* Disable dialog log entry motion for reduced-motion users. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+  .hc-exec-dialog__item {
     animation: none;
   }
 

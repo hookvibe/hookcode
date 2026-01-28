@@ -914,6 +914,12 @@ export const enUS: Record<MessageKey, string> = {
   'execViewer.files.count': '{{count}} files',
   'execViewer.files.empty': 'No file changes',
   'execViewer.diff.pending': 'No diff available yet',
+  // Dialog-style execution log labels. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+  'execViewer.section.workArea': 'Work area',
+  'execViewer.section.filesList': 'Files',
+  'execViewer.section.fileDiffs': 'Diffs',
+  'execViewer.section.reasoningDetail': 'Reason',
+  'execViewer.section.todoItems': 'Tasks',
   // Add section labels for execution detail panels. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
   'execViewer.section.commandOutput': 'Command output',
   'execViewer.section.fileDetails': 'File change details',
@@ -921,6 +927,12 @@ export const enUS: Record<MessageKey, string> = {
   'execViewer.status.completed': 'Completed',
   'execViewer.status.failed': 'Failed',
   'execViewer.exitCode': 'Exit {{code}}',
+  // Dialog role labels for structured execution logs. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+  'execViewer.role.agent': 'Agent',
+  'execViewer.role.tool': 'Tool',
+  'execViewer.role.files': 'Files',
+  'execViewer.role.plan': 'Plan',
+  'execViewer.role.system': 'System',
 
   // --- Log viewer ---
   'logViewer.title': 'Logs',

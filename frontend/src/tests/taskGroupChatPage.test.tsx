@@ -489,7 +489,7 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
   });
 
   test('renders only the latest 3 tasks by default and loads older tasks when scrolling up', async () => {
-    // Reverse paging keeps TaskGroup chat short while always rendering ThoughtChain inline. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
+    // Reverse paging keeps TaskGroup chat short while dialog-style logs render inline. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
     const tasks = Array.from({ length: 7 }, (_, idx) => {
       const n = idx + 1;
       return {

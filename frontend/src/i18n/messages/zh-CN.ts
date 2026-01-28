@@ -920,6 +920,12 @@ export const zhCN = {
   'execViewer.files.count': '{{count}} 个文件',
   'execViewer.files.empty': '暂无文件变更',
   'execViewer.diff.pending': '暂无可用 diff（等待抓取或本次执行未产生 diff）',
+  // Dialog-style execution log labels. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+  'execViewer.section.workArea': '工作区',
+  'execViewer.section.filesList': '文件',
+  'execViewer.section.fileDiffs': '差异',
+  'execViewer.section.reasoningDetail': '原因',
+  'execViewer.section.todoItems': '任务',
   // Add section labels for execution detail panels. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
   'execViewer.section.commandOutput': '命令输出',
   'execViewer.section.fileDetails': '文件变更详情',
@@ -927,6 +933,12 @@ export const zhCN = {
   'execViewer.status.completed': '完成',
   'execViewer.status.failed': '失败',
   'execViewer.exitCode': '退出码 {{code}}',
+  // Keep dialog role badges in English for log scanability. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+  'execViewer.role.agent': 'Agent',
+  'execViewer.role.tool': 'Tool',
+  'execViewer.role.files': 'Files',
+  'execViewer.role.plan': 'Plan',
+  'execViewer.role.system': 'System',
 
   // --- Log viewer ---
   'logViewer.title': '日志',
