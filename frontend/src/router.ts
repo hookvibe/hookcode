@@ -9,7 +9,16 @@
  * - 2026-01-11: Introduced routes for Home/Tasks/Task detail/Task group chat while keeping `#/chat` as an alias.
  */
 
-export type RoutePage = 'home' | 'tasks' | 'task' | 'taskGroup' | 'repos' | 'repo' | 'archive' | 'login';
+export type RoutePage =
+  | 'home'
+  | 'tasks'
+  | 'task'
+  | 'taskGroup'
+  | 'taskGroups'
+  | 'repos'
+  | 'repo'
+  | 'archive'
+  | 'login';
 
 export interface RouteState {
   page: RoutePage;
@@ -67,7 +76,8 @@ export const parseRoute = (hash: string): RouteState => {
 
   if (parts[0] === 'task-groups') {
     if (parts.length === 2 && parts[1]) return { page: 'taskGroup', taskGroupId: parts[1] };
-    return { page: 'home' };
+    // Route the task group index to the card list view. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+    return { page: 'taskGroups' };
   }
 
   if (parts[0] === 'repos') {
@@ -103,6 +113,8 @@ export const buildTaskHash = (taskId: string): string => `#/tasks/${encodeURICom
 
 export const buildTaskGroupHash = (taskGroupId: string): string =>
   `#/task-groups/${encodeURIComponent(taskGroupId)}`;
+
+export const buildTaskGroupsHash = (): string => '#/task-groups'; // Provide a stable list route for the taskgroup cards page. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
 
 export const buildReposHash = (): string => '#/repos';
 

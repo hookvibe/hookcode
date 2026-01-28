@@ -126,6 +126,8 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     expect(screen.getByText('Git status')).toBeInTheDocument();
     await ui.click(screen.getByText('Raw webhook payload'));
     expect(await screen.findByText(/user_name/i)).toBeInTheDocument();
+    // Ensure the structured JSON viewer wraps the payload panel. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128
+    expect(document.querySelector('.hc-json-viewer')).toBeTruthy();
 
     // Allow collapsing the task detail sidebar to focus on workflow panels. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
     const sidebar = document.querySelector('.hc-task-detail-sidebar') as HTMLElement;

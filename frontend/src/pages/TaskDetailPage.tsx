@@ -17,6 +17,7 @@ import type { RepoRobot, Task, TaskRepoSummary, TaskRobotSummary } from '../api'
 import { deleteTask, executeTaskNow, fetchTask, listRepoRobots, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../router';
+import { JsonViewer } from '../components/JsonViewer';
 import { MarkdownViewer } from '../components/MarkdownViewer';
 import { TaskLogViewer } from '../components/TaskLogViewer';
 import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
@@ -434,20 +435,6 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   const showResult = Boolean(task && isTerminalStatus(task.status));
   const queueHint = useMemo(() => queuedHintText(t, task), [t, task]); // Show a queued-state explanation instead of a silent detail page. f3a9c2d8e1b7f4a0c6d1
 
-  const payloadPretty = useMemo(() => {
-    // Format raw payload for display without assuming the payload is always JSON-serializable. tdlayout20260117k8p3
-    if (!task?.payload) return '';
-    try {
-      return JSON.stringify(task.payload ?? {}, null, 2);
-    } catch {
-      try {
-        return String(task.payload);
-      } catch {
-        return '';
-      }
-    }
-  }, [task?.payload]);
-
   const promptPatch = useMemo(() => {
     // Normalize prompt patch (repo config) so the workflow UI can always render a stable section. tdlayout20260117k8p3
     const raw = task?.promptCustom;
@@ -483,11 +470,8 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
           title: t('tasks.payloadRaw'),
           content: (
             <Card size="small" className="hc-card">
-              {payloadPretty ? (
-                <pre className="hc-task-code-block hc-task-code-block--expanded">{payloadPretty}</pre>
-              ) : (
-                <Typography.Text type="secondary">-</Typography.Text>
-              )}
+              {/* Render an interactive JSON tree instead of a raw string payload. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128 */}
+              <JsonViewer value={task?.payload} />
             </Card>
           )
         },
@@ -558,7 +542,8 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
           )
         }
       ] as const,
-    [effectiveTaskLogsEnabled, payloadPretty, promptPatch, promptPatchRendered, resultText, showResult, t, task]
+    // Keep the payload viewer memoized alongside task data updates. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128
+    [effectiveTaskLogsEnabled, promptPatch, promptPatchRendered, resultText, showResult, t, task]
   );
 
   const activePanelData = useMemo(() => {

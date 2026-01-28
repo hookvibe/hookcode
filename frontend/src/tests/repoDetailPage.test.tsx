@@ -136,6 +136,46 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     );
   });
 
+  test('renders unified model credential list with provider tags', async () => {
+    // Verify unified model credential list renders provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    vi.mocked(api.fetchRepo).mockResolvedValueOnce({
+      repo: {
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'Repo 1',
+        externalId: '',
+        apiBaseUrl: '',
+        enabled: true,
+        createdAt: '2026-01-11T00:00:00.000Z',
+        updatedAt: '2026-01-11T00:00:00.000Z'
+      },
+      robots: [],
+      automationConfig: null,
+      webhookSecret: null,
+      webhookPath: null,
+      repoScopedCredentials: {
+        repoProvider: { profiles: [], defaultProfileId: null },
+        modelProvider: {
+          codex: { profiles: [{ id: 'c1', remark: 'primary', hasApiKey: true, apiBaseUrl: 'https://api.codex' }], defaultProfileId: 'c1' },
+          claude_code: { profiles: [{ id: 'cc1', remark: 'claude', hasApiKey: false }], defaultProfileId: null },
+          gemini_cli: { profiles: [], defaultProfileId: null }
+        }
+      }
+    });
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+    // Default select and list both surface the remark text, so allow multiple matches. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const primaryMatches = await screen.findAllByText('primary');
+    expect(primaryMatches.length).toBeGreaterThan(0);
+    expect(screen.getByText('claude')).toBeInTheDocument();
+    expect(screen.getByText('codex')).toBeInTheDocument();
+    expect(screen.getByText('claude_code')).toBeInTheDocument();
+  });
+
   test('loads provider activity row for public repos', async () => {
     // Ensure the repo detail dashboard can display provider activity without requiring credentials for public repos. kzxac35mxk0fg358i7zs
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');

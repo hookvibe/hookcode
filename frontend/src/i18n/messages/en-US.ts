@@ -123,6 +123,16 @@ export const enUS: Record<MessageKey, string> = {
   'tasks.page.filter.statusTag': 'Status: {{status}}',
   'tasks.page.filter.repoTag': 'Repo: {{repo}}',
 
+  // --- Task groups page ---
+  // Add copy for the taskgroup card list page. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+  'taskGroups.page.title': 'Task groups',
+  'taskGroups.page.subtitle': '{{count}} items',
+  'taskGroups.page.searchPlaceholder': 'Search task groups (title/repo/id)',
+  'taskGroups.page.empty': 'No task groups',
+  'taskGroups.page.viewAll': 'View all task groups',
+  'taskGroups.kind.task': 'Task',
+  'taskGroups.kind.unknown': 'Unknown',
+
   // --- Task detail page ---
   'task.page.title': 'Task detail',
   'task.page.missingId': 'Missing task id',
@@ -286,6 +296,8 @@ export const enUS: Record<MessageKey, string> = {
   'toast.task.retryFailedTasksFailed': 'Retry failed. Please try again later.',
   'toast.task.executeNowSuccess': 'Task scheduled to run now',
   'toast.task.executeNowFailed': 'Execute now failed. Please try again later.',
+  // Add taskgroup list error toast for the new card page. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+  'toast.taskGroups.fetchFailed': 'Failed to fetch task groups',
   'toast.chat.reposLoadFailed': 'Failed to load repositories',
   'toast.chat.robotsLoadFailed': 'Failed to load robots',
   'toast.chat.groupLoadFailed': 'Failed to load task group',
@@ -820,6 +832,9 @@ export const enUS: Record<MessageKey, string> = {
   'panel.credentials.profile.addTitle': 'Add credential profile',
   'panel.credentials.profile.editTitle': 'Edit credential profile',
   'panel.credentials.profile.providerHint': 'Provider: {{provider}}',
+  // Add provider selector labels for unified credential lists. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  'panel.credentials.profile.providerLabel': 'Provider',
+  'panel.credentials.profile.providerPlaceholder': 'Select a provider',
   'panel.credentials.profile.name': 'Remark',
   'panel.credentials.profile.namePlaceholder': 'e.g. Personal',
   'panel.credentials.profile.cloneUsername': 'Clone username',

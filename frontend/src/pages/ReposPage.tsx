@@ -174,7 +174,8 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
 
         {filtered.length ? (
           <div className="hc-card-list">
-            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+            {/* Switch repo list to a responsive grid with segmented card sections. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+            <div className="hc-card-grid">
               {filtered.map((repo) => {
                 const summary = repoSummaryById[repo.id];
                 const robotsText =
@@ -196,30 +197,40 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
                     size="small"
                     hoverable
                     className="hc-repo-card"
-                    styles={{ body: { padding: 12 } }}
+                    // Refresh repo card padding to match the new glassmorphism scale. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+                    styles={{ body: { padding: 14 } }}
                     onClick={() => openRepo(repo)}
                   >
-                    <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                      <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                        <Typography.Text strong style={{ minWidth: 0 }}>
-                          {repo.name || repo.id}
-                        </Typography.Text>
-                        <Space size={6} wrap>
-                          <Tag color={repo.provider === 'github' ? 'geekblue' : 'orange'}>{providerLabel(repo.provider)}</Tag>
-                          <Tag color={repo.enabled ? 'green' : 'red'}>
-                            {repo.enabled ? t('common.enabled') : t('common.disabled')}
-                          </Tag>
+                    {/* Segment repo card content into clear blocks for the grid layout. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+                    <div className="hc-card-structure">
+                      <div className="hc-card-header">
+                        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                          <Typography.Text strong style={{ minWidth: 0 }}>
+                            {repo.name || repo.id}
+                          </Typography.Text>
+                          <Space size={6} wrap>
+                            <Tag color={repo.provider === 'github' ? 'geekblue' : 'orange'}>{providerLabel(repo.provider)}</Tag>
+                            <Tag color={repo.enabled ? 'green' : 'red'}>
+                              {repo.enabled ? t('common.enabled') : t('common.disabled')}
+                            </Tag>
+                          </Space>
                         </Space>
-                      </Space>
+                      </div>
 
-                      <Space size={10} wrap>
+                      <div className="hc-card-divider" />
+
+                      {/* Structure repo meta rows for shared card styling. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+                      <Space size={10} wrap className="hc-card-meta">
                         <Typography.Text type="secondary">{repo.id}</Typography.Text>
                         <Typography.Text type="secondary">{formatTime(repo.updatedAt)}</Typography.Text>
                         <Tag color="geekblue">{robotsText}</Tag>
                         <Tag color="purple">{triggersText}</Tag>
                       </Space>
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <div className="hc-card-divider" />
+
+                      {/* Keep the repo card CTA aligned for the updated card layout. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+                      <div className="hc-card-actions">
                         <Button
                           size="small"
                           icon={<SettingOutlined />}
@@ -232,17 +243,18 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
                           {t('common.manage')}
                         </Button>
                       </div>
-                    </Space>
+                    </div>
                   </Card>
                 );
               })}
-            </Space>
+            </div>
           </div>
         ) : loading ? (
           // Use skeleton cards instead of an Empty+icon while the repo list is loading. ro3ln7zex8d0wyynfj0m
           <CardListSkeleton
             count={6}
             cardClassName="hc-repo-card"
+            layout="grid"
             testId="hc-repos-skeleton"
             ariaLabel={t('common.loading')}
           />

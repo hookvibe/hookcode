@@ -316,78 +316,92 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
 
         {filtered.length ? (
           <div className="hc-card-list">
-            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+            {/* Switch task list to a responsive grid with segmented card sections. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+            <div className="hc-card-grid">
               {filtered.map((task) => (
                 <Card
                   key={task.id}
                   size="small"
                   hoverable
                   className="hc-task-card"
-                  styles={{ body: { padding: 12 } }}
+                  // Refresh task card padding to match the modernized glass layout. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+                  styles={{ body: { padding: 14 } }}
                   onClick={() => openTask(task)}
                 >
-                  <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                    <Space size={10} wrap style={{ width: '100%', justifyContent: 'space-between' }}>
-                      <Typography.Text strong style={{ minWidth: 0 }}>
-                        {clampText(getTaskTitle(task), 80)}
-                      </Typography.Text>
-                      <Space size={6} wrap>
-                        {statusTag(t, task.status)}
-                        {task.status === 'queued' && task.permissions?.canManage ? (
-                          task.queue?.reasonCode === 'outside_time_window' ? (
-                            <Tooltip title={t('tasks.executeNow')}>
-                              <Button
-                                size="small"
-                                type="text"
-                                icon={<PlayCircleOutlined />}
-                                aria-label={t('tasks.executeNow')}
-                                loading={retryingTaskId === task.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void handleExecuteNow(task);
-                                }}
-                              />
-                            </Tooltip>
-                          ) : (
-                            /* Render a retry affordance beside the queued status tag. f3a9c2d8e1b7f4a0c6d1 */
-                            <Tooltip title={t('tasks.retry')}>
-                              <Button
-                                size="small"
-                                type="text"
-                                icon={<PlayCircleOutlined />}
-                                aria-label={t('tasks.retry')}
-                                loading={retryingTaskId === task.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void handleRetry(task);
-                                }}
-                              />
-                            </Tooltip>
-                          )
-                        ) : null}
+                  {/* Segment task card content into clear blocks for the grid layout. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+                  <div className="hc-card-structure">
+                    <div className="hc-card-header">
+                      <Space size={10} wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+                        <Typography.Text strong style={{ minWidth: 0 }}>
+                          {clampText(getTaskTitle(task), 80)}
+                        </Typography.Text>
+                        <Space size={6} wrap>
+                          {statusTag(t, task.status)}
+                          {task.status === 'queued' && task.permissions?.canManage ? (
+                            task.queue?.reasonCode === 'outside_time_window' ? (
+                              <Tooltip title={t('tasks.executeNow')}>
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  icon={<PlayCircleOutlined />}
+                                  aria-label={t('tasks.executeNow')}
+                                  loading={retryingTaskId === task.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleExecuteNow(task);
+                                  }}
+                                />
+                              </Tooltip>
+                            ) : (
+                              /* Render a retry affordance beside the queued status tag. f3a9c2d8e1b7f4a0c6d1 */
+                              <Tooltip title={t('tasks.retry')}>
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  icon={<PlayCircleOutlined />}
+                                  aria-label={t('tasks.retry')}
+                                  loading={retryingTaskId === task.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleRetry(task);
+                                  }}
+                                />
+                              </Tooltip>
+                            )
+                          ) : null}
+                        </Space>
                       </Space>
-                    </Space>
-                    <Space size={12} wrap>
+                    </div>
+
+                    <div className="hc-card-divider" />
+
+                    {/* Group task meta details for shared card styling. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+                    <Space size={12} wrap className="hc-card-meta">
                       <Typography.Text type="secondary">{task.repo?.name ?? task.repoId ?? '-'}</Typography.Text>
                       <Typography.Text type="secondary">{formatTime(task.updatedAt)}</Typography.Text>
                       <Typography.Text type="secondary">{task.id}</Typography.Text>
                     </Space>
+
                     {task.status === 'queued' ? (
-                      /* Show a short queued diagnosis hint under queued tasks (best-effort). f3a9c2d8e1b7f4a0c6d1 */
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {queuedHintText(t, task)}
-                      </Typography.Text>
+                      <>
+                        <div className="hc-card-divider" />
+                        {/* Show a short queued diagnosis hint under queued tasks (best-effort). f3a9c2d8e1b7f4a0c6d1 */}
+                        <Typography.Text type="secondary" className="hc-card-note">
+                          {queuedHintText(t, task)}
+                        </Typography.Text>
+                      </>
                     ) : null}
-                  </Space>
+                  </div>
                 </Card>
               ))}
-            </Space>
+            </div>
           </div>
         ) : loading ? (
           // Use skeleton cards instead of an Empty+icon while the task list is loading. ro3ln7zex8d0wyynfj0m
           <CardListSkeleton
             count={6}
             cardClassName="hc-task-card"
+            layout="grid"
             testId="hc-tasks-skeleton"
             ariaLabel={t('common.loading')}
           />

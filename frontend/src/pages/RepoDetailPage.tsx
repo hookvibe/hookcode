@@ -251,16 +251,24 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const repoArchived = Boolean(repo?.archivedAt); // Disable edits when repo is archived (archive area is read-only). qnp1mtxhzikhbi0xspbc
 
   const [repoProviderProfilesPage, setRepoProviderProfilesPage] = useState(1);
-  const [modelProviderProfilesPage, setModelProviderProfilesPage] = useState<Record<ModelProviderKey, number>>({
-    codex: 1,
-    claude_code: 1,
-    gemini_cli: 1
-  });
+  // Track unified model profile pagination state for the merged list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  const [modelProviderProfilesPage, setModelProviderProfilesPage] = useState(1);
+
+  const modelProviderProfileItems = useMemo(() => {
+    // Flatten repo-scoped model profiles for the unified list display. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    return (['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).flatMap((provider) => {
+      const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[provider] as any;
+      const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
+      const defaultId = String(providerCredentials?.defaultProfileId ?? '').trim();
+      return profiles.map((profile: UserModelProviderCredentialProfilePublic) => ({ provider, profile, defaultId }));
+    });
+  }, [repoScopedCredentials]);
 
   useEffect(() => {
     // Reset credentials pagination on repo switch to avoid blank pages when profile counts change. u55e45ffi8jng44erdzp
     setRepoProviderProfilesPage(1);
-    setModelProviderProfilesPage({ codex: 1, claude_code: 1, gemini_cli: 1 });
+    // Reset unified model profile pagination on repo switch. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    setModelProviderProfilesPage(1);
   }, [repoId]);
 
   useEffect(() => {
@@ -269,16 +277,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     const repoMaxPage = Math.max(1, Math.ceil(repoProfilesTotal / CREDENTIAL_PROFILE_PAGE_SIZE));
     setRepoProviderProfilesPage((p) => Math.min(p, repoMaxPage));
 
-    setModelProviderProfilesPage((prev) => {
-      const next = { ...prev };
-      for (const provider of ['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]) {
-        const profiles = ((repoScopedCredentials as any)?.modelProvider?.[provider]?.profiles ?? []) as any[];
-        const maxPage = Math.max(1, Math.ceil(profiles.length / CREDENTIAL_PROFILE_PAGE_SIZE));
-        next[provider] = Math.min(prev[provider] ?? 1, maxPage);
-      }
-      return next;
-    });
-  }, [repoScopedCredentials]);
+    // Clamp unified model profile pagination when the list size changes. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const modelProfilesTotal = modelProviderProfileItems.length;
+    const modelMaxPage = Math.max(1, Math.ceil(modelProfilesTotal / CREDENTIAL_PROFILE_PAGE_SIZE));
+    setModelProviderProfilesPage((p) => Math.min(p, modelMaxPage));
+  }, [modelProviderProfileItems, repoScopedCredentials]);
 
   const [repoProviderProfileModalOpen, setRepoProviderProfileModalOpen] = useState(false);
   const [repoProviderProfileEditing, setRepoProviderProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
@@ -565,8 +568,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   );
 
   const startEditModelProfile = useCallback(
-    (provider: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
-      setModelProfileProvider(provider);
+    (provider?: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
+      const nextProvider = provider ?? modelProfileProvider ?? 'codex';
+      // Keep the model provider selection aligned with the unified list modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      setModelProfileProvider(nextProvider);
       setModelProfileEditing(profile ?? null);
       setModelProfileModalOpen(true);
 
@@ -578,7 +583,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       modelProfileForm.setFieldsValue({ remark: initialRemark, apiBaseUrl: initialApiBaseUrl, apiKey: '' });
       // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
     },
-    [modelProfileForm]
+    [modelProfileForm, modelProfileProvider]
   );
 
   const submitModelProfile = useCallback(async () => {
@@ -1560,113 +1565,105 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                   <span>{t('repos.detail.credentials.modelProvider')}</span>
                                 </Space>
                               }
+                              extra={
+                                <>
+                                  {/* Use a single add entry point for the unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                                  {/* Disable model credential mutations for archived repos (archive is view-only). qnp1mtxhzikhbi0xspbc */}
+                                  <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={credentialsSaving || repoArchived}>
+                                    {t('panel.credentials.profile.add')}
+                                  </Button>
+                                </>
+                              }
                               className="hc-card"
                             >
                               <Space orientation="vertical" size={10} style={{ width: '100%' }}>
                                 <Typography.Text type="secondary">{t('repos.detail.credentials.modelProviderTip')}</Typography.Text>
+                                {/* Keep per-provider defaults while rendering a single unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                                <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                                  {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
+                                    const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[provider] as any;
+                                    const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
+                                    const defaultId = String(providerCredentials?.defaultProfileId ?? '').trim();
 
-                                {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
-                                  const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[provider] as any;
-                                  const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
-                                  const defaultId = String(providerCredentials?.defaultProfileId ?? '').trim();
+                                    return (
+                                      <div key={provider}>
+                                        <Typography.Text type="secondary">
+                                          {t('panel.credentials.profile.default')} · {t(`repos.robotForm.modelProvider.${provider}` as any)}
+                                        </Typography.Text>
+                                        <div style={{ marginTop: 6 }}>
+                                          <Select
+                                            value={defaultId || undefined}
+                                            style={{ width: '100%' }}
+                                            placeholder={t('panel.credentials.profile.defaultPlaceholder')}
+                                            onChange={(value) => void setModelProviderDefault(provider, value ? String(value) : null)}
+                                            options={profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id }))}
+                                            allowClear
+                                            disabled={credentialsSaving || repoArchived}
+                                          />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </Space>
+
+                                {(() => {
+                                  const total = modelProviderProfileItems.length;
+                                  const start = (modelProviderProfilesPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
+                                  const paged = modelProviderProfileItems.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
+
+                                  if (!total) {
+                                    return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
+                                  }
 
                                   return (
-                                    <Card
-                                      key={provider}
-                                      size="small"
-                                      className="hc-inner-card"
-                                      title={t(`repos.robotForm.modelProvider.${provider}` as any)}
-                                      extra={
-                                        // Disable model credential mutations for archived repos (archive is view-only). qnp1mtxhzikhbi0xspbc
-                                        <Button size="small" onClick={() => startEditModelProfile(provider, null)} disabled={credentialsSaving || repoArchived}>
-                                          {t('panel.credentials.profile.add')}
-                                        </Button>
-                                      }
-                                      styles={{ body: { padding: 12 } }}
-                                    >
-                                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                                        <div>
-                                          <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
-                                          <div style={{ marginTop: 6 }}>
-                                            <Select
-                                              value={defaultId || undefined}
-                                              style={{ width: '100%' }}
-                                              placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                                              onChange={(value) => void setModelProviderDefault(provider, value ? String(value) : null)}
-                                              options={profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id }))}
-                                              allowClear
-                                              disabled={credentialsSaving || repoArchived}
-                                            />
-                                          </div>
-                                        </div>
-
-                                        {(() => {
-                                          const total = profiles.length;
-                                          const currentPage = modelProviderProfilesPage[provider] ?? 1;
-                                          const start = (currentPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
-                                          const paged = profiles.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
-
-                                          if (!total) {
-                                            return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
-                                          }
-
-                                          return (
-                                            <>
-                                              {/* Paginate model provider profiles to keep the credential panel height stable in the dashboard layout. u55e45ffi8jng44erdzp */}
-                                              <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                                                {paged.map((p: any) => (
-                                                  <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                                    <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                                      <Space size={8} wrap>
-                                                        <Typography.Text strong>{p.remark || p.id}</Typography.Text>
-                                                        {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                                                        <Tag color={p.hasApiKey ? 'green' : 'default'}>
-                                                          {p.hasApiKey ? t('common.configured') : t('common.notConfigured')}
-                                                        </Tag>
-                                                      </Space>
-                                                      <Typography.Text type="secondary">{p.apiBaseUrl || '-'}</Typography.Text>
-                                                    </Space>
-                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                                      <Button size="small" onClick={() => startEditModelProfile(provider, p)} disabled={credentialsSaving || repoArchived}>
-                                                        {t('common.manage')}
-                                                      </Button>
-                                                      <Button
-                                                        size="small"
-                                                        danger
-                                                        onClick={() => removeModelProviderProfile(provider, p.id)}
-                                                        disabled={credentialsSaving || repoArchived}
-                                                      >
-                                                        {t('panel.credentials.profile.remove')}
-                                                      </Button>
-                                                    </div>
-                                                  </Card>
-                                                ))}
+                                    <>
+                                      {/* Render a single list of model provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                                      <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                                        {paged.map(({ provider, profile, defaultId }) => (
+                                          <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                            <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                              <Space size={8} wrap>
+                                                <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
+                                                <Tag color="geekblue">{t(`repos.robotForm.modelProvider.${provider}` as any)}</Tag>
+                                                {defaultId === profile.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                                                <Tag color={profile.hasApiKey ? 'green' : 'default'}>
+                                                  {profile.hasApiKey ? t('common.configured') : t('common.notConfigured')}
+                                                </Tag>
                                               </Space>
-
-                                              {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
-                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                                                  <Pagination
-                                                    size="small"
-                                                    current={currentPage}
-                                                    pageSize={CREDENTIAL_PROFILE_PAGE_SIZE}
-                                                    total={total}
-                                                    showSizeChanger={false}
-                                                    onChange={(page) =>
-                                                      setModelProviderProfilesPage((prev) => ({
-                                                        ...prev,
-                                                        [provider]: page
-                                                      }))
-                                                    }
-                                                  />
-                                                </div>
-                                              ) : null}
-                                            </>
-                                          );
-                                        })()}
+                                              <Typography.Text type="secondary">{profile.apiBaseUrl || '-'}</Typography.Text>
+                                            </Space>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                                              <Button size="small" onClick={() => startEditModelProfile(provider, profile)} disabled={credentialsSaving || repoArchived}>
+                                                {t('common.manage')}
+                                              </Button>
+                                              <Button
+                                                size="small"
+                                                danger
+                                                onClick={() => removeModelProviderProfile(provider, profile.id)}
+                                                disabled={credentialsSaving || repoArchived}
+                                              >
+                                                {t('panel.credentials.profile.remove')}
+                                              </Button>
+                                            </div>
+                                          </Card>
+                                        ))}
                                       </Space>
-                                    </Card>
+
+                                      {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                          <Pagination
+                                            size="small"
+                                            current={modelProviderProfilesPage}
+                                            pageSize={CREDENTIAL_PROFILE_PAGE_SIZE}
+                                            total={total}
+                                            showSizeChanger={false}
+                                            onChange={(page) => setModelProviderProfilesPage(page)}
+                                          />
+                                        </div>
+                                      ) : null}
+                                    </>
                                   );
-                                })}
+                                })()}
                               </Space>
                             </Card>
                           </div>
@@ -2089,9 +2086,22 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         className="hc-dialog--compact" /* UX (2026-01-15): tighter padding + unified surface in dark mode for profile editors. */
       >
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-	          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: modelProfileProvider })}</Typography.Text>
+	          {/* Allow choosing model provider when creating profiles from the unified list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
 	          {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
 	          <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="middle">
+              <Form.Item label={t('panel.credentials.profile.providerLabel')}>
+                <Select
+                  value={modelProfileProvider}
+                  placeholder={t('panel.credentials.profile.providerPlaceholder')}
+                  options={[
+                    { value: 'codex', label: t('panel.credentials.codexTitle') },
+                    { value: 'claude_code', label: t('panel.credentials.claudeCodeTitle') },
+                    { value: 'gemini_cli', label: t('panel.credentials.geminiCliTitle') }
+                  ]}
+                  onChange={(value) => setModelProfileProvider(value as ModelProviderKey)}
+                  disabled={Boolean(modelProfileEditing)}
+                />
+              </Form.Item>
 	            <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
 	              <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
 	            </Form.Item>

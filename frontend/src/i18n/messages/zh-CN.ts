@@ -123,6 +123,16 @@ export const zhCN = {
   'tasks.page.filter.statusTag': '状态：{{status}}',
   'tasks.page.filter.repoTag': '仓库：{{repo}}',
 
+  // --- Task groups page ---
+  // Add copy for the taskgroup card list page. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+  'taskGroups.page.title': '任务组列表',
+  'taskGroups.page.subtitle': '共 {{count}} 条',
+  'taskGroups.page.searchPlaceholder': '搜索任务组（标题/仓库/ID）',
+  'taskGroups.page.empty': '暂无任务组',
+  'taskGroups.page.viewAll': '查看全部任务组',
+  'taskGroups.kind.task': '任务',
+  'taskGroups.kind.unknown': '未知',
+
   // --- Task detail page ---
   'task.page.title': '任务详情',
   'task.page.missingId': '缺少任务 ID',
@@ -286,6 +296,8 @@ export const zhCN = {
   'toast.task.retryFailedTasksFailed': '重试失败，请稍后再试',
   'toast.task.executeNowSuccess': '已安排立即执行',
   'toast.task.executeNowFailed': '立即执行失败，请稍后再试',
+  // Add taskgroup list error toast for the new card page. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+  'toast.taskGroups.fetchFailed': '任务组加载失败',
   'toast.chat.reposLoadFailed': '加载仓库失败',
   'toast.chat.robotsLoadFailed': '加载机器人失败',
   'toast.chat.groupLoadFailed': '加载任务组失败',
@@ -826,6 +838,9 @@ export const zhCN = {
   'panel.credentials.profile.addTitle': '新增凭据配置',
   'panel.credentials.profile.editTitle': '编辑凭据配置',
   'panel.credentials.profile.providerHint': 'Provider：{{provider}}',
+  // Add provider selector labels for unified credential lists. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  'panel.credentials.profile.providerLabel': '提供方',
+  'panel.credentials.profile.providerPlaceholder': '请选择提供方',
   'panel.credentials.profile.name': '备注',
   'panel.credentials.profile.namePlaceholder': '例如：个人 / 公司',
   'panel.credentials.profile.cloneUsername': 'Clone 用户名',

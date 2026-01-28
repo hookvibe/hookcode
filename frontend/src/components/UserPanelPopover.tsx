@@ -9,6 +9,7 @@ import {
   Input,
   Modal,
   Radio,
+  Switch,
   Select,
   Space,
   Tag,
@@ -47,6 +48,7 @@ import { ModelProviderModelsButton } from './ModelProviderModelsButton';
 import { clearAuth, getStoredUser, getToken, setStoredUser, type AuthUser } from '../auth';
 import { setLocale, useLocale, useT } from '../i18n';
 import { getBooleanEnv } from '../utils/env';
+import { uuid as generateUuid } from './repoAutomation/utils';
 
 /**
  * UserPanelPopover:
@@ -75,6 +77,12 @@ type PanelTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings'
 const DEFAULT_PORTS = { prisma: 7215, swagger: 7216 } as const;
 
 const providerLabel = (provider: ProviderKey) => (provider === 'github' ? 'GitHub' : 'GitLab');
+const modelProviderLabel = (provider: ModelProviderKey, t: ReturnType<typeof useT>) => {
+  // Map model providers to the user-facing labels used in the unified credential list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  if (provider === 'codex') return t('panel.credentials.codexTitle');
+  if (provider === 'claude_code') return t('panel.credentials.claudeCodeTitle');
+  return t('panel.credentials.geminiCliTitle');
+};
 
 const buildToolUrl = (params: { port: number; token: string }): string => {
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
@@ -133,6 +141,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   const [repoProfileProvider, setRepoProfileProvider] = useState<ProviderKey>('gitlab');
   const [repoProfileEditing, setRepoProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
   const [repoProfileSubmitting, setRepoProfileSubmitting] = useState(false);
+  const [repoProfileSetDefault, setRepoProfileSetDefault] = useState(false);
   const [repoProfileForm] = Form.useForm<{ remark: string; token?: string; cloneUsername?: string }>();
   const [repoProfileTokenMode, setRepoProfileTokenMode] = useState<'keep' | 'set'>('keep');
 
@@ -140,6 +149,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   const [modelProfileProvider, setModelProfileProvider] = useState<ModelProviderKey>('codex');
   const [modelProfileEditing, setModelProfileEditing] = useState<UserModelProviderCredentialProfilePublic | null>(null);
   const [modelProfileSubmitting, setModelProfileSubmitting] = useState(false);
+  const [modelProfileSetDefault, setModelProfileSetDefault] = useState(false);
   const [modelProfileForm] = Form.useForm<{ remark: string; apiKey?: string; apiBaseUrl?: string }>();
   const [modelProfileApiKeyMode, setModelProfileApiKeyMode] = useState<'keep' | 'set'>('keep');
 
@@ -358,9 +368,33 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     return { codex: codexProfiles, claude_code: claudeProfiles, gemini_cli: geminiProfiles };
   }, [credentials?.claude_code?.profiles, credentials?.codex?.profiles, credentials?.gemini_cli?.profiles]);
 
+  // Build unified repo provider profile items for the single list view. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  const repoProviderProfileItems = useMemo(
+    () =>
+      (['gitlab', 'github'] as ProviderKey[]).flatMap((provider) => {
+        const profiles = repoProviderProfiles[provider];
+        const defaultId = String((credentials as any)?.[provider]?.defaultProfileId ?? '').trim();
+        return profiles.map((profile) => ({ provider, profile, defaultId }));
+      }),
+    [credentials, repoProviderProfiles]
+  );
+
+  // Build unified model provider profile items for the single list view. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  const modelProviderProfileItems = useMemo(
+    () =>
+      (['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).flatMap((provider) => {
+        const profiles = modelProviderProfiles[provider];
+        const defaultId = String((credentials as any)?.[provider]?.defaultProfileId ?? '').trim();
+        return profiles.map((profile) => ({ provider, profile, defaultId }));
+      }),
+    [credentials, modelProviderProfiles]
+  );
+
   const startEditRepoProfile = useCallback(
-    (provider: ProviderKey, profile?: UserRepoProviderCredentialProfilePublic | null) => {
-      setRepoProfileProvider(provider);
+    (provider?: ProviderKey, profile?: UserRepoProviderCredentialProfilePublic | null) => {
+      const nextProvider = provider ?? repoProfileProvider ?? 'gitlab';
+      // Keep the selected repo provider in sync with the unified list modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      setRepoProfileProvider(nextProvider);
       setRepoProfileEditing(profile ?? null);
       setRepoProfileFormOpen(true);
 
@@ -369,15 +403,19 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
       // UX: keep existing tokens by default (backend never returns raw tokens).
       setRepoProfileTokenMode(profile?.hasToken ? 'keep' : 'set');
+      // Default selection is now handled inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const defaultId = String((credentials as any)?.[nextProvider]?.defaultProfileId ?? '').trim();
+      setRepoProfileSetDefault(Boolean(profile?.id && profile.id === defaultId));
       repoProfileForm.setFieldsValue({ remark: initialRemark, cloneUsername: initialCloneUsername, token: '' });
-      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
     },
-    [repoProfileForm]
+    [credentials, repoProfileForm, repoProfileProvider]
   );
 
   const startEditModelProfile = useCallback(
-    (provider: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
-      setModelProfileProvider(provider);
+    (provider?: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
+      const nextProvider = provider ?? modelProfileProvider ?? 'codex';
+      // Keep the selected model provider in sync with the unified list modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      setModelProfileProvider(nextProvider);
       setModelProfileEditing(profile ?? null);
       setModelProfileFormOpen(true);
 
@@ -386,10 +424,12 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
       // UX: keep existing keys by default (backend never returns raw apiKey).
       setModelProfileApiKeyMode(profile?.hasApiKey ? 'keep' : 'set');
+      // Default selection is now handled inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const defaultId = String((credentials as any)?.[nextProvider]?.defaultProfileId ?? '').trim();
+      setModelProfileSetDefault(Boolean(profile?.id && profile.id === defaultId));
       modelProfileForm.setFieldsValue({ remark: initialRemark, apiBaseUrl: initialApiBaseUrl, apiKey: '' });
-      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
     },
-    [modelProfileForm]
+    [credentials, modelProfileForm, modelProfileProvider]
   );
 
   const setProviderDefault = useCallback(
@@ -451,19 +491,29 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       const tokenValue = String(values.token ?? '').trim();
       const shouldSendToken = repoProfileTokenMode === 'set';
 
+      const currentDefaultId = String((credentials as any)?.[repoProfileProvider]?.defaultProfileId ?? '').trim();
+      const profileId = repoProfileEditing?.id ?? generateUuid();
       const payload = {
-        id: repoProfileEditing?.id,
+        id: profileId,
         remark: remark || null,
         cloneUsername: cloneUsername || null,
         ...(shouldSendToken ? { token: tokenValue ? tokenValue : null } : {})
       };
 
-      const next = await updateMyModelCredentials({
-        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
+      const isEditingDefault = Boolean(repoProfileEditing?.id && repoProfileEditing.id === currentDefaultId);
+      const updatePayload: any = {
         [repoProfileProvider]: {
           profiles: [payload]
         }
-      } as any);
+      };
+      // Default selection now lives inside the manage modal instead of a separate dropdown. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      if (repoProfileSetDefault) {
+        updatePayload[repoProfileProvider].defaultProfileId = profileId;
+      } else if (isEditingDefault) {
+        updatePayload[repoProfileProvider].defaultProfileId = null;
+      }
+
+      const next = await updateMyModelCredentials(updatePayload as any);
 
       setCredentials(next);
       setRepoProfileFormOpen(false);
@@ -485,6 +535,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     repoProfileForm,
     repoProfileProvider,
     repoProfileSubmitting,
+    repoProfileSetDefault,
     repoProfileTokenMode,
     t
   ]);
@@ -499,19 +550,29 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       const apiKey = String(values.apiKey ?? '').trim();
       const shouldSendApiKey = modelProfileApiKeyMode === 'set';
 
+      const currentDefaultId = String((credentials as any)?.[modelProfileProvider]?.defaultProfileId ?? '').trim();
+      const profileId = modelProfileEditing?.id ?? generateUuid();
       const payload = {
-        id: modelProfileEditing?.id,
+        id: profileId,
         remark: remark || null,
         apiBaseUrl: apiBaseUrl || null,
         ...(shouldSendApiKey ? { apiKey: apiKey ? apiKey : null } : {})
       };
 
-      const next = await updateMyModelCredentials({
-        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
+      const isEditingDefault = Boolean(modelProfileEditing?.id && modelProfileEditing.id === currentDefaultId);
+      const updatePayload: any = {
         [modelProfileProvider]: {
           profiles: [payload]
         }
-      } as any);
+      };
+      // Default selection now lives inside the manage modal instead of a separate dropdown. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      if (modelProfileSetDefault) {
+        updatePayload[modelProfileProvider].defaultProfileId = profileId;
+      } else if (isEditingDefault) {
+        updatePayload[modelProfileProvider].defaultProfileId = null;
+      }
+
+      const next = await updateMyModelCredentials(updatePayload as any);
 
       setCredentials(next);
       setModelProfileFormOpen(false);
@@ -534,6 +595,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     modelProfileForm,
     modelProfileProvider,
     modelProfileSubmitting,
+    modelProfileSetDefault,
     t
   ]);
 
@@ -729,45 +791,34 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
                 {t('panel.credentials.modelProviderTip')}
               </Typography.Paragraph>
-
-              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-                {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
-                  const profiles = modelProviderProfiles[provider];
-                  const defaultId = (credentials as any)?.[provider]?.defaultProfileId ?? null;
-                  const sectionTitleKey =
-                    provider === 'codex'
-                      ? 'panel.credentials.codexTitle'
-                      : provider === 'claude_code'
-                        ? 'panel.credentials.claudeCodeTitle'
-                        : 'panel.credentials.geminiCliTitle';
-                  const sectionTipKey =
-                    provider === 'codex'
-                      ? 'panel.credentials.codexTip'
-                      : provider === 'claude_code'
-                        ? 'panel.credentials.claudeCodeTip'
-                        : 'panel.credentials.geminiCliTip';
-
-                  return (
-                    <Card
-                      key={provider}
-                      size="small"
-                      title={
-                        <Space size={8}>
-                          <KeyOutlined />
-                          <span>{t(sectionTitleKey)}</span>
-                        </Space>
-                      }
-                      extra={
-                        <Button size="small" onClick={() => startEditModelProfile(provider, null)} disabled={savingCred || !canUseAccountApis}>
-                          {t('panel.credentials.profile.add')}
-                        </Button>
-                      }
-                    >
-                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                        <Typography.Text type="secondary">{t(sectionTipKey)}</Typography.Text>
-
-                        <div>
-                          <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
+              <Card
+                size="small"
+                title={
+                  <Space size={8}>
+                    <KeyOutlined />
+                    <span>{t('panel.credentials.modelProviderTitle')}</span>
+                  </Space>
+                }
+                extra={
+                  <>
+                    {/* Use a single add entry point for the unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                    <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>
+                      {t('panel.credentials.profile.add')}
+                    </Button>
+                  </>
+                }
+              >
+                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                  {/* Keep per-provider defaults while rendering a single unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                  <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                    {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
+                      const profiles = modelProviderProfiles[provider];
+                      const defaultId = String((credentials as any)?.[provider]?.defaultProfileId ?? '').trim();
+                      return (
+                        <div key={provider}>
+                          <Typography.Text type="secondary">
+                            {t('panel.credentials.profile.default')} · {modelProviderLabel(provider, t)}
+                          </Typography.Text>
                           <div style={{ marginTop: 6 }}>
                             <Select
                               value={defaultId || undefined}
@@ -780,69 +831,76 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                             />
                           </div>
                         </div>
+                      );
+                    })}
+                  </Space>
 
-                        {profiles.length ? (
-                          <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                            {profiles.map((p) => (
-                              <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                  <Space size={8} wrap>
-                                    <Typography.Text strong>{p.remark || p.id}</Typography.Text>
-                                    {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                                    <Tag color={p.hasApiKey ? 'green' : 'default'}>
-                                      {p.hasApiKey ? t('common.configured') : t('common.notConfigured')}
-                                    </Tag>
-                                  </Space>
-                                  <Typography.Text type="secondary">{p.apiBaseUrl || '-'}</Typography.Text>
-                                </Space>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                  <Button size="small" onClick={() => startEditModelProfile(provider, p)}>
-                                    {t('common.manage')}
-                                  </Button>
-                                  <Button size="small" danger onClick={() => void removeProfile(provider, p.id)} disabled={!canUseAccountApis}>
-                                    {t('panel.credentials.profile.remove')}
-                                  </Button>
-                                </div>
-                              </Card>
-                            ))}
+                  {/* Render a single list of model provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                  {modelProviderProfileItems.length ? (
+                    <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                      {modelProviderProfileItems.map(({ provider, profile, defaultId }) => (
+                        <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                          <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                            <Space size={8} wrap>
+                              <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
+                              <Tag color="geekblue">{modelProviderLabel(provider, t)}</Tag>
+                              {defaultId === profile.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                              <Tag color={profile.hasApiKey ? 'green' : 'default'}>
+                                {profile.hasApiKey ? t('common.configured') : t('common.notConfigured')}
+                              </Tag>
+                            </Space>
+                            <Typography.Text type="secondary">{profile.apiBaseUrl || '-'}</Typography.Text>
                           </Space>
-                        ) : (
-                          <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
-                        )}
-                      </Space>
-                    </Card>
-                  );
-                })}
-              </Space>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                            <Button size="small" onClick={() => startEditModelProfile(provider, profile)}>
+                              {t('common.manage')}
+                            </Button>
+                            <Button size="small" danger onClick={() => void removeProfile(provider, profile.id)} disabled={!canUseAccountApis}>
+                              {t('panel.credentials.profile.remove')}
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </Space>
+                  ) : (
+                    <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
+                  )}
+                </Space>
+              </Card>
             </div>
 
             <Divider style={{ margin: '14px 0' }} />
 
             <div className="hc-settings-section">
               <div className="hc-settings-section-title">{t('panel.credentials.repoTitle')}</div>
-              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-                {(['gitlab', 'github'] as ProviderKey[]).map((provider) => {
-                  const profiles = repoProviderProfiles[provider];
-                  const defaultId = (credentials as any)?.[provider]?.defaultProfileId ?? null;
-                  return (
-                    <Card
-                      key={provider}
-                      size="small"
-                      title={
-                        <Space size={8}>
-                          <GlobalOutlined />
-                          <span>{providerLabel(provider)}</span>
-                        </Space>
-                      }
-                      extra={
-                        <Button size="small" onClick={() => startEditRepoProfile(provider, null)} disabled={savingCred || !canUseAccountApis}>
-                          {t('panel.credentials.profile.add')}
-                        </Button>
-                      }
-                    >
-                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                        <div>
-                          <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
+              <Card
+                size="small"
+                title={
+                  <Space size={8}>
+                    <GlobalOutlined />
+                    <span>{t('panel.credentials.repoTitle')}</span>
+                  </Space>
+                }
+                extra={
+                  <>
+                    {/* Use a single add entry point for the unified repo list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                    <Button size="small" onClick={() => startEditRepoProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>
+                      {t('panel.credentials.profile.add')}
+                    </Button>
+                  </>
+                }
+              >
+                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                  {/* Keep per-provider defaults while rendering a single unified repo list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                  <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                    {(['gitlab', 'github'] as ProviderKey[]).map((provider) => {
+                      const profiles = repoProviderProfiles[provider];
+                      const defaultId = String((credentials as any)?.[provider]?.defaultProfileId ?? '').trim();
+                      return (
+                        <div key={provider}>
+                          <Typography.Text type="secondary">
+                            {t('panel.credentials.profile.default')} · {providerLabel(provider)}
+                          </Typography.Text>
                           <div style={{ marginTop: 6 }}>
                             <Select
                               value={defaultId || undefined}
@@ -855,40 +913,42 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                             />
                           </div>
                         </div>
+                      );
+                    })}
+                  </Space>
 
-                        {profiles.length ? (
-                          <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                            {profiles.map((p) => (
-                              <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                  <Space size={8} wrap>
-                                    <Typography.Text strong>{p.remark || p.id}</Typography.Text>
-                                    {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                                    <Tag color={p.hasToken ? 'green' : 'default'}>
-                                      {p.hasToken ? t('common.configured') : t('common.notConfigured')}
-                                    </Tag>
-                                  </Space>
-                                  <Typography.Text type="secondary">{p.cloneUsername || '-'}</Typography.Text>
-                                </Space>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                  <Button size="small" onClick={() => startEditRepoProfile(provider, p)}>
-                                    {t('common.manage')}
-                                  </Button>
-                                  <Button size="small" danger onClick={() => void removeProfile(provider, p.id)} disabled={!canUseAccountApis}>
-                                    {t('panel.credentials.profile.remove')}
-                                  </Button>
-                                </div>
-                              </Card>
-                            ))}
+                  {/* Render a single list of repo provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                  {repoProviderProfileItems.length ? (
+                    <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                      {repoProviderProfileItems.map(({ provider, profile, defaultId }) => (
+                        <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                          <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                            <Space size={8} wrap>
+                              <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
+                              <Tag color="geekblue">{providerLabel(provider)}</Tag>
+                              {defaultId === profile.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                              <Tag color={profile.hasToken ? 'green' : 'default'}>
+                                {profile.hasToken ? t('common.configured') : t('common.notConfigured')}
+                              </Tag>
+                            </Space>
+                            <Typography.Text type="secondary">{profile.cloneUsername || '-'}</Typography.Text>
                           </Space>
-                        ) : (
-                          <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
-                        )}
-                      </Space>
-                    </Card>
-                  );
-                })}
-              </Space>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                            <Button size="small" onClick={() => startEditRepoProfile(provider, profile)}>
+                              {t('common.manage')}
+                            </Button>
+                            <Button size="small" danger onClick={() => void removeProfile(provider, profile.id)} disabled={!canUseAccountApis}>
+                              {t('panel.credentials.profile.remove')}
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </Space>
+                  ) : (
+                    <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
+                  )}
+                </Space>
+              </Card>
             </div>
           </>
         );
@@ -1146,9 +1206,21 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         destroyOnHidden
       >
         <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-            <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: providerLabel(repoProfileProvider) })}</Typography.Text>
+            {/* Allow choosing repo provider when creating profiles from the unified list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
             {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
             <Form form={repoProfileForm} layout="vertical" requiredMark={false} size="middle">
+            <Form.Item label={t('panel.credentials.profile.providerLabel')}>
+                <Select
+                value={repoProfileProvider}
+                placeholder={t('panel.credentials.profile.providerPlaceholder')}
+                options={[
+                    { value: 'gitlab', label: providerLabel('gitlab') },
+                    { value: 'github', label: providerLabel('github') }
+                ]}
+                onChange={(value) => setRepoProfileProvider(value as ProviderKey)}
+                disabled={Boolean(repoProfileEditing)}
+                />
+            </Form.Item>
             <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
                 <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
             </Form.Item>
@@ -1213,9 +1285,22 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         destroyOnHidden
       >
         <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: modelProfileProvider })}</Typography.Text>
+          {/* Allow choosing model provider when creating profiles from the unified list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
           {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
           <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="middle">
+            <Form.Item label={t('panel.credentials.profile.providerLabel')}>
+              <Select
+                value={modelProfileProvider}
+                placeholder={t('panel.credentials.profile.providerPlaceholder')}
+                options={[
+                  { value: 'codex', label: modelProviderLabel('codex', t) },
+                  { value: 'claude_code', label: modelProviderLabel('claude_code', t) },
+                  { value: 'gemini_cli', label: modelProviderLabel('gemini_cli', t) }
+                ]}
+                onChange={(value) => setModelProfileProvider(value as ModelProviderKey)}
+                disabled={Boolean(modelProfileEditing)}
+              />
+            </Form.Item>
             <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
               <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
             </Form.Item>

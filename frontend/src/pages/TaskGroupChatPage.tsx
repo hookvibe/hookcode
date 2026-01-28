@@ -1,10 +1,10 @@
 import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Input, Popover, Select, Space, Typography } from 'antd';
-import { ClockCircleOutlined, SendOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, SendOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import type { RepoRobot, Repository, Task, TaskGroup, TimeWindow } from '../api';
 import { executeChat, fetchTask, fetchTaskGroup, fetchTaskGroupTasks, listRepoRobots, listRepos } from '../api';
 import { useLocale, useT } from '../i18n';
-import { buildTaskGroupHash, buildTaskHash } from '../router';
+import { buildTaskGroupHash, buildTaskGroupsHash, buildTaskHash } from '../router';
 import { TaskConversationItem } from '../components/chat/TaskConversationItem';
 import { PageNav } from '../components/nav/PageNav';
 import { isTerminalStatus } from '../utils/task';
@@ -403,6 +403,11 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     window.location.hash = buildTaskHash(task.id);
   }, []);
 
+  const openTaskGroupList = useCallback(() => {
+    // Provide a quick hop from chat view to the taskgroup card list. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+    window.location.hash = buildTaskGroupsHash();
+  }, []);
+
   const loadOlderTasks = useCallback(() => {
     const container = chatBodyRef.current;
     if (!container) return;
@@ -645,12 +650,18 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
 
   return (
     <div className="hc-page">
+      {/* Surface a list shortcut in the chat header for quick navigation. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
       <PageNav
         title={taskGroupId ? groupTitle || t('chat.page.groupTitleFallback') : t('chat.page.newGroupTitle')}
         meta={
           <Typography.Text type="secondary">
             {taskGroupId ? `${t('chat.page.updatedAt')}: ${groupUpdatedAtText || '-'}` : t('chat.page.newGroupHint')}
           </Typography.Text>
+        }
+        actions={
+          <Button icon={<UnorderedListOutlined />} onClick={() => openTaskGroupList()}>
+            {t('taskGroups.page.viewAll')}
+          </Button>
         }
         userPanel={userPanel}
       />

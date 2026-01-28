@@ -96,8 +96,11 @@ describe('UserPanelPopover', () => {
     expect(screen.getByRole('button', { name: 'Me' })).not.toBeDisabled();
 
     await ui.click(screen.getByRole('button', { name: 'Credentials' }));
-    expect(await screen.findByText('Model provider credentials')).toBeInTheDocument();
-    expect(await screen.findByText('Claude Code')).toBeInTheDocument();
+    // Model provider title appears in both section header and card title after list unification. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const modelTitles = await screen.findAllByText('Model provider credentials');
+    expect(modelTitles.length).toBeGreaterThan(0);
+    // Provider labels now appear inside default selection text, so use a partial match. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(await screen.findByText(/Claude Code/i)).toBeInTheDocument();
   });
 
   test('renders placeholders for panel inputs', async () => {
@@ -119,9 +122,12 @@ describe('UserPanelPopover', () => {
     expect(confirmPassword.placeholder).not.toBe('');
 
     await ui.click(screen.getByRole('button', { name: 'Credentials' }));
-    expect(await screen.findByText('Model provider credentials')).toBeInTheDocument();
+    // Model provider title appears in both section header and card title after list unification. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const modelTitles = await screen.findAllByText('Model provider credentials');
+    expect(modelTitles.length).toBeGreaterThan(0);
 
-    const codexCard = screen.getByText('Codex').closest('.ant-card');
+    // Provider labels now appear inside default selection text, so use a partial match. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const codexCard = screen.getByText(/Codex/).closest('.ant-card');
     expect(codexCard).toBeTruthy();
 
     await ui.click(within(codexCard as HTMLElement).getByRole('button', { name: /Add/i }));
@@ -132,6 +138,8 @@ describe('UserPanelPopover', () => {
     //   so we assert placeholders by checking all visible textboxes within the profile dialog.
     const dialogs = screen.getAllByRole('dialog');
     const profileDialog = dialogs[dialogs.length - 1] as HTMLElement;
+    // Assert provider selector is visible for unified credential adds. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(within(profileDialog).getByText('Provider')).toBeInTheDocument();
     const textboxes = within(profileDialog).getAllByRole('textbox') as HTMLInputElement[];
     for (const input of textboxes) {
       expect(input.placeholder).not.toBe('');

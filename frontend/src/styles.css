@@ -985,18 +985,70 @@ button.hc-tasks-status-tile--active {
 .hc-card-list {
   max-width: var(--hc-page-max);
   margin: 0 auto;
+  /* Add a small inset to prevent glass highlights from clipping at the container edge. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+  padding: 2px;
 }
 
-.hc-task-card {
-  background: var(--hc-surface) !important;
-  border-color: var(--hc-border) !important;
-  border-radius: 12px;
+/* Use a responsive grid for modern card list layouts. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+.hc-card-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.hc-repo-card {
-  background: var(--hc-surface) !important;
-  border-color: var(--hc-border) !important;
-  border-radius: 12px;
+@media (min-width: 840px) {
+  .hc-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .hc-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+/* Modernize list cards with glassmorphism surfaces and deeper radius. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+.hc-task-card,
+.hc-repo-card,
+.hc-taskgroup-card {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--hc-surface) 88%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 78%, transparent) !important;
+  border-radius: 16px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.hc-task-card::before,
+.hc-repo-card::before,
+.hc-taskgroup-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    600px circle at 10% 0%,
+    color-mix(in srgb, var(--hc-accent-soft) 55%, transparent) 0%,
+    transparent 55%
+  );
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.hc-task-card::after,
+.hc-repo-card::after,
+.hc-taskgroup-card::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--hc-accent-border), transparent 70%);
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .hc-card {
@@ -1008,16 +1060,62 @@ button.hc-tasks-status-tile--active {
 /* Elevation: apply consistent shadows to the cards we control via custom classes. */
 .hc-task-card.ant-card,
 .hc-repo-card.ant-card,
+.hc-taskgroup-card.ant-card,
 .hc-card.ant-card {
   box-shadow: var(--hc-shadow-sm);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 .hc-task-card.ant-card.ant-card-hoverable:hover,
 .hc-repo-card.ant-card.ant-card-hoverable:hover,
+.hc-taskgroup-card.ant-card.ant-card-hoverable:hover,
 .hc-card.ant-card.ant-card-hoverable:hover {
   box-shadow: var(--hc-shadow-md);
   border-color: var(--hc-accent-border) !important;
+  transform: translateY(-1px);
+}
+
+.hc-task-card .ant-tag,
+.hc-repo-card .ant-tag,
+.hc-taskgroup-card .ant-tag {
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 1px 8px;
+  line-height: 18px;
+}
+
+/* Segment card content into clear blocks for scanning. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+.hc-card-structure {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-card-divider {
+  height: 1px;
+  background: color-mix(in srgb, var(--hc-border) 70%, transparent);
+}
+
+.hc-card-note {
+  font-size: 12px;
+}
+
+/* Align shared card meta/actions rows for the list layouts. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+.hc-card-meta {
+  align-items: center;
+}
+
+.hc-card-actions {
+  margin-top: 2px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* =============================================================================
@@ -1704,6 +1802,63 @@ button.hc-tasks-status-tile--active {
 .hc-task-code-block--expanded {
   max-height: none;
   overflow: visible;
+}
+
+/* Style the structured JSON viewer to replace raw payload <pre> blocks. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128 */
+.hc-json-viewer {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.hc-json-viewer .ant-tree,
+.hc-json-viewer .ant-tree-list-holder {
+  background: transparent;
+}
+
+.hc-json-viewer .ant-tree-node-content-wrapper {
+  padding: 2px 6px;
+}
+
+.hc-json-viewer__row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.hc-json-viewer__key {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.hc-json-viewer__separator {
+  color: var(--text);
+  opacity: 0.6;
+}
+
+.hc-json-viewer__summary {
+  color: var(--text);
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.hc-json-viewer__value--string,
+.hc-json-viewer__value--number,
+.hc-json-viewer__value--boolean,
+.hc-json-viewer__value--other {
+  color: var(--text);
+}
+
+.hc-json-viewer__value--null,
+.hc-json-viewer__value--undefined {
+  color: var(--text);
+  opacity: 0.6;
 }
 
 @media (max-width: 1200px) {

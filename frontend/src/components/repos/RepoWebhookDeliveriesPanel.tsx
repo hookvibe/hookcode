@@ -4,6 +4,7 @@ import { Button, Empty, Modal, Skeleton, Space, Tag, Typography } from 'antd';
 import type { RepoWebhookDeliveryDetail, RepoWebhookDeliveryResult, RepoWebhookDeliverySummary } from '../../api';
 import { fetchRepoWebhookDelivery, listRepoWebhookDeliveries } from '../../api';
 import { useT } from '../../i18n';
+import { JsonViewer } from '../JsonViewer';
 import { ScrollableTable } from '../ScrollableTable';
 
 /**
@@ -21,15 +22,6 @@ const resultTag = (t: ReturnType<typeof useT>, result: RepoWebhookDeliveryResult
   if (result === 'skipped') return <Tag>{t('repos.webhookDeliveries.result.skipped')}</Tag>;
   if (result === 'rejected') return <Tag color="orange">{t('repos.webhookDeliveries.result.rejected')}</Tag>;
   return <Tag color="red">{t('repos.webhookDeliveries.result.error')}</Tag>;
-};
-
-const safeJson = (value: unknown): string => {
-  if (value === undefined) return '';
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
 };
 
 export interface RepoWebhookDeliveriesPanelProps {
@@ -242,12 +234,18 @@ export const RepoWebhookDeliveriesPanel: FC<RepoWebhookDeliveriesPanelProps> = (
 
             <div style={{ border: '1px solid rgba(5,5,5,0.06)', borderRadius: 6, padding: 12 }}>
               <Typography.Text strong>{t('repos.webhookDeliveries.detailPayload')}</Typography.Text>
-              <pre style={{ marginTop: 8, marginBottom: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{safeJson(detail.payload)}</pre>
+              {/* Use the shared JSON viewer to render webhook payloads consistently. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128 */}
+              <div style={{ marginTop: 8 }}>
+                <JsonViewer value={detail.payload} />
+              </div>
             </div>
 
             <div style={{ border: '1px solid rgba(5,5,5,0.06)', borderRadius: 6, padding: 12 }}>
               <Typography.Text strong>{t('repos.webhookDeliveries.detailResponse')}</Typography.Text>
-              <pre style={{ marginTop: 8, marginBottom: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{safeJson(detail.response)}</pre>
+              {/* Use the shared JSON viewer to render webhook responses consistently. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128 */}
+              <div style={{ marginTop: 8 }}>
+                <JsonViewer value={detail.response} />
+              </div>
             </div>
           </Space>
         ) : (

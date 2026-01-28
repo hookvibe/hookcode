@@ -30,6 +30,7 @@ import {
   buildReposHash,
   buildTaskGroupHash,
   buildTaskHash,
+  buildTaskGroupsHash,
   buildTasksHash,
   type RouteState
 } from '../router';
@@ -44,6 +45,7 @@ import { RepoDetailPage } from './RepoDetailPage';
 import { ReposPage } from './ReposPage';
 import { TaskDetailPage } from './TaskDetailPage';
 import { TaskGroupChatPage } from './TaskGroupChatPage';
+import { TaskGroupsPage } from './TaskGroupsPage';
 import { TasksPage } from './TasksPage';
 import { ArchivePage } from './ArchivePage';
 
@@ -447,6 +449,11 @@ export const AppShell: FC<AppShellProps> = ({
     navigateFromSidebar(buildArchiveHash());
   }, []);
 
+  const goTaskGroups = useCallback(() => {
+    // Navigation rule: taskgroup list entry should reset the header-back chain. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+    navigateFromSidebar(buildTaskGroupsHash());
+  }, []);
+
   const groupMenuItems = useMemo<MenuProps['items']>(() => {
     return taskGroups.map((g) => ({
       key: g.id,
@@ -468,6 +475,7 @@ export const AppShell: FC<AppShellProps> = ({
   }, [taskGroups]);
 
   const activeGroupKey = route.page === 'taskGroup' ? route.taskGroupId : undefined;
+  const taskGroupsListActive = route.page === 'taskGroups';
   const reposActive = route.page === 'repos' || route.page === 'repo';
   const archiveActive = route.page === 'archive';
   const activeTaskId = route.page === 'task' ? route.taskId : undefined;
@@ -744,6 +752,19 @@ export const AppShell: FC<AppShellProps> = ({
                 openTaskGroup(String(info.key));
               }}
             />
+            {/* Add a taskgroup list CTA below the menu so the card list is reachable from the taskgroup area. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+            <Tooltip title={siderCollapsed ? t('taskGroups.page.viewAll') : undefined}>
+              <Button
+                type="text"
+                block
+                className={`hc-sider-item hc-sider-item--more hc-sider-item--viewAll${taskGroupsListActive ? ' hc-sider-item--active' : ''}`}
+                aria-current={taskGroupsListActive ? 'page' : undefined}
+                icon={siderCollapsed ? <UnorderedListOutlined /> : undefined}
+                onClick={() => goTaskGroups()}
+              >
+                {!siderCollapsed ? t('taskGroups.page.viewAll') : null}
+              </Button>
+            </Tooltip>
           </div>
 
           <div className="hc-sider__bottom">
@@ -766,6 +787,8 @@ export const AppShell: FC<AppShellProps> = ({
         {route.page === 'archive' ? <ArchivePage tab={route.archiveTab} userPanel={userPanel} /> : null}
         {/* Pass repoId query to TasksPage so repo dashboards can deep-link into scoped task lists. aw85xyfsp5zfg6ihq3jr */}
         {route.page === 'tasks' ? <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} /> : null}
+        {/* Route the task group list to a card-first page for quick browsing. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+        {route.page === 'taskGroups' ? <TaskGroupsPage userPanel={userPanel} /> : null}
         {/* Pass backend feature toggles to pages that mount log streaming components. 0nazpc53wnvljv5yh7c6 */}
         {route.page === 'task' && route.taskId ? (
           <TaskDetailPage taskId={route.taskId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} />
