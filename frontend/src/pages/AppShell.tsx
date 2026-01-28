@@ -16,7 +16,6 @@ import {
   ProjectOutlined,
   PullRequestOutlined,
   UnorderedListOutlined,
-  EllipsisOutlined,
   CaretRightOutlined,
   InboxOutlined
 } from '@ant-design/icons';
@@ -500,7 +499,8 @@ export const AppShell: FC<AppShellProps> = ({
               ? taskStats.success
               : taskStats.failed;
 
-      const viewAllActive = Boolean(activeTasksStatus && activeTasksStatus === section.statusFilter);
+      // Highlight the active task status on the section header instead of the View All row. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
+      const sectionActive = Boolean(activeTasksStatus && activeTasksStatus === section.statusFilter);
       const headerIcon =
         !siderCollapsed
           ? undefined
@@ -510,13 +510,14 @@ export const AppShell: FC<AppShellProps> = ({
             : section.icon;
 
       return (
-        <div key={sectionKey} className="hc-sider-section">
+        <div key={sectionKey} className={`hc-sider-section${sectionActive ? ' hc-sider-section--active' : ''}`}>
           <div className="hc-sider-section__header">
             <Button
               type="text"
               className="hc-sider-section__titleBtn"
               // A11y/test note: set an explicit label so the section button doesn't get mixed up with task item buttons.
               aria-label={t(section.labelKey)}
+              aria-current={sectionActive ? 'page' : undefined}
               onClick={() => {
                 // UX:
                 // - Clicking the section header toggles expand/collapse (so the header behaves like an accordion).
@@ -595,18 +596,17 @@ export const AppShell: FC<AppShellProps> = ({
                     <Button
                       type="text"
                       block
-                      // UX: keep "View all" highlighted while user is on the filtered Tasks page (`#/tasks?status=...`).
-                      className={`hc-sider-item hc-sider-item--more${viewAllActive ? ' hc-sider-item--active' : ''}`}
-                      aria-current={viewAllActive ? 'page' : undefined}
-                    onClick={() => {
+                      // Redesign the View All button as a compact CTA row with a trailing arrow. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
+                      className="hc-sider-item hc-sider-item--more hc-sider-item--viewAll"
+                      onClick={() => {
                         // Navigation rule: "View all" is a sidebar navigation entry.
                         navigateFromSidebar(buildTasksHash({ status: section.statusFilter }));
                       }}
                     >
-                      <span className="hc-sider-item__icon">
-                        <EllipsisOutlined />
-                      </span>
                       <span className="hc-sider-item__text">{t('sidebar.tasks.viewAll')}</span>
+                      <span className="hc-sider-item__suffix" aria-hidden="true">
+                        <RightOutlined />
+                      </span>
                     </Button>
                   ) : null}
                 </>
@@ -714,6 +714,9 @@ export const AppShell: FC<AppShellProps> = ({
               </Button>
             </div>
 
+            {/* Separate repos from task statuses in both expanded/collapsed sidebar modes. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */}
+            <div className="hc-sider__divider" aria-hidden="true" />
+
             {!siderCollapsed ? (
               <Typography.Text className="hc-sider__sectionLabel">{t('sidebar.section.tasks')}</Typography.Text>
             ) : null}
@@ -721,6 +724,9 @@ export const AppShell: FC<AppShellProps> = ({
             {renderSidebarTaskSection('processing')}
             {renderSidebarTaskSection('success')}
             {renderSidebarTaskSection('failed')}
+
+            {/* Separate task statuses from task groups in both expanded/collapsed sidebar modes. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */}
+            <div className="hc-sider__divider" aria-hidden="true" />
 
             {!siderCollapsed ? (
               <Typography.Text className="hc-sider__sectionLabel" style={{ marginTop: 16 }}>

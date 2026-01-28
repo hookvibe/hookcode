@@ -377,6 +377,18 @@ body {
   font-size: 12px;
 }
 
+/* Show persistent section dividers between repos, tasks, and task groups. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */
+.hc-sider__divider {
+  height: 1px;
+  margin: 8px 12px;
+  background: var(--hc-border);
+  opacity: 0.7;
+}
+
+.hc-sider.ant-layout-sider-collapsed .hc-sider__divider {
+  margin: 8px 16px;
+}
+
 .hc-sider-section {
   margin-bottom: 6px;
 }
@@ -405,6 +417,25 @@ body {
 
 .hc-sider-section__titleBtn.ant-btn:hover {
   background: var(--hc-hover) !important;
+}
+
+/* Emphasize the active task status section instead of the View All row. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */
+.hc-sider-section--active .hc-sider-section__titleBtn.ant-btn {
+  background: var(--hc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+  border-radius: 10px;
+}
+
+.hc-sider-section--active .hc-sider-section__titleBtn.ant-btn:hover {
+  background: var(--hc-accent-soft-hover) !important;
+}
+
+.hc-sider-section--active .hc-sider-section__label {
+  font-weight: 600;
+}
+
+.hc-sider-section--active .hc-sider-section__count {
+  color: var(--text);
 }
 
 .hc-sider-section__title {
@@ -501,6 +532,29 @@ body {
 
 .hc-sider-item--more.ant-btn:hover {
   color: var(--text);
+}
+
+/* Redesign the View All row as a CTA-style pill with a trailing arrow. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */
+.hc-sider-item--viewAll.ant-btn {
+  margin-top: 4px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--hc-border);
+  background: var(--hc-surface);
+  color: var(--text);
+  justify-content: space-between;
+}
+
+.hc-sider-item--viewAll.ant-btn:hover {
+  background: var(--hc-accent-soft-hover) !important;
+  border-color: var(--hc-accent-border);
+}
+
+.hc-sider-item__suffix {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
 }
 
 .hc-sider-item__icon {

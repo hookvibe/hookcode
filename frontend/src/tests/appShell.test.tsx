@@ -215,7 +215,8 @@ describe('AppShell (frontend-chat migration)', () => {
     const viewAllLabel = await screen.findByText('View all');
     const viewAllButton = viewAllLabel.closest('button');
     expect(viewAllButton).toBeTruthy();
-    expect(viewAllButton?.querySelector('.hc-sider-item__icon')).toBeTruthy();
+    // View All redesign: render a trailing arrow to reinforce navigation. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
+    expect(viewAllButton?.querySelector('.hc-sider-item__suffix')).toBeTruthy();
     // UX: empty sections should start collapsed so the "No tasks" hint does not show unless expanded.
     await waitFor(() => expect(screen.queryByText('No tasks')).not.toBeInTheDocument());
 
@@ -223,6 +224,20 @@ describe('AppShell (frontend-chat migration)', () => {
     const groupLabel = await screen.findByText('Group 1');
     const groupItem = groupLabel.closest('li');
     expect(groupItem?.querySelector('.ant-menu-item-icon, .anticon')).toBeTruthy();
+  });
+
+  test('renders sidebar dividers in expanded and collapsed modes', async () => {
+    // Divider UX: keep section separators visible regardless of sidebar collapse state. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
+    const ui = userEvent.setup();
+    renderApp();
+
+    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    expect(document.querySelectorAll('.hc-sider__divider')).toHaveLength(2);
+
+    const collapseButton = await screen.findByRole('button', { name: 'Collapse sidebar' });
+    await ui.click(collapseButton);
+    expect(await screen.findByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.hc-sider__divider')).toHaveLength(2);
   });
 
   test('persists sidebar collapsed state across refresh', async () => {
@@ -308,10 +323,11 @@ describe('AppShell (frontend-chat migration)', () => {
     expect(window.location.hash).toBe('#/tasks?status=queued');
     window.dispatchEvent(new Event('hashchange'));
     expect(await screen.findByPlaceholderText('Search tasks (title/repo/id)')).toBeInTheDocument();
-    const activeLabel = await screen.findByText('View all');
-    const activeButton = activeLabel.closest('button');
-    expect(activeButton).toBeTruthy();
-    expect(activeButton).toHaveClass('hc-sider-item--active');
+    // Active status highlight should live on the section header, not the View All row. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
+    const queuedHeader = await screen.findByRole('button', { name: 'Queued' });
+    const queuedSection = queuedHeader.closest('.hc-sider-section');
+    expect(queuedSection).toBeTruthy();
+    expect(queuedSection).toHaveClass('hc-sider-section--active');
   });
 
   test('navigates to tasks list when clicking the status header nav button', async () => {
