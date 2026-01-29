@@ -172,3 +172,5 @@
 - New requirement: preview panel should stay closed by default and only open after explicit user action post-start. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 - 2026-01-29: User wants Start Preview and Open Preview Panel merged into a single action that opens the panel when starting preview.
 - 2026-01-29: Current UI uses separate preview panel toggle (previewPanelOpen) with i18n keys and tests/docs referencing "Open preview panel"; merging will require removing these references and auto-opening panel when preview starts.
+- 2026-01-29: Preview panel toggle button (Eye icons) and i18n keys were the only UI affordance to open the panel; merging requires removing the toggle and letting preview activity drive visibility.
+- 2026-01-29: Preview panel visibility now tracks preview state; clearing previewState on taskGroup change prevents stale panel carryover without a separate open button.

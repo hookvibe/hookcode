@@ -152,6 +152,23 @@
 - Files created/modified:
   - docs/en/change-log/0.0.0.md
 
+<!-- Log Phase 7 merge-control updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 7: Merge Preview Start + Panel Open
+- **Status:** complete
+- **Started:** 2026-01-29 21:20
+- **Completed:** 2026-01-29 21:45
+- Actions taken:
+  - Removed the separate preview panel toggle and tied panel visibility to preview start/stop state.
+  - Updated TaskGroupChatPage tests to expect automatic panel visibility for active previews.
+  - Cleaned up i18n labels and user docs for the merged control flow.
+  - Tests not run (not requested).
+- Files created/modified:
+  - frontend/src/pages/TaskGroupChatPage.tsx
+  - frontend/src/tests/taskGroupChatPage.test.tsx
+  - frontend/src/i18n/messages/en-US.ts
+  - frontend/src/i18n/messages/zh-CN.ts
+  - docs/en/user-docs/preview.md
+
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |

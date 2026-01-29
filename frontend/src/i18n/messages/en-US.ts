@@ -916,16 +916,13 @@ export const enUS: Record<MessageKey, string> = {
   'chat.message.resultEmpty': 'No output',
   'chat.think.expand': 'Expand thought chain',
   'chat.think.collapse': 'Collapse thought chain',
-  // Preview panel labels for TaskGroup dev server UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  // Preview panel labels align with the merged start-and-open control. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   // Preview log/share labels for Phase 2 UX. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   'preview.panel.title': 'Preview',
   'preview.action.start': 'Start preview',
   'preview.action.stop': 'Stop preview',
   'preview.action.openWindow': 'Open in new window',
   'preview.action.copyLink': 'Copy link',
-  // Add preview panel toggle labels for the TaskGroup header. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  'preview.panel.open': 'Open preview panel',
-  'preview.panel.close': 'Hide preview panel',
   'preview.logs.open': 'View logs',
   'preview.logs.title': 'Preview logs',
   'preview.logs.loading': 'Loading logs…',

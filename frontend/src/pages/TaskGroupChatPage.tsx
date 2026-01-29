@@ -4,8 +4,6 @@ import {
   ClockCircleOutlined,
   CopyOutlined,
   ExportOutlined,
-  EyeInvisibleOutlined,
-  EyeOutlined,
   FileTextOutlined,
   SendOutlined,
   UnorderedListOutlined
@@ -104,8 +102,6 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [previewLogsLoading, setPreviewLogsLoading] = useState(false);
   const [previewLogs, setPreviewLogs] = useState<PreviewLogEntry[]>([]);
   const previewLogStreamRef = useRef<EventSource | null>(null);
-  // Keep the preview panel closed until the user explicitly opens it. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
   // Maintain draggable preview panel sizing state for Phase 3 layout updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewPanelWidth, setPreviewPanelWidth] = useState<number | null>(null);
   const [previewDragActive, setPreviewDragActive] = useState(false);
@@ -198,18 +194,6 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     window.addEventListener('resize', updateLayoutWidth);
     return () => window.removeEventListener('resize', updateLayoutWidth);
   }, [taskGroupId]);
-
-  useEffect(() => {
-    // Reset preview panel visibility when switching task groups. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    setPreviewPanelOpen(false);
-  }, [taskGroupId]);
-
-  useEffect(() => {
-    // Stop drag interactions when the preview panel is closed. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (previewPanelOpen) return;
-    setPreviewDragActive(false);
-    previewDragRef.current = null;
-  }, [previewPanelOpen]);
 
   useLayoutEffect(() => {
     // Seed preview panel width from storage or defaults once layout metrics are available. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -333,8 +317,15 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     return 'stopped';
   }, [previewAvailable, previewInstances, previewState]);
 
-  // Gate preview panel opening until preview has been started. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const previewPanelEnabled = previewAvailable && previewAggregateStatus !== 'stopped';
+  // Keep the preview panel visible when previews are active or starting. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const previewPanelOpen = previewAvailable && (previewAggregateStatus !== 'stopped' || previewActionLoading);
+
+  useEffect(() => {
+    // Stop drag interactions when the preview panel is hidden. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (previewPanelOpen) return;
+    setPreviewDragActive(false);
+    previewDragRef.current = null;
+  }, [previewPanelOpen]);
 
   const previewAggregateStatusLabel = useMemo(() => {
     if (!previewState) return t('preview.status.idle');
@@ -352,22 +343,6 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         return t('preview.status.stopped');
     }
   }, [previewAggregateStatus, previewAvailable, previewState, t]);
-
-  useEffect(() => {
-    // Auto-hide the preview panel once the preview is stopped. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (!previewPanelOpen || previewAggregateStatus !== 'stopped') return;
-    setPreviewPanelOpen(false);
-  }, [previewAggregateStatus, previewPanelOpen]);
-
-  const previewPanelToggleLabel = useMemo(
-    () => (previewPanelOpen ? t('preview.panel.close') : t('preview.panel.open')),
-    [previewPanelOpen, t]
-  );
-
-  const handlePreviewPanelToggle = useCallback(() => {
-    // Require an explicit click to open or close the preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    setPreviewPanelOpen((prev) => !prev);
-  }, []);
 
   const activePreviewStatus = activePreviewInstance?.status ?? 'stopped';
   const activePreviewStatusLabel = useMemo(() => {
@@ -750,10 +725,9 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   }, [refreshGroupDetail, taskGroupId]);
 
   useEffect(() => {
-    if (!taskGroupId) {
-      setPreviewState(null);
-      return;
-    }
+    // Clear preview state on group changes so panel visibility does not leak between groups. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    setPreviewState(null);
+    if (!taskGroupId) return;
     void refreshPreviewStatus({ silent: true });
   }, [refreshPreviewStatus, taskGroupId]);
 
@@ -1137,18 +1111,6 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                 </Button>
               </Popover>
             )}
-            {taskGroupId && (
-              <Tooltip title={previewPanelToggleLabel}>
-                {/* Require explicit click to open/close preview panel after start. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
-                <Button
-                  icon={previewPanelOpen ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                  disabled={!previewPanelEnabled}
-                  onClick={handlePreviewPanelToggle}
-                >
-                  {previewPanelToggleLabel}
-                </Button>
-              </Tooltip>
-            )}
             <Button icon={<UnorderedListOutlined />} onClick={() => openTaskGroupList()}>
               {t('taskGroups.page.viewAll')}
             </Button>
@@ -1202,7 +1164,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
           )}
         </div>
 
-        {/* Render the preview panel only when explicitly opened. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+        {/* Render the preview panel whenever previews are active or starting. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
         {taskGroupId && previewPanelOpen && (
           <>
             {/* Add draggable divider between chat and preview panels. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}

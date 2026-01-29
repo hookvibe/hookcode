@@ -13,8 +13,8 @@ TaskGroup Preview lets you run your frontend dev server during a task so you can
 
 ## Start and stop previews
 
-Open a TaskGroup, then use the **Start preview** toggle in the chat header. After it starts, click **Open preview panel** to reveal the preview iframe.
-<!-- Explain the explicit preview panel toggle in the TaskGroup header. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+Open a TaskGroup, then use the **Start preview** toggle in the chat header. The preview panel opens automatically while the preview is starting or running, and closes when you stop the preview.
+<!-- Explain the merged preview start and panel open behavior in the TaskGroup header. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 
 ## Multiple preview instances
 

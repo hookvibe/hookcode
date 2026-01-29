@@ -1,0 +1,16 @@
+# Template for HookCode repo .hookcode.yml. docs/en/developer/plans/hookcode-yml-skill-20260129/task_plan.md hookcode-yml-skill-20260129
+version: 1
+
+dependency:
+  failureMode: soft
+  runtimes:
+    - language: node
+      install: "pnpm install --frozen-lockfile"
+
+preview:
+  instances:
+    - name: frontend
+      command: "pnpm dev"
+      workdir: "frontend"
+      port: 5173
+      readyPattern: "Local:"

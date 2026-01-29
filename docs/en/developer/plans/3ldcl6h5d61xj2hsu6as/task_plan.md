@@ -19,7 +19,7 @@ Deliver TaskGroup Dev preview Phase 2 with WS proxy (HMR), multi-instance tabs, 
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
 <!-- Track the active build phase for preview feature delivery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 <!-- Set current phase to Phase 2 for active work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
-Phase 6 (complete)
+Phase 7 (complete)
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -96,6 +96,14 @@ Phase 6 (complete)
 - [x] Do not show preview panel by default
 - [x] Add explicit open/close control after start preview
 - [x] Update docs/tests for the new preview panel flow
+- **Status:** complete
+
+### Phase 7: Merge Preview Start + Panel Open
+<!-- Track the merged preview start/open control updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- [ ] Merge preview start and panel open into a single action
+- [ ] Update tests, i18n, and docs for the merged flow
+- [x] Merge preview start and panel open into a single action
+- [x] Update tests, i18n, and docs for the merged flow
 - **Status:** complete
 
 ## Key Questions

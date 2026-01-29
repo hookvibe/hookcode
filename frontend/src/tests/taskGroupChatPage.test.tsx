@@ -212,12 +212,10 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
       ]
     });
 
-    const ui = userEvent.setup();
     renderPage({ taskGroupId: 'g1' });
 
     await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
-    // Open the preview panel explicitly before asserting tab visibility. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    await ui.click(await screen.findByRole('button', { name: /open preview panel/i }));
+    // Preview tabs should appear automatically once preview becomes active. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     expect(await screen.findByRole('button', { name: 'frontend' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'admin' })).toBeInTheDocument();
   });
@@ -246,12 +244,10 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
       ]
     });
 
-    const ui = userEvent.setup();
     renderPage({ taskGroupId: 'g1' });
 
     await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
-    // Open the preview panel to surface diagnostics in the placeholder state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    await ui.click(await screen.findByRole('button', { name: /open preview panel/i }));
+    // Preview diagnostics should render once the failed preview is active. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     expect(await screen.findByText('Startup diagnostics')).toBeInTheDocument();
     expect(screen.getByText(/Exit code/i)).toHaveTextContent('Exit code: 1');
     expect(screen.getByText('Latest logs')).toBeInTheDocument();

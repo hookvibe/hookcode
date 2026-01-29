@@ -922,16 +922,13 @@ export const zhCN = {
   'chat.message.resultEmpty': '暂无输出',
   'chat.think.expand': '展开思维链',
   'chat.think.collapse': '收起思维链',
-  // Preview panel labels for TaskGroup dev server UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  // Preview panel labels align with the merged start-and-open control. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   // Preview log/share labels for Phase 2 UX. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   'preview.panel.title': '预览',
   'preview.action.start': '启动预览',
   'preview.action.stop': '停止预览',
   'preview.action.openWindow': '新窗口打开',
   'preview.action.copyLink': '复制链接',
-  // Add preview panel toggle labels for the TaskGroup header. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  'preview.panel.open': '打开预览面板',
-  'preview.panel.close': '收起预览面板',
   'preview.logs.open': '查看日志',
   'preview.logs.title': '预览日志',
   'preview.logs.loading': '正在加载日志…',

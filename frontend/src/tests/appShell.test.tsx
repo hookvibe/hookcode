@@ -181,6 +181,8 @@ vi.mock('../api', () => {
       createdAt: '',
       updatedAt: '2026-01-11T00:00:00.000Z'
     })),
+    // Provide preview status mock for TaskGroupChatPage side effects. docs/en/developer/plans/test-output-noise-20260129/task_plan.md test-output-noise-20260129
+    fetchTaskGroupPreviewStatus: vi.fn(async () => ({ available: false, instances: [] })),
     fetchTaskGroupTasks: vi.fn(async () => []),
     executeChat: vi.fn(async () => ({
       taskGroup: { id: 'g_new', kind: 'chat', bindingKey: 'b1', title: 'Group new', createdAt: '', updatedAt: '' },

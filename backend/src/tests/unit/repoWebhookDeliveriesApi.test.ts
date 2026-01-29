@@ -8,8 +8,12 @@ import { RepoRobotService } from '../../modules/repositories/repo-robot.service'
 import { RepoWebhookDeliveryService } from '../../modules/repositories/repo-webhook-delivery.service';
 import { RepositoryService } from '../../modules/repositories/repository.service';
 import { UserService } from '../../modules/users/user.service';
+// Use PreviewService token for controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
+import { PreviewService } from '../../modules/tasks/preview.service';
 
 describe('Repo webhook deliveries API', () => {
+  // Provide a stable PreviewService mock to satisfy controller DI across tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
+  const previewService = {};
   test('returns 404 when repo is missing', async () => {
     const repoWebhookDeliveryService = {
       listDeliveries: jest.fn(),
@@ -24,7 +28,9 @@ describe('Repo webhook deliveries API', () => {
         { provide: RepoRobotService, useValue: {} },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: repoWebhookDeliveryService },
-        { provide: UserService, useValue: {} }
+        { provide: UserService, useValue: {} },
+        // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
+        { provide: PreviewService, useValue: previewService }
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
@@ -79,7 +85,9 @@ describe('Repo webhook deliveries API', () => {
         { provide: RepoRobotService, useValue: {} },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: repoWebhookDeliveryService },
-        { provide: UserService, useValue: {} }
+        { provide: UserService, useValue: {} },
+        // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
+        { provide: PreviewService, useValue: previewService }
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
@@ -127,7 +135,9 @@ describe('Repo webhook deliveries API', () => {
         { provide: RepoRobotService, useValue: {} },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: repoWebhookDeliveryService },
-        { provide: UserService, useValue: {} }
+        { provide: UserService, useValue: {} },
+        // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
+        { provide: PreviewService, useValue: previewService }
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
