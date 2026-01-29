@@ -73,3 +73,5 @@ These endpoints cover:
 - The console reads `/api/auth/me` feature flags to decide whether to show logs and connect SSE streams.
 - SSE endpoints support `?token=<bearer>` because `EventSource` cannot set custom headers.
 - Archived tasks/repositories may block retries to preserve archive “view-only” semantics.
+<!-- Document the includeQueue toggle used to trim task list payloads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+- `GET /api/tasks` accepts `includeQueue=false` to skip queue diagnosis fields for faster dashboard/task summary reads.

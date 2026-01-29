@@ -854,6 +854,9 @@ export const zhCN = {
   'panel.credentials.profile.default': '默认配置',
   'panel.credentials.profile.defaultPlaceholder': '选择默认配置',
   'panel.credentials.profile.defaultTag': '默认',
+  // Add default toggles for credential manage dialogs. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  'panel.credentials.profile.setDefault': '设为默认',
+  'panel.credentials.profile.setDefaultDesc': '将此配置设为该提供方的默认项。',
   'panel.credentials.profile.empty': '暂无配置',
   'panel.credentials.profile.remove': '删除',
   'panel.credentials.profile.removeTitle': '确认删除该配置？',

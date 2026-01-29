@@ -99,8 +99,8 @@ describe('UserPanelPopover', () => {
     // Model provider title appears in both section header and card title after list unification. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
     const modelTitles = await screen.findAllByText('Model provider credentials');
     expect(modelTitles.length).toBeGreaterThan(0);
-    // Provider labels now appear inside default selection text, so use a partial match. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
-    expect(await screen.findByText(/Claude Code/i)).toBeInTheDocument();
+    // Default selection now lives inside the manage modal, so list-level defaults should be absent. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(screen.queryByText('Default profile')).not.toBeInTheDocument();
   });
 
   test('renders placeholders for panel inputs', async () => {
@@ -126,11 +126,14 @@ describe('UserPanelPopover', () => {
     const modelTitles = await screen.findAllByText('Model provider credentials');
     expect(modelTitles.length).toBeGreaterThan(0);
 
-    // Provider labels now appear inside default selection text, so use a partial match. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
-    const codexCard = screen.getByText(/Codex/).closest('.ant-card');
-    expect(codexCard).toBeTruthy();
+    // Open the model-provider add flow from its card header. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const modelCard = screen
+      .getAllByText('Model provider credentials')
+      .map((node) => node.closest('.ant-card'))
+      .find((card): card is HTMLElement => Boolean(card));
+    expect(modelCard).toBeTruthy();
 
-    await ui.click(within(codexCard as HTMLElement).getByRole('button', { name: /Add/i }));
+    await ui.click(within(modelCard as HTMLElement).getByRole('button', { name: /Add/i }));
     expect(await screen.findByText('Add credential profile')).toBeInTheDocument();
 
     // Modal structure note:
@@ -140,6 +143,8 @@ describe('UserPanelPopover', () => {
     const profileDialog = dialogs[dialogs.length - 1] as HTMLElement;
     // Assert provider selector is visible for unified credential adds. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
     expect(within(profileDialog).getByText('Provider')).toBeInTheDocument();
+    // Default selection is managed inside the modal via the new toggle. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(within(profileDialog).getByText('Set as default')).toBeInTheDocument();
     const textboxes = within(profileDialog).getAllByRole('textbox') as HTMLInputElement[];
     for (const input of textboxes) {
       expect(input.placeholder).not.toBe('');

@@ -44,6 +44,9 @@ describe('ArchivePage', () => {
     renderPage();
 
     await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    await waitFor(() => expect(api.fetchTasks).toHaveBeenCalled());
+    // Assert includeQueue is disabled for archive task lists. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, archived: 'archived', includeQueue: false });
 
     const title = await screen.findByText('Repo 1');
     const card = title.closest('.ant-card') ?? document.body;

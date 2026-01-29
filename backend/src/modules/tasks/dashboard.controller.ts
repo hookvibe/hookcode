@@ -54,7 +54,9 @@ export class DashboardController {
           robotId,
           status: 'queued',
           eventType: eventType as any,
-          includeMeta: true
+          includeMeta: true,
+          // Skip queue diagnosis for sidebar summaries to reduce DB load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+          includeQueue: false
         }),
         this.taskService.listTasks({
           limit: tasksLimit,
@@ -62,7 +64,9 @@ export class DashboardController {
           robotId,
           status: 'processing',
           eventType: eventType as any,
-          includeMeta: true
+          includeMeta: true,
+          // Skip queue diagnosis for sidebar summaries to reduce DB load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+          includeQueue: false
         }),
         this.taskService.listTasks({
           limit: tasksLimit,
@@ -70,7 +74,9 @@ export class DashboardController {
           robotId,
           status: 'success',
           eventType: eventType as any,
-          includeMeta: true
+          includeMeta: true,
+          // Skip queue diagnosis for sidebar summaries to reduce DB load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+          includeQueue: false
         }),
         this.taskService.listTasks({
           limit: tasksLimit,
@@ -78,7 +84,9 @@ export class DashboardController {
           robotId,
           status: 'failed',
           eventType: eventType as any,
-          includeMeta: true
+          includeMeta: true,
+          // Skip queue diagnosis for sidebar summaries to reduce DB load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+          includeQueue: false
         }),
         this.taskService.listTaskGroups({
           limit: taskGroupsLimit,
@@ -116,4 +124,3 @@ export class DashboardController {
     }
   }
 }
-

@@ -1,8 +1,8 @@
-import { FC, useCallback, useEffect, useMemo, useState } from 'react';
+import { FC, useCallback, useMemo, useState } from 'react';
 import { ReloadOutlined } from '@ant-design/icons';
 import { Button, Empty, Modal, Skeleton, Space, Tag, Typography } from 'antd';
 import type { RepoWebhookDeliveryDetail, RepoWebhookDeliveryResult, RepoWebhookDeliverySummary } from '../../api';
-import { fetchRepoWebhookDelivery, listRepoWebhookDeliveries } from '../../api';
+import { fetchRepoWebhookDelivery } from '../../api';
 import { useT } from '../../i18n';
 import { JsonViewer } from '../JsonViewer';
 import { ScrollableTable } from '../ScrollableTable';
@@ -26,35 +26,26 @@ const resultTag = (t: ReturnType<typeof useT>, result: RepoWebhookDeliveryResult
 
 export interface RepoWebhookDeliveriesPanelProps {
   repoId: string;
+  deliveries: RepoWebhookDeliverySummary[];
+  loading: boolean;
+  loadFailed: boolean;
+  onRefresh: () => void;
 }
 
-export const RepoWebhookDeliveriesPanel: FC<RepoWebhookDeliveriesPanelProps> = ({ repoId }) => {
+export const RepoWebhookDeliveriesPanel: FC<RepoWebhookDeliveriesPanelProps> = ({
+  repoId,
+  deliveries,
+  loading,
+  loadFailed,
+  onRefresh
+}) => {
   const t = useT();
-  const [loading, setLoading] = useState(false);
-  const [deliveries, setDeliveries] = useState<RepoWebhookDeliverySummary[]>([]);
-  const [loadFailed, setLoadFailed] = useState(false);
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<RepoWebhookDeliveryDetail | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setLoadFailed(false);
-    try {
-      const data = await listRepoWebhookDeliveries(repoId, { limit: 50 });
-      setDeliveries(Array.isArray(data?.deliveries) ? data.deliveries : []);
-    } catch (err) {
-      console.error(err);
-      setLoadFailed(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [repoId]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  // Rely on shared repo webhook deliveries to avoid duplicate dashboard requests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
 
   const openDetail = useCallback(
     async (deliveryId: string) => {
@@ -164,7 +155,7 @@ export const RepoWebhookDeliveriesPanel: FC<RepoWebhookDeliveriesPanelProps> = (
   return (
     <>
       <Space size={8} style={{ marginBottom: 12 }} wrap>
-        <Button icon={<ReloadOutlined />} onClick={refresh} loading={loading}>
+        <Button icon={<ReloadOutlined />} onClick={onRefresh} loading={loading}>
           {t('common.refresh')}
         </Button>
         {loadFailed ? <Typography.Text type="danger">{t('repos.webhookDeliveries.loadFailed')}</Typography.Text> : null}

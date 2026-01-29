@@ -71,9 +71,11 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const params: { limit: number; status?: StatusFilter; repoId?: string } = {
+      const params: { limit: number; status?: StatusFilter; repoId?: string; includeQueue: boolean } = {
         limit: 50,
-        status: statusFilter === 'all' ? undefined : statusFilter
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        // Skip queue diagnosis on list views to keep task browsing responsive. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+        includeQueue: false
       };
       if (repoIdFilter) params.repoId = repoIdFilter;
       const list = await fetchTasks(params);

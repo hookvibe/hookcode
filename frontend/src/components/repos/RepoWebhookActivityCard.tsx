@@ -1,8 +1,7 @@
-import { FC, useCallback, useEffect, useMemo, useState } from 'react';
+import { FC, useMemo } from 'react';
 import { ReloadOutlined } from '@ant-design/icons';
 import { Button, Card, Empty, Progress, Skeleton, Typography } from 'antd';
 import type { RepoWebhookDeliveryResult, RepoWebhookDeliverySummary } from '../../api';
-import { listRepoWebhookDeliveries } from '../../api';
 import { useLocale, useT } from '../../i18n';
 
 type ResultKey = RepoWebhookDeliveryResult;
@@ -57,34 +56,16 @@ const formatDateTime = (locale: string, iso: string): string => {
 };
 
 export interface RepoWebhookActivityCardProps {
-  repoId: string;
+  deliveries: RepoWebhookDeliverySummary[];
+  loading: boolean;
+  loadFailed: boolean;
+  onRefresh: () => void;
 }
 
-export const RepoWebhookActivityCard: FC<RepoWebhookActivityCardProps> = ({ repoId }) => {
+// Accept shared delivery data from RepoDetailPage to avoid duplicate requests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+export const RepoWebhookActivityCard: FC<RepoWebhookActivityCardProps> = ({ deliveries, loading, loadFailed, onRefresh }) => {
   const t = useT();
   const locale = useLocale();
-  const [loading, setLoading] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
-  const [deliveries, setDeliveries] = useState<RepoWebhookDeliverySummary[]>([]);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setLoadFailed(false);
-    try {
-      const data = await listRepoWebhookDeliveries(repoId, { limit: 50 });
-      setDeliveries(Array.isArray(data?.deliveries) ? data.deliveries : []);
-    } catch (err) {
-      console.error(err);
-      setLoadFailed(true);
-      setDeliveries([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [repoId]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
 
   const stats = useMemo(() => {
     const counts: Record<ResultKey, number> = { accepted: 0, skipped: 0, rejected: 0, error: 0 };
@@ -133,7 +114,7 @@ export const RepoWebhookActivityCard: FC<RepoWebhookActivityCardProps> = ({ repo
       title={t('repos.dashboard.activity.webhook.title')}
       className="hc-card"
       extra={
-        <Button icon={<ReloadOutlined />} onClick={refresh} loading={loading}>
+        <Button icon={<ReloadOutlined />} onClick={onRefresh} loading={loading}>
           {t('common.refresh')}
         </Button>
       }

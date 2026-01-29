@@ -73,6 +73,10 @@ export interface TaskListOptions {
    */
   allowedRepoIds?: string[];
   includeMeta?: boolean;
+  /**
+   * Toggle queue diagnosis hydration to avoid extra global queue queries when callers only need task summaries. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+   */
+  includeQueue?: boolean;
 }
 
 export interface TaskStatsOptions {
@@ -834,6 +838,7 @@ export class TaskService {
     const tasks = rows.map(taskRecordToTask) as TaskWithMeta[];
     if (!options?.includeMeta) return tasks;
     const withMeta = await this.attachMeta(tasks);
+    // Preserve queue diagnosis for task-group detail views. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
     return this.attachQueueDiagnosis(withMeta);
   }
 
@@ -1035,6 +1040,9 @@ export class TaskService {
 
     if (!options?.includeMeta) return tasks;
     const withMeta = await this.attachMeta(tasks);
+    const includeQueue = options?.includeQueue !== undefined ? options.includeQueue : true;
+    if (!includeQueue) return withMeta;
+    // Skip queue diagnosis when callers only need task summaries for dashboards. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
     return this.attachQueueDiagnosis(withMeta);
   }
 

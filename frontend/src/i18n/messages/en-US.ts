@@ -848,6 +848,9 @@ export const enUS: Record<MessageKey, string> = {
   'panel.credentials.profile.default': 'Default profile',
   'panel.credentials.profile.defaultPlaceholder': 'Select default profile',
   'panel.credentials.profile.defaultTag': 'Default',
+  // Add default toggles for credential manage dialogs. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  'panel.credentials.profile.setDefault': 'Set as default',
+  'panel.credentials.profile.setDefaultDesc': 'Use this profile as the default selection for this provider.',
   'panel.credentials.profile.empty': 'No profiles',
   'panel.credentials.profile.remove': 'Remove',
   'panel.credentials.profile.removeTitle': 'Remove this profile?',

@@ -136,8 +136,20 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     );
   });
 
+  test('loads webhook deliveries once for shared dashboard cards', async () => {
+    // Avoid duplicate webhook delivery fetches across repo dashboard widgets. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+    await waitFor(() => expect(api.listRepoWebhookDeliveries).toHaveBeenCalled());
+
+    expect(api.listRepoWebhookDeliveries).toHaveBeenCalledTimes(1);
+  });
+
   test('renders unified model credential list with provider tags', async () => {
     // Verify unified model credential list renders provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const ui = userEvent.setup();
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
 
     vi.mocked(api.fetchRepo).mockResolvedValueOnce({
@@ -168,12 +180,22 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     renderPage({ repoId: 'r1' });
 
     await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
-    // Default select and list both surface the remark text, so allow multiple matches. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
-    const primaryMatches = await screen.findAllByText('primary');
-    expect(primaryMatches.length).toBeGreaterThan(0);
+    // List-only rendering means the profile remark appears once. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(await screen.findByText('primary')).toBeInTheDocument();
     expect(screen.getByText('claude')).toBeInTheDocument();
     expect(screen.getByText('codex')).toBeInTheDocument();
     expect(screen.getByText('claude_code')).toBeInTheDocument();
+    // Default selection now lives inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(screen.queryByText('Select default profile')).not.toBeInTheDocument();
+
+    // Open the model-provider add flow from the card wrapper. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const modelCard = screen
+      .getAllByText('Model provider')
+      .map((node) => node.closest('.ant-card'))
+      .find((card): card is HTMLElement => Boolean(card));
+    expect(modelCard).toBeTruthy();
+    await ui.click(within(modelCard as HTMLElement).getByRole('button', { name: /Add/i }));
+    expect(await screen.findByText('Set as default')).toBeInTheDocument();
   });
 
   test('loads provider activity row for public repos', async () => {

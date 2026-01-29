@@ -108,6 +108,14 @@ Required content checklist (as applicable):
 - The system is still in active development with little/no data; backward compatibility for old data is not required. If the DB schema is wrong, it is acceptable to delete and recreate it; optimize for the best design.
 - Edited code comments, console output all need to be in English.
 
+## Build performance requirements
+
+<!-- Define build-time performance budgets and regression rules. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+- Target budgets (local dev machine): `pnpm --filter hookcode-backend build` ≤ 2 min, `pnpm --filter hookcode-frontend build` ≤ 2 min, `pnpm --filter hookcode-docs build` ≤ 3 min.
+- Any change that increases build time or output size by >10% must be documented in the session plan/progress with a mitigation or follow-up.
+- Avoid introducing build steps that perform network I/O at build time (except dependency installation); prefer cached or pre-fetched assets.
+- Frontend bundle growth must be justified; new large dependencies require a note on tree-shaking and bundle impact.
+
 ## Security requirements
 
 - Never treat frontend-only changes (UI hiding/disable, client-side checks) as a security boundary; all sensitive actions must be enforced on the backend (authz/feature flags/rate limits).

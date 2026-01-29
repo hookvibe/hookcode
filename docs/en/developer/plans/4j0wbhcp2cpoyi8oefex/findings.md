@@ -122,3 +122,17 @@
 - 2026-01-28: RepoDetailPage still shows default Select dropdowns for repo and model credentials; modal logic still expects defaults set from list view.
 
 - 2026-01-28: RepoDetailPage needs modal updates for repo/model credential defaults; current submit functions still send null id for new profiles, so default-on-create requires generated id.
+
+- 2026-01-28: RepoDetailPage state block lacks modal default toggles; will add setDefault state and generate UUID for new profiles.
+
+- 2026-01-28: Removed list-level default selectors in account/repo views and introduced modal default toggles for profile management.
+
+- 2026-01-28: Added i18n strings for default-toggle label/description in credential manage dialogs (en/zh).
+
+- 2026-01-28: RepoDetailPage tests reference list-level defaults; need updates for modal default toggles and removed default selects.
+
+- 2026-01-28: Updated repo detail test to expect model provider title text and check modal default toggle, removing list-level default selector assumptions.
+
+- 2026-01-28: Plan/progress docs need updates for default-toggle changes, test fix, and rerun results.
+
+- 2026-01-28: Changelog already includes session entry; consider updating summary to mention default selection moved into manage dialogs.

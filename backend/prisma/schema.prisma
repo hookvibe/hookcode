@@ -36,6 +36,10 @@ model Task {
   @@index([status, createdAt], map: "tasks_status_created_at_idx")
   @@index([groupId, createdAt], map: "tasks_group_id_created_at_idx")
   @@index([archivedAt], map: "tasks_archived_at_idx")
+  /// Speed up repo-scoped task lists and stats with repo/status/time indexes. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  @@index([repoId, status, updatedAt], map: "tasks_repo_status_updated_at_idx")
+  @@index([repoId, createdAt], map: "tasks_repo_created_at_idx")
+  @@index([repoId, archivedAt], map: "tasks_repo_archived_at_idx")
 }
 
 model TaskGroup {
@@ -59,6 +63,10 @@ model TaskGroup {
   @@map("task_groups")
   @@index([repoId, robotId, updatedAt], map: "task_groups_repo_robot_updated_at_idx")
   @@index([archivedAt], map: "task_groups_archived_at_idx")
+  /// Accelerate provider activity bindings by indexing repo + provider identifiers. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  @@index([repoId, commitSha, archivedAt], map: "task_groups_repo_commit_archived_idx")
+  @@index([repoId, mrId, archivedAt], map: "task_groups_repo_mr_archived_idx")
+  @@index([repoId, issueId, archivedAt], map: "task_groups_repo_issue_archived_idx")
 }
 
 model User {
@@ -120,6 +128,8 @@ model RepoWebhookDelivery {
 
   @@map("repo_webhook_deliveries")
   @@index([repoId, createdAt], map: "repo_webhook_deliveries_repo_id_created_at_idx")
+  /// Support cursor pagination for repo webhook delivery lists. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  @@index([repoId, createdAt, id], map: "repo_webhook_deliveries_repo_created_id_idx")
 }
 
 model RepoRobot {

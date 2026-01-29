@@ -53,14 +53,16 @@ describe('TasksPage (frontend-chat migration)', () => {
     renderPage({ status: 'completed' });
 
     await waitFor(() => expect(api.fetchTasks).toHaveBeenCalled());
-    expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, status: 'success' });
+    // Assert includeQueue is disabled for task list browsing. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, status: 'success', includeQueue: false });
   });
 
   test('passes repoId filter to fetchTasks when provided', async () => {
     // Ensure repo dashboards can deep-link into a repo-scoped task list. aw85xyfsp5zfg6ihq3jr
     renderPage({ status: 'processing', repoId: 'r1' });
     await waitFor(() => expect(api.fetchTasks).toHaveBeenCalled());
-    expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, status: 'processing', repoId: 'r1' });
+    // Assert includeQueue is disabled for repo-scoped task list browsing. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, status: 'processing', repoId: 'r1', includeQueue: false });
   });
 
   test('filters tasks by search and navigates to detail on click', async () => {

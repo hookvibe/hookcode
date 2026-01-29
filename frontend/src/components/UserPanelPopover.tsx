@@ -432,26 +432,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     [credentials, modelProfileForm, modelProfileProvider]
   );
 
-  const setProviderDefault = useCallback(
-    async (provider: ProviderKey | ModelProviderKey, nextDefaultId: string | null) => {
-      if (savingCred) return;
-      setSavingCred(true);
-      try {
-        const next = await updateMyModelCredentials({
-          [provider]: { defaultProfileId: nextDefaultId || null }
-        } as any);
-        setCredentials(next);
-        message.success(t('toast.credentials.saved'));
-      } catch (err: any) {
-        console.error(err);
-        message.error(err?.response?.data?.error || t('toast.credentials.saveFailed'));
-      } finally {
-        setSavingCred(false);
-      }
-    },
-    [message, savingCred, t]
-  );
-
   const removeProfile = useCallback(
     async (provider: ProviderKey | ModelProviderKey, id: string) => {
       Modal.confirm({
@@ -492,6 +472,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       const shouldSendToken = repoProfileTokenMode === 'set';
 
       const currentDefaultId = String((credentials as any)?.[repoProfileProvider]?.defaultProfileId ?? '').trim();
+      // Generate a stable profile id so new defaults can be applied immediately. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
       const profileId = repoProfileEditing?.id ?? generateUuid();
       const payload = {
         id: profileId,
@@ -551,6 +532,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       const shouldSendApiKey = modelProfileApiKeyMode === 'set';
 
       const currentDefaultId = String((credentials as any)?.[modelProfileProvider]?.defaultProfileId ?? '').trim();
+      // Generate a stable profile id so new defaults can be applied immediately. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
       const profileId = modelProfileEditing?.id ?? generateUuid();
       const payload = {
         id: profileId,
@@ -809,32 +791,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                 }
               >
                 <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  {/* Keep per-provider defaults while rendering a single unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                  <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                    {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
-                      const profiles = modelProviderProfiles[provider];
-                      const defaultId = String((credentials as any)?.[provider]?.defaultProfileId ?? '').trim();
-                      return (
-                        <div key={provider}>
-                          <Typography.Text type="secondary">
-                            {t('panel.credentials.profile.default')} · {modelProviderLabel(provider, t)}
-                          </Typography.Text>
-                          <div style={{ marginTop: 6 }}>
-                            <Select
-                              value={defaultId || undefined}
-                              style={{ width: '100%' }}
-                              placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                              onChange={(value) => void setProviderDefault(provider, value ? String(value) : null)}
-                              options={profiles.map((p) => ({ value: p.id, label: p.remark || p.id }))}
-                              allowClear
-                              disabled={savingCred || !canUseAccountApis}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </Space>
-
+                  {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
                   {/* Render a single list of model provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
                   {modelProviderProfileItems.length ? (
                     <Space orientation="vertical" size={6} style={{ width: '100%' }}>
@@ -891,32 +848,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                 }
               >
                 <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  {/* Keep per-provider defaults while rendering a single unified repo list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                  <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                    {(['gitlab', 'github'] as ProviderKey[]).map((provider) => {
-                      const profiles = repoProviderProfiles[provider];
-                      const defaultId = String((credentials as any)?.[provider]?.defaultProfileId ?? '').trim();
-                      return (
-                        <div key={provider}>
-                          <Typography.Text type="secondary">
-                            {t('panel.credentials.profile.default')} · {providerLabel(provider)}
-                          </Typography.Text>
-                          <div style={{ marginTop: 6 }}>
-                            <Select
-                              value={defaultId || undefined}
-                              style={{ width: '100%' }}
-                              placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                              onChange={(value) => void setProviderDefault(provider, value ? String(value) : null)}
-                              options={profiles.map((p) => ({ value: p.id, label: p.remark || p.id }))}
-                              allowClear
-                              disabled={savingCred || !canUseAccountApis}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </Space>
-
+                  {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
                   {/* Render a single list of repo provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
                   {repoProviderProfileItems.length ? (
                     <Space orientation="vertical" size={6} style={{ width: '100%' }}>
@@ -1265,7 +1197,19 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                 </Space>
             </Form.Item>
 
-            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
+            <Form.Item label={t('panel.credentials.profile.setDefault')}>
+              <Space orientation="vertical" size={4} style={{ width: '100%' }}>
+                <Switch
+                  checked={repoProfileSetDefault}
+                  onChange={(checked) => setRepoProfileSetDefault(checked)}
+                  disabled={savingCred || !canUseAccountApis}
+                />
+                {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('panel.credentials.profile.setDefaultDesc')}
+                </Typography.Text>
+              </Space>
+            </Form.Item>
             </Form>
         </Space>
       </Modal>
@@ -1373,7 +1317,19 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               />
             </Form.Item>
 
-            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
+            <Form.Item label={t('panel.credentials.profile.setDefault')}>
+              <Space orientation="vertical" size={4} style={{ width: '100%' }}>
+                <Switch
+                  checked={modelProfileSetDefault}
+                  onChange={(checked) => setModelProfileSetDefault(checked)}
+                  disabled={savingCred || !canUseAccountApis}
+                />
+                {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('panel.credentials.profile.setDefaultDesc')}
+                </Typography.Text>
+              </Space>
+            </Form.Item>
           </Form>
         </Space>
       </Modal>

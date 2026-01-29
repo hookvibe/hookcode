@@ -73,6 +73,8 @@ import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
 import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
 import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailProviderActivityRow';
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
+import { uuid as generateUuid } from '../components/repoAutomation/utils';
+import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
 
 /**
  * RepoDetailPage:
@@ -237,6 +239,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [webhookPathRaw, setWebhookPathRaw] = useState<string | null>(null);
   const [repoScopedCredentials, setRepoScopedCredentials] = useState<RepoScopedCredentialsPublic | null>(null);
+  // Share webhook delivery data across dashboard cards to avoid duplicate requests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  const {
+    deliveries: webhookDeliveries,
+    loading: webhookDeliveriesLoading,
+    loadFailed: webhookDeliveriesFailed,
+    refresh: refreshWebhookDeliveries
+  } = useRepoWebhookDeliveries(repoId);
 
   const [webhookIntroOpen, setWebhookIntroOpen] = useState(false);
   const [showWebhookSecretInline, setShowWebhookSecretInline] = useState(false);
@@ -287,6 +296,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [repoProviderProfileEditing, setRepoProviderProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
   const [repoProviderProfileSubmitting, setRepoProviderProfileSubmitting] = useState(false);
   const [repoProviderTokenMode, setRepoProviderTokenMode] = useState<'keep' | 'set'>('keep');
+  // Track default toggle inside the repo credential manage dialog. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  const [repoProviderSetDefault, setRepoProviderSetDefault] = useState(false);
   const [repoProviderProfileForm] = Form.useForm<{ remark: string; token?: string; cloneUsername?: string }>();
 
   const [modelProfileModalOpen, setModelProfileModalOpen] = useState(false);
@@ -294,6 +305,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [modelProfileEditing, setModelProfileEditing] = useState<UserModelProviderCredentialProfilePublic | null>(null);
   const [modelProfileSubmitting, setModelProfileSubmitting] = useState(false);
   const [modelProfileApiKeyMode, setModelProfileApiKeyMode] = useState<'keep' | 'set'>('keep');
+  // Track default toggle inside the model credential manage dialog. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  const [modelProfileSetDefault, setModelProfileSetDefault] = useState(false);
   const [modelProfileForm] = Form.useForm<{ remark: string; apiKey?: string; apiBaseUrl?: string }>();
 
   const [robotModalOpen, setRobotModalOpen] = useState(false);
@@ -487,9 +500,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       // UX: keep existing tokens by default (backend never returns raw tokens).
       setRepoProviderTokenMode(profile?.hasToken ? 'keep' : 'set');
       repoProviderProfileForm.setFieldsValue({ remark: initialRemark, cloneUsername: initialCloneUsername, token: '' });
-      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
+      // Default selection now lives inside the manage modal for repo credentials. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const defaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
+      setRepoProviderSetDefault(Boolean(profile?.id && profile.id === defaultId));
     },
-    [repoProviderProfileForm]
+    [repoProviderProfileForm, repoScopedCredentials?.repoProvider?.defaultProfileId]
   );
 
   const submitRepoProviderProfile = useCallback(async () => {
@@ -503,17 +518,22 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       const tokenValue = String(values.token ?? '').trim();
       const shouldSendToken = repoProviderTokenMode === 'set';
 
+      const currentDefaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
+      // Generate a stable profile id so new defaults can be applied immediately. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const profileId = repoProviderProfileEditing?.id ?? generateUuid();
       const payload = {
-        id: repoProviderProfileEditing?.id ?? null,
+        id: profileId,
         remark: remark || null,
         cloneUsername: cloneUsername || null,
         ...(shouldSendToken ? { token: tokenValue ? tokenValue : null } : {})
       };
 
+      const isEditingDefault = Boolean(repoProviderProfileEditing?.id && repoProviderProfileEditing.id === currentDefaultId);
       const updated = await patchRepoScopedCredentials({
-        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
+        // Update default selection inside the manage modal alongside profile edits. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
         repoProviderCredential: {
-          profiles: [payload]
+          profiles: [payload],
+          ...(repoProviderSetDefault ? { defaultProfileId: profileId } : isEditingDefault ? { defaultProfileId: null } : {})
         }
       });
       if (!updated) return;
@@ -536,18 +556,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     repoProviderProfileEditing?.id,
     repoProviderProfileForm,
     repoProviderProfileSubmitting,
+    repoProviderSetDefault,
     repoProviderTokenMode,
+    repoScopedCredentials?.repoProvider?.defaultProfileId,
     t
   ]);
-
-  const setRepoProviderDefault = useCallback(
-    async (nextDefaultId: string | null) => {
-      await patchRepoScopedCredentials({
-        repoProviderCredential: { defaultProfileId: nextDefaultId || null }
-      });
-    },
-    [patchRepoScopedCredentials]
-  );
 
   const removeRepoProviderProfile = useCallback(
     (id: string) => {
@@ -581,9 +594,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       // UX: keep existing keys by default (backend never returns raw apiKey).
       setModelProfileApiKeyMode(profile?.hasApiKey ? 'keep' : 'set');
       modelProfileForm.setFieldsValue({ remark: initialRemark, apiBaseUrl: initialApiBaseUrl, apiKey: '' });
-      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
+      // Default selection now lives inside the manage modal for model credentials. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const defaultId = String((repoScopedCredentials as any)?.modelProvider?.[nextProvider]?.defaultProfileId ?? '').trim();
+      setModelProfileSetDefault(Boolean(profile?.id && profile.id === defaultId));
     },
-    [modelProfileForm, modelProfileProvider]
+    [modelProfileForm, modelProfileProvider, repoScopedCredentials]
   );
 
   const submitModelProfile = useCallback(async () => {
@@ -597,18 +612,23 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       const apiKey = String(values.apiKey ?? '').trim();
       const shouldSendApiKey = modelProfileApiKeyMode === 'set';
 
+      const currentDefaultId = String((repoScopedCredentials as any)?.modelProvider?.[modelProfileProvider]?.defaultProfileId ?? '').trim();
+      // Generate a stable profile id so new defaults can be applied immediately. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const profileId = modelProfileEditing?.id ?? generateUuid();
       const payload = {
-        id: modelProfileEditing?.id ?? null,
+        id: profileId,
         remark: remark || null,
         apiBaseUrl: apiBaseUrl || null,
         ...(shouldSendApiKey ? { apiKey: apiKey ? apiKey : null } : {})
       };
 
+      const isEditingDefault = Boolean(modelProfileEditing?.id && modelProfileEditing.id === currentDefaultId);
       const updated = await patchRepoScopedCredentials({
-        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
+        // Update default selection inside the manage modal alongside profile edits. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
         modelProviderCredential: {
           [modelProfileProvider]: {
-            profiles: [payload]
+            profiles: [payload],
+            ...(modelProfileSetDefault ? { defaultProfileId: profileId } : isEditingDefault ? { defaultProfileId: null } : {})
           }
         } as any
       });
@@ -633,18 +653,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     modelProfileForm,
     modelProfileProvider,
     modelProfileSubmitting,
+    modelProfileSetDefault,
     patchRepoScopedCredentials,
+    repoScopedCredentials,
     t
   ]);
-
-  const setModelProviderDefault = useCallback(
-    async (provider: ModelProviderKey, nextDefaultId: string | null) => {
-      await patchRepoScopedCredentials({
-        modelProviderCredential: { [provider]: { defaultProfileId: nextDefaultId || null } } as any
-      });
-    },
-    [patchRepoScopedCredentials]
-  );
 
   const removeModelProviderProfile = useCallback(
     (provider: ModelProviderKey, id: string) => {
@@ -1481,20 +1494,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                               <Space orientation="vertical" size={8} style={{ width: '100%' }}>
                                 <Typography.Text type="secondary">{t('repos.detail.credentials.repoProviderTip')}</Typography.Text>
 
-                                <div>
-                                  <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
-                                  <div style={{ marginTop: 6 }}>
-                                    <Select
-                                      value={(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '') || undefined}
-                                      style={{ width: '100%' }}
-                                      placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                                      onChange={(value) => void setRepoProviderDefault(value ? String(value) : null)}
-                                      options={(repoScopedCredentials?.repoProvider?.profiles ?? []).map((p) => ({ value: p.id, label: p.remark || p.id }))}
-                                      allowClear
-                                      disabled={credentialsSaving || repoArchived}
-                                    />
-                                  </div>
-                                </div>
+                                {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
 
                                 {(() => {
                                   const profiles = repoScopedCredentials?.repoProvider?.profiles ?? [];
@@ -1578,34 +1578,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                             >
                               <Space orientation="vertical" size={10} style={{ width: '100%' }}>
                                 <Typography.Text type="secondary">{t('repos.detail.credentials.modelProviderTip')}</Typography.Text>
-                                {/* Keep per-provider defaults while rendering a single unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                                <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                                  {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
-                                    const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[provider] as any;
-                                    const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
-                                    const defaultId = String(providerCredentials?.defaultProfileId ?? '').trim();
-
-                                    return (
-                                      <div key={provider}>
-                                        <Typography.Text type="secondary">
-                                          {t('panel.credentials.profile.default')} · {t(`repos.robotForm.modelProvider.${provider}` as any)}
-                                        </Typography.Text>
-                                        <div style={{ marginTop: 6 }}>
-                                          <Select
-                                            value={defaultId || undefined}
-                                            style={{ width: '100%' }}
-                                            placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                                            onChange={(value) => void setModelProviderDefault(provider, value ? String(value) : null)}
-                                            options={profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id }))}
-                                            allowClear
-                                            disabled={credentialsSaving || repoArchived}
-                                          />
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </Space>
-
+                                {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
                                 {(() => {
                                   const total = modelProviderProfileItems.length;
                                   const start = (modelProviderProfilesPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
@@ -1966,11 +1939,17 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 	                        <Row gutter={[12, 12]}>
 	                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
 	                            <Space orientation="vertical" size={12} style={{ width: '100%', flex: 1 }}>
-	                              <div id={sectionDomId('webhooks')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
-	                                {section('webhooks')}
+                              <div id={sectionDomId('webhooks')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
+                                {section('webhooks')}
                               </div>
                               <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
-                                <RepoWebhookActivityCard repoId={repo.id} />
+                                {/* Feed shared delivery data into both webhook cards to avoid duplicate API calls. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
+                                <RepoWebhookActivityCard
+                                  deliveries={webhookDeliveries}
+                                  loading={webhookDeliveriesLoading}
+                                  loadFailed={webhookDeliveriesFailed}
+                                  onRefresh={refreshWebhookDeliveries}
+                                />
                               </div>
                             </Space>
                           </Col>
@@ -1978,7 +1957,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                           <Col xs={24} lg={12} style={{ display: 'flex' }}>
                             <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
                               <Card size="small" title={t('repos.webhookDeliveries.title')} className="hc-card">
-                                <RepoWebhookDeliveriesPanel repoId={repo.id} />
+                                <RepoWebhookDeliveriesPanel
+                                  repoId={repo.id}
+                                  deliveries={webhookDeliveries}
+                                  loading={webhookDeliveriesLoading}
+                                  loadFailed={webhookDeliveriesFailed}
+                                  onRefresh={refreshWebhookDeliveries}
+                                />
                               </Card>
                             </div>
                           </Col>
@@ -2067,7 +2052,19 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               </Space>
             </Form.Item>
 
-            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
+            <Form.Item label={t('panel.credentials.profile.setDefault')}>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Switch
+                  checked={repoProviderSetDefault}
+                  onChange={(checked) => setRepoProviderSetDefault(checked)}
+                  disabled={credentialsSaving || repoArchived}
+                />
+                {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('panel.credentials.profile.setDefaultDesc')}
+                </Typography.Text>
+              </Space>
+            </Form.Item>
           </Form>
         </Space>
       </ResponsiveDialog>
@@ -2174,7 +2171,19 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               />
             </Form.Item>
 
-            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
+            <Form.Item label={t('panel.credentials.profile.setDefault')}>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Switch
+                  checked={modelProfileSetDefault}
+                  onChange={(checked) => setModelProfileSetDefault(checked)}
+                  disabled={modelProfileSubmitting || repoArchived}
+                />
+                {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('panel.credentials.profile.setDefaultDesc')}
+                </Typography.Text>
+              </Space>
+            </Form.Item>
           </Form>
         </Space>
       </ResponsiveDialog>

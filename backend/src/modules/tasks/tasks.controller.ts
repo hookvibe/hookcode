@@ -20,6 +20,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiProduces,
   ApiTags,
   ApiUnauthorizedResponse
@@ -35,7 +36,7 @@ import { isTaskLogsEnabled } from '../../config/features';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { computeTaskLogsDelta, extractTaskLogsSnapshot, sliceLogsTail } from '../../services/taskLogs';
 import { isTruthy } from '../../utils/env';
-import { normalizeString, parsePositiveInt } from '../../utils/parse';
+import { normalizeString, parseOptionalBoolean, parsePositiveInt } from '../../utils/parse';
 import { extractTaskSchedule } from '../../utils/timeWindow';
 import { AllowQueryToken } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
@@ -103,6 +104,8 @@ export class TasksController {
     description: 'List tasks with optional filters.',
     operationId: 'tasks_list'
   })
+  // Add includeQueue query support to control queue diagnosis payloads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  @ApiQuery({ name: 'includeQueue', required: false, description: 'Include queue diagnosis fields for queued tasks.' })
   @ApiOkResponse({ description: 'OK', type: ListTasksResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
@@ -112,7 +115,8 @@ export class TasksController {
     @Query('robotId') robotIdRaw: string | undefined,
     @Query('status') statusRaw: string | undefined,
     @Query('eventType') eventTypeRaw: string | undefined,
-    @Query('archived') archivedRaw: string | undefined
+    @Query('archived') archivedRaw: string | undefined,
+    @Query('includeQueue') includeQueueRaw: string | undefined
   ) {
     try {
       const limit = parsePositiveInt(limitRaw, 50);
@@ -121,6 +125,7 @@ export class TasksController {
       const status = this.normalizeTaskStatusFilter(statusRaw);
       const eventType = normalizeString(eventTypeRaw);
       const archived = this.normalizeArchiveScope(archivedRaw);
+      const includeQueue = parseOptionalBoolean(includeQueueRaw);
 
       if (normalizeString(statusRaw) && !status) {
         throw new BadRequestException({ error: 'Invalid status' });
@@ -133,7 +138,9 @@ export class TasksController {
         status,
         eventType: eventType as any,
         archived,
-        includeMeta: true
+        includeMeta: true,
+        // Allow list callers to skip queue diagnosis for faster summary reads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+        includeQueue: includeQueue ?? true
       });
       const decorated = this.attachTaskPermissions(tasks as any[]);
       const sanitized = decorated.map((t) =>

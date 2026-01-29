@@ -124,6 +124,36 @@ describe('taskService.listTasks', () => {
     else process.env.INLINE_WORKER_ENABLED = prevInlineWorkerEnabled;
   });
 
+  test('includeQueue=false 时不执行额外的 queue diagnosis 查询', async () => {
+    // Skip queue diagnosis when dashboards request lightweight task summaries. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    (db.$queryRaw as any).mockResolvedValueOnce([
+      {
+        id: '00000000-0000-0000-0000-000000000010',
+        event_type: 'issue',
+        status: 'queued',
+        title: 'tq-lite',
+        project_id: null,
+        repo_provider: null,
+        repo_id: null,
+        robot_id: null,
+        ref: null,
+        mr_id: null,
+        issue_id: null,
+        retries: 0,
+        result_json: null,
+        created_at: new Date('2026-01-19T00:00:00.000Z'),
+        updated_at: new Date('2026-01-19T00:00:00.000Z')
+      }
+    ]);
+    (db.repository.findMany as any).mockResolvedValue([]);
+    (db.repoRobot.findMany as any).mockResolvedValue([]);
+
+    const tasks = await taskService.listTasks({ status: 'queued', includeMeta: true, includeQueue: false, limit: 10 });
+
+    expect(tasks).toHaveLength(1);
+    expect(db.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
   test('INLINE_WORKER_ENABLED=false 且 processing=0 时 queued diagnosis 的 reasonCode=inline_worker_disabled', async () => {
     const prevInlineWorkerEnabled = process.env.INLINE_WORKER_ENABLED;
     process.env.INLINE_WORKER_ENABLED = 'false';

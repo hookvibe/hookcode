@@ -52,6 +52,7 @@ import { CreateRepoRobotDto } from './dto/create-repo-robot.dto';
 import { UpdateRepoRobotDto } from './dto/update-repo-robot.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { parsePositiveInt } from '../../utils/parse';
+import { TtlCache } from '../../utils/ttlCache';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import {
   ArchiveRepositoryResponseDto,
@@ -140,6 +141,21 @@ const normalizeArchiveScope = (value: unknown): ArchiveScope => {
   if (raw === '1' || raw === 'true' || raw === 'archived') return 'archived';
   if (raw === 'all') return 'all';
   return 'active';
+};
+
+type ProviderMetaSnapshot = { provider: RepoProvider; visibility: 'public' | 'private' | 'internal' | 'unknown'; webUrl?: string };
+
+const PROVIDER_META_CACHE_TTL_MS = 5 * 60 * 1000;
+const PROVIDER_ACTIVITY_CACHE_TTL_MS = 60 * 1000;
+// Cache repo provider calls to avoid repeated external API requests on page load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+const providerMetaCache = new TtlCache<string, ProviderMetaSnapshot>(300);
+const providerActivityCache = new TtlCache<string, RepoProviderActivityResponseDto>(200);
+
+const buildProviderCacheKey = (parts: Record<string, string | number | undefined | null>): string => {
+  // Build stable cache keys for provider meta/activity responses across repeated dashboard refreshes. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  return Object.entries(parts)
+    .map(([key, value]) => `${key}=${value ?? ''}`)
+    .join('&');
 };
 
 const assertRepoWritable = (repo: Repository): void => {
@@ -280,11 +296,16 @@ export class RepositoriesController {
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
 
-      const robots = await this.repoRobotService.listByRepo(repoId);
-      const automationConfig = await this.repoAutomationService.getConfig(repoId);
+      // Parallelize repo detail hydration to reduce initial repo dashboard latency. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+      const [robots, automationConfig, repoSecretRow, repoScopedCredentialsRow] = await Promise.all([
+        this.repoRobotService.listByRepo(repoId),
+        this.repoAutomationService.getConfig(repoId),
+        this.repositoryService.getByIdWithSecret(repoId),
+        this.repositoryService.getRepoScopedCredentials(repoId)
+      ]);
       const webhookPath = `/api/webhook/${repo.provider}/${repoId}`;
-      const webhookSecret = (await this.repositoryService.getByIdWithSecret(repoId))?.webhookSecret ?? null;
-      const repoScopedCredentials = (await this.repositoryService.getRepoScopedCredentials(repoId))?.public ?? undefined;
+      const webhookSecret = repoSecretRow?.webhookSecret ?? null;
+      const repoScopedCredentials = repoScopedCredentialsRow?.public ?? undefined;
 
       return { repo, robots, automationConfig, webhookSecret, webhookPath, repoScopedCredentials };
     } catch (err) {
@@ -371,68 +392,84 @@ export class RepositoriesController {
         return 'user';
       })();
       const credentialProfileId = typeof credentialProfileIdRaw === 'string' ? credentialProfileIdRaw.trim() : '';
+      const cacheKey = buildProviderCacheKey({
+        kind: 'provider-meta',
+        repoId,
+        repoUpdatedAt: repo.updatedAt instanceof Date ? repo.updatedAt.toISOString() : String(repo.updatedAt ?? ''),
+        provider: repo.provider,
+        identity: repoIdentity,
+        credentialSource,
+        credentialProfileId,
+        userId: credentialSource === 'user' ? String(req.user?.id ?? '') : ''
+      });
 
-      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
-      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+      const meta = await providerMetaCache.getOrSet(cacheKey, PROVIDER_META_CACHE_TTL_MS, async () => {
+        const userCredentials = credentialSource === 'user' && req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+        const repoScopedCredentials =
+          credentialSource === 'anonymous' ? null : await this.repositoryService.getRepoScopedCredentials(repoId);
 
-      const token =
-        credentialSource === 'anonymous'
-          ? ''
-          : resolveRobotProviderToken({
-              provider: repo.provider,
-              robot: { repoCredentialProfileId: credentialProfileId || null },
-              userCredentials,
-              repoCredentials: repoScopedCredentials?.repoProvider ?? null,
-              source: credentialSource === 'repo' ? 'repo' : 'user'
-            });
-      if (credentialSource !== 'anonymous' && !token) {
-        throw new BadRequestException({
-          error: 'repo provider token is required to fetch visibility',
-          code: 'REPO_PROVIDER_TOKEN_REQUIRED'
-        });
-      }
-
-      const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
-
-      if (repo.provider === 'gitlab') {
-        try {
-          const gitlab = new GitlabService({ token, baseUrl: apiBaseUrl });
-          const project: any = await gitlab.getProject(repoIdentity);
-          const rawVisibility = String(project?.visibility ?? '').trim().toLowerCase();
-          const visibility = rawVisibility === 'public' ? 'public' : rawVisibility === 'internal' ? 'internal' : 'private';
-          const webUrl = String(project?.web_url ?? '').trim();
-          return { provider: repo.provider, visibility, webUrl: webUrl || undefined };
-        } catch (err) {
-          // Anonymous mode cannot distinguish private vs not-found; return `unknown` so onboarding can guide credentials. 58w1q3n5nr58flmempxe
-          if (credentialSource === 'anonymous') return { provider: repo.provider, visibility: 'unknown' };
-          throw err;
+        const token =
+          credentialSource === 'anonymous'
+            ? ''
+            : resolveRobotProviderToken({
+                provider: repo.provider,
+                robot: { repoCredentialProfileId: credentialProfileId || null },
+                userCredentials,
+                repoCredentials: repoScopedCredentials?.repoProvider ?? null,
+                source: credentialSource === 'repo' ? 'repo' : 'user'
+              });
+        if (credentialSource !== 'anonymous' && !token) {
+          throw new BadRequestException({
+            error: 'repo provider token is required to fetch visibility',
+            code: 'REPO_PROVIDER_TOKEN_REQUIRED'
+          });
         }
-      }
 
-      if (repo.provider === 'github') {
-        try {
-          // Suppress missing-token warnings when onboarding probes public GitHub repos anonymously. kzxac35mxk0fg358i7zs
-          const github = new GithubService({ token, apiBaseUrl, warnIfNoToken: Boolean(token) });
-          const repoIdOrSlug = repoIdentity;
-          const repoInfo: any = await (async () => {
-            if (!repoIdOrSlug.includes('/')) return github.getRepositoryById(repoIdOrSlug);
-            const [owner, repoName] = repoIdOrSlug.split('/');
-            if (!owner || !repoName) {
-              throw new BadRequestException({ error: 'invalid github externalId (expected owner/repo)' });
-            }
-            return github.getRepository(owner, repoName);
-          })();
-          const visibility = Boolean(repoInfo?.private) ? 'private' : 'public';
-          const webUrl = String(repoInfo?.html_url ?? '').trim();
-          return { provider: repo.provider, visibility, webUrl: webUrl || undefined };
-        } catch (err) {
-          // Anonymous mode cannot distinguish private vs not-found; return `unknown` so onboarding can guide credentials. 58w1q3n5nr58flmempxe
-          if (credentialSource === 'anonymous') return { provider: repo.provider, visibility: 'unknown' };
-          throw err;
+        const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
+
+        if (repo.provider === 'gitlab') {
+          try {
+            const gitlab = new GitlabService({ token, baseUrl: apiBaseUrl });
+            const project: any = await gitlab.getProject(repoIdentity);
+            const rawVisibility = String(project?.visibility ?? '').trim().toLowerCase();
+            const visibility = rawVisibility === 'public' ? 'public' : rawVisibility === 'internal' ? 'internal' : 'private';
+            const webUrl = String(project?.web_url ?? '').trim();
+            return { provider: repo.provider, visibility, webUrl: webUrl || undefined };
+          } catch (err) {
+            // Anonymous mode cannot distinguish private vs not-found; return `unknown` so onboarding can guide credentials. 58w1q3n5nr58flmempxe
+            if (credentialSource === 'anonymous') return { provider: repo.provider, visibility: 'unknown' };
+            throw err;
+          }
         }
-      }
 
-      throw new BadRequestException({ error: `unsupported provider: ${repo.provider}` });
+        if (repo.provider === 'github') {
+          try {
+            // Suppress missing-token warnings when onboarding probes public GitHub repos anonymously. kzxac35mxk0fg358i7zs
+            const github = new GithubService({ token, apiBaseUrl, warnIfNoToken: Boolean(token) });
+            const repoIdOrSlug = repoIdentity;
+            const repoInfo: any = await (async () => {
+              if (!repoIdOrSlug.includes('/')) return github.getRepositoryById(repoIdOrSlug);
+              const [owner, repoName] = repoIdOrSlug.split('/');
+              if (!owner || !repoName) {
+                throw new BadRequestException({ error: 'invalid github externalId (expected owner/repo)' });
+              }
+              return github.getRepository(owner, repoName);
+            })();
+            const visibility = Boolean(repoInfo?.private) ? 'private' : 'public';
+            const webUrl = String(repoInfo?.html_url ?? '').trim();
+            return { provider: repo.provider, visibility, webUrl: webUrl || undefined };
+          } catch (err) {
+            // Anonymous mode cannot distinguish private vs not-found; return `unknown` so onboarding can guide credentials. 58w1q3n5nr58flmempxe
+            if (credentialSource === 'anonymous') return { provider: repo.provider, visibility: 'unknown' };
+            throw err;
+          }
+        }
+
+        throw new BadRequestException({ error: `unsupported provider: ${repo.provider}` });
+      });
+
+      // Cache provider metadata results to avoid repeated external API calls. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+      return meta;
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get provider meta failed', err);
@@ -487,132 +524,153 @@ export class RepositoriesController {
       const mergesPage = Math.max(1, parsePositiveInt(mergesPageRaw, 1));
       const issuesPage = Math.max(1, parsePositiveInt(issuesPageRaw, 1));
 
-      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
-      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
-      const token =
-        credentialSource === 'anonymous'
-          ? ''
-          : resolveRobotProviderToken({
-              provider: repo.provider,
-              robot: { repoCredentialProfileId: credentialProfileId || null },
-              userCredentials,
-              repoCredentials: repoScopedCredentials?.repoProvider ?? null,
-              source: credentialSource === 'repo' ? 'repo' : 'user'
-            });
-      if (credentialSource !== 'anonymous' && !token) {
-        throw new BadRequestException({
-          error: 'repo provider token is required to fetch activity',
-          code: 'REPO_PROVIDER_TOKEN_REQUIRED'
-        });
-      }
-
-      const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
-      const activity = await fetchRepoProviderActivity({
+      const cacheKey = buildProviderCacheKey({
+        kind: 'provider-activity',
+        repoId,
+        repoUpdatedAt: repo.updatedAt instanceof Date ? repo.updatedAt.toISOString() : String(repo.updatedAt ?? ''),
         provider: repo.provider,
-        repoIdentity,
-        token,
-        apiBaseUrl,
+        identity: repoIdentity,
+        credentialSource,
+        credentialProfileId,
         pageSize,
         commitsPage,
         mergesPage,
-        issuesPage
+        issuesPage,
+        userId: credentialSource === 'user' ? String(req.user?.id ?? '') : ''
       });
 
-      // Attach HookCode task-group bindings (and processing tasks) to provider items for the repo dashboard UI. kzxac35mxk0fg358i7zs
-      const attachBindings = async (items: Array<{ id: string; taskGroups?: any[] }>) => {
-        const commitShas = activity.commits.items.map((i) => String(i.id ?? '').trim()).filter(Boolean);
-        const mrIds = activity.merges.items
-          .map((i) => Number(i.id))
-          .filter((n) => Number.isFinite(n)) as number[];
-        const issueIds = activity.issues.items
-          .map((i) => Number(i.id))
-          .filter((n) => Number.isFinite(n)) as number[];
+      const response = await providerActivityCache.getOrSet(cacheKey, PROVIDER_ACTIVITY_CACHE_TTL_MS, async () => {
+        const userCredentials = credentialSource === 'user' && req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+        const repoScopedCredentials =
+          credentialSource === 'anonymous' ? null : await this.repositoryService.getRepoScopedCredentials(repoId);
+        const token =
+          credentialSource === 'anonymous'
+            ? ''
+            : resolveRobotProviderToken({
+                provider: repo.provider,
+                robot: { repoCredentialProfileId: credentialProfileId || null },
+                userCredentials,
+                repoCredentials: repoScopedCredentials?.repoProvider ?? null,
+                source: credentialSource === 'repo' ? 'repo' : 'user'
+              });
+        if (credentialSource !== 'anonymous' && !token) {
+          throw new BadRequestException({
+            error: 'repo provider token is required to fetch activity',
+            code: 'REPO_PROVIDER_TOKEN_REQUIRED'
+          });
+        }
 
-        if (!commitShas.length && !mrIds.length && !issueIds.length) return;
-
-        const groups = await db.taskGroup.findMany({
-          where: {
-            repoId,
-            archivedAt: null,
-            OR: [
-              commitShas.length ? { commitSha: { in: commitShas } } : undefined,
-              mrIds.length ? { mrId: { in: mrIds } } : undefined,
-              issueIds.length ? { issueId: { in: issueIds } } : undefined
-            ].filter(Boolean) as any[]
-          },
-          orderBy: { updatedAt: 'desc' },
-          select: {
-            id: true,
-            kind: true,
-            title: true,
-            updatedAt: true,
-            robotId: true,
-            commitSha: true,
-            mrId: true,
-            issueId: true,
-            tasks: {
-              where: { status: 'processing', archivedAt: null },
-              orderBy: { updatedAt: 'desc' },
-              take: 3,
-              select: { id: true, status: true, title: true, updatedAt: true }
-            }
-          }
+        const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
+        const activity = await fetchRepoProviderActivity({
+          provider: repo.provider,
+          repoIdentity,
+          token,
+          apiBaseUrl,
+          pageSize,
+          commitsPage,
+          mergesPage,
+          issuesPage
         });
 
-        const groupsByCommit = new Map<string, any[]>();
-        const groupsByMr = new Map<string, any[]>();
-        const groupsByIssue = new Map<string, any[]>();
+        // Attach HookCode task-group bindings (and processing tasks) to provider items for the repo dashboard UI. kzxac35mxk0fg358i7zs
+        const attachBindings = async (items: Array<{ id: string; taskGroups?: any[] }>) => {
+          const commitShas = activity.commits.items.map((i) => String(i.id ?? '').trim()).filter(Boolean);
+          const mrIds = activity.merges.items
+            .map((i) => Number(i.id))
+            .filter((n) => Number.isFinite(n)) as number[];
+          const issueIds = activity.issues.items
+            .map((i) => Number(i.id))
+            .filter((n) => Number.isFinite(n)) as number[];
 
-        for (const g of groups) {
-          const summary = {
-            id: g.id,
-            kind: g.kind,
-            title: g.title ?? undefined,
-            updatedAt: g.updatedAt instanceof Date ? g.updatedAt.toISOString() : String(g.updatedAt ?? ''),
-            robotId: g.robotId ?? undefined,
-            processingTasks: (g.tasks ?? []).map((t) => ({
-              id: t.id,
-              status: t.status,
-              title: t.title ?? undefined,
-              updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt ?? '')
-            }))
-          };
+          if (!commitShas.length && !mrIds.length && !issueIds.length) return;
 
-          if (g.kind === 'commit' && g.commitSha) {
-            const key = String(g.commitSha);
-            groupsByCommit.set(key, [...(groupsByCommit.get(key) ?? []), summary]);
+          const groups = await db.taskGroup.findMany({
+            where: {
+              repoId,
+              archivedAt: null,
+              OR: [
+                commitShas.length ? { commitSha: { in: commitShas } } : undefined,
+                mrIds.length ? { mrId: { in: mrIds } } : undefined,
+                issueIds.length ? { issueId: { in: issueIds } } : undefined
+              ].filter(Boolean) as any[]
+            },
+            orderBy: { updatedAt: 'desc' },
+            select: {
+              id: true,
+              kind: true,
+              title: true,
+              updatedAt: true,
+              robotId: true,
+              commitSha: true,
+              mrId: true,
+              issueId: true,
+              tasks: {
+                where: { status: 'processing', archivedAt: null },
+                orderBy: { updatedAt: 'desc' },
+                take: 3,
+                select: { id: true, status: true, title: true, updatedAt: true }
+              }
+            }
+          });
+
+          const groupsByCommit = new Map<string, any[]>();
+          const groupsByMr = new Map<string, any[]>();
+          const groupsByIssue = new Map<string, any[]>();
+
+          for (const g of groups) {
+            const summary = {
+              id: g.id,
+              kind: g.kind,
+              title: g.title ?? undefined,
+              updatedAt: g.updatedAt instanceof Date ? g.updatedAt.toISOString() : String(g.updatedAt ?? ''),
+              robotId: g.robotId ?? undefined,
+              processingTasks: (g.tasks ?? []).map((t) => ({
+                id: t.id,
+                status: t.status,
+                title: t.title ?? undefined,
+                updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt ?? '')
+              }))
+            };
+
+            if (g.kind === 'commit' && g.commitSha) {
+              const key = String(g.commitSha);
+              groupsByCommit.set(key, [...(groupsByCommit.get(key) ?? []), summary]);
+            }
+            if (g.kind === 'merge_request' && typeof g.mrId === 'number') {
+              const key = String(g.mrId);
+              groupsByMr.set(key, [...(groupsByMr.get(key) ?? []), summary]);
+            }
+            if (g.kind === 'issue' && typeof g.issueId === 'number') {
+              const key = String(g.issueId);
+              groupsByIssue.set(key, [...(groupsByIssue.get(key) ?? []), summary]);
+            }
           }
-          if (g.kind === 'merge_request' && typeof g.mrId === 'number') {
-            const key = String(g.mrId);
-            groupsByMr.set(key, [...(groupsByMr.get(key) ?? []), summary]);
-          }
-          if (g.kind === 'issue' && typeof g.issueId === 'number') {
-            const key = String(g.issueId);
-            groupsByIssue.set(key, [...(groupsByIssue.get(key) ?? []), summary]);
-          }
-        }
 
-        for (const item of items) {
-          const id = String(item.id ?? '').trim();
-          if (!id) continue;
-          const groups = groupsByCommit.get(id) ?? groupsByMr.get(id) ?? groupsByIssue.get(id) ?? [];
-          if (groups.length) {
-            item.taskGroups = groups;
+          for (const item of items) {
+            const id = String(item.id ?? '').trim();
+            if (!id) continue;
+            const groups = groupsByCommit.get(id) ?? groupsByMr.get(id) ?? groupsByIssue.get(id) ?? [];
+            if (groups.length) {
+              item.taskGroups = groups;
+            }
           }
-        }
-      };
+        };
 
-      const commits = activity.commits.items.map((i) => ({ ...i })) as any[];
-      const merges = activity.merges.items.map((i) => ({ ...i })) as any[];
-      const issues = activity.issues.items.map((i) => ({ ...i })) as any[];
-      await attachBindings([...commits, ...merges, ...issues]);
+        const commits = activity.commits.items.map((i) => ({ ...i })) as any[];
+        const merges = activity.merges.items.map((i) => ({ ...i })) as any[];
+        const issues = activity.issues.items.map((i) => ({ ...i })) as any[];
+        await attachBindings([...commits, ...merges, ...issues]);
 
-      return {
-        provider: repo.provider,
-        commits: { ...activity.commits, items: commits },
-        merges: { ...activity.merges, items: merges },
-        issues: { ...activity.issues, items: issues }
-      };
+        return {
+          provider: repo.provider,
+          commits: { ...activity.commits, items: commits },
+          merges: { ...activity.merges, items: merges },
+          issues: { ...activity.issues, items: issues }
+        };
+      });
+
+      // Cache provider activity results to reduce external API calls and heavy binding queries. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+      return response;
     } catch (err) {
       if (err instanceof RepoProviderAuthRequiredError) {
         throw new UnauthorizedException({ error: err.message, code: err.code, providerStatus: err.providerStatus });
