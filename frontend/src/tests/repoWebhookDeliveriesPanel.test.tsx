@@ -9,7 +9,6 @@ import * as api from '../api';
 vi.mock('../api', () => {
   return {
     __esModule: true,
-    listRepoWebhookDeliveries: vi.fn(async () => ({ deliveries: [], nextCursor: undefined })),
     fetchRepoWebhookDelivery: vi.fn(async () => ({
       id: 'd1',
       repoId: 'r1',
@@ -27,10 +26,17 @@ vi.mock('../api', () => {
   };
 });
 
-const renderPanel = (repoId: string) =>
+const renderPanel = (repoId: string, deliveries: any[] = []) =>
   render(
     <AntdApp>
-      <RepoWebhookDeliveriesPanel repoId={repoId} />
+      {/* Supply delivery data via props to mirror shared dashboard data flow. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
+      <RepoWebhookDeliveriesPanel
+        repoId={repoId}
+        deliveries={deliveries}
+        loading={false}
+        loadFailed={false}
+        onRefresh={() => undefined}
+      />
     </AntdApp>
   );
 
@@ -43,29 +49,24 @@ describe('RepoWebhookDeliveriesPanel', () => {
   test('renders JsonViewer for payload and response in the detail modal', async () => {
     // Verify webhook payloads/responses render in the shared JsonViewer tree. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128
     const ui = userEvent.setup();
-    vi.mocked(api.listRepoWebhookDeliveries).mockResolvedValueOnce({
-      deliveries: [
-        {
-          id: 'd1',
-          repoId: 'r1',
-          provider: 'github',
-          eventName: 'push',
-          result: 'accepted',
-          httpStatus: 200,
-          code: 'ok',
-          message: 'accepted',
-          taskIds: ['t1'],
-          createdAt: '2026-01-28T00:00:00.000Z'
-        }
-      ],
-      nextCursor: undefined
-    });
+    renderPanel('r1', [
+      {
+        id: 'd1',
+        repoId: 'r1',
+        provider: 'github',
+        eventName: 'push',
+        result: 'accepted',
+        httpStatus: 200,
+        code: 'ok',
+        message: 'accepted',
+        taskIds: ['t1'],
+        createdAt: '2026-01-28T00:00:00.000Z'
+      }
+    ]);
 
-    renderPanel('r1');
-
-    await waitFor(() => expect(api.listRepoWebhookDeliveries).toHaveBeenCalled());
     await ui.click(await screen.findByRole('button', { name: 'View' }));
 
+    // Assert detail fetch is triggered from the view action now that deliveries are provided by parent. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
     await waitFor(() => expect(api.fetchRepoWebhookDelivery).toHaveBeenCalledWith('r1', 'd1'));
     expect(await screen.findByText('Received payload')).toBeInTheDocument();
     expect(screen.getByText('foo')).toBeInTheDocument();

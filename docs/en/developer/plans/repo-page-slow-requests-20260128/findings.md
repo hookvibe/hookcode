@@ -141,3 +141,7 @@
 - CI failure traced to TypeScript TS2358 in repositories.controller.ts (instanceof Date on repo.updatedAt).
 
 - Fixed repositories.controller.ts cache key updatedAt normalization to avoid TS instanceof error; CI failing tests pass locally.
+
+- CI frontend failure traced to missing listRepoWebhookDeliveries export in AppShell API mock and RepoWebhookDeliveriesPanel test expecting internal fetch after component refactor.
+
+- Updated AppShell API mock to include webhook delivery exports and adjusted RepoWebhookDeliveriesPanel test to pass deliveries via props after refactor.

@@ -47,6 +47,7 @@
   - Expanded frontend GET caching to repo endpoints, added cache invalidation for repo/robot/credential mutations, and disabled queue diagnosis on list views.
   - Added frontend tests for includeQueue list calls and repo list GET cache behavior.
   - Fixed provider cache key updatedAt normalization to avoid TS instanceof errors in CI.
+  - Updated frontend API mocks/tests for shared webhook deliveries to unblock CI.
 - Files created/modified:
   - AGENTS.md (updated)
   - backend/src/utils/parse.ts (updated)
@@ -101,6 +102,7 @@
 | frontend tasks/archive tests | pnpm --filter hookcode-frontend test -- tasksPage.test.tsx archivePage.test.tsx | Pass | Pass (with Vite CJS deprecation + sourcemap warnings) | ✓ |
 | frontend api cache test | pnpm --filter hookcode-frontend test -- apiCache.test.ts | Pass | Pass (with Vite CJS deprecation + sourcemap warnings) | ✓ |
 | backend repo cache key tests | pnpm --filter hookcode-backend test -- repositoriesHttpModuleDi.test.ts repoArchivedReadOnlyApi.test.ts repoWebhookDeliveriesApi.test.ts | Pass | Pass | ✓ |
+| frontend webhook panel tests | pnpm --filter hookcode-frontend test -- appShell.test.tsx repoWebhookDeliveriesPanel.test.tsx | Pass | Pass (with AntD/Vite warnings) | ✓ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
@@ -110,6 +112,7 @@
 | 2026-01-28 02:00 | AntD deprecation warnings during vitest | 1 | Not addressed; warnings pre-existed and tests still passed. |
 | 2026-01-28 02:05 | TS2339 includeQueue missing on listTasksByGroup options | 1 | Removed stray includeQueue access and added includeQueue guard in listTasks. |
 | 2026-01-29 11:27 | Vite CJS deprecation + css-tools sourcemap warnings during vitest | 1 | Not addressed; warnings pre-existed and tests still passed. |
+| 2026-01-29 14:42 | Vitest missing listRepoWebhookDeliveries export in API mock | 1 | Added webhook delivery mocks in AppShell test and updated panel test to pass deliveries via props. |
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}
@@ -126,3 +129,6 @@
 ---
 {/* REMINDER: - Update after completing each phase or encountering errors - Be detailed - this is your "what happened" log - Include timestamps for errors to track when issues occurred */}
 *Update after completing each phase or encountering errors*
+
+- Full backend test run: pnpm --filter hookcode-backend test (72 suites/290 tests) passed with known console warnings.
+- Full frontend test run: pnpm --filter hookcode-frontend test (21 suites/100 tests) passed with existing AntD/Vite warnings.

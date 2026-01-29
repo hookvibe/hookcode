@@ -144,6 +144,22 @@ vi.mock('../api', () => {
       merges: { items: [], page: 1, pageSize: 5, hasMore: false },
       issues: { items: [], page: 1, pageSize: 5, hasMore: false }
     })), // Mock provider activity for provider activity row. kzxac35mxk0fg358i7zs
+    // Provide webhook delivery mocks for shared repo dashboard cards to avoid missing export errors. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    listRepoWebhookDeliveries: vi.fn(async () => ({ deliveries: [], nextCursor: undefined })),
+    fetchRepoWebhookDelivery: vi.fn(async () => ({
+      id: 'd1',
+      repoId: 'r1',
+      provider: 'github',
+      eventName: 'push',
+      result: 'accepted',
+      httpStatus: 200,
+      code: 'ok',
+      message: 'accepted',
+      taskIds: ['t1'],
+      createdAt: '2026-01-28T00:00:00.000Z',
+      payload: { foo: 'bar' },
+      response: { status: 'ok' }
+    })),
     updateMyModelCredentials: vi.fn(async () => ({
       codex: { profiles: [], defaultProfileId: null },
       claude_code: { profiles: [], defaultProfileId: null },
