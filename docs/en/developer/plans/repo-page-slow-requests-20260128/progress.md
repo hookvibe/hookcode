@@ -48,6 +48,7 @@
   - Added frontend tests for includeQueue list calls and repo list GET cache behavior.
   - Fixed provider cache key updatedAt normalization to avoid TS instanceof errors in CI.
   - Updated frontend API mocks/tests for shared webhook deliveries to unblock CI.
+  - Added frontend/back-end test warning filters and a Vitest wrapper script to suppress CJS deprecation noise.
 - Files created/modified:
   - AGENTS.md (updated)
   - backend/src/utils/parse.ts (updated)
@@ -73,6 +74,12 @@
   - frontend/src/tests/tasksPage.test.tsx (updated)
   - frontend/src/tests/archivePage.test.tsx (updated)
   - frontend/src/tests/apiCache.test.ts (created)
+  - frontend/src/tests/setup.ts (updated)
+  - frontend/vitest.config.ts (updated)
+  - frontend/scripts/run-vitest.cjs (created)
+  - frontend/package.json (updated)
+  - backend/src/tests/setup.ts (created)
+  - backend/jest.config.cjs (updated)
   - docs/en/api-reference/tasks-and-groups.md (updated)
   - docs/en/change-log/0.0.0.md (updated)
 
@@ -103,6 +110,8 @@
 | frontend api cache test | pnpm --filter hookcode-frontend test -- apiCache.test.ts | Pass | Pass (with Vite CJS deprecation + sourcemap warnings) | ✓ |
 | backend repo cache key tests | pnpm --filter hookcode-backend test -- repositoriesHttpModuleDi.test.ts repoArchivedReadOnlyApi.test.ts repoWebhookDeliveriesApi.test.ts | Pass | Pass | ✓ |
 | frontend webhook panel tests | pnpm --filter hookcode-frontend test -- appShell.test.tsx repoWebhookDeliveriesPanel.test.tsx | Pass | Pass (with AntD/Vite warnings) | ✓ |
+| backend full tests | pnpm --filter hookcode-backend test | Pass | Pass (auth guard console error remains) | ✓ |
+| frontend full tests | pnpm --filter hookcode-frontend test | Pass | Pass (warnings suppressed via setup + wrapper) | ✓ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
@@ -113,6 +122,7 @@
 | 2026-01-28 02:05 | TS2339 includeQueue missing on listTasksByGroup options | 1 | Removed stray includeQueue access and added includeQueue guard in listTasks. |
 | 2026-01-29 11:27 | Vite CJS deprecation + css-tools sourcemap warnings during vitest | 1 | Not addressed; warnings pre-existed and tests still passed. |
 | 2026-01-29 14:42 | Vitest missing listRepoWebhookDeliveries export in API mock | 1 | Added webhook delivery mocks in AppShell test and updated panel test to pass deliveries via props. |
+| 2026-01-29 16:35 | Vitest setup parse error from escaped string | 1 | Switched to double-quoted string in warning filter list. |
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}

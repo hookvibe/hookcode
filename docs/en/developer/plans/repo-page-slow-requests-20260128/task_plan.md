@@ -73,6 +73,8 @@ Phase 5
 | Share webhook deliveries data across cards | Remove duplicate API calls and reduce backend load on open. |
 | Add includeQueue toggle for tasks list | Allow dashboards to skip expensive queue diagnosis when not needed. |
 | Cache repo GET endpoints with short TTL + invalidation | Reduce duplicate requests across pages while keeping repo data fresh. |
+| Suppress known test warning noise in CI | Filter AntD/Vite/Jest warning output while keeping failures visible. |
+<!-- Document CI warning suppression decision for traceability. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
 <!-- Record the repo-level caching decision for traceability. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
 
 ## Errors Encountered

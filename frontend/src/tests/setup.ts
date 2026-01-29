@@ -3,6 +3,57 @@ import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { resetNavHistoryForTests } from '../navHistory';
 
+const suppressedConsoleWarnSnippets = [
+  "The CJS build of Vite's Node API is deprecated",
+  'Sourcemap for',
+  '[antd: Space] `direction` is deprecated',
+  '[antd: Drawer] `width` is deprecated',
+  '[antd: Alert] `message` is deprecated',
+  '[antd: List] The `List` component is deprecated',
+  'Instance created by `useForm` is not connected to any Form element'
+];
+
+const suppressedConsoleErrorSnippets = [
+  'Warning: [antd: Space] `direction` is deprecated',
+  'Warning: [antd: Drawer] `width` is deprecated',
+  'Warning: [antd: Alert] `message` is deprecated',
+  'Warning: [antd: List] The `List` component is deprecated',
+  'Instance created by `useForm` is not connected to any Form element',
+  'Network Error'
+];
+
+const buildConsoleMessage = (args: unknown[]) =>
+  args
+    .map((arg) => {
+      if (arg instanceof Error) return arg.message;
+      if (typeof arg === 'string') return arg;
+      try {
+        return JSON.stringify(arg);
+      } catch {
+        return String(arg);
+      }
+    })
+    .join(' ');
+
+const shouldSuppressConsoleMessage = (args: unknown[], snippets: string[]) => {
+  const message = buildConsoleMessage(args);
+  return snippets.some((snippet) => message.includes(snippet));
+};
+
+// Filter known test-only warnings so CI logs stay readable without hiding unexpected errors. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+const originalConsoleWarn = console.warn.bind(console);
+const originalConsoleError = console.error.bind(console);
+
+console.warn = (...args: unknown[]) => {
+  if (shouldSuppressConsoleMessage(args, suppressedConsoleWarnSnippets)) return;
+  originalConsoleWarn(...args);
+};
+
+console.error = (...args: unknown[]) => {
+  if (shouldSuppressConsoleMessage(args, suppressedConsoleErrorSnippets)) return;
+  originalConsoleError(...args);
+};
+
 // Mock ECharts in JSDOM to avoid Canvas API requirements during unit tests. nn62s3ci1xhpr7ublh51
 vi.mock('echarts/core', () => {
   const makeInstance = () => ({

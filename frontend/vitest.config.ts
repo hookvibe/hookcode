@@ -1,8 +1,13 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
+// Silence Vite CJS deprecation warning during Vitest boot in CI. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+process.env.VITE_CJS_IGNORE_WARNING = '1';
+
 export default defineConfig({
   plugins: [react()],
+  // Reduce Vite/Vitest warning noise in CI output while keeping errors visible. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  logLevel: 'error',
   resolve: {
     // Ant Design X CJS entry (`lib/`) requires ESM-only antd internals, which crashes in Vitest's Node runtime.
     // Force the ESM entry (`es/`) so Vite can transform it correctly for tests.

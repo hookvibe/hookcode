@@ -145,3 +145,13 @@
 - CI frontend failure traced to missing listRepoWebhookDeliveries export in AppShell API mock and RepoWebhookDeliveriesPanel test expecting internal fetch after component refactor.
 
 - Updated AppShell API mock to include webhook delivery exports and adjusted RepoWebhookDeliveriesPanel test to pass deliveries via props after refactor.
+
+- Identified Vitest setup file (frontend/src/tests/setup.ts) as the right place to filter AntD/Vite warning noise in test output.
+
+- Backend Jest config lacks a setup file; we can add setupFilesAfterEnv to filter known console warnings/errors during tests.
+
+- Frontend Vite warnings still emitted after console filtering; need to suppress via Vite/Vitest config (likely logLevel or warning filters) since they bypass console.warn.
+
+- Vite CJS deprecation warning is emitted from Vite index.cjs unless VITE_CJS_IGNORE_WARNING is set before Vitest starts; added wrapper script to set env early.
+
+- Added Jest/Vitest setup filters plus a Vitest wrapper script to silence known test-only warnings (AntD deprecations, Vite CJS warning, css-tools sourcemap).
