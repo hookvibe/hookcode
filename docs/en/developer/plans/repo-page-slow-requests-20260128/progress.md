@@ -46,6 +46,7 @@
   - Updated docs + added unit tests for parsing/caching and frontend webhook fetch de-duplication.
   - Expanded frontend GET caching to repo endpoints, added cache invalidation for repo/robot/credential mutations, and disabled queue diagnosis on list views.
   - Added frontend tests for includeQueue list calls and repo list GET cache behavior.
+  - Fixed provider cache key updatedAt normalization to avoid TS instanceof errors in CI.
 - Files created/modified:
   - AGENTS.md (updated)
   - backend/src/utils/parse.ts (updated)
@@ -99,6 +100,7 @@
 | backend taskService list tests | pnpm --filter hookcode-backend test -- taskServiceListTasks.test.ts | Pass | Pass | ✓ |
 | frontend tasks/archive tests | pnpm --filter hookcode-frontend test -- tasksPage.test.tsx archivePage.test.tsx | Pass | Pass (with Vite CJS deprecation + sourcemap warnings) | ✓ |
 | frontend api cache test | pnpm --filter hookcode-frontend test -- apiCache.test.ts | Pass | Pass (with Vite CJS deprecation + sourcemap warnings) | ✓ |
+| backend repo cache key tests | pnpm --filter hookcode-backend test -- repositoriesHttpModuleDi.test.ts repoArchivedReadOnlyApi.test.ts repoWebhookDeliveriesApi.test.ts | Pass | Pass | ✓ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}

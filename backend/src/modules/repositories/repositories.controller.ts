@@ -113,6 +113,12 @@ const normalizeNullableTrimmedString = (value: unknown, fieldName: string): stri
   return trimmed ? trimmed : null;
 };
 
+const normalizeRepoUpdatedAt = (value: unknown): string => {
+  // Normalize repo.updatedAt into a stable cache key segment without primitive instanceof errors. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  if ((value as any) instanceof Date) return (value as Date).toISOString();
+  return String(value ?? '');
+};
+
 const normalizeRepoCredentialSource = (
   value: unknown
 ): 'robot' | 'user' | 'repo' | null | undefined => {
@@ -392,10 +398,12 @@ export class RepositoriesController {
         return 'user';
       })();
       const credentialProfileId = typeof credentialProfileIdRaw === 'string' ? credentialProfileIdRaw.trim() : '';
+      // Ensure repo updatedAt is normalized before building provider cache keys. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+      const repoUpdatedAt = normalizeRepoUpdatedAt(repo.updatedAt);
       const cacheKey = buildProviderCacheKey({
         kind: 'provider-meta',
         repoId,
-        repoUpdatedAt: repo.updatedAt instanceof Date ? repo.updatedAt.toISOString() : String(repo.updatedAt ?? ''),
+        repoUpdatedAt,
         provider: repo.provider,
         identity: repoIdentity,
         credentialSource,
@@ -524,10 +532,12 @@ export class RepositoriesController {
       const mergesPage = Math.max(1, parsePositiveInt(mergesPageRaw, 1));
       const issuesPage = Math.max(1, parsePositiveInt(issuesPageRaw, 1));
 
+      // Ensure repo updatedAt is normalized before building provider cache keys. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+      const repoUpdatedAt = normalizeRepoUpdatedAt(repo.updatedAt);
       const cacheKey = buildProviderCacheKey({
         kind: 'provider-activity',
         repoId,
-        repoUpdatedAt: repo.updatedAt instanceof Date ? repo.updatedAt.toISOString() : String(repo.updatedAt ?? ''),
+        repoUpdatedAt,
         provider: repo.provider,
         identity: repoIdentity,
         credentialSource,

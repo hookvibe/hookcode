@@ -137,3 +137,7 @@
 - Confirmed all frontend GET endpoints in api.ts now route through getCached; raw api.get calls removed for repo-related endpoints.
 
 - Verified working tree still contains many pre-existing modified files; new changes limited to API caching, task/archive params, tests, and plan docs for this session.
+
+- CI failure traced to TypeScript TS2358 in repositories.controller.ts (instanceof Date on repo.updatedAt).
+
+- Fixed repositories.controller.ts cache key updatedAt normalization to avoid TS instanceof error; CI failing tests pass locally.
