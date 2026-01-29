@@ -72,6 +72,8 @@ import {
   UpdateRepoRobotResponseDto,
   UpdateRepositoryResponseDto
 } from './dto/repositories-swagger.dto';
+import { RepoPreviewConfigResponseDto } from './dto/repo-preview-config.dto';
+import { PreviewService } from '../tasks/preview.service';
 import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
 import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
 import {
@@ -177,12 +179,14 @@ const assertRepoWritable = (repo: Repository): void => {
 @ApiTags('Repos')
 @ApiBearerAuth('bearerAuth')
 export class RepositoriesController {
+  // Inject preview service to expose repo preview config endpoints. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   constructor(
     private readonly repositoryService: RepositoryService,
     private readonly repoRobotService: RepoRobotService,
     private readonly repoAutomationService: RepoAutomationService,
     private readonly repoWebhookDeliveryService: RepoWebhookDeliveryService,
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    private readonly previewService: PreviewService
   ) {}
 
   @Get()
@@ -318,6 +322,28 @@ export class RepositoriesController {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get failed', err);
       throw new InternalServerErrorException({ error: 'Failed to fetch repo' });
+    }
+  }
+
+  // Provide repo-level preview config discovery for the UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  @Get(':id/preview/config')
+  @ApiOperation({
+    summary: 'Get repository preview config',
+    description: 'Detect preview configuration for a repository workspace.',
+    operationId: 'repos_preview_config'
+  })
+  @ApiOkResponse({ description: 'OK', type: RepoPreviewConfigResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async previewConfig(@Param('id') id: string): Promise<RepoPreviewConfigResponseDto> {
+    try {
+      const repo = await this.repositoryService.getById(id);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+
+      return await this.previewService.getRepoPreviewConfig(id);
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] preview config failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch preview config' });
     }
   }
 

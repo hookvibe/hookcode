@@ -1,8 +1,38 @@
 import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { App, Button, Input, Popover, Select, Space, Typography } from 'antd';
-import { ClockCircleOutlined, SendOutlined, UnorderedListOutlined } from '@ant-design/icons';
-import type { RepoRobot, Repository, Task, TaskGroup, TimeWindow } from '../api';
-import { executeChat, fetchTask, fetchTaskGroup, fetchTaskGroupTasks, listRepoRobots, listRepos } from '../api';
+import { App, Button, Input, Modal, Popover, Select, Space, Tooltip, Typography } from 'antd';
+import {
+  ClockCircleOutlined,
+  CopyOutlined,
+  ExportOutlined,
+  EyeInvisibleOutlined,
+  EyeOutlined,
+  FileTextOutlined,
+  SendOutlined,
+  UnorderedListOutlined
+} from '@ant-design/icons';
+import type {
+  PreviewInstanceSummary,
+  PreviewLogEntry,
+  PreviewStatusResponse,
+  RepoRobot,
+  Repository,
+  Task,
+  TaskGroup,
+  TimeWindow
+} from '../api';
+import {
+  API_BASE_URL,
+  executeChat,
+  fetchTask,
+  fetchTaskGroup,
+  fetchTaskGroupPreviewStatus,
+  fetchTaskGroupTasks,
+  listRepoRobots,
+  listRepos,
+  startTaskGroupPreview,
+  stopTaskGroupPreview
+} from '../api';
+import { getToken } from '../auth';
 import { useLocale, useT } from '../i18n';
 import { buildTaskGroupHash, buildTaskGroupsHash, buildTaskHash } from '../router';
 import { TaskConversationItem } from '../components/chat/TaskConversationItem';
@@ -64,6 +94,25 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   // Compute a concise label for the chat time window icon badge. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
   const chatTimeWindowLabel = useMemo(() => formatTimeWindowLabel(chatTimeWindow), [chatTimeWindow]);
 
+  // Track TaskGroup preview status to render the dev server panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const [previewState, setPreviewState] = useState<PreviewStatusResponse | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewActionLoading, setPreviewActionLoading] = useState(false);
+  // Keep preview tabs and logs state aligned with multi-instance previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const [activePreviewName, setActivePreviewName] = useState<string | null>(null);
+  const [previewLogsOpen, setPreviewLogsOpen] = useState(false);
+  const [previewLogsLoading, setPreviewLogsLoading] = useState(false);
+  const [previewLogs, setPreviewLogs] = useState<PreviewLogEntry[]>([]);
+  const previewLogStreamRef = useRef<EventSource | null>(null);
+  // Keep the preview panel closed until the user explicitly opens it. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const [previewPanelOpen, setPreviewPanelOpen] = useState(false);
+  // Maintain draggable preview panel sizing state for Phase 3 layout updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const [previewPanelWidth, setPreviewPanelWidth] = useState<number | null>(null);
+  const [previewDragActive, setPreviewDragActive] = useState(false);
+  const [previewLayoutWidth, setPreviewLayoutWidth] = useState(0);
+  const previewDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const layoutRef = useRef<HTMLDivElement | null>(null);
+
   const pollTimerRef = useRef<number | null>(null);
   const chatBodyRef = useRef<HTMLDivElement | null>(null);
   const chatAutoScrollEnabledRef = useRef(true);
@@ -79,6 +128,14 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const lastGroupRefreshNoticeAtRef = useRef(0);
   const GROUP_REFRESH_NOTICE_COOLDOWN_MS = 15000;
   const GROUP_REFRESH_NOTICE_KEY = 'task-group-refresh-warning';
+  // Cap preview log buffering on the frontend to keep the modal responsive. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const PREVIEW_LOG_TAIL = 200;
+  const PREVIEW_LOG_MAX = 500;
+  // Configure preview panel resize constraints and persistence. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const PREVIEW_PANEL_MIN_WIDTH = 320;
+  const PREVIEW_PANEL_MIN_CHAT_WIDTH = 420;
+  const PREVIEW_PANEL_DEFAULT_RATIO = 0.38;
+  const PREVIEW_PANEL_STORAGE_KEY = 'hc-preview-panel-width';
 
   const repoLocked = Boolean(taskGroupId);
 
@@ -120,6 +177,261 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     Math.min(taskPagingPinnedToLatest ? pinnedHiddenCount : taskHiddenCount, orderedTasks.length)
   );
   const visibleTasks = useMemo(() => orderedTasks.slice(effectiveHiddenCount), [effectiveHiddenCount, orderedTasks]);
+
+  const previewInstances = previewState?.instances ?? [];
+  const previewAvailable = previewState?.available ?? false;
+  // Compute the maximum preview width based on the current layout size. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const previewPanelMaxWidth = useMemo(() => {
+    if (!previewLayoutWidth) return 0;
+    return Math.max(PREVIEW_PANEL_MIN_WIDTH, previewLayoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
+  }, [PREVIEW_PANEL_MIN_CHAT_WIDTH, PREVIEW_PANEL_MIN_WIDTH, previewLayoutWidth]);
+
+  useLayoutEffect(() => {
+    // Track layout width so the preview resize bounds adapt on window changes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!taskGroupId) return;
+    const layout = layoutRef.current;
+    if (!layout) return;
+    const updateLayoutWidth = () => {
+      setPreviewLayoutWidth(layout.getBoundingClientRect().width);
+    };
+    updateLayoutWidth();
+    window.addEventListener('resize', updateLayoutWidth);
+    return () => window.removeEventListener('resize', updateLayoutWidth);
+  }, [taskGroupId]);
+
+  useEffect(() => {
+    // Reset preview panel visibility when switching task groups. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    setPreviewPanelOpen(false);
+  }, [taskGroupId]);
+
+  useEffect(() => {
+    // Stop drag interactions when the preview panel is closed. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (previewPanelOpen) return;
+    setPreviewDragActive(false);
+    previewDragRef.current = null;
+  }, [previewPanelOpen]);
+
+  useLayoutEffect(() => {
+    // Seed preview panel width from storage or defaults once layout metrics are available. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!taskGroupId || !previewLayoutWidth || previewPanelWidth !== null) return;
+    let storedWidth: number | null = null;
+    try {
+      const raw = window.localStorage.getItem(PREVIEW_PANEL_STORAGE_KEY);
+      const parsed = raw ? Number(raw) : NaN;
+      if (Number.isFinite(parsed)) storedWidth = parsed;
+    } catch {
+      storedWidth = null;
+    }
+    const fallback = Math.round(previewLayoutWidth * PREVIEW_PANEL_DEFAULT_RATIO);
+    const maxWidth = Math.max(PREVIEW_PANEL_MIN_WIDTH, previewLayoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
+    const nextWidth = Math.min(Math.max(storedWidth ?? fallback, PREVIEW_PANEL_MIN_WIDTH), maxWidth);
+    setPreviewPanelWidth(nextWidth);
+  }, [
+    PREVIEW_PANEL_DEFAULT_RATIO,
+    PREVIEW_PANEL_MIN_CHAT_WIDTH,
+    PREVIEW_PANEL_MIN_WIDTH,
+    PREVIEW_PANEL_STORAGE_KEY,
+    previewLayoutWidth,
+    previewPanelWidth,
+    taskGroupId
+  ]);
+
+  useEffect(() => {
+    // Clamp preview panel width when the layout shrinks. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!previewLayoutWidth || previewPanelWidth === null) return;
+    const maxWidth = Math.max(PREVIEW_PANEL_MIN_WIDTH, previewLayoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
+    const clamped = Math.min(Math.max(previewPanelWidth, PREVIEW_PANEL_MIN_WIDTH), maxWidth);
+    if (clamped !== previewPanelWidth) setPreviewPanelWidth(clamped);
+  }, [PREVIEW_PANEL_MIN_CHAT_WIDTH, PREVIEW_PANEL_MIN_WIDTH, previewLayoutWidth, previewPanelWidth]);
+
+  useEffect(() => {
+    // Persist preview panel width so it survives refreshes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (previewPanelWidth === null) return;
+    try {
+      window.localStorage.setItem(PREVIEW_PANEL_STORAGE_KEY, String(previewPanelWidth));
+    } catch {
+      // ignore
+    }
+  }, [PREVIEW_PANEL_STORAGE_KEY, previewPanelWidth]);
+
+  const handlePreviewDividerPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      // Start dragging only on wide layouts where the preview sits side-by-side. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+      if (!layoutRef.current || window.matchMedia('(max-width: 1024px)').matches) return;
+      const layoutWidth = layoutRef.current.getBoundingClientRect().width;
+      if (!layoutWidth) return;
+      const maxWidth = Math.max(PREVIEW_PANEL_MIN_WIDTH, layoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
+      const fallbackWidth = Math.round(layoutWidth * PREVIEW_PANEL_DEFAULT_RATIO);
+      const startWidth = Math.min(
+        Math.max(previewPanelWidth ?? fallbackWidth, PREVIEW_PANEL_MIN_WIDTH),
+        maxWidth
+      );
+      previewDragRef.current = { startX: event.clientX, startWidth };
+      setPreviewDragActive(true);
+      event.preventDefault();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    },
+    [PREVIEW_PANEL_DEFAULT_RATIO, PREVIEW_PANEL_MIN_CHAT_WIDTH, PREVIEW_PANEL_MIN_WIDTH, previewPanelWidth]
+  );
+
+  useEffect(() => {
+    // Track pointer movement while resizing the preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!previewDragActive) return;
+    const handleMove = (event: PointerEvent) => {
+      const drag = previewDragRef.current;
+      const layout = layoutRef.current;
+      if (!drag || !layout) return;
+      const layoutWidth = layout.getBoundingClientRect().width;
+      if (!layoutWidth) return;
+      const maxWidth = Math.max(PREVIEW_PANEL_MIN_WIDTH, layoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
+      const deltaX = event.clientX - drag.startX;
+      const nextWidth = Math.min(Math.max(drag.startWidth - deltaX, PREVIEW_PANEL_MIN_WIDTH), maxWidth);
+      setPreviewPanelWidth(nextWidth);
+    };
+
+    const handleUp = () => {
+      setPreviewDragActive(false);
+      previewDragRef.current = null;
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+  }, [PREVIEW_PANEL_MIN_CHAT_WIDTH, PREVIEW_PANEL_MIN_WIDTH, previewDragActive]);
+
+  useEffect(() => {
+    // Keep the active preview tab in sync with available instances. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (previewInstances.length === 0) {
+      setActivePreviewName(null);
+      return;
+    }
+    if (!activePreviewName || !previewInstances.some((instance) => instance.name === activePreviewName)) {
+      setActivePreviewName(previewInstances[0].name);
+    }
+  }, [activePreviewName, previewInstances]);
+
+  const activePreviewInstance = useMemo<PreviewInstanceSummary | null>(
+    () => previewInstances.find((instance) => instance.name === activePreviewName) ?? previewInstances[0] ?? null,
+    [activePreviewName, previewInstances]
+  );
+
+  // Aggregate preview statuses so the toggle reflects multi-instance state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const previewAggregateStatus = useMemo(() => {
+    if (!previewState || !previewAvailable) return 'stopped';
+    const statuses = previewInstances.map((instance) => instance.status);
+    if (statuses.includes('starting')) return 'starting';
+    if (statuses.includes('running')) return 'running';
+    if (statuses.includes('failed')) return 'failed';
+    if (statuses.includes('timeout')) return 'timeout';
+    return 'stopped';
+  }, [previewAvailable, previewInstances, previewState]);
+
+  // Gate preview panel opening until preview has been started. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const previewPanelEnabled = previewAvailable && previewAggregateStatus !== 'stopped';
+
+  const previewAggregateStatusLabel = useMemo(() => {
+    if (!previewState) return t('preview.status.idle');
+    if (!previewAvailable) return t('preview.status.unavailable');
+    switch (previewAggregateStatus) {
+      case 'starting':
+        return t('preview.status.starting');
+      case 'running':
+        return t('preview.status.running');
+      case 'failed':
+        return t('preview.status.failed');
+      case 'timeout':
+        return t('preview.status.timeout');
+      default:
+        return t('preview.status.stopped');
+    }
+  }, [previewAggregateStatus, previewAvailable, previewState, t]);
+
+  useEffect(() => {
+    // Auto-hide the preview panel once the preview is stopped. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!previewPanelOpen || previewAggregateStatus !== 'stopped') return;
+    setPreviewPanelOpen(false);
+  }, [previewAggregateStatus, previewPanelOpen]);
+
+  const previewPanelToggleLabel = useMemo(
+    () => (previewPanelOpen ? t('preview.panel.close') : t('preview.panel.open')),
+    [previewPanelOpen, t]
+  );
+
+  const handlePreviewPanelToggle = useCallback(() => {
+    // Require an explicit click to open or close the preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    setPreviewPanelOpen((prev) => !prev);
+  }, []);
+
+  const activePreviewStatus = activePreviewInstance?.status ?? 'stopped';
+  const activePreviewStatusLabel = useMemo(() => {
+    if (!previewState) return t('preview.status.idle');
+    if (!previewAvailable) return t('preview.status.unavailable');
+    switch (activePreviewStatus) {
+      case 'starting':
+        return t('preview.status.starting');
+      case 'running':
+        return t('preview.status.running');
+      case 'failed':
+        return t('preview.status.failed');
+      case 'timeout':
+        return t('preview.status.timeout');
+      default:
+        return t('preview.status.stopped');
+    }
+  }, [activePreviewStatus, previewAvailable, previewState, t]);
+
+  const previewPlaceholderText = useMemo(() => {
+    if (!previewAvailable) return t('preview.empty.unavailable');
+    if (activePreviewStatus === 'starting') return t('preview.empty.starting');
+    if (activePreviewStatus === 'running') return t('preview.empty.running');
+    if (activePreviewStatus === 'failed') return t('preview.empty.failed');
+    if (activePreviewStatus === 'timeout') return t('preview.empty.timeout');
+    return t('preview.empty.stopped');
+  }, [activePreviewStatus, previewAvailable, t]);
+
+  // Provide diagnostic excerpts for failed/timeout preview states. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const previewDiagnostics = activePreviewInstance?.diagnostics;
+  // Limit diagnostics log excerpts to keep the placeholder compact. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const previewDiagnosticsLogs = useMemo(
+    () => previewDiagnostics?.logs?.slice(-6) ?? [],
+    [previewDiagnostics?.logs]
+  );
+  // Apply persisted preview panel width when side-by-side layout is active. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const previewPanelStyle = useMemo(
+    () => (previewPanelWidth === null ? undefined : { width: previewPanelWidth }),
+    [previewPanelWidth]
+  );
+
+  const previewIframeSrc = useMemo(() => {
+    if (!activePreviewInstance?.path || (activePreviewStatus !== 'running' && activePreviewStatus !== 'starting')) {
+      return '';
+    }
+    const base = API_BASE_URL.replace(/\/$/, '');
+    const token = getToken();
+    const url = `${base}${activePreviewInstance.path}`;
+    if (!token) return url;
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}token=${encodeURIComponent(token)}`;
+  }, [activePreviewInstance?.path, activePreviewStatus]);
+
+  // Format preview log timestamps for the log viewer. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const formatPreviewLogTime = useCallback(
+    (value: string) => {
+      try {
+        return new Intl.DateTimeFormat(locale, { timeStyle: 'medium' }).format(new Date(value));
+      } catch {
+        return value;
+      }
+    },
+    [locale]
+  );
 
   useEffect(() => {
     // Reset TaskGroup paging when switching groups so users always start from the latest page. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
@@ -272,6 +584,134 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     [message, t]
   );
 
+  // Poll preview status so the UI can drive iframe visibility and toggle state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const refreshPreviewStatus = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!taskGroupId) {
+        setPreviewState(null);
+        return;
+      }
+      const silent = options?.silent ?? false;
+      if (!silent) setPreviewLoading(true);
+      try {
+        const data = await fetchTaskGroupPreviewStatus(taskGroupId);
+        setPreviewState(data);
+      } catch (err: any) {
+        const status = err?.response?.status as number | undefined;
+        const code = err?.response?.data?.code as PreviewStatusResponse['reason'] | undefined;
+        if (status === 404 || status === 409) {
+          setPreviewState({ available: false, instances: [], reason: code ?? 'config_missing' });
+        } else {
+          console.error(err);
+          if (!silent) message.error(t('preview.statusFailed'));
+          setPreviewState({ available: false, instances: [] });
+        }
+      } finally {
+        if (!silent) setPreviewLoading(false);
+      }
+    },
+    [message, t, taskGroupId]
+  );
+
+  // Start/stop previews from the TaskGroup page toggle button. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const handlePreviewToggle = useCallback(async () => {
+    if (!taskGroupId) return;
+    setPreviewActionLoading(true);
+    try {
+      const isActive = previewAggregateStatus === 'running' || previewAggregateStatus === 'starting';
+      if (isActive) {
+        await stopTaskGroupPreview(taskGroupId);
+      } else {
+        await startTaskGroupPreview(taskGroupId);
+      }
+      await refreshPreviewStatus({ silent: true });
+    } catch (err) {
+      console.error(err);
+      message.error(t('preview.toggleFailed'));
+    } finally {
+      setPreviewActionLoading(false);
+    }
+  }, [message, previewAggregateStatus, refreshPreviewStatus, taskGroupId, t]);
+
+  // Provide share/open controls for preview URLs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const handleOpenPreviewWindow = useCallback(() => {
+    if (!previewIframeSrc) return;
+    window.open(previewIframeSrc, '_blank', 'noopener,noreferrer');
+  }, [previewIframeSrc]);
+
+  const handleCopyPreviewLink = useCallback(async () => {
+    if (!previewIframeSrc) return;
+    try {
+      await navigator.clipboard.writeText(previewIframeSrc);
+      message.success(t('preview.copyLinkSuccess'));
+    } catch (err) {
+      console.error(err);
+      message.error(t('preview.copyLinkFailed'));
+    }
+  }, [message, previewIframeSrc, t]);
+
+  useEffect(() => {
+    // Maintain a live SSE connection when the preview logs modal is open. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!previewLogsOpen) {
+      previewLogStreamRef.current?.close();
+      previewLogStreamRef.current = null;
+      setPreviewLogs([]);
+      setPreviewLogsLoading(false);
+      return;
+    }
+    if (!taskGroupId || !activePreviewInstance?.name) return;
+
+    const base = API_BASE_URL.replace(/\/$/, '');
+    const token = getToken();
+    const params = new URLSearchParams();
+    params.set('tail', String(PREVIEW_LOG_TAIL));
+    if (token) params.set('token', token);
+    const url = `${base}/task-groups/${taskGroupId}/preview/${activePreviewInstance.name}/logs?${params.toString()}`;
+
+    setPreviewLogsLoading(true);
+    setPreviewLogs([]);
+    const source = new EventSource(url);
+    previewLogStreamRef.current = source;
+
+    const handleInit = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data || '{}');
+        const nextLogs = Array.isArray(payload.logs) ? (payload.logs as PreviewLogEntry[]) : [];
+        setPreviewLogs(nextLogs.slice(-PREVIEW_LOG_MAX));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setPreviewLogsLoading(false);
+      }
+    };
+
+    const handleLog = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data || '{}') as PreviewLogEntry;
+        if (!payload?.message) return;
+        setPreviewLogs((prev) => {
+          const next = [...prev, payload];
+          return next.length > PREVIEW_LOG_MAX ? next.slice(-PREVIEW_LOG_MAX) : next;
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    source.addEventListener('init', handleInit);
+    source.addEventListener('log', handleLog);
+    source.onerror = () => {
+      setPreviewLogsLoading(false);
+    };
+
+    return () => {
+      source.removeEventListener('init', handleInit);
+      source.removeEventListener('log', handleLog);
+      source.close();
+      previewLogStreamRef.current = null;
+    };
+  }, [activePreviewInstance?.name, previewLogsOpen, taskGroupId, PREVIEW_LOG_TAIL, PREVIEW_LOG_MAX]);
+
   useEffect(() => {
     void refreshRepos();
   }, [refreshRepos]);
@@ -308,6 +748,22 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       pollTimerRef.current = null;
     };
   }, [refreshGroupDetail, taskGroupId]);
+
+  useEffect(() => {
+    if (!taskGroupId) {
+      setPreviewState(null);
+      return;
+    }
+    void refreshPreviewStatus({ silent: true });
+  }, [refreshPreviewStatus, taskGroupId]);
+
+  const previewNeedsPolling = previewState?.instances?.some((instance) => instance.status === 'starting') ?? false;
+
+  useEffect(() => {
+    if (!taskGroupId || !previewNeedsPolling) return;
+    const timer = window.setInterval(() => refreshPreviewStatus({ silent: true }), 2000);
+    return () => window.clearInterval(timer);
+  }, [previewNeedsPolling, refreshPreviewStatus, taskGroupId]);
 
   useEffect(() => {
     // Fetch task details (including outputText) for completed tasks to render the final assistant output in chat.
@@ -659,50 +1115,247 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
           </Typography.Text>
         }
         actions={
-          <Button icon={<UnorderedListOutlined />} onClick={() => openTaskGroupList()}>
-            {t('taskGroups.page.viewAll')}
-          </Button>
+          <Space>
+            {taskGroupId && (
+              <Popover content={previewAggregateStatusLabel}>
+                <Button
+                  onClick={handlePreviewToggle}
+                  loading={previewActionLoading || previewAggregateStatus === 'starting'}
+                  disabled={
+                    previewLoading || previewActionLoading || (!previewAvailable && previewAggregateStatus === 'stopped')
+                  }
+                >
+                  <span
+                    className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
+                    aria-hidden="true"
+                  />
+                  <span style={{ marginLeft: 8 }}>
+                    {previewAggregateStatus === 'running' || previewAggregateStatus === 'starting'
+                      ? t('preview.action.stop')
+                      : t('preview.action.start')}
+                  </span>
+                </Button>
+              </Popover>
+            )}
+            {taskGroupId && (
+              <Tooltip title={previewPanelToggleLabel}>
+                {/* Require explicit click to open/close preview panel after start. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+                <Button
+                  icon={previewPanelOpen ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                  disabled={!previewPanelEnabled}
+                  onClick={handlePreviewPanelToggle}
+                >
+                  {previewPanelToggleLabel}
+                </Button>
+              </Tooltip>
+            )}
+            <Button icon={<UnorderedListOutlined />} onClick={() => openTaskGroupList()}>
+              {t('taskGroups.page.viewAll')}
+            </Button>
+          </Space>
         }
         userPanel={userPanel}
       />
 
-      <div className="hc-chat-body" ref={chatBodyRef} onScroll={handleChatScroll}>
-        {isGroupBlocking ? (
-          // Render skeleton chat items while the active task group is blocking on data. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
-          <ChatTimelineSkeleton testId="hc-chat-group-skeleton" ariaLabel={t('common.loading')} />
-        ) : isCentered ? (
-          <div className="hc-chat-centered-view">
-            <div className="hc-chat-hero">
-              <Typography.Title level={2} style={{ marginTop: 0, marginBottom: 12 }}>
-                {t('chat.welcome.title')}
-              </Typography.Title>
-              <Typography.Paragraph type="secondary" style={{ fontSize: 16 }}>
-                {t('chat.welcome.desc')}
-              </Typography.Paragraph>
+      {/* Enable draggable split layout between chat and preview panels. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+      <div
+        className={`hc-chat-layout${previewDragActive ? ' hc-chat-layout--dragging' : ''}`}
+        ref={layoutRef}
+      >
+        <div className="hc-chat-panel">
+          <div className="hc-chat-body" ref={chatBodyRef} onScroll={handleChatScroll}>
+            {isGroupBlocking ? (
+              // Render skeleton chat items while the active task group is blocking on data. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
+              <ChatTimelineSkeleton testId="hc-chat-group-skeleton" ariaLabel={t('common.loading')} />
+            ) : isCentered ? (
+              <div className="hc-chat-centered-view">
+                <div className="hc-chat-hero">
+                  <Typography.Title level={2} style={{ marginTop: 0, marginBottom: 12 }}>
+                    {t('chat.welcome.title')}
+                  </Typography.Title>
+                  <Typography.Paragraph type="secondary" style={{ fontSize: 16 }}>
+                    {t('chat.welcome.desc')}
+                  </Typography.Paragraph>
+                </div>
+                {composerNode}
+              </div>
+            ) : (
+              <div className="hc-chat-timeline">
+                {/* Animate the most recent message to create a smooth transition into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */}
+                {visibleTasks.map((task) => (
+                  <TaskConversationItem
+                    key={task.id}
+                    task={task}
+                    entering={task.id === recentTaskId}
+                    taskDetail={taskDetailsById[task.id] ?? null}
+                    onOpenTask={openTask}
+                    taskLogsEnabled={effectiveTaskLogsEnabled}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Keep the inline composer visible once the group is ready, even if a stale load flag lingers. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126 */}
+          {!isCentered && !isGroupBlocking && (
+            <div className="hc-chat-footer-composer">{composerNode}</div>
+          )}
+        </div>
+
+        {/* Render the preview panel only when explicitly opened. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+        {taskGroupId && previewPanelOpen && (
+          <>
+            {/* Add draggable divider between chat and preview panels. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+            <div
+              className={`hc-preview-divider${previewDragActive ? ' hc-preview-divider--active' : ''}`}
+              role="separator"
+              aria-orientation="vertical"
+              aria-valuemin={PREVIEW_PANEL_MIN_WIDTH}
+              aria-valuemax={previewPanelMaxWidth || undefined}
+              aria-valuenow={previewPanelWidth ?? undefined}
+              onPointerDown={handlePreviewDividerPointerDown}
+            >
+              <span className="hc-preview-divider-handle" aria-hidden="true" />
             </div>
-            {composerNode}
-          </div>
-        ) : (
-          <div className="hc-chat-timeline">
-            {/* Animate the most recent message to create a smooth transition into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */}
-            {visibleTasks.map((task) => (
-              <TaskConversationItem
-                key={task.id}
-                task={task}
-                entering={task.id === recentTaskId}
-                taskDetail={taskDetailsById[task.id] ?? null}
-                onOpenTask={openTask}
-                taskLogsEnabled={effectiveTaskLogsEnabled}
-              />
-            ))}
-          </div>
+            <aside className="hc-preview-panel" style={previewPanelStyle}>
+              {/* Render multi-instance preview tabs with logs/share controls. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+              <div className="hc-preview-header">
+                <div className="hc-preview-header-main">
+                  <Typography.Text strong>{t('preview.panel.title')}</Typography.Text>
+                  <Space size={6}>
+                    <span
+                      className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
+                      aria-hidden="true"
+                    />
+                    <Typography.Text type="secondary">{previewAggregateStatusLabel}</Typography.Text>
+                  </Space>
+                </div>
+                <div className="hc-preview-header-actions">
+                  <Tooltip title={t('preview.logs.open')}>
+                    <Button
+                      size="small"
+                      icon={<FileTextOutlined />}
+                      disabled={!activePreviewInstance}
+                      onClick={() => setPreviewLogsOpen(true)}
+                    />
+                  </Tooltip>
+                  <Tooltip title={t('preview.action.openWindow')}>
+                    <Button size="small" icon={<ExportOutlined />} disabled={!previewIframeSrc} onClick={handleOpenPreviewWindow} />
+                  </Tooltip>
+                  <Tooltip title={t('preview.action.copyLink')}>
+                    <Button size="small" icon={<CopyOutlined />} disabled={!previewIframeSrc} onClick={handleCopyPreviewLink} />
+                  </Tooltip>
+                </div>
+              </div>
+              {previewInstances.length > 0 && (
+                <div className="hc-preview-tabs">
+                  {previewInstances.map((instance) => (
+                    <button
+                      key={instance.name}
+                      type="button"
+                      className={`hc-preview-tab${instance.name === activePreviewName ? ' hc-preview-tab--active' : ''}`}
+                      onClick={() => setActivePreviewName(instance.name)}
+                    >
+                      <span
+                        className={`hc-preview-status-dot hc-preview-status-dot--${instance.status}`}
+                        aria-hidden="true"
+                      />
+                      <span className="hc-preview-tab-name">{instance.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="hc-preview-body">
+                {activePreviewStatus === 'running' && previewIframeSrc ? (
+                  <iframe
+                    className="hc-preview-iframe"
+                    title={activePreviewInstance?.name ?? 'preview'}
+                    src={previewIframeSrc}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="hc-preview-placeholder">
+                    <Typography.Text type="secondary">{previewPlaceholderText}</Typography.Text>
+                    {activePreviewInstance?.message && activePreviewStatus !== 'running' && (
+                      <Typography.Text type="secondary" className="hc-preview-message">
+                        {activePreviewInstance.message}
+                      </Typography.Text>
+                    )}
+                    {/* Render diagnostics when preview startup fails or times out. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+                    {previewDiagnostics && (activePreviewStatus === 'failed' || activePreviewStatus === 'timeout') && (
+                      <div className="hc-preview-diagnostics">
+                        <Typography.Text type="secondary" className="hc-preview-diagnostics-title">
+                          {t('preview.diagnostics.title')}
+                        </Typography.Text>
+                        <div className="hc-preview-diagnostics-meta">
+                          <span>
+                            {t('preview.diagnostics.exitCode')}: {previewDiagnostics.exitCode ?? '-'}
+                          </span>
+                          <span>
+                            {t('preview.diagnostics.signal')}: {previewDiagnostics.signal ?? '-'}
+                          </span>
+                        </div>
+                        {previewDiagnosticsLogs.length > 0 && (
+                          <div className="hc-preview-diagnostics-logs">
+                            <span className="hc-preview-diagnostics-logs-label">
+                              {t('preview.diagnostics.logs')}
+                            </span>
+                            <div className="hc-preview-diagnostics-logs-list">
+                              {previewDiagnosticsLogs.map((entry, idx) => (
+                                <div key={`${entry.timestamp}-${idx}`} className="hc-preview-diagnostics-log-line">
+                                  <span className="hc-preview-diagnostics-log-level">{entry.level.toUpperCase()}</span>
+                                  <span className="hc-preview-diagnostics-log-message">{entry.message}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </aside>
+          </>
         )}
       </div>
 
-      {/* Keep the inline composer visible once the group is ready, even if a stale load flag lingers. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126 */}
-      {!isCentered && !isGroupBlocking && (
-        <div className="hc-chat-footer-composer">{composerNode}</div>
-      )}
+      {/* Preview log modal is driven by SSE when open. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+      <Modal
+        open={previewLogsOpen}
+        title={
+          activePreviewInstance
+            ? `${t('preview.logs.title')} · ${activePreviewInstance.name}`
+            : t('preview.logs.title')
+        }
+        footer={null}
+        onCancel={() => setPreviewLogsOpen(false)}
+        width={760}
+      >
+        <div className="hc-preview-log-meta">
+          <Typography.Text type="secondary">{activePreviewStatusLabel}</Typography.Text>
+          <Typography.Text type="secondary">
+            {t('preview.logs.count', { count: previewLogs.length })}
+          </Typography.Text>
+        </div>
+        <div className="hc-preview-log-body">
+          {previewLogsLoading ? (
+            <Typography.Text type="secondary">{t('preview.logs.loading')}</Typography.Text>
+          ) : previewLogs.length === 0 ? (
+            <Typography.Text type="secondary">{t('preview.logs.empty')}</Typography.Text>
+          ) : (
+            <div className="hc-preview-log-list">
+              {previewLogs.map((entry, idx) => (
+                <div key={`${entry.timestamp}-${idx}`} className={`hc-preview-log-line hc-preview-log-line--${entry.level}`}>
+                  <span className="hc-preview-log-time">{formatPreviewLogTime(entry.timestamp)}</span>
+                  <span className="hc-preview-log-level">{entry.level.toUpperCase()}</span>
+                  <span className="hc-preview-log-message">{entry.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };

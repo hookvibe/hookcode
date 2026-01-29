@@ -62,7 +62,9 @@ vi.mock('../api', () => {
       commits: { items: [], page: 1, pageSize: 5, hasMore: false },
       merges: { items: [], page: 1, pageSize: 5, hasMore: false },
       issues: { items: [], page: 1, pageSize: 5, hasMore: false }
-    })) // Mock activity fetch for the provider activity row. kzxac35mxk0fg358i7zs
+    })), // Mock activity fetch for the provider activity row. kzxac35mxk0fg358i7zs
+    // Mock preview config discovery for repo detail Phase 2 UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    fetchRepoPreviewConfig: vi.fn(async () => ({ available: false, instances: [], reason: 'config_missing' }))
   };
 });
 
@@ -79,6 +81,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     setLocale('en-US');
     window.location.hash = '#/repos/r1';
     window.localStorage.clear();
+    // Reset preview config mock between tests. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    vi.mocked(api.fetchRepoPreviewConfig).mockResolvedValue({ available: false, instances: [], reason: 'config_missing' });
   });
 
   test('shows recent tasks per status in Task activity and supports navigation', async () => {
@@ -145,6 +149,21 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await waitFor(() => expect(api.listRepoWebhookDeliveries).toHaveBeenCalled());
 
     expect(api.listRepoWebhookDeliveries).toHaveBeenCalledTimes(1);
+  });
+
+  test('renders preview config card with instances', async () => {
+    // Validate preview config discovery appears in the repo dashboard. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    vi.mocked(api.fetchRepoPreviewConfig).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'frontend', workdir: 'frontend' }]
+    });
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepoPreviewConfig).toHaveBeenCalled());
+    const matches = await screen.findAllByText('frontend');
+    expect(matches.length).toBeGreaterThan(0);
   });
 
   test('renders unified model credential list with provider tags', async () => {

@@ -144,6 +144,8 @@ vi.mock('../api', () => {
       merges: { items: [], page: 1, pageSize: 5, hasMore: false },
       issues: { items: [], page: 1, pageSize: 5, hasMore: false }
     })), // Mock provider activity for provider activity row. kzxac35mxk0fg358i7zs
+    // Mock preview config discovery so RepoDetailPage can render safely. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    fetchRepoPreviewConfig: vi.fn(async () => ({ available: false, instances: [], reason: 'config_missing' })),
     // Provide webhook delivery mocks for shared repo dashboard cards to avoid missing export errors. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
     listRepoWebhookDeliveries: vi.fn(async () => ({ deliveries: [], nextCursor: undefined })),
     fetchRepoWebhookDelivery: vi.fn(async () => ({

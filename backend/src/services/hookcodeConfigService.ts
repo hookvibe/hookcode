@@ -17,9 +17,41 @@ const DependencyConfigSchema = z.object({
   runtimes: z.array(RuntimeConfigSchema).max(5)
 });
 
+// Validate preview instance configuration in `.hookcode.yml`. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+const PreviewInstanceSchema = z.object({
+  name: z.string().min(1).max(64),
+  command: z.string().min(1).max(500),
+  workdir: z.string().min(1).max(200),
+  port: z.number().int().min(1).max(65535).optional(),
+  readyPattern: z.string().max(200).optional()
+});
+
+// Validate preview config shape and limits. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+const PreviewConfigSchema = z
+  .object({
+    instances: z.array(PreviewInstanceSchema).min(1).max(5)
+  })
+  .superRefine((value, ctx) => {
+    // Enforce unique preview instance names to keep proxy routing deterministic. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const seen = new Set<string>();
+    for (const instance of value.instances) {
+      const key = instance.name.trim();
+      if (!key) continue;
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `preview.instances name "${key}" must be unique`
+        });
+        return;
+      }
+      seen.add(key);
+    }
+  });
+
 const HookcodeConfigSchema = z.object({
   version: z.literal(1),
-  dependency: DependencyConfigSchema.optional()
+  dependency: DependencyConfigSchema.optional(),
+  preview: PreviewConfigSchema.optional()
 });
 
 @Injectable()

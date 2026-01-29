@@ -13,8 +13,10 @@ User-facing documentation for HookCode (deployment, configuration, and day-to-da
 - [Repository configuration](./config/repositories)
 - [Robot configuration](./config/robots)
 - [Automation triggers](./config/triggers)
-{/* Add entry for repository dependency configuration. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
-- [Dependency configuration (.hookcode.yml)](./config/hookcode-yml)
+{/* Update .hookcode.yml doc label to reflect preview config. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+- [.hookcode.yml configuration](./config/hookcode-yml)
+{/* Add TaskGroup preview guide link for user docs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+- [TaskGroup preview](./preview)
 
 ## Reference
 

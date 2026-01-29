@@ -5,6 +5,8 @@ const sidebars: SidebarsConfig = {
   userDocs: [
     'user-docs/index',
     'user-docs/quickstart',
+    // Add TaskGroup preview guide to user docs navigation. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    'user-docs/preview',
     {
       type: 'category',
       label: 'Configuration',

@@ -13,6 +13,7 @@ import {
   clearAdminToolsAuthCookie,
   setAdminToolsAuthCookie
 } from './auth';
+import { proxyHttpRequest } from '../utils/httpProxy';
 
 const escapeHtml = (input: string): string =>
   input.replace(/[&<>"']/g, (ch) => {
@@ -197,11 +198,21 @@ export const createPrismaStudioProxyServer = (params: {
       return res.status(200).type('text/html; charset=utf-8').send(renderLoginPage({ title: 'HookCode Prisma Studio' }));
     }
 
-    // Authenticated: proxy directly to Prisma Studio.
-    return proxyHttpRequest(req, res, upstreamOrigin);
+    // Authenticated: proxy directly to Prisma Studio. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    return proxyHttpRequest(req, res, {
+      upstreamOrigin,
+      rewriteLocation: (value) => rewriteLocationHeader(value, upstreamOrigin),
+      logTag: '[admin-tools][prisma]'
+    });
   });
 
-  app.use((req, res) => proxyHttpRequest(req, res, upstreamOrigin));
+  app.use((req, res) =>
+    proxyHttpRequest(req, res, {
+      upstreamOrigin,
+      rewriteLocation: (value) => rewriteLocationHeader(value, upstreamOrigin),
+      logTag: '[admin-tools][prisma]'
+    })
+  );
 
   const server = http.createServer(app);
 
@@ -250,42 +261,4 @@ export const createPrismaStudioProxyServer = (params: {
   return server;
 };
 
-const proxyHttpRequest = (req: Request, res: any, upstreamOrigin: string) => {
-  const upstreamUrl = new URL(req.originalUrl || req.url || '/', upstreamOrigin);
-  const headers = { ...req.headers } as Record<string, any>;
-  headers.host = upstreamUrl.host;
-
-  const proxyReq = http.request(
-    upstreamUrl,
-    {
-      method: req.method,
-      headers
-    },
-    (proxyRes) => {
-      const status = proxyRes.statusCode || 502;
-      res.status(status);
-
-      for (const [key, value] of Object.entries(proxyRes.headers)) {
-        if (value === undefined) continue;
-        if (key.toLowerCase() === 'location' && typeof value === 'string') {
-          res.setHeader(key, rewriteLocationHeader(value, upstreamOrigin));
-          continue;
-        }
-        res.setHeader(key, value as any);
-      }
-
-      proxyRes.pipe(res);
-    }
-  );
-
-  proxyReq.on('error', (err) => {
-    console.error('[admin-tools][prisma] proxy error', err);
-    if (!res.headersSent) {
-      res.status(502).type('text/plain; charset=utf-8').send('Bad Gateway');
-    } else {
-      res.end();
-    }
-  });
-
-  (req as any as IncomingMessage).pipe(proxyReq);
-};
+// Proxy logic is centralized in utils/httpProxy to keep behavior consistent across routes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as

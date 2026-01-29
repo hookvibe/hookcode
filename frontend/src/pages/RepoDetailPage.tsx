@@ -31,6 +31,7 @@ import type {
   RepoAutomationConfig,
   RepoRobot,
   RepoScopedCredentialsPublic,
+  RepoPreviewConfigResponse,
   Repository,
   TimeWindow,
   UserModelCredentialsPublic,
@@ -43,6 +44,7 @@ import {
   deleteRepoRobot,
   fetchMyModelCredentials,
   fetchRepo,
+  fetchRepoPreviewConfig,
   listMyModelProviderModels,
   listRepoModelProviderModels,
   unarchiveRepo,
@@ -239,6 +241,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [webhookPathRaw, setWebhookPathRaw] = useState<string | null>(null);
   const [repoScopedCredentials, setRepoScopedCredentials] = useState<RepoScopedCredentialsPublic | null>(null);
+  // Track preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const [previewConfig, setPreviewConfig] = useState<RepoPreviewConfigResponse | null>(null);
+  const [previewConfigLoading, setPreviewConfigLoading] = useState(false);
   // Share webhook delivery data across dashboard cards to avoid duplicate requests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   const {
     deliveries: webhookDeliveries,
@@ -353,6 +358,17 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
   const webhookVerified = Boolean(repo?.webhookVerifiedAt);
 
+  // Map preview config reason codes to localized helper text. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const previewConfigReasonText = useMemo(() => {
+    const reason = previewConfig?.reason;
+    if (!reason) return '';
+    if (reason === 'no_workspace') return t('repos.preview.reason.noWorkspace');
+    if (reason === 'config_missing') return t('repos.preview.reason.configMissing');
+    if (reason === 'config_invalid') return t('repos.preview.reason.configInvalid');
+    if (reason === 'workspace_missing') return t('repos.preview.reason.workspaceMissing');
+    return '';
+  }, [previewConfig?.reason, t]);
+
   const title = useMemo(() => repo?.name || repoId || t('repos.detail.titleFallback'), [repo?.name, repoId, t]);
 
   const formatTime = useCallback(
@@ -365,6 +381,21 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     },
     [locale]
   );
+
+  const refreshPreviewConfig = useCallback(async () => {
+    // Load repo preview configuration metadata for the dashboard card. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!repoId) return;
+    setPreviewConfigLoading(true);
+    try {
+      const data = await fetchRepoPreviewConfig(repoId);
+      setPreviewConfig(data);
+    } catch (err) {
+      console.error(err);
+      setPreviewConfig(null);
+    } finally {
+      setPreviewConfigLoading(false);
+    }
+  }, [repoId]);
 
   const refresh = useCallback(async () => {
     if (!repoId) return;
@@ -401,6 +432,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void refreshPreviewConfig();
+  }, [refreshPreviewConfig]);
 
   useEffect(() => {
     // Keep onboarding visibility aligned with the current repo id (hash route may change without a full reload). 58w1q3n5nr58flmempxe
@@ -1913,6 +1948,34 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                             userModelCredentials={userModelCredentials}
                             formatTime={formatTime}
                           />
+                        </div>
+                      </div>
+
+                      <div className="hc-repo-dashboard__region">
+                        {/* Region 2.75: preview configuration discovery for repo-level UX. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+                        <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+                          <Card size="small" title={t('repos.preview.title')} className="hc-card">
+                            {previewConfigLoading ? (
+                              <Typography.Text type="secondary">{t('repos.preview.loading')}</Typography.Text>
+                            ) : previewConfig?.available ? (
+                              <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                                <Typography.Text type="secondary">{t('repos.preview.available')}</Typography.Text>
+                                {previewConfig.instances.map((instance) => (
+                                  <Space key={instance.name} size={8} wrap>
+                                    <Tag color="blue">{instance.name}</Tag>
+                                    <Typography.Text code>{instance.workdir}</Typography.Text>
+                                  </Space>
+                                ))}
+                              </Space>
+                            ) : (
+                              <Space direction="vertical" size={4}>
+                                <Typography.Text type="secondary">{t('repos.preview.unavailable')}</Typography.Text>
+                                {previewConfigReasonText ? (
+                                  <Typography.Text type="secondary">{previewConfigReasonText}</Typography.Text>
+                                ) : null}
+                              </Space>
+                            )}
+                          </Card>
                         </div>
                       </div>
 

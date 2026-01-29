@@ -9,6 +9,20 @@ export interface RuntimeRequirement {
   workdir?: string;
 }
 
+// Represent preview instance configuration in `.hookcode.yml`. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface PreviewInstanceConfig {
+  name: string;
+  command: string;
+  workdir: string;
+  port?: number;
+  readyPattern?: string;
+}
+
+// Group preview instances under the repository-level preview config. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface PreviewConfig {
+  instances: PreviewInstanceConfig[];
+}
+
 // Represent `.hookcode.yml` dependency configuration. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
 export interface HookcodeConfig {
   version: 1;
@@ -16,6 +30,7 @@ export interface HookcodeConfig {
     failureMode: DependencyFailureMode;
     runtimes: RuntimeRequirement[];
   };
+  preview?: PreviewConfig;
 }
 
 // Capture robot-level overrides for dependency execution. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124

@@ -1978,6 +1978,315 @@ button.hc-tasks-status-tile--active {
   overscroll-behavior: contain;
 }
 
+/* Add chat+preview split layout for TaskGroup dev previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-chat-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 0;
+  padding: 0 18px 18px;
+}
+
+/* Highlight draggable split interactions for the preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-chat-layout--dragging {
+  cursor: col-resize;
+}
+
+.hc-chat-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-chat-panel .hc-chat-body {
+  padding: 0;
+}
+
+.hc-preview-panel {
+  flex: 0 0 auto;
+  width: 38%;
+  min-width: 320px;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 14px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Add draggable divider and diagnostics styling for preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-preview-divider {
+  flex: 0 0 14px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  cursor: col-resize;
+}
+
+.hc-preview-divider-handle {
+  width: 2px;
+  margin: 10px 0;
+  border-radius: 999px;
+  background: var(--hc-border);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-preview-divider:hover .hc-preview-divider-handle,
+.hc-preview-divider--active .hc-preview-divider-handle {
+  background: var(--hc-accent-border);
+  box-shadow: 0 0 0 4px var(--hc-accent-soft);
+}
+
+.hc-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+/* Style preview tabs + log modal for Phase 2 UX. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-preview-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hc-preview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-preview-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  overflow-x: auto;
+}
+
+.hc-preview-tab {
+  appearance: none;
+  border: 1px solid var(--hc-border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.hc-preview-tab:hover {
+  background: var(--hc-accent-soft-hover);
+}
+
+.hc-preview-tab--active {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+}
+
+.hc-preview-tab-name {
+  font-weight: 600;
+}
+
+.hc-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.hc-preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+
+.hc-preview-placeholder {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-preview-message {
+  opacity: 0.8;
+}
+
+.hc-preview-diagnostics {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hc-border);
+  background: color-mix(in srgb, var(--hc-hover) 60%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.hc-preview-diagnostics-title {
+  font-weight: 600;
+}
+
+.hc-preview-diagnostics-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hc-preview-diagnostics-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-preview-diagnostics-logs-label {
+  font-weight: 600;
+}
+
+.hc-preview-diagnostics-logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hc-preview-diagnostics-log-line {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  word-break: break-word;
+}
+
+.hc-preview-diagnostics-log-level {
+  font-weight: 600;
+}
+
+.hc-preview-diagnostics-log-message {
+  color: inherit;
+}
+
+.hc-preview-log-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.hc-preview-log-body {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--hc-surface-elevated) 92%, #f8fafc);
+}
+
+.hc-preview-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-preview-log-line {
+  display: grid;
+  grid-template-columns: 96px 64px 1fr;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--hc-code-bg);
+  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.hc-preview-log-line--stderr {
+  background: color-mix(in srgb, #dc2626 10%, var(--hc-code-bg));
+}
+
+.hc-preview-log-line--system {
+  background: color-mix(in srgb, var(--hc-accent-soft) 60%, var(--hc-code-bg));
+}
+
+.hc-preview-log-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.hc-preview-log-level {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.hc-preview-log-line--stderr .hc-preview-log-level {
+  color: #dc2626;
+}
+
+.hc-preview-log-line--system .hc-preview-log-level {
+  color: #2563eb;
+}
+
+.hc-preview-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--hc-border);
+}
+
+.hc-preview-status-dot--running {
+  background: #16a34a;
+}
+
+.hc-preview-status-dot--starting {
+  background: #f97316;
+}
+
+.hc-preview-status-dot--failed,
+.hc-preview-status-dot--timeout {
+  background: #dc2626;
+}
+
+.hc-preview-status-dot--stopped {
+  background: var(--hc-border);
+}
+
+@media (max-width: 1024px) {
+  .hc-chat-layout {
+    flex-direction: column;
+  }
+
+  .hc-preview-divider {
+    display: none;
+  }
+
+  .hc-preview-panel {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .hc-preview-log-line {
+    grid-template-columns: 1fr;
+  }
+}
+
 .hc-chat-welcome {
   height: 100%;
   display: flex;

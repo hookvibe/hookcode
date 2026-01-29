@@ -16,6 +16,7 @@ import { TaskService } from './modules/tasks/task.service';
 import { UserService } from './modules/users/user.service';
 import { RuntimeService } from './services/runtimeService';
 import { OpenApiSpecStore } from './modules/openapi/openapi-spec.store';
+import { PreviewWsProxyService } from './modules/tasks/preview-ws-proxy.service';
 
 dotenv.config();
 
@@ -171,6 +172,14 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
 
   await app.listen(port, host);
   console.log(`${logTag} listening on http://${host}:${port}`);
+
+  try {
+    // Attach WS upgrade proxy for preview HMR support. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const previewWsProxy = app.get(PreviewWsProxyService);
+    previewWsProxy.attach(app.getHttpServer());
+  } catch (err) {
+    console.warn(`${logTag} preview WS proxy attach failed`, err);
+  }
 
   const adminToolsEmbedded = isAdminToolsEmbeddedEnabled();
   if (adminToolsEmbedded) {

@@ -42,6 +42,7 @@ vi.mock('../api', () => {
 
   return {
     __esModule: true,
+    API_BASE_URL: 'http://localhost:4000/api',
     executeChat: vi.fn(async () => ({
       taskGroup: {
         id: 'g_new',
@@ -67,8 +68,12 @@ vi.mock('../api', () => {
       updatedAt: now
     })),
     fetchTaskGroupTasks: vi.fn(async () => []),
+    // Mock preview endpoints so TaskGroupChatPage can render preview UI state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    fetchTaskGroupPreviewStatus: vi.fn(async () => ({ available: false, instances: [] })),
     listRepos: vi.fn(async () => [repo]),
-    listRepoRobots: vi.fn(async () => [robot])
+    listRepoRobots: vi.fn(async () => [robot]),
+    startTaskGroupPreview: vi.fn(async () => ({ success: true, instances: [] })),
+    stopTaskGroupPreview: vi.fn(async () => ({ success: true }))
   };
 });
 
@@ -105,6 +110,7 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
       } as any
     ]);
     vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([]);
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValue({ available: false, instances: [] });
     vi.mocked(api.fetchTaskGroup).mockImplementation(async (id: string) => ({
       id,
       kind: 'chat',
@@ -194,6 +200,62 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
 
     await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
     expect(screen.getByRole('button', { name: 'Execution window' })).toBeInTheDocument();
+  });
+
+  test('renders preview tabs when multiple instances are configured', async () => {
+    // Verify multi-instance preview tab rendering for Phase 2 UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [
+        { name: 'frontend', status: 'running', path: '/preview/g1/frontend/' },
+        { name: 'admin', status: 'stopped', path: '/preview/g1/admin/' }
+      ]
+    });
+
+    const ui = userEvent.setup();
+    renderPage({ taskGroupId: 'g1' });
+
+    await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
+    // Open the preview panel explicitly before asserting tab visibility. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    await ui.click(await screen.findByRole('button', { name: /open preview panel/i }));
+    expect(await screen.findByRole('button', { name: 'frontend' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'admin' })).toBeInTheDocument();
+  });
+
+  test('renders diagnostics when preview startup fails', async () => {
+    // Validate Phase 3 diagnostics rendering for failed preview instances. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [
+        {
+          name: 'frontend',
+          status: 'failed',
+          path: '/preview/g1/frontend/',
+          diagnostics: {
+            exitCode: 1,
+            signal: null,
+            logs: [
+              {
+                timestamp: '2026-01-12T00:00:00.000Z',
+                level: 'stderr',
+                message: 'boom'
+              }
+            ]
+          }
+        }
+      ]
+    });
+
+    const ui = userEvent.setup();
+    renderPage({ taskGroupId: 'g1' });
+
+    await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
+    // Open the preview panel to surface diagnostics in the placeholder state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    await ui.click(await screen.findByRole('button', { name: /open preview panel/i }));
+    expect(await screen.findByText('Startup diagnostics')).toBeInTheDocument();
+    expect(screen.getByText(/Exit code/i)).toHaveTextContent('Exit code: 1');
+    expect(screen.getByText('Latest logs')).toBeInTheDocument();
+    expect(screen.getByText('boom')).toBeInTheDocument();
   });
 
   // Validate optimistic in-place rendering on new group creation without a skeleton. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123

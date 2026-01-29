@@ -16,6 +16,9 @@ import { clearAuth, getToken, saveLoginNext } from './auth';
  */
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
+// Export the API base URL so iframe previews can reuse the same origin. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export const API_BASE_URL = apiBaseUrl;
+
 export const api = axios.create({
   baseURL: apiBaseUrl
 });
@@ -315,6 +318,50 @@ export interface TaskGroup {
   robot?: TaskRobotSummary;
 }
 
+// Define preview API response types for TaskGroup dev server status. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export type PreviewInstanceStatus = 'stopped' | 'starting' | 'running' | 'failed' | 'timeout';
+
+// Surface preview diagnostics and log payloads for Phase 3 UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface PreviewLogEntry {
+  timestamp: string;
+  level: 'stdout' | 'stderr' | 'system';
+  message: string;
+}
+
+// Attach diagnostics to preview status payloads for failed/timeout sessions. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface PreviewDiagnostics {
+  exitCode?: number | null;
+  signal?: string | null;
+  logs?: PreviewLogEntry[];
+}
+
+export interface PreviewInstanceSummary {
+  name: string;
+  status: PreviewInstanceStatus;
+  port?: number;
+  path?: string;
+  message?: string;
+  diagnostics?: PreviewDiagnostics;
+}
+
+export interface PreviewStatusResponse {
+  available: boolean;
+  instances: PreviewInstanceSummary[];
+  reason?: 'config_missing' | 'config_invalid' | 'workspace_missing' | 'invalid_group' | 'missing_task';
+}
+
+// Shape repo preview config responses for the repo detail dashboard. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface RepoPreviewInstanceSummary {
+  name: string;
+  workdir: string;
+}
+
+export interface RepoPreviewConfigResponse {
+  available: boolean;
+  instances: RepoPreviewInstanceSummary[];
+  reason?: 'no_workspace' | 'config_missing' | 'config_invalid' | 'workspace_missing';
+}
+
 export const fetchTaskGroups = async (options?: {
   limit?: number;
   repoId?: string;
@@ -337,6 +384,28 @@ export const fetchTaskGroup = async (id: string): Promise<TaskGroup> => {
 export const fetchTaskGroupTasks = async (id: string, options?: { limit?: number }): Promise<Task[]> => {
   const data = await getCached<{ tasks: Task[] }>(`/task-groups/${id}/tasks`, { params: options });
   return data.tasks;
+};
+
+// Preview API helpers for TaskGroup dev server lifecycle. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export const fetchTaskGroupPreviewStatus = async (id: string): Promise<PreviewStatusResponse> => {
+  const { data } = await api.get<PreviewStatusResponse>(`/task-groups/${id}/preview/status`);
+  return data;
+};
+
+export const startTaskGroupPreview = async (id: string): Promise<{ success: boolean; instances: PreviewInstanceSummary[] }> => {
+  const { data } = await api.post<{ success: boolean; instances: PreviewInstanceSummary[] }>(`/task-groups/${id}/preview/start`);
+  return data;
+};
+
+export const stopTaskGroupPreview = async (id: string): Promise<{ success: boolean }> => {
+  const { data } = await api.post<{ success: boolean }>(`/task-groups/${id}/preview/stop`);
+  return data;
+};
+
+// Fetch repository preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export const fetchRepoPreviewConfig = async (id: string): Promise<RepoPreviewConfigResponse> => {
+  const { data } = await api.get<RepoPreviewConfigResponse>(`/repos/${id}/preview/config`);
+  return data;
 };
 
 export const executeChat = async (params: {

@@ -105,6 +105,9 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.16.0
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       jest:
         specifier: ^30.2.0
         version: 30.2.0(@types/node@20.19.27)(ts-node@10.9.2(@swc/core@1.15.10)(@types/node@20.19.27)(typescript@5.9.3))
@@ -123,6 +126,9 @@ importers:
       typescript:
         specifier: ^5.4.3
         version: 5.9.3
+      ws:
+        specifier: ^8.19.0
+        version: 8.19.0
 
   docs:
     dependencies:
@@ -10332,6 +10338,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.19.0:
+    resolution: {integrity: sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   wsl-utils@0.1.0:
     resolution: {integrity: sha512-h3Fbisa2nKGPxCpm89Hk33lBLsnaGBvctQopaBSOW/uIs6FTe1ATyAnKFJrzVs9vpGdsTe73WF3V4lIsk4Gacw==}
     engines: {node: '>=18'}
@@ -13383,7 +13401,7 @@ snapshots:
   '@google/genai@1.30.0(@modelcontextprotocol/sdk@1.25.2(hono@4.11.4)(zod@3.25.76))':
     dependencies:
       google-auth-library: 10.5.0
-      ws: 8.18.3
+      ws: 8.19.0
     optionalDependencies:
       '@modelcontextprotocol/sdk': 1.25.2(hono@4.11.4)(zod@3.25.76)
     transitivePeerDependencies:
@@ -13746,7 +13764,7 @@ snapshots:
       string-width: 8.1.0
       type-fest: 4.41.0
       wrap-ansi: 9.0.2
-      ws: 8.18.3
+      ws: 8.19.0
       yoga-layout: 3.2.1
     transitivePeerDependencies:
       - bufferutil
@@ -23529,6 +23547,8 @@ snapshots:
   ws@7.5.10: {}
 
   ws@8.18.3: {}
+
+  ws@8.19.0: {}
 
   wsl-utils@0.1.0:
     dependencies:
