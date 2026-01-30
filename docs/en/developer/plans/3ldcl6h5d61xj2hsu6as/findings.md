@@ -194,3 +194,6 @@
 - Identified likely root cause: preview config port was ignored, so Vite default 5173 didn't match allocated proxy port; fix requires honoring config.port in PreviewService.
 - TaskGroupChatPage shows "Preview unavailable" when previewStatus.available=false; refreshPreviewStatus sets available=false on 404/409 responses (config_missing/config_invalid/workspace_missing).
 - TaskGroupPreviewController status uses PreviewService.getStatus; resolveWorkspaceDir derives workspace from latest task payload and will fail (workspace_missing/missing_task) if the latest task lacks repo payload, even if an older task created the workspace.
+- BUILD_ROOT is derived from __dirname in agent.ts, so running API/worker from different build outputs (dist vs src) can point to different task-group workspace roots.
+- Preview status returns workspace_missing when TASK_GROUP_WORKSPACE_ROOT differs from the directory where the worker cloned the repo; a robust fix should resolve build root from repo paths or env instead of __dirname only.
+- User observed preview status response `{error:"Task group workspace missing", code:"workspace_missing"}` for group 53a3147d-d36b-4edd-a868-7221201c7c25, confirming backend couldn't resolve workspace path at runtime.

@@ -107,7 +107,7 @@ Phase 8 (complete)
 - **Status:** complete
 
 ### Phase 8: Debug Preview Failure
-<!-- Mark Phase 8 complete after addressing preview port mismatch. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+<!-- Reopen Phase 8 to address workspace path resolution mismatches. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 - [x] Inspect task-group workspace and preview config detection output
 - [x] Trace backend preview start/status flow for the task group
 - [x] Verify frontend gating/error handling for preview availability

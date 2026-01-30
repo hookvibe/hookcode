@@ -173,21 +173,27 @@
 ### Phase 8: Debug Preview Failure
 - **Status:** complete
 - **Started:** 2026-01-29 23:55
-- **Completed:** 2026-01-30 00:10
+- **Completed:** 2026-01-30 00:45
 - Actions taken:
   - Identified preview unavailable due to workspace resolution using the latest task payload only.
   - Added workspace resolution fallback across multiple tasks and workspace prefix scanning.
+  - Added build root resolution to align API/worker workspace paths in mixed dist/src runs.
   - Added PreviewService unit test for missing repo metadata in latest task payload.
+  - Added unit test for HOOKCODE_BUILD_ROOT override behavior.
 - Files created/modified:
+  - backend/src/agent/agent.ts
   - backend/src/modules/tasks/previewPortPool.ts
   - backend/src/modules/tasks/preview.service.ts
   - backend/src/tests/unit/previewPortPool.test.ts
   - backend/src/tests/unit/previewService.test.ts
+  - backend/src/tests/unit/buildRootResolution.test.ts
 
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
+<!-- Record build root resolution unit test run. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (buildRootResolution) | `pnpm --filter hookcode-backend test -- buildRootResolution` | Tests pass | Passed | ✓ |
 <!-- Record PreviewService unit test run for workspace fallback. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 | Backend unit tests (previewService) | `pnpm --filter hookcode-backend test -- previewService` | Tests pass | Passed | ✓ |
 <!-- Record previewPortPool unit test run after workspace fallback changes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->

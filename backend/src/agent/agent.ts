@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
 import { mkdir, rm, writeFile, stat, readFile, chmod } from 'fs/promises';
 import path from 'path';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
@@ -78,8 +79,24 @@ import type { DependencyResult, HookcodeConfig, RobotDependencyConfig } from '..
  *   which powers console SSE (`backend/src/routes/tasks.ts`) and the frontend log viewer (`frontend/src/components/TaskLogViewer.tsx`).
  * - Security: redacts sensitive info in external logs (tokens / URL basic auth) to avoid storing secrets in DB or provider comments.
  */
+const resolveBuildRoot = (): string => {
+  // Prefer explicit or repo-root build directories to keep API/worker workspace paths aligned. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const explicit = (process.env.HOOKCODE_BUILD_ROOT ?? '').trim();
+  if (explicit && existsSync(explicit)) return explicit;
+  const cwd = process.cwd();
+  const candidates = [
+    path.join(cwd, 'backend', 'src', 'agent', 'build'),
+    path.join(cwd, 'src', 'agent', 'build')
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return path.join(__dirname, 'build');
+};
+
+// Resolve the build root deterministically to prevent preview workspace mismatches. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 // Export agent workspace root for shared git operations. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-export const BUILD_ROOT = path.join(__dirname, 'build');
+export const BUILD_ROOT = resolveBuildRoot();
 // Centralize task-group workspace root so each group maps to a single checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
 export const TASK_GROUP_WORKSPACE_ROOT = path.join(BUILD_ROOT, 'task-groups');
 const MAX_LOG_LINES = 1000;
