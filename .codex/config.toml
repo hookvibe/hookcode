@@ -1,0 +1,7 @@
+# Configure HookCode MCP server for this repo. docs/en/developer/plans/z4xn4m8yue7jxh9jv1p2/task_plan.md z4xn4m8yue7jxh9jv1p2
+[mcp_servers.hookcode_backend]
+url = "http://127.0.0.1:7350/mcp"
+bearer_token_env_var = "HOOKCODE_MCP_TOKEN"
+enabled = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60
