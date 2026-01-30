@@ -1,13 +1,19 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { constants } from 'fs';
-import { access } from 'fs/promises';
+import { access, readdir, stat } from 'fs/promises';
 import fs from 'fs';
 import net from 'net';
 import path from 'path';
 import type { HookcodeConfig, PreviewInstanceConfig } from '../../types/dependency';
 import { installDependencies, DependencyInstallerError } from '../../agent/dependencyInstaller';
-import { buildTaskGroupWorkspaceDir, getRepoSlug, runCommandCapture, shDoubleQuote } from '../../agent/agent';
+import {
+  buildTaskGroupWorkspaceDir,
+  getRepoSlug,
+  runCommandCapture,
+  shDoubleQuote,
+  TASK_GROUP_WORKSPACE_ROOT
+} from '../../agent/agent';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
 import { RuntimeService } from '../../services/runtimeService';
 import { PreviewPortPool } from './previewPortPool';
@@ -747,28 +753,58 @@ export class PreviewService implements OnModuleDestroy {
     const group = await this.taskService.getTaskGroup(taskGroupId, { includeMeta: true });
     if (!group) throw new PreviewServiceError('task group not found', 'invalid_group');
 
-    const tasks = await this.taskService.listTasksByGroup(taskGroupId, { limit: 1, includeMeta: false });
-    const latest = tasks[0];
-    if (!latest) throw new PreviewServiceError('task group has no tasks', 'missing_task');
+    const tasks = await this.taskService.listTasksByGroup(taskGroupId, { limit: 20, includeMeta: false });
+    if (tasks.length === 0) throw new PreviewServiceError('task group has no tasks', 'missing_task');
 
-    const provider = latest.repoProvider ?? group.repoProvider ?? group.repo?.provider;
-    if (!provider) throw new PreviewServiceError('missing repo provider', 'missing_task');
-
-    const repoSlug = getRepoSlug(provider, latest.payload, latest.id);
-    const workspaceDir = buildTaskGroupWorkspaceDir({
-      taskGroupId,
-      taskId: latest.id,
-      provider,
-      repoSlug
-    });
-
-    try {
-      await access(workspaceDir, constants.F_OK);
-    } catch {
-      throw new PreviewServiceError('task group workspace missing', 'workspace_missing');
+    const providerFallback = group.repoProvider ?? group.repo?.provider;
+    let lastProvider = providerFallback ?? null;
+    for (const task of tasks) {
+      const provider = task.repoProvider ?? providerFallback;
+      if (!provider) continue;
+      lastProvider = provider;
+      const repoSlug = getRepoSlug(provider, task.payload, task.id);
+      const workspaceDir = buildTaskGroupWorkspaceDir({
+        taskGroupId,
+        taskId: task.id,
+        provider,
+        repoSlug
+      });
+      try {
+        await access(workspaceDir, constants.F_OK);
+        // Prefer the first task whose workspace exists to avoid payload regressions. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+        return workspaceDir;
+      } catch {
+        // Continue scanning tasks when the latest payload cannot resolve the workspace. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+      }
     }
 
-    return workspaceDir;
+    const fallbackDir = await this.findWorkspaceByPrefix(taskGroupId, lastProvider ?? providerFallback ?? undefined);
+    if (fallbackDir) return fallbackDir;
+
+    throw new PreviewServiceError('task group workspace missing', 'workspace_missing');
+  }
+
+  private async findWorkspaceByPrefix(taskGroupId: string, provider?: string): Promise<string | null> {
+    // Fallback to an existing workspace directory when task payloads lack repo metadata. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const prefix = provider ? `${taskGroupId}__${provider}__` : `${taskGroupId}__`;
+    try {
+      const entries = await readdir(TASK_GROUP_WORKSPACE_ROOT, { withFileTypes: true });
+      const candidates = entries.filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix));
+      if (candidates.length === 0) return null;
+      let selected: { dir: string; mtime: number } | null = null;
+      for (const entry of candidates) {
+        const dir = path.join(TASK_GROUP_WORKSPACE_ROOT, entry.name);
+        const stats = await stat(dir);
+        const mtime = Number(stats.mtimeMs ?? stats.mtime.getTime());
+        if (!selected || mtime > selected.mtime) {
+          selected = { dir, mtime };
+        }
+      }
+      return selected?.dir ?? null;
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') return null;
+      throw err;
+    }
   }
 
   private async isPortListening(port: number): Promise<boolean> {

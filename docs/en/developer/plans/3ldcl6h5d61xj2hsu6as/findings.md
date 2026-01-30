@@ -174,3 +174,23 @@
 - 2026-01-29: Current UI uses separate preview panel toggle (previewPanelOpen) with i18n keys and tests/docs referencing "Open preview panel"; merging will require removing these references and auto-opening panel when preview starts.
 - 2026-01-29: Preview panel toggle button (Eye icons) and i18n keys were the only UI affordance to open the panel; merging requires removing the toggle and letting preview activity drive visibility.
 - 2026-01-29: Preview panel visibility now tracks preview state; clearing previewState on taskGroup change prevents stale panel carryover without a separate open button.
+- Confirmed planning-with-files skill requirements and session folder already exists for hash 3ldcl6h5d61xj2hsu6as; templates were not overwritten.
+- New request: preview fails for a task group even though repo has .hookcode.yml; need to inspect task-group workspace and preview config detection logic.
+- Provided workspace path to inspect: backend/src/agent/build/task-groups/53a3147d-d36b-4edd-a868-7221201c7c25__github__hookvibe__hookcode-test.
+- Task-group workspace contains .hookcode.yml with preview.instances[0] (pnpm dev, port 5173, readyPattern "Local:"), plus project files (package.json, vite.config.ts).
+- PreviewService.getStatus resolves preview config via resolvePreviewConfig; it returns available=false when hookcode config parse fails or preview instances missing.
+- Repo preview config detection uses the latest task group workspace and HookcodeConfigService.parseConfig; parsing errors return reason=config_invalid, missing preview returns config_missing.
+- resolvePreviewConfig always resolves workspace via latest task in the group; if hookcodeConfigService.parseConfig throws, status reason=config_invalid; if preview.instances missing, reason=config_missing.
+- resolveWorkspaceDir derives repoSlug from latest task payload + provider; workspace path is buildTaskGroupWorkspaceDir({taskGroupId, taskId, provider, repoSlug}) and must exist or preview returns workspace_missing.
+- buildTaskGroupWorkspaceDir uses TASK_GROUP_WORKSPACE_ROOT + `${taskGroupId}__${provider}__${repoSlug}`; repoSlug is derived from task payload.
+- getRepoSlug for GitHub uses payload.repository.full_name with '/' replaced by '__', so repo hookvibe/hookcode-test becomes hookvibe__hookcode-test in workspace path.
+- TASK_GROUP_WORKSPACE_ROOT is backend/src/agent/build/task-groups, matching the provided workspace location.
+- HookcodeConfigService validates preview.instances with required name/command/workdir; .hookcode.yml in workspace matches schema so parseConfig should succeed.
+- startPreviewInternal stops existing preview, runs installDependenciesIfNeeded, then spawns each preview instance with env PORT/HOST=127.0.0.1; command supports {{PORT}} replacement.
+- Dependency installs run via dependencyInstaller before preview start when dependency config exists; failures surface as dependency_failed.
+- PreviewInstanceConfig.port is currently unused; PreviewService always allocates a port from PreviewPortPool (default 10000-10999) and only sets PORT env/{{PORT}}.
+- PreviewPortPool has no API to reserve a fixed port; so configs that rely on fixed dev ports (e.g., Vite 5173) will mismatch the proxy target unless the command honors PORT/{{PORT}}.
+- hookcode-test workspace uses "dev": "vite" (no port flag), so it will default to 5173; this likely conflicts with preview port allocation unless config.port is honored.
+- Identified likely root cause: preview config port was ignored, so Vite default 5173 didn't match allocated proxy port; fix requires honoring config.port in PreviewService.
+- TaskGroupChatPage shows "Preview unavailable" when previewStatus.available=false; refreshPreviewStatus sets available=false on 404/409 responses (config_missing/config_invalid/workspace_missing).
+- TaskGroupPreviewController status uses PreviewService.getStatus; resolveWorkspaceDir derives workspace from latest task payload and will fail (workspace_missing/missing_task) if the latest task lacks repo payload, even if an older task created the workspace.

@@ -13,13 +13,13 @@
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
 <!-- Define the implementation goal for TaskGroup preview delivery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 <!-- Refresh goal statement for Phase 2 scope. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
-Deliver TaskGroup Dev preview Phase 2 with WS proxy (HMR), multi-instance tabs, live logs, and repository preview config detection.
+Diagnose and fix TaskGroup preview failures for repos that contain .hookcode.yml, starting from the reported task-group workspace.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
 <!-- Track the active build phase for preview feature delivery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 <!-- Set current phase to Phase 2 for active work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
-Phase 7 (complete)
+Phase 8 (complete)
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -106,6 +106,14 @@ Phase 7 (complete)
 - [x] Update tests, i18n, and docs for the merged flow
 - **Status:** complete
 
+### Phase 8: Debug Preview Failure
+<!-- Mark Phase 8 complete after addressing preview port mismatch. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- [x] Inspect task-group workspace and preview config detection output
+- [x] Trace backend preview start/status flow for the task group
+- [x] Verify frontend gating/error handling for preview availability
+- [x] Identify root cause and implement fix (tests + docs if needed)
+- **Status:** complete
+
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
 <!-- Update key questions for Phase 1 delivery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
@@ -113,6 +121,7 @@ Phase 7 (complete)
 2. How should .hookcode.yml preview config be validated while remaining backward compatible?
 3. What minimum proxy routing rules are required for iframe preview without HMR?
 4. How will dependency install preflight be triggered in Phase 1 without blocking the worker?
+5. Why is preview unavailable for the reported task-group workspace despite .hookcode.yml being present?
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}

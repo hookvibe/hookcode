@@ -169,10 +169,29 @@
   - frontend/src/i18n/messages/zh-CN.ts
   - docs/en/user-docs/preview.md
 
+<!-- Log Phase 8 preview debugging work for port mismatches. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 8: Debug Preview Failure
+- **Status:** complete
+- **Started:** 2026-01-29 23:55
+- **Completed:** 2026-01-30 00:10
+- Actions taken:
+  - Identified preview unavailable due to workspace resolution using the latest task payload only.
+  - Added workspace resolution fallback across multiple tasks and workspace prefix scanning.
+  - Added PreviewService unit test for missing repo metadata in latest task payload.
+- Files created/modified:
+  - backend/src/modules/tasks/previewPortPool.ts
+  - backend/src/modules/tasks/preview.service.ts
+  - backend/src/tests/unit/previewPortPool.test.ts
+  - backend/src/tests/unit/previewService.test.ts
+
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
+<!-- Record PreviewService unit test run for workspace fallback. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (previewService) | `pnpm --filter hookcode-backend test -- previewService` | Tests pass | Passed | ✓ |
+<!-- Record previewPortPool unit test run after workspace fallback changes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (previewPortPool) | `pnpm --filter hookcode-backend test -- previewPortPool` | Tests pass | Passed | ✓ |
 | Backend unit tests (previewPortPool) | `pnpm --filter hookcode-backend test -- previewPortPool` | Tests pass | Passed | ✓ |
 | Frontend unit tests (TaskGroupChatPage) | `pnpm --filter hookcode-frontend test -- run src/tests/taskGroupChatPage.test.tsx` | Tests pass | Passed after fix | ✓ |
 | Backend unit tests (previewLogStream) | `pnpm --filter hookcode-backend test -- previewLogStream` | Tests pass | Passed | ✓ |
