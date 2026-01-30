@@ -188,6 +188,245 @@
   - backend/src/tests/unit/previewService.test.ts
   - backend/src/tests/unit/buildRootResolution.test.ts
 
+## Session: 2026-01-30
+<!-- Log Phase 9 dependency install path investigation actions. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 9: Dependency Install Path Check
+- **Status:** complete
+- **Started:** 2026-01-30 23:10
+- **Completed:** 2026-01-30 23:55
+- Actions taken:
+  - Reviewed dependency install path resolution and workspace contents for the reported task-group.
+  - Switched dependency install command execution to explicit cwd for agent + preview flows.
+  - Added a runCommandCapture unit test to cover cwd handling.
+  - Manually verified pnpm install succeeds inside the task-group workspace.
+- Files created/modified:
+  - backend/src/agent/agent.ts
+  - backend/src/modules/tasks/preview.service.ts
+  - backend/src/tests/unit/runCommandCapture.test.ts
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/findings.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 10 preview reinstall action work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 10: Preview Manual Reinstall
+- **Status:** complete
+- **Started:** 2026-01-30 23:55
+- **Completed:** 2026-01-31 00:30
+- Actions taken:
+  - Added backend endpoint to reinstall preview dependencies and return dependency results.
+  - Added frontend preview start modal with manual reinstall button and API wiring.
+  - Added i18n copy and tests for the new preview modal action.
+  - Ran backend and frontend tests for previewService and TaskGroupChatPage.
+- Files created/modified:
+  - backend/src/modules/tasks/preview.service.ts
+  - backend/src/modules/tasks/task-group-preview.controller.ts
+  - backend/src/modules/tasks/dto/task-group-preview.dto.ts
+  - backend/src/tests/unit/previewService.test.ts
+  - frontend/src/api.ts
+  - frontend/src/pages/TaskGroupChatPage.tsx
+  - frontend/src/tests/taskGroupChatPage.test.tsx
+  - frontend/src/i18n/messages/en-US.ts
+  - frontend/src/i18n/messages/zh-CN.ts
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 11 pnpm workspace ignore fix work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 11: pnpm Workspace Escape Guard
+- **Status:** complete
+- **Started:** 2026-01-31 00:30
+- **Completed:** 2026-01-31 01:05
+- Actions taken:
+  - Identified pnpm resolving the parent HookCode workspace during installs.
+  - Appended --ignore-workspace for pnpm commands when parent pnpm-workspace.yaml is detected.
+  - Added unit tests to cover parent vs local workspace behavior.
+  - Ran dependencyInstaller unit tests.
+- Files created/modified:
+  - backend/src/agent/dependencyInstaller.ts
+  - backend/src/tests/unit/dependencyInstaller.test.ts
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 12 preview availability refresh fixes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 12: Preview Availability Refresh
+- **Status:** complete
+- **Started:** 2026-01-31 01:05
+- **Completed:** 2026-01-31 01:15
+- Actions taken:
+  - Refresh preview status after manual dependency installs.
+  - Removed availability-based disable on the start preview control to allow retries.
+  - Re-ran TaskGroupChatPage frontend tests.
+- Files created/modified:
+  - frontend/src/pages/TaskGroupChatPage.tsx
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 13 preview port honoring work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 13: Honor Preview Config Ports
+- **Status:** complete
+- **Started:** 2026-01-31 01:25
+- **Completed:** 2026-01-31 01:40
+- Actions taken:
+  - Honored configured preview ports when starting instances to avoid readiness stalls.
+  - Added PreviewPortPool tests for specific port reservation and busy-port rejection.
+  - Ran backend unit tests for previewPortPool.
+- Files created/modified:
+  - backend/src/modules/tasks/preview.service.ts
+  - backend/src/modules/tasks/previewPortPool.ts
+  - backend/src/tests/unit/previewPortPool.test.ts
+  - docs/en/user-docs/config/hookcode-yml.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 14 removal of fixed preview ports. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 14: Remove Fixed Preview Ports
+- **Status:** complete
+- **Started:** 2026-01-31 02:00
+- **Completed:** 2026-01-31 02:20
+- Actions taken:
+  - Removed preview `port` from schema/types and rejected fixed ports in config parsing.
+  - Reverted preview port pool to system-assigned allocation only.
+  - Updated docs/examples and changelog to require PORT/`{{PORT}}` placeholders.
+  - Added config parser test coverage for rejecting fixed ports.
+- Files created/modified:
+  - backend/src/types/dependency.ts
+  - backend/src/services/hookcodeConfigService.ts
+  - backend/src/modules/tasks/preview.service.ts
+  - backend/src/modules/tasks/previewPortPool.ts
+  - backend/src/tests/unit/hookcodeConfigService.test.ts
+  - backend/src/tests/unit/previewPortPool.test.ts
+  - docs/en/user-docs/config/hookcode-yml.md
+  - docs/en/change-log/0.0.0.md
+  - .hookcode.yml
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 15 preview env placeholder enforcement. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 15: Preview Env Port Placeholders
+- **Status:** complete
+- **Started:** 2026-01-31 02:25
+- **Completed:** 2026-01-31 02:45
+- Actions taken:
+  - Added preview env support with PORT placeholder replacement during spawn.
+  - Validated env entries to reject fixed port values.
+  - Updated docs/examples and config tests for env placeholders.
+- Files created/modified:
+  - backend/src/utils/previewEnv.ts
+  - backend/src/services/hookcodeConfigService.ts
+  - backend/src/types/dependency.ts
+  - backend/src/modules/tasks/preview.service.ts
+  - backend/src/tests/unit/hookcodeConfigService.test.ts
+  - backend/src/tests/unit/previewEnv.test.ts
+  - docs/en/user-docs/config/hookcode-yml.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 16 hookcode-yml-generator alignment. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 16: Update hookcode-yml-generator Skill
+- **Status:** complete
+- **Started:** 2026-01-31 02:50
+- **Completed:** 2026-01-31 03:05
+- Actions taken:
+  - Updated skill workflow to remove fixed preview ports and require PORT placeholders.
+  - Updated reference logic and template to include env placeholder rules.
+- Files created/modified:
+  - skill/hookcode-yml-generator/SKILL.md
+  - skill/hookcode-yml-generator/references/hookcode-yml-logic.md
+  - skill/hookcode-yml-generator/assets/hookcode.yml.template
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 17 preview auth cookie work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 17: Preview Proxy Token Cookie
+- **Status:** complete
+- **Started:** 2026-01-31 03:15
+- **Completed:** 2026-01-31 03:35
+- Actions taken:
+  - Set a preview auth cookie from query tokens so iframe asset requests stay authenticated.
+  - Allowed auth token extraction from preview cookies.
+  - Added auth token unit tests and ran them.
+- Files created/modified:
+  - backend/src/modules/auth/authToken.ts
+  - backend/src/modules/tasks/preview-proxy.controller.ts
+  - backend/src/tests/unit/authToken.test.ts
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 18 preview HTML base prefix fix. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 18: Preview HTML Base Prefix Fix
+- **Status:** complete
+- **Started:** 2026-01-31 03:40
+- **Completed:** 2026-01-31 04:00
+- Actions taken:
+  - Fixed preview prefix derivation to avoid double-injected base href values.
+  - Added unit tests for preview prefix resolution.
+  - Ran backend unit tests for preview proxy controller.
+- Files created/modified:
+  - backend/src/modules/tasks/preview-proxy.controller.ts
+  - backend/src/tests/unit/previewProxyController.test.ts
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 19 preview asset rewrite work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 19: Preview Asset Path Rewrite
+- **Status:** complete
+- **Started:** 2026-01-31 04:05
+- **Completed:** 2026-01-31 04:20
+- Actions taken:
+  - Stripped /api preview prefixes before proxying asset requests to dev servers.
+  - Added tests for prefix stripping fallbacks.
+  - Ran backend unit tests for previewProxyController.
+- Files created/modified:
+  - backend/src/modules/tasks/preview-proxy.controller.ts
+  - backend/src/tests/unit/previewProxyController.test.ts
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 20 preview JS/CSS rewrite work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 20: Preview Text Response Rewrites
+- **Status:** complete
+- **Started:** 2026-01-31 04:25
+- **Completed:** 2026-01-31 04:45
+- Actions taken:
+  - Rewrote JS/CSS responses to prefix absolute module paths for preview proxies.
+  - Extended preview proxy tests to cover inline module path rewriting.
+  - Ran backend unit tests for previewProxyController.
+- Files created/modified:
+  - backend/src/utils/httpProxy.ts
+  - backend/src/modules/tasks/preview-proxy.controller.ts
+  - backend/src/tests/unit/previewProxyController.test.ts
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 21 double-prefix prevention. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 21: Prevent Double Preview Prefixes
+- **Status:** complete
+- **Started:** 2026-01-31 04:50
+- **Completed:** 2026-01-31 05:05
+- Actions taken:
+  - Prevented preview path rewrites from double-prefixing already rewritten URLs.
+  - Added unit tests for double-prefix prevention.
+  - Ran backend unit tests for previewProxyController.
+- Files created/modified:
+  - backend/src/modules/tasks/preview-proxy.controller.ts
+  - backend/src/tests/unit/previewProxyController.test.ts
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
+<!-- Log Phase 22 base href rewrite fix. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 22: Prevent Base Href Double Prefix
+- **Status:** complete
+- **Started:** 2026-01-31 05:10
+- **Completed:** 2026-01-31 05:25
+- Actions taken:
+  - Prevented base href from being double-prefixed in preview HTML rewrites.
+  - Added unit tests to cover base href rewriting.
+  - Ran backend unit tests for previewProxyController.
+- Files created/modified:
+  - backend/src/modules/tasks/preview-proxy.controller.ts
+  - backend/src/tests/unit/previewProxyController.test.ts
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
+
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |
@@ -198,6 +437,26 @@
 | Backend unit tests (previewService) | `pnpm --filter hookcode-backend test -- previewService` | Tests pass | Passed | ✓ |
 <!-- Record previewPortPool unit test run after workspace fallback changes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 | Backend unit tests (previewPortPool) | `pnpm --filter hookcode-backend test -- previewPortPool` | Tests pass | Passed | ✓ |
+<!-- Record runCommandCapture unit test for cwd handling. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (runCommandCapture) | `pnpm --filter hookcode-backend test -- runCommandCapture` | Tests pass | Passed | ✓ |
+<!-- Record previewService unit test rerun for manual reinstall action. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (previewService) | `pnpm --filter hookcode-backend test -- previewService` | Tests pass | Passed | ✓ |
+<!-- Record TaskGroupChatPage frontend test for preview reinstall modal. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Frontend unit tests (taskGroupChatPage) | `pnpm --filter hookcode-frontend test -- taskGroupChatPage` | Tests pass | Passed | ✓ |
+<!-- Record dependencyInstaller unit test run for pnpm workspace ignore. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (dependencyInstaller) | `pnpm --filter hookcode-backend test -- dependencyInstaller` | Tests pass | Passed | ✓ |
+<!-- Record TaskGroupChatPage frontend test rerun after preview availability tweaks. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Frontend unit tests (taskGroupChatPage) | `pnpm --filter hookcode-frontend test -- taskGroupChatPage` | Tests pass | Passed | ✓ |
+<!-- Record PreviewPortPool test run after honoring configured ports. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (previewPortPool) | `pnpm --filter hookcode-backend test -- previewPortPool` | Tests pass | Passed | ✓ |
+<!-- Record HookcodeConfigService test run after env placeholder updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (hookcodeConfigService) | `pnpm --filter hookcode-backend test -- hookcodeConfigService` | Tests pass | Passed | ✓ |
+<!-- Record previewEnv helper test run. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (previewEnv) | `pnpm --filter hookcode-backend test -- previewEnv` | Tests pass | Passed | ✓ |
+<!-- Record authToken test run for preview cookie support. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (authToken) | `pnpm --filter hookcode-backend test -- authToken` | Tests pass | Passed | ✓ |
+<!-- Record preview proxy controller test run. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Backend unit tests (previewProxyController) | `pnpm --filter hookcode-backend test -- previewProxyController` | Tests pass | Passed | ✓ |
 | Backend unit tests (previewPortPool) | `pnpm --filter hookcode-backend test -- previewPortPool` | Tests pass | Passed | ✓ |
 | Frontend unit tests (TaskGroupChatPage) | `pnpm --filter hookcode-frontend test -- run src/tests/taskGroupChatPage.test.tsx` | Tests pass | Passed after fix | ✓ |
 | Backend unit tests (previewLogStream) | `pnpm --filter hookcode-backend test -- previewLogStream` | Tests pass | Passed | ✓ |
@@ -221,6 +480,7 @@
 | 2026-01-29 20:32 | PreviewService test failed with TS2322 ChildProcess type mismatch | 1 | Switched preview spawn stdin to `pipe` and closed it explicitly |
 | 2026-01-29 20:42 | pnpm add -D ws timed out | 1 | Re-ran with longer timeout |
 | 2026-01-29 20:48 | previewWsProxy test failed due to missing ws types | 1 | Added @types/ws and typed WebSocket handlers |
+| 2026-01-31 02:30 | HookcodeConfigService test failed: `.strict()` not available after `.superRefine()` | 1 | Moved `.strict()` before `.superRefine()` |
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}

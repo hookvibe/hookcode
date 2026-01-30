@@ -9,7 +9,8 @@ import { PreviewService, PreviewServiceError } from './preview.service';
 import {
   PreviewStartResponseDto,
   PreviewStatusResponseDto,
-  PreviewStopResponseDto
+  PreviewStopResponseDto,
+  PreviewDependencyInstallResponseDto
 } from './dto/task-group-preview.dto';
 
 @AuthScopeGroup('tasks') // Scope task-group preview APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
@@ -39,6 +40,25 @@ export class TaskGroupPreviewController {
       return { success: true, instances: snapshot.instances };
     } catch (err) {
       this.handleError(err, '[task-groups] preview start failed');
+    }
+  }
+
+  // Expose manual dependency reinstall endpoint for preview start UX. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  @Post(':id/preview/dependencies/install')
+  @ApiOperation({
+    summary: 'Install TaskGroup preview dependencies',
+    description: 'Manually install dependencies for a task group preview without starting the dev server.',
+    operationId: 'task_groups_preview_dependencies_install'
+  })
+  @ApiOkResponse({ description: 'OK', type: PreviewDependencyInstallResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  async installDependencies(@Param('id') id: string): Promise<PreviewDependencyInstallResponseDto> {
+    try {
+      const result = await this.previewService.installPreviewDependencies(id);
+      return { success: true, result };
+    } catch (err) {
+      this.handleError(err, '[task-groups] preview dependency install failed');
     }
   }
 

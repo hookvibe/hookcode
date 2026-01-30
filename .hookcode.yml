@@ -10,7 +10,7 @@ dependency:
 preview:
   instances:
     - name: frontend
-      command: "pnpm dev"
+      # Use PORT/{{PORT}} placeholders; fixed ports are not supported. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+      command: "pnpm dev -- --port {{PORT}}"
       workdir: "frontend"
-      port: 5173
       readyPattern: "Local:"

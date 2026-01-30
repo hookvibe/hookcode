@@ -973,6 +973,13 @@ export const enUS: Record<MessageKey, string> = {
   'preview.panel.title': 'Preview',
   'preview.action.start': 'Start preview',
   'preview.action.stop': 'Stop preview',
+  // Add preview start modal copy and dependency reinstall action. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  'preview.start.title': 'Start preview',
+  'preview.start.desc': 'You can reinstall dependencies before starting the preview if the dev server fails to boot.',
+  'preview.deps.reinstall': 'Reinstall dependencies',
+  'preview.deps.reinstallSuccess': 'Dependency install completed.',
+  'preview.deps.reinstallSkipped': 'No dependency install steps configured.',
+  'preview.deps.reinstallFailed': 'Dependency install failed.',
   'preview.action.openWindow': 'Open in new window',
   'preview.action.copyLink': 'Copy link',
   'preview.logs.open': 'View logs',

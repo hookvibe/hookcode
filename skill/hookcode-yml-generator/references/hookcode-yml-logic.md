@@ -17,8 +17,10 @@
     - `name`: unique string
     - `command`: required (<= 500 chars)
     - `workdir`: required relative path inside repo
-    - `port`: optional (informational)
+    - `env`: optional key/value map for env overrides
     - `readyPattern`: optional regex
+<!-- Remove fixed port fields and require env placeholders. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+    - `port`: not supported; use `{{PORT}}` placeholders in commands/env instead
 
 ## Dependency Install Behavior
 
@@ -46,7 +48,9 @@ Blocked characters (always rejected):
 - Config path: `<workspace>/.hookcode.yml`.
 - Preview reloads on config changes (debounced) via watcher in `backend/src/modules/tasks/preview.service.ts`.
 - Invalid config or missing preview config logs \"config reload skipped\".
+<!-- Document PORT placeholder rules for previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 - HookCode injects `PORT` and `HOST=127.0.0.1` for preview commands.
+- Env values that include a port must use `{{PORT}}` (no fixed ports).
 - Idle previews stop after 30 minutes of inactivity.
 
 ## Repo-Specific Defaults
@@ -54,7 +58,7 @@ Blocked characters (always rejected):
 - Root uses pnpm workspaces (`package.json`), Node engine >= 18.
 - Frontend dev command is `vite` (`frontend/package.json`), so prefer:
   - `workdir: "frontend"`
-  - `command: "pnpm dev"`
+  - `command: "pnpm dev -- --port {{PORT}}"`
 - Dependency install should run once at repo root:
   - `install: "pnpm install --frozen-lockfile"`
 

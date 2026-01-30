@@ -25,4 +25,5 @@ describe('PreviewPortPool', () => {
     const portC = await pool.allocatePort('group-2');
     expect([portA, portB]).toContain(portC);
   });
+
 });

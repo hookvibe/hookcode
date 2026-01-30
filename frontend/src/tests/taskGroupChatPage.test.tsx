@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
@@ -70,6 +70,8 @@ vi.mock('../api', () => {
     fetchTaskGroupTasks: vi.fn(async () => []),
     // Mock preview endpoints so TaskGroupChatPage can render preview UI state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     fetchTaskGroupPreviewStatus: vi.fn(async () => ({ available: false, instances: [] })),
+    // Mock preview dependency reinstall endpoint for modal coverage. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    installTaskGroupPreviewDependencies: vi.fn(async () => ({ success: true, result: { status: 'success', steps: [], totalDuration: 0 } })),
     listRepos: vi.fn(async () => [repo]),
     listRepoRobots: vi.fn(async () => [robot]),
     startTaskGroupPreview: vi.fn(async () => ({ success: true, instances: [] })),
@@ -111,6 +113,10 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
     ]);
     vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([]);
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValue({ available: false, instances: [] });
+    vi.mocked(api.installTaskGroupPreviewDependencies).mockResolvedValue({
+      success: true,
+      result: { status: 'success', steps: [], totalDuration: 0 }
+    });
     vi.mocked(api.fetchTaskGroup).mockImplementation(async (id: string) => ({
       id,
       kind: 'chat',
@@ -252,6 +258,28 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
     expect(screen.getByText(/Exit code/i)).toHaveTextContent('Exit code: 1');
     expect(screen.getByText('Latest logs')).toBeInTheDocument();
     expect(screen.getByText('boom')).toBeInTheDocument();
+  });
+
+  // Verify preview start modal exposes manual dependency reinstall action. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  test('shows manual dependency reinstall action in the preview start modal', async () => {
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'frontend', status: 'stopped', path: '/preview/g1/frontend/' }]
+    });
+
+    renderPage({ taskGroupId: 'g1' });
+
+    await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
+    const startButton = await screen.findByRole('button', { name: 'Start preview' });
+    await ui.click(startButton);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Start preview', { selector: '.ant-modal-title' })).toBeInTheDocument();
+    const reinstallButton = within(dialog).getByRole('button', { name: /Reinstall dependencies/i });
+    await ui.click(reinstallButton);
+
+    await waitFor(() => expect(api.installTaskGroupPreviewDependencies).toHaveBeenCalledWith('g1'));
   });
 
   // Validate optimistic in-place rendering on new group creation without a skeleton. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123

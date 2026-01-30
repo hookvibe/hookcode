@@ -979,6 +979,13 @@ export const zhCN = {
   'preview.panel.title': '预览',
   'preview.action.start': '启动预览',
   'preview.action.stop': '停止预览',
+  // Add preview start modal copy and dependency reinstall action. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  'preview.start.title': '启动预览',
+  'preview.start.desc': '如需排查启动失败，可先手动重新安装依赖再启动预览。',
+  'preview.deps.reinstall': '重新安装依赖',
+  'preview.deps.reinstallSuccess': '依赖安装完成。',
+  'preview.deps.reinstallSkipped': '未配置依赖安装步骤。',
+  'preview.deps.reinstallFailed': '依赖安装失败。',
   'preview.action.openWindow': '新窗口打开',
   'preview.action.copyLink': '复制链接',
   'preview.logs.open': '查看日志',

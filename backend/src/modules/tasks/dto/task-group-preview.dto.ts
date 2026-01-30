@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { DependencyResultDto } from './tasks-swagger.dto';
 
 export class PreviewLogEntryDto {
   // Preview log entry payload used by diagnostics and log streaming. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -73,4 +74,13 @@ export class PreviewStopResponseDto {
   // Stop preview response payload. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   @ApiProperty()
   success!: boolean;
+}
+
+export class PreviewDependencyInstallResponseDto {
+  // Preview dependency install response payload for manual reinstall. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  @ApiProperty()
+  success!: boolean;
+
+  @ApiProperty({ type: DependencyResultDto })
+  result!: DependencyResultDto;
 }

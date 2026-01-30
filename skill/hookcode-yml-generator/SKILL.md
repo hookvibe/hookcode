@@ -23,8 +23,9 @@ Generate a valid `.hookcode.yml` tailored to this repository's dependency instal
    - Add one Node runtime with `install: "pnpm install --frozen-lockfile"` at repo root (workdir optional).
 4. Build the preview section:
    - Add one instance named `frontend`.
-   - Set `workdir: "frontend"` and `command: "pnpm dev"`.
-   - Optionally add `readyPattern: "Local:"` and `port: 5173` for clarity.
+   - Set `workdir: "frontend"` and use a PORT placeholder in the command (for example `command: "pnpm dev -- --port {{PORT}}"`).
+   - Optionally add `readyPattern: "Local:"`.
+   - If env values include a port, require `:{{PORT}}` placeholders (for example `PUBLIC_ORIGIN: "http://127.0.0.1:{{PORT}}"`). <!-- Enforce system-assigned preview ports in generator steps. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 5. Validate constraints:
    - `workdir` is relative and inside the repo.
    - No blocked shell characters in install commands.
@@ -46,4 +47,6 @@ Copy `assets/hookcode.yml.template` to `<repo-root>/.hookcode.yml`, then adjust 
 - `.hookcode.yml` includes `version: 1`.
 - Dependency install command is allowlisted and uses pnpm.
 - Preview instance `frontend` runs in `frontend/` with `pnpm dev`.
+<!-- Clarify preview commands/env must use {{PORT}} placeholders. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Preview commands/env never hardcode ports; use `{{PORT}}` placeholders instead.
 - Notes mention robot overrides can change dependency behavior.

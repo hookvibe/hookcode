@@ -4,6 +4,7 @@ import path from 'path';
 import { parse } from 'yaml';
 import { z } from 'zod';
 import type { HookcodeConfig } from '../types/dependency';
+import { envKeyRequiresPortPlaceholder, envValueHasFixedPort, envValueHasPortPlaceholder } from '../utils/previewEnv';
 
 const RuntimeConfigSchema = z.object({
   language: z.enum(['node', 'python', 'java', 'ruby', 'go']),
@@ -17,14 +18,37 @@ const DependencyConfigSchema = z.object({
   runtimes: z.array(RuntimeConfigSchema).max(5)
 });
 
-// Validate preview instance configuration in `.hookcode.yml`. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-const PreviewInstanceSchema = z.object({
-  name: z.string().min(1).max(64),
-  command: z.string().min(1).max(500),
-  workdir: z.string().min(1).max(200),
-  port: z.number().int().min(1).max(65535).optional(),
-  readyPattern: z.string().max(200).optional()
-});
+// Validate preview instance configuration in `.hookcode.yml` and disallow fixed ports. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+const PreviewInstanceSchema = z
+  .object({
+    name: z.string().min(1).max(64),
+    command: z.string().min(1).max(500),
+    workdir: z.string().min(1).max(200),
+    env: z.record(z.string().min(1).max(80), z.string().max(500)).optional(),
+    readyPattern: z.string().max(200).optional()
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    // Enforce PORT placeholders in env values to avoid fixed-port previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const entries = Object.entries(value.env ?? {});
+    for (const [key, raw] of entries) {
+      const envValue = String(raw);
+      if (envKeyRequiresPortPlaceholder(key) && !envValueHasPortPlaceholder(envValue)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `preview.instances env "${key}" must use {{PORT}}`
+        });
+        return;
+      }
+      if (envValueHasFixedPort(envValue)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `preview.instances env "${key}" must not hardcode ports; use :{{PORT}}`
+        });
+        return;
+      }
+    }
+  });
 
 // Validate preview config shape and limits. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 const PreviewConfigSchema = z

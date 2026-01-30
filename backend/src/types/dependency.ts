@@ -9,12 +9,13 @@ export interface RuntimeRequirement {
   workdir?: string;
 }
 
-// Represent preview instance configuration in `.hookcode.yml`. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+// Represent preview instance configuration in `.hookcode.yml` (runtime ports are assigned via PORT env). docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export interface PreviewInstanceConfig {
   name: string;
   command: string;
   workdir: string;
-  port?: number;
+  // Allow per-instance env overrides with PORT placeholder support. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  env?: Record<string, string>;
   readyPattern?: string;
 }
 

@@ -1161,11 +1161,12 @@ exit 0
           allowCustomInstall: robotDependencyConfig?.allowCustomInstall,
           appendLog,
           runCommand: async ({ command, cwd, timeoutMs }) => {
-            const { exitCode, output } = await runCommandWithLogs(
-              `cd ${shDoubleQuote(cwd)} && ${command}`,
-              appendRawLog,
-              { timeoutMs, redact: redactSensitiveText }
-            );
+            // Execute dependency installs with explicit cwd to avoid path drift after clone. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+            const { exitCode, output } = await runCommandWithLogs(command, appendRawLog, {
+              cwd,
+              timeoutMs,
+              redact: redactSensitiveText
+            });
             return { exitCode, output };
           },
           appendThoughtChainCommand
@@ -1603,8 +1604,10 @@ const runCommandWithLogs = async (
   // Capture streaming command output for dependency installs while keeping log behavior consistent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   const redact = options.redact ?? redactSensitiveText;
   return await new Promise((resolve, reject) => {
+    // Run commands in the resolved workspace cwd to avoid shell cd path drift. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const child = spawn('sh', ['-c', command], {
       env: { ...process.env, ...(options.env ?? {}) },
+      cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
@@ -1692,11 +1695,15 @@ interface StreamOptions {
   env?: Record<string, string | undefined>;
   redact?: (text: string) => string;
   timeoutMs?: number;
+  // Allow explicit command cwd to keep dependency installs on the intended repo root. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  cwd?: string;
 }
 
 interface CaptureOptions {
   env?: Record<string, string | undefined>;
   redact?: (text: string) => string;
+  // Allow explicit cwd for command capture outside agent flow. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  cwd?: string;
 }
 
 // Export command capture for shared git operations outside the agent run. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
@@ -1707,8 +1714,10 @@ export const runCommandCapture = async (
   // Capture command output for git status probing without spamming task logs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   const redact = options.redact ?? redactSensitiveText;
   return await new Promise((resolve, reject) => {
+    // Honor explicit cwd to keep non-agent commands aligned with task-group workspaces. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const child = spawn('sh', ['-c', command], {
       env: { ...process.env, ...(options.env ?? {}) },
+      cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe']
     });
 

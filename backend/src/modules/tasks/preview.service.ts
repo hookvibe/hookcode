@@ -5,16 +5,16 @@ import { access, readdir, stat } from 'fs/promises';
 import fs from 'fs';
 import net from 'net';
 import path from 'path';
-import type { HookcodeConfig, PreviewInstanceConfig } from '../../types/dependency';
+import type { DependencyResult, HookcodeConfig, PreviewInstanceConfig } from '../../types/dependency';
 import { installDependencies, DependencyInstallerError } from '../../agent/dependencyInstaller';
 import {
   buildTaskGroupWorkspaceDir,
   getRepoSlug,
   runCommandCapture,
-  shDoubleQuote,
   TASK_GROUP_WORKSPACE_ROOT
 } from '../../agent/agent';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
+import { resolvePreviewEnv } from '../../utils/previewEnv';
 import { RuntimeService } from '../../services/runtimeService';
 import { PreviewPortPool } from './previewPortPool';
 import type {
@@ -211,6 +211,20 @@ export class PreviewService implements OnModuleDestroy {
     return startPromise;
   }
 
+  async installPreviewDependencies(taskGroupId: string): Promise<DependencyResult> {
+    // Provide a manual dependency reinstall hook for the preview start modal. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const configInfo = await this.resolvePreviewConfig(taskGroupId, { requireConfig: true });
+    if (!configInfo.available) {
+      const reason = configInfo.snapshot.reason ?? 'config_missing';
+      const code = reason === 'config_invalid' ? 'config_invalid' : 'config_missing';
+      throw new PreviewServiceError(`preview config ${code === 'config_invalid' ? 'invalid' : 'missing'}`, code);
+    }
+
+    await this.stopPreview(taskGroupId);
+    const result = await this.installDependenciesIfNeeded(configInfo.workspaceDir, configInfo.config);
+    return result ?? { status: 'skipped', steps: [], totalDuration: 0 };
+  }
+
   async stopPreview(taskGroupId: string): Promise<void> {
     // Stop all preview processes for the task group and release ports. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const runtime = this.groups.get(taskGroupId);
@@ -301,21 +315,24 @@ export class PreviewService implements OnModuleDestroy {
     }
     const port = await this.safeAllocatePort(taskGroupId);
 
+    // Merge resolved env placeholders while forcing backend-assigned PORT/HOST values. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const resolvedEnv = resolvePreviewEnv(config.env, port);
     const env = {
       ...process.env,
+      ...resolvedEnv,
       PORT: String(port),
       HOST: '127.0.0.1',
       BROWSER: 'none'
     };
     const command = this.renderCommand(config.command, port);
 
-    // Seed instance runtime metadata for idle timeout and diagnostics tracking. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    // Seed instance runtime metadata with a port-aware starting message for clearer readiness debugging. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const instance: PreviewInstanceRuntime = {
       config,
       port,
       status: 'starting',
       startedAt: new Date().toISOString(),
-      message: 'starting',
+      message: `starting (port ${port})`,
       lastAccessAt: Date.now(),
       logs: []
     };
@@ -611,9 +628,10 @@ export class PreviewService implements OnModuleDestroy {
     instance.process.stderr.on('data', (chunk: Buffer) => appendChunk('stderr', chunk, stderrBuffer));
   }
 
-  private async installDependenciesIfNeeded(workspaceDir: string, config: HookcodeConfig): Promise<void> {
+  private async installDependenciesIfNeeded(workspaceDir: string, config: HookcodeConfig): Promise<DependencyResult | null> {
     // Run repository dependency installs before preview startup when configured. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (!config.dependency) return;
+    // Return the dependency result so manual reinstall calls can report status. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!config.dependency) return null;
 
     const logs: string[] = [];
     const appendLog = async (msg: string) => {
@@ -621,18 +639,19 @@ export class PreviewService implements OnModuleDestroy {
     };
 
     try {
-      await installDependencies({
+      const result = await installDependencies({
         workspaceDir,
         config,
         runtimeService: this.runtimeService,
         appendLog,
         runCommand: async ({ command, cwd }) => {
-          const fullCommand = `cd ${shDoubleQuote(cwd)} && ${command}`;
-          const { stdout, stderr, exitCode } = await runCommandCapture(fullCommand, { env: process.env });
+          // Run preview dependency installs with explicit cwd for consistent workspace targeting. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+          const { stdout, stderr, exitCode } = await runCommandCapture(command, { env: process.env, cwd });
           const output = [stdout, stderr].filter(Boolean).join('\n');
           return { exitCode, output };
         }
       });
+      return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (err instanceof DependencyInstallerError) {
@@ -669,6 +688,7 @@ export class PreviewService implements OnModuleDestroy {
       throw new PreviewServiceError('no preview ports available', 'port_unavailable');
     }
   }
+
 
   private buildRuntimeSummary(taskGroupId: string, instance: PreviewInstanceRuntime): PreviewInstanceSummary {
     // Include diagnostics in status responses for failed/timeout preview instances. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as

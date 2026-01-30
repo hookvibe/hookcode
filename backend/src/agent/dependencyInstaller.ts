@@ -1,4 +1,5 @@
 import path from 'path';
+import { existsSync } from 'fs';
 import type { HookcodeConfig, DependencyResult, DependencyFailureMode, RuntimeRequirement } from '../types/dependency';
 import { validateInstallCommand } from '../services/installCommandValidator';
 import type { RuntimeService } from '../services/runtimeService';
@@ -54,6 +55,31 @@ const resolveWorkdir = (repoDir: string, workdir?: string): { ok: true; dir: str
     return { ok: false, reason: 'workdir must stay within the repository root' };
   }
   return { ok: true, dir: resolved, label: trimmed };
+};
+
+const findNearestPnpmWorkspaceFile = (startDir: string): string | null => {
+  // Detect pnpm-workspace.yaml to avoid installs escaping to parent workspaces. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  let current = startDir;
+  while (true) {
+    const candidate = path.join(current, 'pnpm-workspace.yaml');
+    if (existsSync(candidate)) return candidate;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+};
+
+const normalizeInstallCommand = (command: string, workspaceDir: string): string => {
+  // Append pnpm's --ignore-workspace when a parent workspace would hijack installs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const trimmed = String(command ?? '').trim();
+  if (!/^pnpm(\s|$)/.test(trimmed)) return command;
+  if (/\s--ignore-workspace(\s|$)/.test(trimmed)) return command;
+  const workspaceFile = findNearestPnpmWorkspaceFile(workspaceDir);
+  if (!workspaceFile) return command;
+  const relative = path.relative(workspaceDir, workspaceFile);
+  const inRepo = relative === 'pnpm-workspace.yaml' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  if (inRepo) return command;
+  return `${trimmed} --ignore-workspace`;
 };
 
 const mergeFailureMode = (config: HookcodeConfig | null, override?: DependencyFailureMode): DependencyFailureMode => {
@@ -121,13 +147,14 @@ export const installDependencies = async (params: DependencyInstallerParams): Pr
       continue;
     }
 
-    const validation = validateInstallCommand(language, install, { allowCustomInstall: params.allowCustomInstall });
+    const command = normalizeInstallCommand(install, params.workspaceDir);
+    const validation = validateInstallCommand(language, command, { allowCustomInstall: params.allowCustomInstall });
     if (!validation.valid) {
       const message = `Install command blocked: ${validation.reason ?? 'invalid command'}`;
       await params.appendLog(message);
       const step = {
         language,
-        command: install,
+        command,
         workdir,
         status: failureMode === 'hard' ? 'failed' : 'skipped',
         error: failureMode === 'hard' ? message : undefined,
@@ -151,7 +178,7 @@ export const installDependencies = async (params: DependencyInstallerParams): Pr
       await params.appendLog(message);
       const step = {
         language,
-        command: install,
+        command,
         workdir,
         status: failureMode === 'hard' ? 'failed' : 'skipped',
         error: failureMode === 'hard' ? message : undefined,
@@ -169,7 +196,6 @@ export const installDependencies = async (params: DependencyInstallerParams): Pr
       continue;
     }
 
-    const command = install;
     const commandLabel = workdirResolved.label === '.' ? command : `(${workdirResolved.label}) ${command}`;
     await params.appendLog(`Installing ${language} dependencies: ${commandLabel}`);
     const startedAtStep = Date.now();

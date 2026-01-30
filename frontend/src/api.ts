@@ -402,6 +402,16 @@ export const stopTaskGroupPreview = async (id: string): Promise<{ success: boole
   return data;
 };
 
+// Trigger manual dependency installs for TaskGroup previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export const installTaskGroupPreviewDependencies = async (
+  id: string
+): Promise<{ success: boolean; result: DependencyResult }> => {
+  const { data } = await api.post<{ success: boolean; result: DependencyResult }>(
+    `/task-groups/${id}/preview/dependencies/install`
+  );
+  return data;
+};
+
 // Fetch repository preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export const fetchRepoPreviewConfig = async (id: string): Promise<RepoPreviewConfigResponse> => {
   const { data } = await api.get<RepoPreviewConfigResponse>(`/repos/${id}/preview/config`);

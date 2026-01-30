@@ -30,7 +30,8 @@ preview:
     - name: frontend
       command: "pnpm dev"
       workdir: "frontend"
-      port: 5173
+      env:
+        VITE_PUBLIC_ORIGIN: "http://127.0.0.1:{{PORT}}"
       readyPattern: "Local:"
 ```
 
@@ -50,7 +51,9 @@ preview:
     - name: "frontend"       # required, unique
       command: "pnpm dev"    # required
       workdir: "frontend"    # required, relative to repo root
-      port: 5173             # optional, informational
+      env:                   # optional, env overrides
+        PORT: "{{PORT}}"
+        VITE_PUBLIC_ORIGIN: "http://127.0.0.1:{{PORT}}"
       readyPattern: "Local:" # optional, readiness regex
 ```
 
@@ -66,8 +69,11 @@ Each instance declares:
 - `name`: unique identifier (used in preview routing)
 - `command`: dev server command (runs with `PORT` injected)
 - `workdir`: relative path inside the repo
-- `port`: optional informational port (actual runtime port is assigned from the preview pool)
 - `readyPattern`: optional regex to detect readiness from logs
+<!-- Remove fixed port configuration in favor of PORT placeholders. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- `port`: **not supported** — previews always use system-assigned ports exposed via `PORT`
+<!-- Document preview env placeholder handling for port values. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- `env`: optional env overrides; any port values must use `{{PORT}}` (for example `http://127.0.0.1:{{PORT}}`)
 
 ### Port injection
 
@@ -79,6 +85,18 @@ preview:
     - name: app
       command: "vite --port $PORT"
       workdir: "frontend"
+```
+
+Env values that include a port must also use `{{PORT}}`, for example:
+
+```yaml
+preview:
+  instances:
+    - name: app
+      command: "pnpm dev -- --port {{PORT}}"
+      workdir: "frontend"
+      env:
+        PUBLIC_ORIGIN: "http://127.0.0.1:{{PORT}}"
 ```
 
 ### Notes

@@ -177,7 +177,7 @@
 - Confirmed planning-with-files skill requirements and session folder already exists for hash 3ldcl6h5d61xj2hsu6as; templates were not overwritten.
 - New request: preview fails for a task group even though repo has .hookcode.yml; need to inspect task-group workspace and preview config detection logic.
 - Provided workspace path to inspect: backend/src/agent/build/task-groups/53a3147d-d36b-4edd-a868-7221201c7c25__github__hookvibe__hookcode-test.
-- Task-group workspace contains .hookcode.yml with preview.instances[0] (pnpm dev, port 5173, readyPattern "Local:"), plus project files (package.json, vite.config.ts).
+- Task-group workspace contains .hookcode.yml with preview.instances[0] (pnpm dev, port 5173, readyPattern "Local:" — fixed port now disallowed), plus project files (package.json, vite.config.ts).
 - PreviewService.getStatus resolves preview config via resolvePreviewConfig; it returns available=false when hookcode config parse fails or preview instances missing.
 - Repo preview config detection uses the latest task group workspace and HookcodeConfigService.parseConfig; parsing errors return reason=config_invalid, missing preview returns config_missing.
 - resolvePreviewConfig always resolves workspace via latest task in the group; if hookcodeConfigService.parseConfig throws, status reason=config_invalid; if preview.instances missing, reason=config_missing.
@@ -188,12 +188,65 @@
 - HookcodeConfigService validates preview.instances with required name/command/workdir; .hookcode.yml in workspace matches schema so parseConfig should succeed.
 - startPreviewInternal stops existing preview, runs installDependenciesIfNeeded, then spawns each preview instance with env PORT/HOST=127.0.0.1; command supports {{PORT}} replacement.
 - Dependency installs run via dependencyInstaller before preview start when dependency config exists; failures surface as dependency_failed.
-- PreviewInstanceConfig.port is currently unused; PreviewService always allocates a port from PreviewPortPool (default 10000-10999) and only sets PORT env/{{PORT}}.
-- PreviewPortPool has no API to reserve a fixed port; so configs that rely on fixed dev ports (e.g., Vite 5173) will mismatch the proxy target unless the command honors PORT/{{PORT}}.
-- hookcode-test workspace uses "dev": "vite" (no port flag), so it will default to 5173; this likely conflicts with preview port allocation unless config.port is honored.
-- Identified likely root cause: preview config port was ignored, so Vite default 5173 didn't match allocated proxy port; fix requires honoring config.port in PreviewService.
+<!-- Clarify preview port contract: system-assigned only, no fixed ports in config. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Preview instances must use system-assigned ports exposed via `PORT`/`{{PORT}}`; `.hookcode.yml` must not set fixed ports.
+- Preview services allocate from the port pool and rely on commands honoring `PORT` to avoid readiness stalls.
 - TaskGroupChatPage shows "Preview unavailable" when previewStatus.available=false; refreshPreviewStatus sets available=false on 404/409 responses (config_missing/config_invalid/workspace_missing).
 - TaskGroupPreviewController status uses PreviewService.getStatus; resolveWorkspaceDir derives workspace from latest task payload and will fail (workspace_missing/missing_task) if the latest task lacks repo payload, even if an older task created the workspace.
 - BUILD_ROOT is derived from __dirname in agent.ts, so running API/worker from different build outputs (dist vs src) can point to different task-group workspace roots.
 - Preview status returns workspace_missing when TASK_GROUP_WORKSPACE_ROOT differs from the directory where the worker cloned the repo; a robust fix should resolve build root from repo paths or env instead of __dirname only.
 - User observed preview status response `{error:"Task group workspace missing", code:"workspace_missing"}` for group 53a3147d-d36b-4edd-a868-7221201c7c25, confirming backend couldn't resolve workspace path at runtime.
+<!-- Capture preview startup stall root cause for fixed-port dev servers. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Preview instances that ignore the assigned `PORT` (e.g., defaulting to 5173) can hang in "starting" until timeout; configs must use placeholders instead of fixed ports.
+<!-- Record env placeholder rule for preview configs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Preview instance env overrides are supported; any env value that includes a port must use the `{{PORT}}` placeholder (no hardcoded ports).
+<!-- Note skill updates for .hookcode.yml generation rules. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- hookcode-yml-generator skill now mirrors the no-fixed-port rule and injects PORT placeholders in commands/env.
+<!-- Capture iframe auth fix for preview assets. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Preview iframes now persist query tokens into a scoped cookie so asset requests can authenticate without headers.
+<!-- Capture preview base href duplication root cause. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Preview HTML rewriting was double-prefixing base href because it derived the prefix from req.baseUrl; it now derives from originalUrl to preserve `/api/preview/...` once.
+<!-- Capture asset path rewrite requirement for preview proxying. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Preview asset requests must strip the full `/api/preview/{group}/{instance}` prefix before proxying, otherwise Vite returns 404 and the iframe stays blank.
+<!-- Capture JS/CSS rewrite requirement for Vite dev assets. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Vite dev JS/CSS responses include absolute paths (`/src/...`, `/@react-refresh`); these must be rewritten to include the preview prefix.
+<!-- Capture double-prefix pitfall for preview path rewrites. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Preview path rewrite must avoid re-prefixing URLs already starting with `/api/preview/...`, otherwise assets 404 with duplicated prefixes.
+<!-- Capture base href double-prefix issue. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Injected base href can be double-prefixed unless attribute rewriting skips already-prefixed paths.
+
+- 2026-01-30: Confirmed session folder exists for hash 3ldcl6h5d61xj2hsu6as; will reuse it for the preview install-path investigation.
+
+- 2026-01-30: Reviewed session plan/progress; Phase 8 previously addressed workspace resolution and build root alignment for preview failures. New issue likely in dependency install step after repo clone.
+
+- 2026-01-30: dependencyInstaller resolves workdir relative to workspaceDir and rejects absolute paths; it runs commands with cwd = resolved workdir. Suspect workspaceDir passed in is wrong or not the repo root for preview tasks.
+
+- 2026-01-30: preview.service resolves workspaceDir via buildTaskGroupWorkspaceDir and passes it directly to installDependencies; installDependencies uses workspaceDir as repo root for workdir resolution. Path issue may stem from resolveWorkspaceDir/build root.
+
+- 2026-01-30: buildTaskGroupWorkspaceDir uses TASK_GROUP_WORKSPACE_ROOT plus `${taskGroupId}__${provider}__${repoSlug}`; if TASK_GROUP_WORKSPACE_ROOT differs between worker and preview service, install cwd could point at wrong tree (e.g., src vs dist build paths).
+
+- 2026-01-30: The task-group workspace exists and contains .hookcode.yml; dependency config runs `pnpm install --frozen-lockfile` with no workdir, so install should execute at repo root (workspaceDir). Issue likely not a missing file; path resolution or command execution context may still be wrong.
+
+- 2026-01-30: Searched build workspace for dependency install logs; none found in files under backend/src/agent/build (no log artifacts to inspect locally).
+
+- 2026-01-30: getRepoSlug replaces "/" with "__"; workspace path looks correct for hookvibe/hookcode-test. No obvious slug/path bug found in helper.
+
+- 2026-01-30: pnpm is available on PATH in this environment (/opt/homebrew/bin/pnpm, v9.6.0), so install failures are unlikely due to missing pnpm binary.
+
+- 2026-01-30: preview.service no longer needs shDoubleQuote after switching dependency installs to use explicit cwd (import cleanup required).
+
+- 2026-01-30: Backend test script uses Jest; ran new runCommandCapture test successfully to validate cwd handling.
+
+- 2026-01-30: Changelog already contains two 3ldcl6h5d61xj2hsu6as entries; will append a new bullet for the dependency install cwd fix.
+
+- 2026-01-30: Manual `pnpm install --frozen-lockfile` succeeds inside the reported task-group workspace, so the path itself is valid in this environment.
+
+- 2026-01-30: TaskGroupChatPage currently uses only a logs Modal; start/stop preview is a header button with no modal or reinstall control. A new UI affordance is needed to add a manual reinstall action.
+
+- 2026-01-30: Backend preview controller exposes start/stop/status/logs only; preview service always runs installDependenciesIfNeeded during startPreview. There is no standalone dependency reinstall endpoint yet.
+
+- 2026-01-31: Added preview dependency reinstall endpoint + start modal; backend previewService and frontend taskGroupChatPage tests pass after adjusting modal queries.
+
+- 2026-01-31: Confirmed task-group workspace has no node_modules; running pnpm install inside it outputs "Scope: all 4 workspace projects", meaning pnpm is climbing to the parent hookcode monorepo workspace. This causes installs to run in the parent workspace instead of the cloned repo. pnpm has --ignore-workspace to prevent parent workspace detection.
+
+- 2026-01-31: User reports preview remains unavailable after dependency install; need to refresh preview status after install and avoid disabling start button when unavailable.

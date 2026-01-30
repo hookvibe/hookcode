@@ -5,6 +5,7 @@ import {
   CopyOutlined,
   ExportOutlined,
   FileTextOutlined,
+  ReloadOutlined,
   SendOutlined,
   UnorderedListOutlined
 } from '@ant-design/icons';
@@ -25,6 +26,7 @@ import {
   fetchTaskGroup,
   fetchTaskGroupPreviewStatus,
   fetchTaskGroupTasks,
+  installTaskGroupPreviewDependencies,
   listRepoRobots,
   listRepos,
   startTaskGroupPreview,
@@ -96,6 +98,9 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [previewState, setPreviewState] = useState<PreviewStatusResponse | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewActionLoading, setPreviewActionLoading] = useState(false);
+  // Track preview start modal visibility and manual dependency installs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const [previewStartModalOpen, setPreviewStartModalOpen] = useState(false);
+  const [previewInstallLoading, setPreviewInstallLoading] = useState(false);
   // Keep preview tabs and logs state aligned with multi-instance previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [activePreviewName, setActivePreviewName] = useState<string | null>(null);
   const [previewLogsOpen, setPreviewLogsOpen] = useState(false);
@@ -591,14 +596,14 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   // Start/stop previews from the TaskGroup page toggle button. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const handlePreviewToggle = useCallback(async () => {
     if (!taskGroupId) return;
+    const isActive = previewAggregateStatus === 'running' || previewAggregateStatus === 'starting';
+    if (!isActive) {
+      setPreviewStartModalOpen(true);
+      return;
+    }
     setPreviewActionLoading(true);
     try {
-      const isActive = previewAggregateStatus === 'running' || previewAggregateStatus === 'starting';
-      if (isActive) {
-        await stopTaskGroupPreview(taskGroupId);
-      } else {
-        await startTaskGroupPreview(taskGroupId);
-      }
+      await stopTaskGroupPreview(taskGroupId);
       await refreshPreviewStatus({ silent: true });
     } catch (err) {
       console.error(err);
@@ -607,6 +612,43 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       setPreviewActionLoading(false);
     }
   }, [message, previewAggregateStatus, refreshPreviewStatus, taskGroupId, t]);
+
+  // Confirm preview start via modal so manual dependency reinstall is available. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const handlePreviewStart = useCallback(async () => {
+    if (!taskGroupId) return;
+    setPreviewActionLoading(true);
+    try {
+      await startTaskGroupPreview(taskGroupId);
+      await refreshPreviewStatus({ silent: true });
+      setPreviewStartModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      message.error(t('preview.toggleFailed'));
+    } finally {
+      setPreviewActionLoading(false);
+    }
+  }, [message, refreshPreviewStatus, taskGroupId, t]);
+
+  // Allow users to manually reinstall preview dependencies from the start dialog. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const handlePreviewReinstall = useCallback(async () => {
+    if (!taskGroupId) return;
+    setPreviewInstallLoading(true);
+    try {
+      const result = await installTaskGroupPreviewDependencies(taskGroupId);
+      if (result.result.status === 'skipped') {
+        message.warning(t('preview.deps.reinstallSkipped'));
+      } else {
+        message.success(t('preview.deps.reinstallSuccess'));
+      }
+      // Refresh preview availability after dependency installs so retries don't require a reload. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+      await refreshPreviewStatus({ silent: true });
+    } catch (err) {
+      console.error(err);
+      message.error(t('preview.deps.reinstallFailed'));
+    } finally {
+      setPreviewInstallLoading(false);
+    }
+  }, [message, refreshPreviewStatus, taskGroupId, t]);
 
   // Provide share/open controls for preview URLs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const handleOpenPreviewWindow = useCallback(() => {
@@ -1092,12 +1134,11 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
           <Space>
             {taskGroupId && (
               <Popover content={previewAggregateStatusLabel}>
+                {/* Allow preview retries even when availability is stale. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
                 <Button
                   onClick={handlePreviewToggle}
                   loading={previewActionLoading || previewAggregateStatus === 'starting'}
-                  disabled={
-                    previewLoading || previewActionLoading || (!previewAvailable && previewAggregateStatus === 'stopped')
-                  }
+                  disabled={previewLoading || previewActionLoading}
                 >
                   <span
                     className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
@@ -1281,6 +1322,44 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
           </>
         )}
       </div>
+
+      {/* Render the preview start modal with a manual reinstall action. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+      <Modal
+        open={previewStartModalOpen}
+        title={t('preview.start.title')}
+        onCancel={() => setPreviewStartModalOpen(false)}
+        maskClosable={!previewActionLoading && !previewInstallLoading}
+        footer={
+          <Space>
+            <Button
+              onClick={() => setPreviewStartModalOpen(false)}
+              disabled={previewActionLoading || previewInstallLoading}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={handlePreviewReinstall}
+              loading={previewInstallLoading}
+              disabled={previewActionLoading}
+            >
+              {t('preview.deps.reinstall')}
+            </Button>
+            <Button
+              type="primary"
+              onClick={handlePreviewStart}
+              loading={previewActionLoading}
+              disabled={previewInstallLoading}
+            >
+              {t('preview.action.start')}
+            </Button>
+          </Space>
+        }
+      >
+        <Typography.Paragraph type="secondary">
+          {t('preview.start.desc')}
+        </Typography.Paragraph>
+      </Modal>
 
       {/* Preview log modal is driven by SSE when open. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
       <Modal

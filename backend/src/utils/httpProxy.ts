@@ -7,6 +7,7 @@ export interface ProxyHttpRequestOptions {
   rawUrl?: string;
   rewritePath?: (path: string) => string;
   rewriteHtml?: (html: string) => string;
+  rewriteText?: (text: string, contentType: string) => string;
   rewriteLocation?: (value: string) => string;
   logTag?: string;
 }
@@ -21,7 +22,7 @@ export const proxyHttpRequest = (req: Request, res: Response, options: ProxyHttp
 
   const headers = { ...req.headers } as Record<string, any>;
   headers.host = upstreamUrl.host;
-  if (options.rewriteHtml) {
+  if (options.rewriteHtml || options.rewriteText) {
     headers['accept-encoding'] = 'identity';
   }
 
@@ -37,6 +38,8 @@ export const proxyHttpRequest = (req: Request, res: Response, options: ProxyHttp
       const status = proxyRes.statusCode || 502;
       const contentType = String(proxyRes.headers['content-type'] ?? '');
       const isHtml = Boolean(options.rewriteHtml) && contentType.includes('text/html');
+      const isTextRewrite =
+        Boolean(options.rewriteText) && (contentType.includes('javascript') || contentType.includes('text/css'));
 
       res.status(status);
 
@@ -47,11 +50,11 @@ export const proxyHttpRequest = (req: Request, res: Response, options: ProxyHttp
           res.setHeader(key, options.rewriteLocation(value));
           continue;
         }
-        if (isHtml && (lower === 'content-length' || lower === 'content-encoding')) continue;
+        if ((isHtml || isTextRewrite) && (lower === 'content-length' || lower === 'content-encoding')) continue;
         res.setHeader(key, value as any);
       }
 
-      if (!isHtml) {
+      if (!isHtml && !isTextRewrite) {
         proxyRes.pipe(res);
         return;
       }
@@ -60,9 +63,10 @@ export const proxyHttpRequest = (req: Request, res: Response, options: ProxyHttp
       proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
       proxyRes.on('end', () => {
         const raw = Buffer.concat(chunks).toString('utf8');
-        const rewritten = options.rewriteHtml ? options.rewriteHtml(raw) : raw;
-        res.setHeader('content-length', Buffer.byteLength(rewritten, 'utf8'));
-        res.send(rewritten);
+        const rewritten = isHtml && options.rewriteHtml ? options.rewriteHtml(raw) : raw;
+        const finalText = isTextRewrite && options.rewriteText ? options.rewriteText(rewritten, contentType) : rewritten;
+        res.setHeader('content-length', Buffer.byteLength(finalText, 'utf8'));
+        res.send(finalText);
       });
     }
   );
