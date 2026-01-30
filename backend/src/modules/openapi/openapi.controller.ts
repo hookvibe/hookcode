@@ -1,12 +1,13 @@
 import { Controller, Get, Req, ServiceUnavailableException } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { AllowQueryToken } from '../auth/auth.decorator';
+import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
 import { resolveAdminToolsLocale } from '../../adminTools/i18n';
 import { OpenApiSpecStore } from './openapi-spec.store';
 
 // Serve the cached OpenAPI spec for docs and tooling. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126
 @ApiTags('OpenAPI')
+@AuthScopeGroup('system') // Scope OpenAPI docs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('openapi.json')
 export class OpenApiController {
   constructor(private readonly store: OpenApiSpecStore) {}

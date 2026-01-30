@@ -7,6 +7,7 @@ import {
   Form,
   Grid,
   Input,
+  InputNumber,
   Modal,
   Radio,
   Switch,
@@ -26,19 +27,27 @@ import {
   ToolOutlined,
   UserOutlined,
   CloudServerOutlined,
+  ApiOutlined,
   CloseOutlined
 } from '@ant-design/icons';
 import type { AccentPreset } from '../theme/accent';
 import { ACCENT_PRESET_OPTIONS } from '../theme/accent';
 import {
   changeMyPassword,
+  createMyApiToken,
   fetchAdminToolsMeta,
   fetchSystemRuntimes,
   fetchMe,
+  fetchMyApiTokens,
   fetchMyModelCredentials,
   listMyModelProviderModels,
+  revokeMyApiToken,
   updateMe,
+  updateMyApiToken,
   updateMyModelCredentials,
+  type ApiTokenScopeGroup,
+  type ApiTokenScopeLevel,
+  type UserApiTokenPublic,
   type RuntimeInfo,
   type UserModelCredentialsPublic,
   type UserModelProviderCredentialProfilePublic,
@@ -73,6 +82,15 @@ type ThemePreference = 'system' | 'light' | 'dark';
 type ProviderKey = 'gitlab' | 'github';
 type ModelProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
 type PanelTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings';
+// Track PAT form state for open API token creation/editing. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+type ApiTokenScopeChoice = 'none' | ApiTokenScopeLevel;
+type ApiTokenExpiryPreset = '1' | '7' | '30' | '90' | '180' | '365' | 'custom' | 'never';
+type ApiTokenFormValues = {
+  name: string;
+  scopeLevels: Record<ApiTokenScopeGroup, ApiTokenScopeChoice>;
+  expiryPreset: ApiTokenExpiryPreset;
+  expiryCustomDays?: number;
+};
 
 const DEFAULT_PORTS = { prisma: 7215, swagger: 7216 } as const;
 
@@ -129,6 +147,16 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   const [credLoading, setCredLoading] = useState(false);
   const [credentials, setCredentials] = useState<UserModelCredentialsPublic | null>(null);
   const [savingCred, setSavingCred] = useState(false);
+
+  // Manage PAT list + modal state inside the credentials panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const [apiTokens, setApiTokens] = useState<UserApiTokenPublic[]>([]);
+  const [apiTokensLoading, setApiTokensLoading] = useState(false);
+  const [apiTokenFormOpen, setApiTokenFormOpen] = useState(false);
+  const [apiTokenEditing, setApiTokenEditing] = useState<UserApiTokenPublic | null>(null);
+  const [apiTokenSubmitting, setApiTokenSubmitting] = useState(false);
+  const [apiTokenForm] = Form.useForm<ApiTokenFormValues>();
+  const [apiTokenRevealOpen, setApiTokenRevealOpen] = useState(false);
+  const [apiTokenRevealValue, setApiTokenRevealValue] = useState<string | null>(null);
 
   const [toolsPorts, setToolsPorts] = useState(DEFAULT_PORTS);
   const [toolsLoading, setToolsLoading] = useState(false);
@@ -203,6 +231,46 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     []
   );
 
+  // Define PAT scope group labels and expiry presets for the credentials panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const apiTokenScopeGroups = useMemo(
+    () => [
+      { key: 'account' as ApiTokenScopeGroup, label: t('panel.apiTokens.scope.account'), desc: t('panel.apiTokens.scope.accountDesc') },
+      { key: 'repos' as ApiTokenScopeGroup, label: t('panel.apiTokens.scope.repos'), desc: t('panel.apiTokens.scope.reposDesc') },
+      { key: 'tasks' as ApiTokenScopeGroup, label: t('panel.apiTokens.scope.tasks'), desc: t('panel.apiTokens.scope.tasksDesc') },
+      { key: 'events' as ApiTokenScopeGroup, label: t('panel.apiTokens.scope.events'), desc: t('panel.apiTokens.scope.eventsDesc') },
+      { key: 'system' as ApiTokenScopeGroup, label: t('panel.apiTokens.scope.system'), desc: t('panel.apiTokens.scope.systemDesc') }
+    ],
+    [t]
+  );
+
+  const apiTokenScopeLabelMap = useMemo(() => {
+    const map = new Map<ApiTokenScopeGroup, string>();
+    apiTokenScopeGroups.forEach((group) => map.set(group.key, group.label));
+    return map;
+  }, [apiTokenScopeGroups]);
+
+  const apiTokenExpiryOptions = useMemo(
+    () => [
+      { value: '1', label: t('panel.apiTokens.expiry.days', { days: 1 }) },
+      { value: '7', label: t('panel.apiTokens.expiry.days', { days: 7 }) },
+      { value: '30', label: t('panel.apiTokens.expiry.days', { days: 30 }) },
+      { value: '90', label: t('panel.apiTokens.expiry.days', { days: 90 }) },
+      { value: '180', label: t('panel.apiTokens.expiry.days', { days: 180 }) },
+      { value: '365', label: t('panel.apiTokens.expiry.days', { days: 365 }) },
+      { value: 'custom', label: t('panel.apiTokens.expiry.custom') },
+      { value: 'never', label: t('panel.apiTokens.expiry.never') }
+    ],
+    [t]
+  );
+
+  const apiTokenLevelLabel = useMemo(
+    () => ({
+      read: t('panel.apiTokens.scopeLevel.read'),
+      write: t('panel.apiTokens.scopeLevel.write')
+    }),
+    [t]
+  );
+
   const isTabDisabled = useCallback(
     (tab: PanelTab) => {
       // Business rule: unauthenticated users can still change local-only settings (language/theme/accent).
@@ -249,6 +317,22 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     }
   }, [canUseAccountApis, message, t, token]);
 
+  // Load PAT inventory when the credentials tab is active. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const refreshApiTokens = useCallback(async () => {
+    if (!canUseAccountApis) return;
+    setApiTokensLoading(true);
+    try {
+      const data = await fetchMyApiTokens();
+      setApiTokens(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.apiTokens.fetchFailed'));
+      setApiTokens([]);
+    } finally {
+      setApiTokensLoading(false);
+    }
+  }, [canUseAccountApis, message, t]);
+
   const refreshToolsMeta = useCallback(async () => {
     if (!canUseAccountApis) return;
     setToolsLoading(true);
@@ -290,11 +374,15 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   useEffect(() => {
     if (!open) return;
     void refreshUser();
-    if (activeTab === 'credentials') void refreshCredentials();
+    if (activeTab === 'credentials') {
+      // Keep PAT list in sync when visiting credentials. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+      void refreshCredentials();
+      void refreshApiTokens();
+    }
     if (activeTab === 'tools') void refreshToolsMeta();
     // Refresh runtime detection when switching to the environment tab. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
     if (activeTab === 'environment') void refreshRuntimes();
-  }, [activeTab, open, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
+  }, [activeTab, open, refreshApiTokens, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   useEffect(() => {
     // UX guard: when not authenticated, keep the panel focused on local-only settings to avoid 401 redirects.
@@ -306,20 +394,24 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   const headerRefreshing = useMemo(() => {
     if (!canUseAccountApis) return false;
     if (activeTab === 'account') return userLoading;
-    if (activeTab === 'credentials') return credLoading;
+    if (activeTab === 'credentials') return credLoading || apiTokensLoading; // Include PAT loading state. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
     if (activeTab === 'tools') return toolsLoading;
     if (activeTab === 'environment') return runtimesLoading;
     return false;
-  }, [activeTab, canUseAccountApis, credLoading, runtimesLoading, toolsLoading, userLoading]);
+  }, [activeTab, apiTokensLoading, canUseAccountApis, credLoading, runtimesLoading, toolsLoading, userLoading]);
 
   const refreshActiveTab = useCallback(async () => {
     if (!canUseAccountApis) return;
     // UX: keep refresh contextual so we avoid multiple concurrent API calls.
     if (activeTab === 'account') await refreshUser();
-    if (activeTab === 'credentials') await refreshCredentials();
+    if (activeTab === 'credentials') {
+      // Refresh PAT inventory alongside credential profiles. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+      await refreshCredentials();
+      await refreshApiTokens();
+    }
     if (activeTab === 'tools') await refreshToolsMeta();
     if (activeTab === 'environment') await refreshRuntimes();
-  }, [activeTab, canUseAccountApis, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
+  }, [activeTab, canUseAccountApis, refreshApiTokens, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   const logout = useCallback(() => {
     Modal.confirm({
@@ -354,6 +446,34 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     },
     [message, t]
   );
+
+  // Format timestamps for PAT list display using the active locale. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const formatDateTime = useCallback(
+    (value?: string | null): string => {
+      if (!value) return '-';
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return '-';
+      return parsed.toLocaleString(locale);
+    },
+    [locale]
+  );
+
+  // Build a safe PAT hint for list display (prefix + last4). docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const buildApiTokenHint = useCallback((tokenItem: UserApiTokenPublic): string => {
+    const suffix = tokenItem.tokenLast4 ? String(tokenItem.tokenLast4) : '';
+    return suffix ? `${tokenItem.tokenPrefix}…${suffix}` : tokenItem.tokenPrefix;
+  }, []);
+
+  // Infer expiry preset from stored expiry timestamps. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const resolveExpiryPreset = useCallback((expiresAt?: string | null): { preset: ApiTokenExpiryPreset; customDays?: number } => {
+    if (!expiresAt) return { preset: 'never' };
+    const ts = new Date(expiresAt).getTime();
+    if (!Number.isFinite(ts)) return { preset: 'custom', customDays: 1 };
+    const days = Math.max(1, Math.ceil((ts - Date.now()) / 86400000));
+    const preset = ['1', '7', '30', '90', '180', '365'].find((value) => Number(value) === days);
+    if (preset) return { preset: preset as ApiTokenExpiryPreset };
+    return { preset: 'custom', customDays: days };
+  }, []);
 
   const repoProviderProfiles = useMemo(() => {
     const gitlabProfiles = normalizeRepoProfiles(credentials?.gitlab?.profiles);
@@ -580,6 +700,154 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     modelProfileSetDefault,
     t
   ]);
+
+  // Build per-group scope defaults for PAT forms. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const buildScopeLevelDefaults = useCallback(
+    (tokenItem?: UserApiTokenPublic | null): Record<ApiTokenScopeGroup, ApiTokenScopeChoice> => {
+      const defaults = {} as Record<ApiTokenScopeGroup, ApiTokenScopeChoice>;
+      apiTokenScopeGroups.forEach((group) => {
+        defaults[group.key] = 'none';
+      });
+      if (tokenItem) {
+        tokenItem.scopes.forEach((scope) => {
+          defaults[scope.group] = scope.level;
+        });
+      }
+      return defaults;
+    },
+    [apiTokenScopeGroups]
+  );
+
+  const openCreateApiToken = useCallback(() => {
+    // Reset PAT form state to defaults before issuing a new token. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+    setApiTokenEditing(null);
+    apiTokenForm.setFieldsValue({
+      name: '',
+      scopeLevels: buildScopeLevelDefaults(null),
+      expiryPreset: '90',
+      expiryCustomDays: 30
+    });
+    setApiTokenFormOpen(true);
+  }, [apiTokenForm, buildScopeLevelDefaults]);
+
+  const openEditApiToken = useCallback(
+    (tokenItem: UserApiTokenPublic) => {
+      const expiry = resolveExpiryPreset(tokenItem.expiresAt ?? null);
+      setApiTokenEditing(tokenItem);
+      apiTokenForm.setFieldsValue({
+        name: tokenItem.name,
+        scopeLevels: buildScopeLevelDefaults(tokenItem),
+        expiryPreset: expiry.preset,
+        expiryCustomDays: expiry.customDays
+      });
+      setApiTokenFormOpen(true);
+    },
+    [apiTokenForm, buildScopeLevelDefaults, resolveExpiryPreset]
+  );
+
+  // Submit PAT create/edit requests and refresh the list. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const submitApiTokenForm = useCallback(async () => {
+    if (apiTokenSubmitting) return;
+    const values = await apiTokenForm.validateFields();
+
+    const scopeLevels = values?.scopeLevels ?? {};
+    const scopes = apiTokenScopeGroups
+      .map((group) => {
+        const level = scopeLevels[group.key];
+        if (!level || level === 'none') return null;
+        return { group: group.key, level: level as ApiTokenScopeLevel };
+      })
+      .filter(Boolean) as { group: ApiTokenScopeGroup; level: ApiTokenScopeLevel }[];
+
+    if (!scopes.length) {
+      message.error(t('panel.apiTokens.validation.scopeRequired'));
+      return;
+    }
+
+    let expiresInDays: number | null | undefined = undefined;
+    if (values.expiryPreset === 'never') {
+      expiresInDays = 0;
+    } else if (values.expiryPreset === 'custom') {
+      const custom = Number(values.expiryCustomDays ?? 0);
+      expiresInDays = Number.isFinite(custom) ? Math.max(1, Math.floor(custom)) : 1;
+    } else {
+      expiresInDays = Number(values.expiryPreset);
+    }
+
+    setApiTokenSubmitting(true);
+    try {
+      if (apiTokenEditing) {
+        await updateMyApiToken(apiTokenEditing.id, {
+          name: String(values.name ?? '').trim(),
+          scopes,
+          expiresInDays
+        });
+        message.success(t('toast.apiTokens.saved'));
+      } else {
+        const created = await createMyApiToken({
+          name: String(values.name ?? '').trim(),
+          scopes,
+          expiresInDays
+        });
+        setApiTokenRevealValue(created.token);
+        setApiTokenRevealOpen(true);
+        message.success(t('toast.apiTokens.created'));
+      }
+      setApiTokenFormOpen(false);
+      setApiTokenEditing(null);
+      await refreshApiTokens();
+    } catch (err: any) {
+      console.error(err);
+      message.error(err?.response?.data?.error || t('toast.apiTokens.saveFailed'));
+    } finally {
+      setApiTokenSubmitting(false);
+    }
+  }, [
+    apiTokenEditing,
+    apiTokenForm,
+    apiTokenScopeGroups,
+    apiTokenSubmitting,
+    createMyApiToken,
+    message,
+    refreshApiTokens,
+    t,
+    updateMyApiToken
+  ]);
+
+  // Confirm and revoke PATs so they stop working immediately. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const revokeApiToken = useCallback(
+    (tokenItem: UserApiTokenPublic) => {
+      Modal.confirm({
+        title: t('panel.apiTokens.revokeTitle'),
+        content: t('panel.apiTokens.revokeDesc'),
+        okText: t('panel.apiTokens.revokeOk'),
+        okButtonProps: { danger: true },
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          try {
+            await revokeMyApiToken(tokenItem.id);
+            message.success(t('toast.apiTokens.revoked'));
+            await refreshApiTokens();
+          } catch (err: any) {
+            console.error(err);
+            message.error(err?.response?.data?.error || t('toast.apiTokens.saveFailed'));
+          }
+        }
+      });
+    },
+    [message, refreshApiTokens, t]
+  );
+
+  // Copy newly issued PAT values for one-time reveal. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const copyApiToken = useCallback(async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      message.success(t('toast.apiTokens.copySuccess'));
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.apiTokens.copyFailed'));
+    }
+  }, [message, t]);
 
   const saveDisplayName = useCallback(async () => {
     if (accountEditDisabled) return;
@@ -878,6 +1146,90 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                     </Space>
                   ) : (
                     <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
+                  )}
+                </Space>
+              </Card>
+            </div>
+
+            <Divider style={{ margin: '14px 0' }} />
+
+            <div className="hc-settings-section">
+              <div className="hc-settings-section-title">{t('panel.apiTokens.title')}</div>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
+                {t('panel.apiTokens.tip')}
+              </Typography.Paragraph>
+              <Card
+                size="small"
+                title={
+                  <Space size={8}>
+                    <ApiOutlined />
+                    <span>{t('panel.apiTokens.title')}</span>
+                  </Space>
+                }
+                extra={
+                  <>
+                    {/* Add PAT issuance entry point inside credentials panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
+                    <Button size="small" onClick={openCreateApiToken} disabled={apiTokenSubmitting || !canUseAccountApis}>
+                      {t('panel.apiTokens.add')}
+                    </Button>
+                  </>
+                }
+                loading={apiTokensLoading}
+              >
+                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                  {apiTokens.length ? (
+                    <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                      {apiTokens.map((tokenItem) => {
+                        const now = Date.now();
+                        const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
+                        const isExpired = Boolean(expiresAt && expiresAt <= now);
+                        const isRevoked = Boolean(tokenItem.revokedAt);
+                        const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
+                        const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
+                        return (
+                          <Card key={tokenItem.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                            <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                              <Space size={8} wrap>
+                                <Typography.Text strong>{tokenItem.name}</Typography.Text>
+                                <Tag color={statusColor}>{t(`panel.apiTokens.status.${statusKey}`)}</Tag>
+                                <Typography.Text code>{buildApiTokenHint(tokenItem)}</Typography.Text>
+                              </Space>
+                              <Typography.Text type="secondary">
+                                {t('panel.apiTokens.field.expiresAt')}: {formatDateTime(tokenItem.expiresAt ?? null)}
+                              </Typography.Text>
+                            </Space>
+                            <Space size={6} wrap style={{ marginTop: 6 }}>
+                              {/* Render group-level scope chips for each PAT. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
+                              {tokenItem.scopes.map((scope) => (
+                                <Tag key={`${tokenItem.id}-${scope.group}`} color={scope.level === 'write' ? 'gold' : 'blue'}>
+                                  {apiTokenScopeLabelMap.get(scope.group) ?? scope.group} · {apiTokenLevelLabel[scope.level]}
+                                </Tag>
+                              ))}
+                            </Space>
+                            <Space size={16} wrap style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
+                              <Space size={12} wrap>
+                                <Typography.Text type="secondary">
+                                  {t('panel.apiTokens.field.createdAt')}: {formatDateTime(tokenItem.createdAt)}
+                                </Typography.Text>
+                                <Typography.Text type="secondary">
+                                  {t('panel.apiTokens.field.lastUsed')}: {formatDateTime(tokenItem.lastUsedAt ?? null)}
+                                </Typography.Text>
+                              </Space>
+                              <Space size={8} wrap>
+                                <Button size="small" onClick={() => openEditApiToken(tokenItem)} disabled={isRevoked}>
+                                  {t('common.manage')}
+                                </Button>
+                                <Button size="small" danger onClick={() => revokeApiToken(tokenItem)} disabled={isRevoked}>
+                                  {t('panel.apiTokens.revoke')}
+                                </Button>
+                              </Space>
+                            </Space>
+                          </Card>
+                        );
+                      })}
+                    </Space>
+                  ) : (
+                    <Typography.Text type="secondary">{t('panel.apiTokens.empty')}</Typography.Text>
                   )}
                 </Space>
               </Card>
@@ -1331,6 +1683,105 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               </Space>
             </Form.Item>
           </Form>
+        </Space>
+      </Modal>
+
+      <Modal
+        title={apiTokenEditing ? t('panel.apiTokens.editTitle') : t('panel.apiTokens.createTitle')}
+        open={apiTokenFormOpen}
+        className="hc-dialog--compact"
+        onCancel={() => {
+          setApiTokenFormOpen(false);
+          setApiTokenEditing(null);
+        }}
+        okText={t('common.save')}
+        cancelText={t('common.cancel')}
+        confirmLoading={apiTokenSubmitting}
+        onOk={() => void submitApiTokenForm()}
+        destroyOnHidden
+      >
+        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+          {/* Collect PAT name/scopes/expiry in a single modal. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
+          <Form form={apiTokenForm} layout="vertical" requiredMark={false} size="middle">
+            <Form.Item label={t('panel.apiTokens.nameLabel')} name="name" rules={[{ required: true, message: t('panel.validation.required') }]}>
+              <Input placeholder={t('panel.apiTokens.namePlaceholder')} />
+            </Form.Item>
+
+            <Form.Item label={t('panel.apiTokens.scopesLabel')}>
+              <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+                {apiTokenScopeGroups.map((group) => (
+                  <div key={group.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <Typography.Text strong>{group.label}</Typography.Text>
+                      <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+                        {group.desc}
+                      </Typography.Text>
+                    </div>
+                    <Form.Item name={['scopeLevels', group.key]} style={{ marginBottom: 0 }}>
+                      <Radio.Group
+                        options={[
+                          { value: 'none', label: t('panel.apiTokens.scope.none') },
+                          { value: 'read', label: apiTokenLevelLabel.read },
+                          { value: 'write', label: apiTokenLevelLabel.write }
+                        ]}
+                        optionType="button"
+                        buttonStyle="solid"
+                      />
+                    </Form.Item>
+                  </div>
+                ))}
+              </Space>
+            </Form.Item>
+
+            <Form.Item label={t('panel.apiTokens.expiryLabel')} name="expiryPreset" rules={[{ required: true, message: t('panel.validation.required') }]}>
+              <Select options={apiTokenExpiryOptions} />
+            </Form.Item>
+
+            <Form.Item noStyle shouldUpdate={(prev, next) => prev.expiryPreset !== next.expiryPreset}>
+              {({ getFieldValue }) =>
+                getFieldValue('expiryPreset') === 'custom' ? (
+                  <Form.Item
+                    label={t('panel.apiTokens.expiry.customLabel')}
+                    name="expiryCustomDays"
+                    rules={[{ required: true, message: t('panel.validation.required') }]}
+                  >
+                    <InputNumber min={1} max={3650} style={{ width: '100%' }} placeholder={t('panel.apiTokens.expiry.customPlaceholder')} />
+                  </Form.Item>
+                ) : null
+              }
+            </Form.Item>
+
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {t('panel.apiTokens.expiry.hint')}
+            </Typography.Text>
+          </Form>
+        </Space>
+      </Modal>
+
+      <Modal
+        title={t('panel.apiTokens.reveal.title')}
+        open={apiTokenRevealOpen}
+        onCancel={() => {
+          setApiTokenRevealOpen(false);
+          setApiTokenRevealValue(null);
+        }}
+        footer={[
+          <Button key="close" type="primary" onClick={() => {
+            setApiTokenRevealOpen(false);
+            setApiTokenRevealValue(null);
+          }}>
+            {t('common.close')}
+          </Button>
+        ]}
+        destroyOnHidden
+      >
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+          {/* One-time PAT reveal flow after creation. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
+          <Typography.Paragraph type="secondary">{t('panel.apiTokens.reveal.desc')}</Typography.Paragraph>
+          <Input.TextArea value={apiTokenRevealValue ?? ''} readOnly autoSize={{ minRows: 3, maxRows: 5 }} />
+          <Button type="primary" onClick={() => apiTokenRevealValue && void copyApiToken(apiTokenRevealValue)} disabled={!apiTokenRevealValue}>
+            {t('panel.apiTokens.reveal.copy')}
+          </Button>
         </Space>
       </Modal>
     </div>

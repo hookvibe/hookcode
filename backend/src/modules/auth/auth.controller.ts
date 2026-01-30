@@ -13,11 +13,12 @@ import { issueToken, isAuthEnabled } from '../../auth/authService';
 import { isTaskLogsEnabled } from '../../config/features';
 import { UserService } from '../users/user.service';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
-import { Public } from './auth.decorator';
+import { AuthScopeGroup, Public } from './auth.decorator';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { AuthMeResponseDto } from './dto/auth-me-response.dto';
 
+@AuthScopeGroup('account') // Scope auth endpoints for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('auth')
 @ApiTags('Auth')
 export class AuthController {

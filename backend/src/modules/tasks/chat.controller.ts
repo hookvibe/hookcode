@@ -6,6 +6,7 @@ import { buildChatTaskPayload } from '../../services/chatPayload';
 import { isTruthy } from '../../utils/env';
 import { normalizeString } from '../../utils/parse';
 import { attachTaskSchedule, normalizeTimeWindow, resolveTaskSchedule } from '../../utils/timeWindow';
+import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
@@ -49,6 +50,7 @@ const buildChatPromptCustom = (robotTemplate: string): string => {
   return [base, patch].filter(Boolean).join('\n\n').trim();
 };
 
+@AuthScopeGroup('tasks') // Scope chat APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('chat')
 @ApiTags('Chat')
 @ApiBearerAuth('bearerAuth')

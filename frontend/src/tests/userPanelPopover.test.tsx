@@ -27,6 +27,44 @@ vi.mock('../api', () => {
       gitlab: { profiles: [], defaultProfileId: null },
       github: { profiles: [], defaultProfileId: null }
     })),
+    // Mock PAT APIs for the new credentials section. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+    fetchMyApiTokens: vi.fn(async () => []),
+    createMyApiToken: vi.fn(async () => ({
+      token: 'hcpat_test',
+      apiToken: {
+        id: 'pat-1',
+        name: 'CI',
+        tokenPrefix: 'hcpat_abcd',
+        tokenLast4: 'wxyz',
+        scopes: [{ group: 'tasks', level: 'read' }],
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        revokedAt: null,
+        lastUsedAt: null
+      }
+    })),
+    updateMyApiToken: vi.fn(async () => ({
+      id: 'pat-1',
+      name: 'CI',
+      tokenPrefix: 'hcpat_abcd',
+      tokenLast4: 'wxyz',
+      scopes: [{ group: 'tasks', level: 'read' }],
+      createdAt: new Date().toISOString(),
+      expiresAt: null,
+      revokedAt: null,
+      lastUsedAt: null
+    })),
+    revokeMyApiToken: vi.fn(async () => ({
+      id: 'pat-1',
+      name: 'CI',
+      tokenPrefix: 'hcpat_abcd',
+      tokenLast4: 'wxyz',
+      scopes: [{ group: 'tasks', level: 'read' }],
+      createdAt: new Date().toISOString(),
+      expiresAt: null,
+      revokedAt: new Date().toISOString(),
+      lastUsedAt: null
+    })),
     fetchAdminToolsMeta: vi.fn(async () => ({ enabled: true, ports: { prisma: 7215, swagger: 7216 } })),
     // Provide runtime API mocks for the environment tab. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
     fetchSystemRuntimes: vi.fn(async () => ({ runtimes: [], detectedAt: null }))
@@ -173,5 +211,20 @@ describe('UserPanelPopover', () => {
 
     expect(await screen.findByLabelText('Display name')).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /Save/i })).not.toBeDisabled();
+  });
+
+  test('renders API token section in credentials', async () => {
+    const ui = userEvent.setup();
+    renderPopover({ token: 't' });
+
+    await ui.click(screen.getByRole('button', { name: /Panel/i }));
+    await ui.click(screen.getByRole('button', { name: 'Credentials' }));
+
+    // Ensure PAT section appears inside the credentials tab. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+    const titles = await screen.findAllByText('Open API access tokens');
+    expect(titles.length).toBeGreaterThan(0);
+
+    await ui.click(screen.getByRole('button', { name: 'Request PAT' }));
+    expect(await screen.findByText('Request API token')).toBeInTheDocument();
   });
 });

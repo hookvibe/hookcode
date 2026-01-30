@@ -2,10 +2,12 @@ import { Controller, Get, HttpException, InternalServerErrorException, Query } f
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { normalizeString, parsePositiveInt } from '../../utils/parse';
+import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { DashboardSidebarResponseDto } from './dto/dashboard-swagger.dto';
 import { TaskService } from './task.service';
 
+@AuthScopeGroup('tasks') // Scope dashboard APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('dashboard')
 @ApiTags('Dashboard')
 @ApiBearerAuth('bearerAuth')

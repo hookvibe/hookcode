@@ -30,6 +30,7 @@ import {
   ApiUnauthorizedResponse
 } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { AuthScopeGroup } from '../auth/auth.decorator';
 import { RepoAutomationService, findRobotAutomationUsages, RepoAutomationConfigValidationError } from './repo-automation.service';
 import { RepoRobotService } from './repo-robot.service';
 import { RepoWebhookDeliveryService } from './repo-webhook-delivery.service';
@@ -175,6 +176,7 @@ const assertRepoWritable = (repo: Repository): void => {
   });
 };
 
+@AuthScopeGroup('repos') // Scope repository APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('repos')
 @ApiTags('Repos')
 @ApiBearerAuth('bearerAuth')

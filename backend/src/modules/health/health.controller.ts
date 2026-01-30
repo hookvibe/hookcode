@@ -1,9 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { pingDb } from '../../db';
-import { HealthCheck } from '../auth/auth.decorator';
+import { AuthScopeGroup, HealthCheck } from '../auth/auth.decorator';
 import { HealthResponseDto } from './dto/health-response.dto';
 
+@AuthScopeGroup('system') // Scope health APIs for PAT access control when auth is enforced. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller()
 @ApiTags('Health')
 export class HealthController {

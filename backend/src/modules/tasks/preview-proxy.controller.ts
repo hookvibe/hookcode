@@ -1,11 +1,12 @@
 import { All, Controller, NotFoundException, Param, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { AllowQueryToken } from '../auth/auth.decorator';
+import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { proxyHttpRequest } from '../../utils/httpProxy';
 import { PreviewService } from './preview.service';
 
+@AuthScopeGroup('tasks') // Scope preview APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('preview')
 @ApiTags('Preview')
 @ApiBearerAuth('bearerAuth')

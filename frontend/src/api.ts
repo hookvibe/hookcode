@@ -643,6 +643,27 @@ export interface UserRepoProviderCredentialsPublic {
   defaultProfileId?: string;
 }
 
+// PAT scope types for API access tokens. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+export type ApiTokenScopeGroup = 'account' | 'repos' | 'tasks' | 'events' | 'system';
+export type ApiTokenScopeLevel = 'read' | 'write';
+
+export interface ApiTokenScope {
+  group: ApiTokenScopeGroup;
+  level: ApiTokenScopeLevel;
+}
+
+export interface UserApiTokenPublic {
+  id: string;
+  name: string;
+  tokenPrefix: string;
+  tokenLast4?: string | null;
+  scopes: ApiTokenScope[];
+  createdAt: string;
+  expiresAt?: string | null;
+  revokedAt?: string | null;
+  lastUsedAt?: string | null;
+}
+
 export const fetchMyModelCredentials = async (): Promise<UserModelCredentialsPublic> => {
   const data = await getCached<{ credentials: UserModelCredentialsPublic }>('/users/me/model-credentials', {
     cacheTtlMs: 60000
@@ -705,6 +726,36 @@ export const updateMyModelCredentials = async (params: {
   const { data } = await api.patch<{ credentials: UserModelCredentialsPublic }>('/users/me/model-credentials', params);
   invalidateGetCache('/users/me/model-credentials');
   return data.credentials;
+};
+
+export const fetchMyApiTokens = async (): Promise<UserApiTokenPublic[]> => {
+  const data = await getCached<{ tokens: UserApiTokenPublic[] }>('/users/me/api-tokens', { cacheTtlMs: 30000 });
+  return data.tokens;
+};
+
+export const createMyApiToken = async (params: {
+  name: string;
+  scopes: ApiTokenScope[];
+  expiresInDays?: number | null;
+}): Promise<{ token: string; apiToken: UserApiTokenPublic }> => {
+  const { data } = await api.post<{ token: string; apiToken: UserApiTokenPublic }>('/users/me/api-tokens', params);
+  invalidateGetCache('/users/me/api-tokens');
+  return data;
+};
+
+export const updateMyApiToken = async (
+  id: string,
+  params: { name?: string; scopes?: ApiTokenScope[]; expiresInDays?: number | null }
+): Promise<UserApiTokenPublic> => {
+  const { data } = await api.patch<{ apiToken: UserApiTokenPublic }>(`/users/me/api-tokens/${id}`, params);
+  invalidateGetCache('/users/me/api-tokens');
+  return data.apiToken;
+};
+
+export const revokeMyApiToken = async (id: string): Promise<UserApiTokenPublic> => {
+  const { data } = await api.post<{ apiToken: UserApiTokenPublic }>(`/users/me/api-tokens/${id}/revoke`);
+  invalidateGetCache('/users/me/api-tokens');
+  return data.apiToken;
 };
 
 export type ModelProviderModelsSource = 'remote' | 'fallback';

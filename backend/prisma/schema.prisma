@@ -81,7 +81,33 @@ model User {
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
+  /// Link PAT records back to the owning account. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  apiTokens        UserApiToken[]
+
   @@map("users")
+}
+
+/// Persist user-scoped PAT metadata for API access. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+model UserApiToken {
+  id         String    @id @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  name       String
+  tokenHash  String    @map("token_hash")
+  tokenPrefix String   @map("token_prefix")
+  tokenLast4 String?   @map("token_last4")
+  scopes     Json      @map("scopes_json") @db.JsonB
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(6)
+  lastUsedIp String?   @map("last_used_ip")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_api_tokens")
+  @@unique([tokenHash], map: "user_api_tokens_token_hash_unique")
+  @@index([userId, createdAt], map: "user_api_tokens_user_created_at_idx")
 }
 
 model Repository {

@@ -38,7 +38,7 @@ import { computeTaskLogsDelta, extractTaskLogsSnapshot, sliceLogsTail } from '..
 import { isTruthy } from '../../utils/env';
 import { normalizeString, parseOptionalBoolean, parsePositiveInt } from '../../utils/parse';
 import { extractTaskSchedule } from '../../utils/timeWindow';
-import { AllowQueryToken } from '../auth/auth.decorator';
+import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
 import {
@@ -50,6 +50,7 @@ import {
   TaskVolumeByDayResponseDto
 } from './dto/tasks-swagger.dto';
 
+@AuthScopeGroup('tasks') // Scope task APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('tasks')
 @ApiTags('Tasks')
 @ApiBearerAuth('bearerAuth')
