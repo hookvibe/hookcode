@@ -129,6 +129,12 @@ vi.mock('../api', () => {
     updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null })),
     fetchMe: vi.fn(async () => ({ id: 'u', username: 'u', displayName: 'User', roles: [], createdAt: '', updatedAt: '' })),
     updateMe: vi.fn(async () => ({ id: 'u', username: 'u', displayName: 'User', roles: [], createdAt: '', updatedAt: '' })),
+    // Mock createMyApiToken to satisfy UserPanelPopover API usage in AppShell tests. docs/en/developer/plans/account-edit-feature-toggle-test/task_plan.md account-edit-feature-toggle-test
+    createMyApiToken: vi.fn(async () => ({ token: { id: 'tok1', name: 'Token 1', prefix: 'hc', createdAt: '', lastUsedAt: null } })),
+    // Mock PAT API helpers used by UserPanelPopover so module imports do not fail. docs/en/developer/plans/account-edit-feature-toggle-test/task_plan.md account-edit-feature-toggle-test
+    fetchMyApiTokens: vi.fn(async () => []),
+    updateMyApiToken: vi.fn(async () => ({ id: 'tok1', name: 'Token 1', prefix: 'hc', createdAt: '', lastUsedAt: null })),
+    revokeMyApiToken: vi.fn(async () => ({ id: 'tok1', name: 'Token 1', prefix: 'hc', createdAt: '', lastUsedAt: null })),
     changeMyPassword: vi.fn(async () => undefined),
     fetchMyModelCredentials: vi.fn(async () => ({
       codex: { profiles: [], defaultProfileId: null },
@@ -137,6 +143,8 @@ vi.mock('../api', () => {
       gitlab: { profiles: [], defaultProfileId: null },
       github: { profiles: [], defaultProfileId: null }
     })),
+    // Mock model discovery API used by UserPanelPopover credentials tab. docs/en/developer/plans/account-edit-feature-toggle-test/task_plan.md account-edit-feature-toggle-test
+    listMyModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })),
     fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' })), // Mock provider visibility for repo activity row. kzxac35mxk0fg358i7zs
     fetchRepoProviderActivity: vi.fn(async () => ({
       provider: 'gitlab',
