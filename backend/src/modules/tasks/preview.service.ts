@@ -15,6 +15,7 @@ import {
 } from '../../agent/agent';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
 import { resolvePreviewEnv } from '../../utils/previewEnv';
+import { buildPreviewPublicUrl } from '../../utils/previewHost';
 import { RuntimeService } from '../../services/runtimeService';
 import { PreviewPortPool } from './previewPortPool';
 import type {
@@ -724,7 +725,9 @@ export class PreviewService implements OnModuleDestroy {
       port: extras?.port,
       message: extras?.message,
       diagnostics: extras?.diagnostics,
-      path: `/preview/${taskGroupId}/${instance.name}/`
+      path: `/preview/${taskGroupId}/${instance.name}/`,
+      // Emit subdomain preview URLs when configured for production routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+      publicUrl: buildPreviewPublicUrl(taskGroupId, instance.name)
     };
   }
 

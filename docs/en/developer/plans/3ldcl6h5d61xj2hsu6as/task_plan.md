@@ -20,7 +20,8 @@ Diagnose and fix TaskGroup preview failures for repos that contain .hookcode.yml
 <!-- Track the active build phase for preview feature delivery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 <!-- Set current phase to Phase 2 for active work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 <!-- Mark Phase 12 as complete after preview availability refresh fix. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
-Phase 22 (complete)
+<!-- Move active phase to Phase 23 for local port + subdomain routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+Phase 23 (complete)
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -241,6 +242,15 @@ Phase 22 (complete)
 - [x] Add tests for base href double-prefix prevention
 - **Status:** complete
 
+### Phase 23: Direct Port (Local) + Subdomain (Prod) Preview Routing
+<!-- Implement local direct-port previews and production subdomain routing to replace path-based proxy. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- [x] Add backend config/env to describe preview host mode and base domain
+- [x] Extend preview status summary to include derived public URL (or fields needed for URL builder)
+- [x] Update frontend preview iframe/link builder to use local direct port or subdomain mode
+- [x] Update tests for URL building and preview summary
+- [x] Update user-docs (preview + hookcode-yml) to document local vs prod access and wildcard DNS
+- **Status:** complete
+
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
 <!-- Update key questions for Phase 1 delivery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
@@ -278,6 +288,8 @@ Phase 22 (complete)
 | Proxy preview HTML rewrites absolute paths to include `/preview/...` prefix | Keeps iframe assets working without HMR in Phase 1 |
 | Attach a preview WS upgrade proxy in bootstrap | Enables HMR/WebSocket previews without rewriting controller routes |
 | Use in-memory PreviewLogStream for preview logs | Matches single-instance deployment and keeps SSE simple |
+<!-- Record preview routing decision for local direct ports and production subdomains. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Use direct localhost ports and subdomain routing for previews | Avoid proxy rewrite failures locally while enabling production-ready wildcard URLs |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}

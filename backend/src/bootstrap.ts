@@ -17,6 +17,7 @@ import { UserService } from './modules/users/user.service';
 import { RuntimeService } from './services/runtimeService';
 import { OpenApiSpecStore } from './modules/openapi/openapi-spec.store';
 import { PreviewWsProxyService } from './modules/tasks/preview-ws-proxy.service';
+import { PreviewHostProxyService } from './modules/tasks/preview-host-proxy.service';
 
 dotenv.config();
 
@@ -98,6 +99,16 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
         },
     credentials: true
   });
+
+  try {
+    // Attach preview host proxy middleware for subdomain routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const previewHostProxy = app.get(PreviewHostProxyService);
+    app.use((req, res, next) => {
+      void previewHostProxy.handle(req, res, next);
+    });
+  } catch (err) {
+    console.warn(`${logTag} preview host proxy attach failed`, err);
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({

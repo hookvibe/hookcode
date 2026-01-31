@@ -226,6 +226,19 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
     expect(screen.getByRole('button', { name: 'admin' })).toBeInTheDocument();
   });
 
+  test('uses direct port preview URL on localhost', async () => {
+    // Validate local direct-port routing for preview iframes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+    });
+
+    renderPage({ taskGroupId: 'g1' });
+
+    const iframe = await screen.findByTitle('frontend');
+    expect(iframe).toHaveAttribute('src', 'http://127.0.0.1:12345/');
+  });
+
   test('renders diagnostics when preview startup fails', async () => {
     // Validate Phase 3 diagnostics rendering for failed preview instances. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({

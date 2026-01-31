@@ -39,6 +39,10 @@ export class PreviewInstanceDto {
   @ApiPropertyOptional()
   path?: string;
 
+  // Include public preview URLs for subdomain routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  @ApiPropertyOptional()
+  publicUrl?: string;
+
   @ApiPropertyOptional()
   message?: string;
 

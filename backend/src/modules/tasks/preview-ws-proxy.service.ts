@@ -1,11 +1,10 @@
 import http, { type IncomingMessage } from 'http';
 import net from 'net';
 import type { Duplex } from 'stream';
-import type { Request } from 'express';
 import { Injectable } from '@nestjs/common';
-import { isAuthEnabled, verifyToken } from '../../auth/authService';
-import { extractAuthToken } from '../auth/authToken';
 import { AuthUserLoader } from '../auth/auth-user-loader';
+import { resolvePreviewHostMatch } from '../../utils/previewHost';
+import { authenticatePreviewRequest } from './preview-auth';
 import { PreviewService } from './preview.service';
 
 interface PreviewWsRouteMatch {
@@ -65,6 +64,18 @@ export class PreviewWsProxyService {
   }
 
   private matchPreviewRoute(req: IncomingMessage): PreviewWsRouteMatch | null {
+    const hostMatch = resolvePreviewHostMatch(req.headers.host);
+    if (hostMatch) {
+      // Support preview WS routing through subdomain hosts. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+      const parsed = new URL(req.url ?? '/', 'http://local');
+      const upstreamPath = `${parsed.pathname ?? '/'}${parsed.search ?? ''}`;
+      return {
+        taskGroupId: hostMatch.taskGroupId,
+        instanceName: hostMatch.instanceName,
+        upstreamPath
+      };
+    }
+
     const rawUrl = req.url ?? '/';
     const parsed = new URL(rawUrl, 'http://local');
     const pathname = parsed.pathname ?? '/';
@@ -85,29 +96,7 @@ export class PreviewWsProxyService {
 
   private async authenticate(req: IncomingMessage): Promise<boolean> {
     // Enforce the same auth rules as the HTTP preview proxy for WS upgrades. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (!isAuthEnabled()) return true;
-
-    const parsed = new URL(req.url ?? '/', 'http://local');
-    const fakeReq = {
-      header: (name: string) => {
-        const v = (req.headers as any)[name.toLowerCase()];
-        return Array.isArray(v) ? v.join(',') : v;
-      },
-      query: Object.fromEntries(parsed.searchParams.entries())
-    } as Request;
-
-    const token = extractAuthToken(fakeReq, { allowQueryToken: true });
-    if (!token) return false;
-
-    let payload: { sub: string; iat: number; exp: number };
-    try {
-      payload = verifyToken(token);
-    } catch {
-      return false;
-    }
-
-    const user = await this.authUserLoader.loadUser(payload.sub);
-    return Boolean(user);
+    return authenticatePreviewRequest(req, this.authUserLoader);
   }
 
   private buildUpgradeRequestLines(req: IncomingMessage, upstreamPath: string, upstreamPort: number): string {

@@ -198,6 +198,38 @@
   - Reviewed dependency install path resolution and workspace contents for the reported task-group.
   - Switched dependency install command execution to explicit cwd for agent + preview flows.
   - Added a runCommandCapture unit test to cover cwd handling.
+
+<!-- Log Phase 23 preview routing updates for local direct ports and production subdomains. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 23: Direct Port + Subdomain Preview Routing
+- **Status:** complete
+- **Started:** 2026-01-30 01:40
+- **Completed:** 2026-01-30 02:10
+- Actions taken:
+  - Added preview host routing helpers and subdomain proxy middleware for production preview access.
+  - Extended preview summaries with public URLs and updated frontend preview URL selection for local direct ports.
+  - Updated preview user docs and env examples for subdomain routing configuration.
+  - Added unit tests for preview host routing plus frontend iframe direct-port behavior.
+- Files created/modified:
+  - backend/src/utils/previewHost.ts
+  - backend/src/modules/tasks/preview-auth.ts
+  - backend/src/modules/tasks/preview-host-proxy.service.ts
+  - backend/src/modules/tasks/preview-ws-proxy.service.ts
+  - backend/src/modules/tasks/preview.service.ts
+  - backend/src/modules/tasks/preview.types.ts
+  - backend/src/modules/tasks/dto/task-group-preview.dto.ts
+  - backend/src/modules/tasks/tasks.module.ts
+  - backend/src/bootstrap.ts
+  - backend/src/tests/unit/previewHost.test.ts
+  - frontend/src/api.ts
+  - frontend/src/pages/TaskGroupChatPage.tsx
+  - frontend/src/tests/taskGroupChatPage.test.tsx
+  - backend/.env.example
+  - docker/.env.example
+  - docs/en/user-docs/preview.md
+  - docs/en/user-docs/config/hookcode-yml.md
+- Tests:
+  - `pnpm --filter hookcode-backend test -- previewHost`
+  - `pnpm --filter hookcode-frontend test -- taskGroupChatPage`
   - Manually verified pnpm install succeeds inside the task-group workspace.
 - Files created/modified:
   - backend/src/agent/agent.ts

@@ -390,16 +390,34 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   );
 
   const previewIframeSrc = useMemo(() => {
-    if (!activePreviewInstance?.path || (activePreviewStatus !== 'running' && activePreviewStatus !== 'starting')) {
+    if (!activePreviewInstance || (activePreviewStatus !== 'running' && activePreviewStatus !== 'starting')) {
       return '';
     }
+
+    // Prefer direct port access when both UI + API are local. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
+    const isUiLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+    let isApiLocal = false;
+    if (typeof window !== 'undefined') {
+      try {
+        const apiUrl = new URL(API_BASE_URL, window.location.origin);
+        isApiLocal = apiUrl.hostname === 'localhost' || apiUrl.hostname === '127.0.0.1' || apiUrl.hostname === '::1';
+      } catch {
+        isApiLocal = false;
+      }
+    }
+    if (isUiLocal && isApiLocal && activePreviewInstance.port) {
+      return `http://127.0.0.1:${activePreviewInstance.port}/`;
+    }
+
     const base = API_BASE_URL.replace(/\/$/, '');
+    const baseUrl = activePreviewInstance.publicUrl ?? (activePreviewInstance.path ? `${base}${activePreviewInstance.path}` : '');
+    if (!baseUrl) return '';
     const token = getToken();
-    const url = `${base}${activePreviewInstance.path}`;
-    if (!token) return url;
-    const sep = url.includes('?') ? '&' : '?';
-    return `${url}${sep}token=${encodeURIComponent(token)}`;
-  }, [activePreviewInstance?.path, activePreviewStatus]);
+    if (!token) return baseUrl;
+    const sep = baseUrl.includes('?') ? '&' : '?';
+    return `${baseUrl}${sep}token=${encodeURIComponent(token)}`;
+  }, [activePreviewInstance, activePreviewStatus]);
 
   // Format preview log timestamps for the log viewer. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const formatPreviewLogTime = useCallback(

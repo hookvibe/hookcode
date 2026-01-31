@@ -12,6 +12,7 @@ import { HookcodeConfigService } from '../../services/hookcodeConfigService';
 import { PreviewService } from './preview.service';
 import { PreviewLogStream } from './preview-log-stream.service';
 import { PreviewWsProxyService } from './preview-ws-proxy.service';
+import { PreviewHostProxyService } from './preview-host-proxy.service';
 
 @Module({
   // Import AuthModule so PreviewWsProxyService can validate tokens. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -24,6 +25,8 @@ import { PreviewWsProxyService } from './preview-ws-proxy.service';
     PreviewLogStream,
     // Register preview WS proxy service for HMR upgrades. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     PreviewWsProxyService,
+    // Register preview host proxy for subdomain preview routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    PreviewHostProxyService,
     AgentService,
     TaskRunner,
     TaskGitPushService,

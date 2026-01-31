@@ -101,10 +101,11 @@ preview:
 
 ### Notes
 
-<!-- Document HMR + log viewing + shareable preview notes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+<!-- Document preview access modes plus HMR/log/share notes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 - Preview instances are started on-demand from the TaskGroup chat UI.
 - Dependency installs reuse the `dependency` section before preview startup.
-- Preview proxies support WebSocket HMR (Vite/Webpack dev sockets) through the `/preview/...` gateway.
+- Local previews open directly on the assigned port, while production deployments can use subdomain routing.
+- WebSocket HMR is supported in both direct-port and subdomain preview modes.
 - Preview logs can be viewed in the TaskGroup preview panel for startup diagnostics.
 - Shared preview links include a token query string; keep them private.
 <!-- Add Phase 3 preview lifecycle notes (idle timeout + hot reload). docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->

@@ -13,6 +13,8 @@ export interface PreviewInstanceSummary {
   status: PreviewInstanceStatus;
   port?: number;
   path?: string;
+  // Surface preview public URLs for subdomain routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  publicUrl?: string;
   message?: string;
   diagnostics?: PreviewDiagnostics;
 }

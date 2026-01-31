@@ -19,14 +19,22 @@
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
 {/* Key discoveries during exploration */}
--
+<!-- Note current plan status and scope shift for preview access. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- task_plan.md shows Phase 22 complete; new work must add a follow-up phase for local direct-port previews and production subdomain routing.
+<!-- Capture current preview iframe URL composition for the new routing plan. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- TaskGroupChatPage currently builds preview iframe URLs from API_BASE_URL + preview path + token, so local direct-port and subdomain routing need a new URL builder.
+<!-- Record preview summary fields that will drive new URL routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- PreviewInstanceSummary currently returns port + path (path = /preview/:taskGroup/:instance/); new direct-port + subdomain routing must either add a publicUrl field or re-derive from port and config.
+<!-- Capture new preview host mode environment configuration for routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Subdomain preview routing relies on HOOKCODE_PREVIEW_HOST_MODE + HOOKCODE_PREVIEW_BASE_DOMAIN (optional scheme override) to build public URLs.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}
 {/* Decisions made with rationale */}
 | Decision | Rationale |
 |----------|-----------|
-|          |           |
+<!-- Record preview routing strategy for local vs production deployments. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Use direct localhost ports for local previews and subdomain routing in production | Avoid path rewrite failures locally while enabling shareable, wildcard-hosted previews in production |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}
