@@ -10,6 +10,7 @@ import {
   UnorderedListOutlined
 } from '@ant-design/icons';
 import type {
+  PreviewHighlightEvent,
   PreviewInstanceSummary,
   PreviewLogEntry,
   PreviewStatusResponse,
@@ -42,6 +43,7 @@ import { ChatTimelineSkeleton } from '../components/skeletons/ChatTimelineSkelet
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
 import { formatTimeWindowLabel } from '../utils/timeWindow';
 import { formatRobotLabelWithProvider } from '../utils/robot';
+import { createAuthedEventSource } from '../utils/sse';
 
 /**
  * TaskGroupChatPage:
@@ -107,6 +109,11 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [previewLogsLoading, setPreviewLogsLoading] = useState(false);
   const [previewLogs, setPreviewLogs] = useState<PreviewLogEntry[]>([]);
   const previewLogStreamRef = useRef<EventSource | null>(null);
+  // Track preview bridge readiness for cross-origin highlight commands. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const [previewBridgeReady, setPreviewBridgeReady] = useState(false);
+  const previewBridgeReadyRef = useRef(false);
+  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const previewHighlightStreamRef = useRef<EventSource | null>(null);
   // Maintain draggable preview panel sizing state for Phase 3 layout updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewPanelWidth, setPreviewPanelWidth] = useState<number | null>(null);
   const [previewDragActive, setPreviewDragActive] = useState(false);
@@ -418,6 +425,56 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     const sep = baseUrl.includes('?') ? '&' : '?';
     return `${baseUrl}${sep}token=${encodeURIComponent(token)}`;
   }, [activePreviewInstance, activePreviewStatus]);
+
+  const previewIframeOrigin = useMemo(() => {
+    if (!previewIframeSrc) return '';
+    try {
+      return new URL(previewIframeSrc).origin;
+    } catch {
+      return '';
+    }
+  }, [previewIframeSrc]);
+
+  const postPreviewBridgeMessage = useCallback(
+    (payload: Record<string, unknown>) => {
+      if (!previewIframeOrigin) return;
+      const target = previewIframeRef.current?.contentWindow;
+      if (!target) return;
+      target.postMessage(payload, previewIframeOrigin);
+    },
+    [previewIframeOrigin]
+  );
+
+  const handlePreviewIframeLoad = useCallback(() => {
+    // Trigger a bridge handshake when the preview iframe finishes loading. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!previewIframeOrigin) return;
+    postPreviewBridgeMessage({ type: 'hookcode:preview:ping' });
+  }, [postPreviewBridgeMessage, previewIframeOrigin]);
+
+  useEffect(() => {
+    // Keep bridge readiness ref in sync for SSE highlight forwarding. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    previewBridgeReadyRef.current = previewBridgeReady;
+  }, [previewBridgeReady]);
+
+  useEffect(() => {
+    // Reset bridge readiness whenever the iframe origin changes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    previewBridgeReadyRef.current = false;
+    setPreviewBridgeReady(false);
+  }, [previewIframeOrigin]);
+
+  useEffect(() => {
+    // Listen for bridge handshake responses from the preview iframe. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!previewIframeOrigin) return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== previewIframeOrigin) return;
+      const payload = event.data as { type?: string } | null;
+      if (!payload || payload.type !== 'hookcode:preview:pong') return;
+      previewBridgeReadyRef.current = true;
+      setPreviewBridgeReady(true);
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [previewIframeOrigin]);
 
   // Format preview log timestamps for the log viewer. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const formatPreviewLogTime = useCallback(
@@ -746,6 +803,47 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       previewLogStreamRef.current = null;
     };
   }, [activePreviewInstance?.name, previewLogsOpen, taskGroupId, PREVIEW_LOG_TAIL, PREVIEW_LOG_MAX]);
+
+  useEffect(() => {
+    // Subscribe to preview highlight commands and forward to the iframe bridge. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!taskGroupId || !previewPanelOpen) {
+      previewHighlightStreamRef.current?.close();
+      previewHighlightStreamRef.current = null;
+      return;
+    }
+    const topic = `preview-highlight:${taskGroupId}`;
+    const source = createAuthedEventSource('/events/stream', { topics: topic });
+    previewHighlightStreamRef.current = source;
+
+    const handleHighlight = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data || '{}') as PreviewHighlightEvent;
+        if (!payload?.command || !payload.instanceName) return;
+        if (activePreviewInstance?.name && payload.instanceName !== activePreviewInstance.name) return;
+        if (!previewBridgeReadyRef.current) {
+          postPreviewBridgeMessage({ type: 'hookcode:preview:ping' });
+          return;
+        }
+        postPreviewBridgeMessage({
+          type: 'hookcode:preview:highlight',
+          ...payload.command
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    source.addEventListener('preview.highlight', handleHighlight);
+    source.onerror = () => {
+      // Keep the latest iframe bridge state even if SSE reconnects. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    };
+
+    return () => {
+      source.removeEventListener('preview.highlight', handleHighlight);
+      source.close();
+      previewHighlightStreamRef.current = null;
+    };
+  }, [activePreviewInstance?.name, postPreviewBridgeMessage, previewPanelOpen, taskGroupId]);
 
   useEffect(() => {
     void refreshRepos();
@@ -1293,6 +1391,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                     title={activePreviewInstance?.name ?? 'preview'}
                     src={previewIframeSrc}
                     loading="lazy"
+                    ref={previewIframeRef}
+                    onLoad={handlePreviewIframeLoad}
                   />
                 ) : (
                   <div className="hc-preview-placeholder">

@@ -14,7 +14,8 @@
 ## Requirements
 {/* WHAT: What the user asked for, broken down into specific requirements. WHY: Keeps requirements visible so you don't forget what you're building. WHEN: Fill this in during Phase 1 (Requirements & Discovery). EXAMPLE: - Command-line interface - Add tasks - List all tasks - Delete tasks - Python implementation */}
 {/* Captured from user request */}
--
+<!-- Capture preview highlight bridge requirements. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Provide a backend API to send highlight commands and a shared bridge script (stored in repo root `shared/`) that users can import manually to enable cross-origin DOM highlighting.
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
@@ -35,6 +36,8 @@
 |----------|-----------|
 <!-- Record preview routing strategy for local vs production deployments. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 | Use direct localhost ports for local previews and subdomain routing in production | Avoid path rewrite failures locally while enabling shareable, wildcard-hosted previews in production |
+<!-- Record the preview highlight bridge integration approach. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+| Require manual bridge script integration + postMessage handshake for DOM highlights | Cross-origin iframes cannot be manipulated directly, so a user-provided bridge is the safest stable path |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}

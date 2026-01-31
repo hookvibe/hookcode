@@ -21,7 +21,8 @@ Diagnose and fix TaskGroup preview failures for repos that contain .hookcode.yml
 <!-- Set current phase to Phase 2 for active work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 <!-- Mark Phase 12 as complete after preview availability refresh fix. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 <!-- Move active phase to Phase 23 for local port + subdomain routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
-Phase 23 (complete)
+<!-- Move active phase to Phase 24 for preview highlight bridge + API. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+Phase 24 (complete)
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -251,6 +252,14 @@ Phase 23 (complete)
 - [x] Update user-docs (preview + hookcode-yml) to document local vs prod access and wildcard DNS
 - **Status:** complete
 
+### Phase 24: Preview Highlight Bridge + API
+<!-- Provide a preview highlight bridge script and backend API to trigger DOM highlight commands. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- [x] Add backend highlight command types + publish service + API endpoint
+- [x] Add frontend SSE listener + postMessage bridge handshake and forwarding
+- [x] Add shared bridge script in repo root for user integration
+- [x] Update user docs and API types/tests for highlight workflow
+- **Status:** complete
+
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
 <!-- Update key questions for Phase 1 delivery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
@@ -308,6 +317,8 @@ Phase 23 (complete)
 | TaskGroupChatPage tests couldn't find Open preview panel button | 1 | Switched test matcher to regex to include icon label |
 | TaskGroupChatPage test failed due to duplicate \"Start preview\" matches | 1 | Scoped modal title query using selector |
 | TaskGroupChatPage test failed to match reinstall button name | 2 | Relaxed matcher to regex to include icon label |
+| Frontend highlight bridge test failed because preview bridge readiness ref lagged | 1 | Updated message handler to set the ref before forwarding highlights |
+| Full backend test suite failed with previewPortPool + previewWsProxy in sandbox | 1 | Recorded failure; EPERM on listen and no_available_preview_ports during full run |
 
 ## Notes
 {/* REMINDERS: - Update phase status as you progress: pending → in_progress → complete - Re-read this plan before major decisions (attention manipulation) - Log ALL errors - they help avoid repetition - Never repeat a failed action - mutate your approach instead */}

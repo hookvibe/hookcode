@@ -352,6 +352,26 @@ export interface PreviewStatusResponse {
   reason?: 'config_missing' | 'config_invalid' | 'workspace_missing' | 'invalid_group' | 'missing_task';
 }
 
+// Describe highlight commands sent to preview bridge scripts. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export type PreviewHighlightMode = 'outline' | 'mask';
+
+export interface PreviewHighlightCommand {
+  selector: string;
+  padding?: number;
+  color?: string;
+  mode?: PreviewHighlightMode;
+  scrollIntoView?: boolean;
+  requestId?: string;
+}
+
+// Preview highlight events delivered over SSE. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface PreviewHighlightEvent {
+  taskGroupId: string;
+  instanceName: string;
+  command: PreviewHighlightCommand;
+  issuedAt: string;
+}
+
 // Shape repo preview config responses for the repo detail dashboard. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export interface RepoPreviewInstanceSummary {
   name: string;
@@ -401,6 +421,19 @@ export const startTaskGroupPreview = async (id: string): Promise<{ success: bool
 
 export const stopTaskGroupPreview = async (id: string): Promise<{ success: boolean }> => {
   const { data } = await api.post<{ success: boolean }>(`/task-groups/${id}/preview/stop`);
+  return data;
+};
+
+// Send highlight commands to the preview iframe bridge via the backend API. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export const sendTaskGroupPreviewHighlight = async (
+  id: string,
+  instanceName: string,
+  command: PreviewHighlightCommand
+): Promise<{ success: boolean; requestId: string; subscribers: number }> => {
+  const { data } = await api.post<{ success: boolean; requestId: string; subscribers: number }>(
+    `/task-groups/${id}/preview/${instanceName}/highlight`,
+    command
+  );
   return data;
 };
 

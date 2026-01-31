@@ -239,6 +239,49 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
     expect(iframe).toHaveAttribute('src', 'http://127.0.0.1:12345/');
   });
 
+  test('forwards highlight commands to the preview iframe bridge', async () => {
+    // Ensure preview highlight SSE events postMessage into the iframe bridge. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+    });
+
+    renderPage({ taskGroupId: 'g1' });
+
+    const iframe = await screen.findByTitle('frontend');
+    const postMessage = vi.fn();
+    Object.defineProperty(iframe, 'contentWindow', { value: { postMessage }, writable: true });
+    iframe.dispatchEvent(new Event('load'));
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'hookcode:preview:pong' },
+        origin: 'http://127.0.0.1:12345'
+      })
+    );
+
+    const sources = (globalThis as any).__eventSourceInstances ?? [];
+    const highlightSource = sources.find((source: any) =>
+      decodeURIComponent(String(source.url)).includes('preview-highlight:g1')
+    );
+    expect(highlightSource).toBeTruthy();
+    highlightSource.emit('preview.highlight', {
+      data: JSON.stringify({
+        taskGroupId: 'g1',
+        instanceName: 'frontend',
+        command: { selector: '.btn', color: '#ff4d4f' },
+        issuedAt: '2026-01-31T00:00:00.000Z'
+      })
+    });
+
+    await waitFor(() =>
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'hookcode:preview:highlight', selector: '.btn' }),
+        'http://127.0.0.1:12345'
+      )
+    );
+  });
+
   test('renders diagnostics when preview startup fails', async () => {
     // Validate Phase 3 diagnostics rendering for failed preview instances. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({

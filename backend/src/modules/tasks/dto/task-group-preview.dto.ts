@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { DependencyResultDto } from './tasks-swagger.dto';
 
 export class PreviewLogEntryDto {
@@ -87,4 +88,53 @@ export class PreviewDependencyInstallResponseDto {
 
   @ApiProperty({ type: DependencyResultDto })
   result!: DependencyResultDto;
+}
+
+export class PreviewHighlightRequestDto {
+  // Describe DOM highlight commands sent to preview bridge scripts. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  @ApiProperty({ description: 'CSS selector to highlight in the preview iframe.' })
+  @IsString()
+  @MaxLength(200)
+  selector!: string;
+
+  @ApiPropertyOptional({ description: 'Padding in pixels around the highlighted element.' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(64)
+  padding?: number;
+
+  @ApiPropertyOptional({ description: 'Highlight color (CSS value).' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  color?: string;
+
+  @ApiPropertyOptional({ enum: ['outline', 'mask'], description: 'Highlight mode.' })
+  @IsOptional()
+  @IsIn(['outline', 'mask'])
+  mode?: 'outline' | 'mask';
+
+  @ApiPropertyOptional({ description: 'Scroll element into view before highlighting.' })
+  @IsOptional()
+  @IsBoolean()
+  scrollIntoView?: boolean;
+
+  @ApiPropertyOptional({ description: 'Optional request identifier for client-side tracking.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  requestId?: string;
+}
+
+export class PreviewHighlightResponseDto {
+  // Preview highlight API response for bridge delivery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  @ApiProperty()
+  success!: boolean;
+
+  @ApiProperty({ description: 'Request identifier for the highlight command.' })
+  requestId!: string;
+
+  @ApiProperty({ description: 'Number of SSE subscribers receiving the command.' })
+  subscribers!: number;
 }

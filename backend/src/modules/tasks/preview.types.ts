@@ -32,6 +32,26 @@ export interface PreviewLogEntry {
   message: string;
 }
 
+// Describe highlight commands sent to preview bridge scripts. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export type PreviewHighlightMode = 'outline' | 'mask';
+
+export interface PreviewHighlightCommand {
+  selector: string;
+  padding?: number;
+  color?: string;
+  mode?: PreviewHighlightMode;
+  scrollIntoView?: boolean;
+  requestId?: string;
+}
+
+// Publish preview highlight events over SSE for the frontend bridge. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface PreviewHighlightEvent {
+  taskGroupId: string;
+  instanceName: string;
+  command: PreviewHighlightCommand;
+  issuedAt: string;
+}
+
 // Describe per-instance preview config for repo-level discovery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export interface RepoPreviewInstanceSummary {
   name: string;

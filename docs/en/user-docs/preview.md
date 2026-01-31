@@ -49,6 +49,22 @@ Use **View logs** to open the live log stream. When a preview fails or times out
 
 The **Copy link** action produces a preview URL with a `token` query parameter. Treat it like a password: anyone with the link can view the preview while the token is valid.
 
+## DOM highlight bridge (optional)
+
+To enable DOM highlighting inside the preview iframe, import the bridge script from this repository:
+
+1. Copy `shared/preview-bridge.js` into your project (or serve it directly if you mount the repo).
+2. Import it in your app entry (for example `main.tsx`):
+
+```ts
+import './preview-bridge';
+```
+
+When the preview iframe loads, HookCode sends a handshake ping. If the bridge replies, highlight commands sent via the backend API will be forwarded into the iframe:
+
+`POST /api/task-groups/:id/preview/:instance/highlight`
+<!-- Document preview highlight bridge integration for cross-origin iframes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+
 ## Idle timeout and hot reload
 
 - Preview sessions stop automatically after **30 minutes of inactivity** (preview traffic or log streams count as activity).
