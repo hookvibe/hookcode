@@ -268,6 +268,20 @@ describe('AppShell (frontend-chat migration)', () => {
     expect(document.querySelectorAll('.hc-sider__divider')).toHaveLength(2);
   });
 
+  test('hides task groups when collapsed but keeps the view-all icon', async () => {
+    // Ensure collapsed sidebar shows only the task-group view-all icon CTA. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131
+    const ui = userEvent.setup();
+    renderApp();
+
+    expect(await screen.findByText('Group 1')).toBeInTheDocument();
+    const collapseButton = await screen.findByRole('button', { name: 'Collapse sidebar' });
+    await ui.click(collapseButton);
+
+    expect(await screen.findByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+    expect(screen.queryByText('Group 1')).toBeNull();
+    expect(await screen.findByRole('button', { name: 'View all task groups' })).toBeInTheDocument();
+  });
+
   test('persists sidebar collapsed state across refresh', async () => {
     // Persist the sidebar collapsed preference via localStorage so it survives a remount. l7pvyrepxb0mx2ipdh2y
     const ui = userEvent.setup();

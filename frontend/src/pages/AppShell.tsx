@@ -455,9 +455,13 @@ export const AppShell: FC<AppShellProps> = ({
   }, []);
 
   const groupMenuItems = useMemo<MenuProps['items']>(() => {
+    if (siderCollapsed) {
+      // Hide per-group entries in collapsed mode so only the view-all icon remains. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131
+      return [];
+    }
     return taskGroups.map((g) => ({
       key: g.id,
-      // UX: icons make the group list scannable, especially in collapsed sidebar mode.
+      // Show per-group icons in expanded mode for quicker scanning. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131
       icon:
         g.kind === 'chat' ? (
           <MessageOutlined />
@@ -472,7 +476,7 @@ export const AppShell: FC<AppShellProps> = ({
         ),
       label: clampText(String(g.title ?? g.bindingKey ?? g.id).trim() || g.id, 36)
     }));
-  }, [taskGroups]);
+  }, [taskGroups, siderCollapsed]);
 
   const activeGroupKey = route.page === 'taskGroup' ? route.taskGroupId : undefined;
   const taskGroupsListActive = route.page === 'taskGroups';
@@ -736,35 +740,40 @@ export const AppShell: FC<AppShellProps> = ({
             {/* Separate task statuses from task groups in both expanded/collapsed sidebar modes. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */}
             <div className="hc-sider__divider" aria-hidden="true" />
 
-            {!siderCollapsed ? (
-              <Typography.Text className="hc-sider__sectionLabel" style={{ marginTop: 16 }}>
-                {t('sidebar.section.taskGroups')}
-              </Typography.Text>
-            ) : null}
+            {/* Keep the task-group view-all CTA visible in the section header. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131 */}
+            <div
+              className={`hc-sider__sectionHeaderRow${siderCollapsed ? ' hc-sider__sectionHeaderRow--collapsed' : ''}`}
+            >
+              {!siderCollapsed ? (
+                <Typography.Text className="hc-sider__sectionLabel">{t('sidebar.section.taskGroups')}</Typography.Text>
+              ) : null}
+              <Tooltip title={siderCollapsed ? t('taskGroups.page.viewAll') : undefined}>
+                <Button
+                  type="text"
+                  size="small"
+                  className={`hc-sider-item hc-sider-item--more hc-sider-item--viewAll hc-sider-item--viewAllHeader${taskGroupsListActive ? ' hc-sider-item--active' : ''}${siderCollapsed ? ' hc-sider-item--iconOnly' : ''}`}
+                  aria-current={taskGroupsListActive ? 'page' : undefined}
+                  aria-label={t('taskGroups.page.viewAll')}
+                  icon={siderCollapsed ? <UnorderedListOutlined /> : undefined}
+                  onClick={() => goTaskGroups()}
+                >
+                  {!siderCollapsed ? t('taskGroups.page.viewAll') : null}
+                </Button>
+              </Tooltip>
+            </div>
 
-            <Menu
-              className="hc-sider-menu"
-              mode="inline"
-              selectedKeys={activeGroupKey ? [activeGroupKey] : []}
-              items={groupMenuItems}
-              onClick={(info) => {
-                // UX: navigate by the menu key directly so a sidebar refresh cannot break clicks.
-                openTaskGroup(String(info.key));
-              }}
-            />
-            {/* Add a taskgroup list CTA below the menu so the card list is reachable from the taskgroup area. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
-            <Tooltip title={siderCollapsed ? t('taskGroups.page.viewAll') : undefined}>
-              <Button
-                type="text"
-                block
-                className={`hc-sider-item hc-sider-item--more hc-sider-item--viewAll${taskGroupsListActive ? ' hc-sider-item--active' : ''}`}
-                aria-current={taskGroupsListActive ? 'page' : undefined}
-                icon={siderCollapsed ? <UnorderedListOutlined /> : undefined}
-                onClick={() => goTaskGroups()}
-              >
-                {!siderCollapsed ? t('taskGroups.page.viewAll') : null}
-              </Button>
-            </Tooltip>
+            {!siderCollapsed ? (
+              <Menu
+                className="hc-sider-menu"
+                mode="inline"
+                selectedKeys={activeGroupKey ? [activeGroupKey] : []}
+                items={groupMenuItems}
+                onClick={(info) => {
+                  // UX: navigate by the menu key directly so a sidebar refresh cannot break clicks.
+                  openTaskGroup(String(info.key));
+                }}
+              />
+            ) : null}
           </div>
 
           <div className="hc-sider__bottom">
