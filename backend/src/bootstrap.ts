@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 import dotenv from 'dotenv';
 import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import type { DynamicModule, Type } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -103,7 +104,8 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
   try {
     // Attach preview host proxy middleware for subdomain routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const previewHostProxy = app.get(PreviewHostProxyService);
-    app.use((req, res, next) => {
+    // Add Express parameter types to satisfy test-time TS checks. docs/en/developer/plans/testfix20260131/task_plan.md testfix20260131
+    app.use((req: Request, res: Response, next: NextFunction) => {
       void previewHostProxy.handle(req, res, next);
     });
   } catch (err) {

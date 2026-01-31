@@ -38,7 +38,8 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 5. After completing each phase or meaningful milestone, return to the session folder and update
    - `task_plan.md`: phase status (pending → in_progress → complete)
    - `progress.md`: actions, touched files, test results, error log
-6. Add or update test cases, run tests, and record results in `docs/en/developer/plans/<SESSION_HASH>/progress.md`
+<!-- Require a full test-suite run after adding tests during build. docs/en/developer/plans/testfix20260131/task_plan.md testfix20260131 -->
+6. Add or update test cases, run tests, and record results in `docs/en/developer/plans/<SESSION_HASH>/progress.md`; after writing tests during build, run the full test suite to verify the outcome
 7. Delivery checklist (NON-NEGOTIABLE)
    - Ensure all phases are complete (optional helper: `bash .codex/skills/planning-with-files/scripts/check-complete.sh <SESSION_HASH>`).
    - Update `docs/en/change-log/0.0.0.md` (Unreleased placeholder) with: `SESSION_HASH` + one-line summary + relative link to the plan.
