@@ -26,7 +26,8 @@
     "db:status": "pnpm --filter hookcode-backend db:status",
     "build:backend": "pnpm --filter hookcode-backend build",
     "build:frontend": "pnpm --filter hookcode-frontend build",
-    "lint": "echo \"add lint in packages\""
+    "lint": "echo \"add lint in packages\"",
+    "test": "pnpm --filter hookcode-backend test && pnpm --filter hookcode-frontend test"
   },
   "engines": {
     "node": ">=18.0.0"

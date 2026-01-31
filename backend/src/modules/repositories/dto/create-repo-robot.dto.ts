@@ -1,5 +1,7 @@
-import { Allow, IsBoolean, IsOptional, IsString } from 'class-validator';
+import { Allow, IsBoolean, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { TimeWindowDto } from '../../common/dto/time-window.dto';
 
 export class CreateRepoRobotDto {
   @ApiPropertyOptional()
@@ -65,8 +67,27 @@ export class CreateRepoRobotDto {
   @Allow()
   modelProviderConfig?: unknown;
 
+  @ApiPropertyOptional({ description: 'Dependency overrides (enabled/failureMode/allowCustomInstall).' })
+  @IsOptional()
+  @Allow()
+  // Accept dependency override payloads for robot creation. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyConfig?: unknown;
+
+  // Accept workflow mode selection for robot creation. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  @ApiPropertyOptional({ nullable: true, description: 'Repo workflow mode (auto/direct/fork).' })
+  @IsOptional()
+  @IsString()
+  repoWorkflowMode?: string | null;
+
   @ApiPropertyOptional({ description: 'Whether set as default robot for the repo.' })
   @IsOptional()
   @IsBoolean()
   isDefault?: boolean;
+
+  @ApiPropertyOptional({ type: TimeWindowDto, nullable: true, description: 'Hour-level execution window (server time).' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TimeWindowDto)
+  // Accept robot-level time window configuration at creation. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindowDto | null;
 }

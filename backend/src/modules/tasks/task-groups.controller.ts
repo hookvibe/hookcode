@@ -2,6 +2,7 @@ import { Controller, Get, HttpException, InternalServerErrorException, NotFoundE
 import { ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { normalizeString, parsePositiveInt } from '../../utils/parse';
+import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { TaskService } from './task.service';
 import { GetTaskGroupResponseDto, ListTaskGroupsResponseDto, ListTasksByGroupResponseDto } from './dto/task-groups-swagger.dto';
@@ -15,6 +16,7 @@ const normalizeArchiveScope = (value: unknown): 'active' | 'archived' | 'all' =>
   return 'active';
 };
 
+@AuthScopeGroup('tasks') // Scope task-group APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('task-groups')
 @ApiTags('Task Groups')
 @ApiBearerAuth('bearerAuth')

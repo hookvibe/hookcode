@@ -71,7 +71,12 @@ export const ArchivePage: FC<ArchivePageProps> = ({ tab, userPanel }) => {
   const refreshTasks = useCallback(async () => {
     setTasksLoading(true);
     try {
-      const data = await fetchTasks({ limit: 50, archived: 'archived' });
+      const data = await fetchTasks({
+        limit: 50,
+        archived: 'archived',
+        // Skip queue diagnosis for archived task lists to keep archive loads fast. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+        includeQueue: false
+      });
       setTasks(data);
     } catch (err) {
       console.error(err);

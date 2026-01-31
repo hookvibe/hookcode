@@ -43,7 +43,7 @@ export interface CodexRobotProviderConfig {
   model: CodexModel;
   sandbox: 'workspace-write' | 'read-only';
   model_reasoning_effort: CodexReasoningEffort;
-  sandbox_workspace_write: { network_access: boolean };
+  // Codex execution always enables network access; the robot config no longer binds this setting. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
 }
 
 export interface CodexCredentialPublic {
@@ -60,9 +60,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 const asString = (value: unknown): string => (typeof value === 'string' ? value : '');
-
-const asBoolean = (value: unknown, fallback: boolean): boolean =>
-  typeof value === 'boolean' ? value : fallback;
 
 type CodexFileChangeKind = 'create' | 'update' | 'delete' | (string & {});
 
@@ -210,8 +207,7 @@ export const getDefaultCodexRobotProviderConfig = (): CodexRobotProviderConfig =
   credential: undefined,
   model: 'gpt-5.1-codex-max',
   sandbox: 'read-only',
-  model_reasoning_effort: 'medium',
-  sandbox_workspace_write: { network_access: false }
+  model_reasoning_effort: 'medium'
 });
 
 export const normalizeCodexRobotProviderConfig = (raw: unknown): CodexRobotProviderConfig => {
@@ -224,8 +220,6 @@ export const normalizeCodexRobotProviderConfig = (raw: unknown): CodexRobotProvi
   const apiBaseUrl = credentialRaw ? asString(credentialRaw.apiBaseUrl).trim() : '';
   const apiKey = credentialRaw ? asString(credentialRaw.apiKey).trim() : '';
   const remark = credentialRaw ? asString(credentialRaw.remark).trim() : '';
-
-  const sandboxWorkspaceWriteRaw = isRecord(raw.sandbox_workspace_write) ? raw.sandbox_workspace_write : null;
 
   const next: CodexRobotProviderConfig = {
     credentialSource,
@@ -240,12 +234,10 @@ export const normalizeCodexRobotProviderConfig = (raw: unknown): CodexRobotProvi
         : undefined,
     model: normalizeCodexModel(raw.model),
     sandbox: normalizeCodexSandbox(raw.sandbox),
-    model_reasoning_effort: normalizeReasoningEffort(raw.model_reasoning_effort),
-    sandbox_workspace_write: {
-      network_access: asBoolean(sandboxWorkspaceWriteRaw?.network_access, false)
-    }
+    model_reasoning_effort: normalizeReasoningEffort(raw.model_reasoning_effort)
   };
 
+  // Ignore legacy sandbox_workspace_write.network_access because Codex now always allows network access. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
   return next;
 };
 
@@ -296,8 +288,7 @@ export const toPublicCodexRobotProviderConfig = (raw: unknown): CodexRobotProvid
         : undefined,
     model: normalized.model,
     sandbox: normalized.sandbox,
-    model_reasoning_effort: normalized.model_reasoning_effort,
-    sandbox_workspace_write: normalized.sandbox_workspace_write
+    model_reasoning_effort: normalized.model_reasoning_effort
   };
 };
 
@@ -317,7 +308,6 @@ export const buildCodexSdkThreadOptions = (params: {
   model: CodexModel;
   sandbox: 'read-only' | 'workspace-write';
   modelReasoningEffort: CodexReasoningEffort;
-  networkAccess: boolean;
 }): CodexSdkThreadOptions => {
   const sandboxMode = params.sandbox || 'read-only';
 
@@ -328,7 +318,8 @@ export const buildCodexSdkThreadOptions = (params: {
     skipGitRepoCheck: true,
     approvalPolicy: 'never',
     modelReasoningEffort: params.modelReasoningEffort as CodexSdkModelReasoningEffort,
-    networkAccessEnabled: params.networkAccess,
+    // Always enable Codex network access; the SDK no longer reads this from robot config. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+    networkAccessEnabled: true,
     additionalDirectories: sandboxMode === 'workspace-write' ? [path.join(params.repoDir, '.git')] : undefined
   };
 };
@@ -339,7 +330,6 @@ export const runCodexExecWithSdk = async (params: {
   model: CodexModel;
   sandbox: 'read-only' | 'workspace-write';
   modelReasoningEffort: CodexReasoningEffort;
-  networkAccess: boolean;
   resumeThreadId?: string;
   apiKey: string;
   apiBaseUrl?: string;
@@ -369,8 +359,8 @@ export const runCodexExecWithSdk = async (params: {
     repoDir: params.repoDir,
     model: params.model,
     sandbox: params.sandbox,
-    modelReasoningEffort: params.modelReasoningEffort,
-    networkAccess: params.networkAccess
+    // Thread options now always enable network access for Codex runs. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+    modelReasoningEffort: params.modelReasoningEffort
   });
   const resumeThreadId = (params.resumeThreadId ?? '').trim();
   const thread = resumeThreadId

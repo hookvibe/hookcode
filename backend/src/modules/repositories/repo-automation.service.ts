@@ -7,6 +7,7 @@ import type {
   AutomationRule,
   RepoAutomationConfig
 } from '../../types/automation';
+import { normalizeTimeWindow } from '../../utils/timeWindow';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -59,6 +60,7 @@ const normalizeRule = (value: unknown): AutomationRule | null => {
   const id = asString(value.id).trim() || randomUUID();
   const name = asString(value.name).trim();
   const enabled = asBoolean(value.enabled, true);
+  const timeWindow = normalizeTimeWindow((value as any).timeWindow);
 
   const actions = asArray(value.actions)
     .map((a) => {
@@ -93,7 +95,9 @@ const normalizeRule = (value: unknown): AutomationRule | null => {
     name,
     enabled,
     match: all.length || any.length ? { all: all.length ? all : undefined, any: any.length ? any : undefined } : undefined,
-    actions
+    actions,
+    // Normalize trigger-level time window payloads for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    timeWindow: timeWindow ?? undefined
   };
 };
 
@@ -208,6 +212,16 @@ export const validateAutomationConfigOrThrow = (config: RepoAutomationConfig): v
           details: { eventKey, ruleId, ruleName }
         });
       }
+      // Validate trigger-level time windows when provided. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      if (isRecord(rule) && Object.prototype.hasOwnProperty.call(rule, 'timeWindow')) {
+        const normalized = normalizeTimeWindow((rule as any).timeWindow);
+        if (!normalized) {
+          throw new RepoAutomationConfigValidationError('Automation rule timeWindow is invalid', {
+            code: 'RULE_TIME_WINDOW_INVALID',
+            details: { eventKey, ruleId, ruleName }
+          });
+        }
+      }
       const actions = Array.isArray((rule as any)?.actions) ? (rule as any).actions : [];
       if (!actions.length) {
         throw new RepoAutomationConfigValidationError('Automation rule must select at least 1 robot', {
@@ -270,6 +284,8 @@ export class RepoAutomationService {
 
   async upsertConfig(repoId: string, config: RepoAutomationConfig): Promise<RepoAutomationConfig> {
     const now = new Date();
+    // Validate raw config first so invalid time windows are rejected before normalization drops them. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    validateAutomationConfigOrThrow(config);
     const normalized = normalizeConfig(config);
     validateAutomationConfigOrThrow(normalized);
     const row = await db.repoAutomationConfig.upsert({

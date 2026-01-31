@@ -16,14 +16,128 @@ import { clearAuth, getToken, saveLoginNext } from './auth';
  */
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
+// Export the API base URL so iframe previews can reuse the same origin. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export const API_BASE_URL = apiBaseUrl;
+
 export const api = axios.create({
   baseURL: apiBaseUrl
 });
 
+type GetCacheEntry<T> = { value: T; expiresAt: number };
+
+const GET_CACHE_MAX_ENTRIES = 400;
+const getCache = new Map<string, GetCacheEntry<any>>();
+const getInflight = new Map<string, Promise<any>>();
+
+const stableStringify = (value: any): string => {
+  if (value === null || value === undefined) return String(value);
+  if (typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+};
+
+const buildGetCacheKey = (url: string, params?: Record<string, any>): string => {
+  // Build stable GET cache keys for in-flight de-dup and short TTL caching across pages. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  if (!params || Object.keys(params).length === 0) return url;
+  return `${url}?${stableStringify(params)}`;
+};
+
+const pruneGetCache = (now: number) => {
+  for (const [key, entry] of getCache.entries()) {
+    if (entry.expiresAt <= now) getCache.delete(key);
+  }
+  while (getCache.size > GET_CACHE_MAX_ENTRIES) {
+    const oldestKey = getCache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    getCache.delete(oldestKey);
+  }
+};
+
+const invalidateGetCache = (prefix: string) => {
+  // Clear cached GET responses after mutations to avoid stale lists. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  for (const key of Array.from(getCache.keys())) {
+    if (key.startsWith(prefix)) getCache.delete(key);
+  }
+  for (const key of Array.from(getInflight.keys())) {
+    if (key.startsWith(prefix)) getInflight.delete(key);
+  }
+};
+
+const getCached = async <T>(
+  url: string,
+  options?: { params?: Record<string, any>; cacheTtlMs?: number; dedupe?: boolean }
+): Promise<T> => {
+  const params = options?.params;
+  const cacheKey = buildGetCacheKey(url, params);
+  const now = Date.now();
+  const ttl = options?.cacheTtlMs ?? 0;
+
+  if (ttl > 0) {
+    const cached = getCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) return cached.value as T;
+  }
+
+  const allowDedupe = options?.dedupe !== false;
+  if (allowDedupe) {
+    const inflight = getInflight.get(cacheKey);
+    if (inflight) return inflight as Promise<T>;
+  }
+
+  const request = api
+    .get<T>(url, { params })
+    .then((res) => {
+      if (ttl > 0) {
+        getCache.set(cacheKey, { value: res.data, expiresAt: now + ttl });
+        pruneGetCache(now);
+      }
+      return res.data;
+    })
+    .finally(() => {
+      getInflight.delete(cacheKey);
+    });
+
+  if (allowDedupe) getInflight.set(cacheKey, request);
+  return request;
+};
+
+const invalidateRepoCaches = () => {
+  // Keep repo lists and summaries fresh after repo/robot/automation mutations. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateGetCache('/repos');
+};
+
+const invalidateTaskCaches = () => {
+  // Clear task-related list caches after task mutations or chat execution. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateGetCache('/tasks');
+  invalidateGetCache('/tasks/stats');
+  invalidateGetCache('/tasks/volume');
+  invalidateGetCache('/dashboard/sidebar');
+  invalidateGetCache('/task-groups');
+};
+
 export type ArchiveScope = 'active' | 'archived' | 'all'; // Keep archive filtering consistent with backend query params. qnp1mtxhzikhbi0xspbc
 
 export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
-export type TaskQueueReasonCode = 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
+export type TaskQueueReasonCode =
+  | 'queue_backlog'
+  | 'no_active_worker'
+  | 'inline_worker_disabled'
+  | 'outside_time_window'
+  | 'unknown';
+
+// Shared hour-level time window shape for scheduling inputs. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+export interface TimeWindow {
+  startHour: number;
+  endHour: number;
+}
+
+export interface TaskQueueTimeWindow {
+  // Provide time window metadata for queued task explanations. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  startHour: number;
+  endHour: number;
+  source: 'robot' | 'trigger' | 'chat';
+  timezone: 'server';
+}
 
 export interface TaskQueueDiagnosis {
   // Surface queued-task diagnosis so the UI can explain long-waiting tasks. f3a9c2d8e1b7f4a0c6d1
@@ -33,6 +147,37 @@ export interface TaskQueueDiagnosis {
   processing: number;
   staleProcessing: number;
   inlineWorkerEnabled: boolean;
+  timeWindow?: TaskQueueTimeWindow;
+}
+
+export interface DependencyInstallStep {
+  // Dependency install steps returned by task APIs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  language: 'node' | 'python' | 'java' | 'ruby' | 'go';
+  command?: string;
+  workdir?: string;
+  status: 'success' | 'skipped' | 'failed';
+  duration?: number;
+  error?: string;
+  reason?: string;
+}
+
+export interface DependencyResult {
+  status: 'success' | 'partial' | 'skipped' | 'failed';
+  steps: DependencyInstallStep[];
+  totalDuration: number;
+}
+
+export interface RuntimeInfo {
+  // Runtime metadata returned by `/api/system/runtimes`. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  language: 'node' | 'python' | 'java' | 'ruby' | 'go';
+  version: string;
+  path: string;
+  packageManager?: string;
+}
+
+export interface SystemRuntimesResponse {
+  runtimes: RuntimeInfo[];
+  detectedAt?: string;
 }
 
 export type TaskEventType =
@@ -59,6 +204,8 @@ export interface TaskRobotSummary {
   repoId: string;
   name: string;
   permission: RobotPermission;
+  // Expose robot model provider on task summaries for UI display. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+  modelProvider?: ModelProvider;
   enabled: boolean;
 }
 
@@ -82,6 +229,8 @@ export interface Task {
   retries: number;
   queue?: TaskQueueDiagnosis;
   result?: TaskResult;
+  // Capture dependency install results for display/diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyResult?: DependencyResult;
   createdAt: string;
   updatedAt: string;
   repo?: TaskRepoSummary;
@@ -169,6 +318,52 @@ export interface TaskGroup {
   robot?: TaskRobotSummary;
 }
 
+// Define preview API response types for TaskGroup dev server status. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export type PreviewInstanceStatus = 'stopped' | 'starting' | 'running' | 'failed' | 'timeout';
+
+// Surface preview diagnostics and log payloads for Phase 3 UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface PreviewLogEntry {
+  timestamp: string;
+  level: 'stdout' | 'stderr' | 'system';
+  message: string;
+}
+
+// Attach diagnostics to preview status payloads for failed/timeout sessions. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface PreviewDiagnostics {
+  exitCode?: number | null;
+  signal?: string | null;
+  logs?: PreviewLogEntry[];
+}
+
+export interface PreviewInstanceSummary {
+  name: string;
+  status: PreviewInstanceStatus;
+  port?: number;
+  path?: string;
+  // Expose preview subdomain URLs when configured. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  publicUrl?: string;
+  message?: string;
+  diagnostics?: PreviewDiagnostics;
+}
+
+export interface PreviewStatusResponse {
+  available: boolean;
+  instances: PreviewInstanceSummary[];
+  reason?: 'config_missing' | 'config_invalid' | 'workspace_missing' | 'invalid_group' | 'missing_task';
+}
+
+// Shape repo preview config responses for the repo detail dashboard. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface RepoPreviewInstanceSummary {
+  name: string;
+  workdir: string;
+}
+
+export interface RepoPreviewConfigResponse {
+  available: boolean;
+  instances: RepoPreviewInstanceSummary[];
+  reason?: 'no_workspace' | 'config_missing' | 'config_invalid' | 'workspace_missing';
+}
+
 export const fetchTaskGroups = async (options?: {
   limit?: number;
   repoId?: string;
@@ -176,18 +371,53 @@ export const fetchTaskGroups = async (options?: {
   kind?: TaskGroupKind;
   archived?: ArchiveScope;
 }): Promise<TaskGroup[]> => {
-  const { data } = await api.get<{ taskGroups: TaskGroup[] }>('/task-groups', { params: options });
+  const data = await getCached<{ taskGroups: TaskGroup[] }>('/task-groups', {
+    params: options,
+    cacheTtlMs: 5000
+  });
   return data.taskGroups;
 };
 
 export const fetchTaskGroup = async (id: string): Promise<TaskGroup> => {
-  const { data } = await api.get<{ taskGroup: TaskGroup }>(`/task-groups/${id}`);
+  const data = await getCached<{ taskGroup: TaskGroup }>(`/task-groups/${id}`);
   return data.taskGroup;
 };
 
 export const fetchTaskGroupTasks = async (id: string, options?: { limit?: number }): Promise<Task[]> => {
-  const { data } = await api.get<{ tasks: Task[] }>(`/task-groups/${id}/tasks`, { params: options });
+  const data = await getCached<{ tasks: Task[] }>(`/task-groups/${id}/tasks`, { params: options });
   return data.tasks;
+};
+
+// Preview API helpers for TaskGroup dev server lifecycle. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export const fetchTaskGroupPreviewStatus = async (id: string): Promise<PreviewStatusResponse> => {
+  const { data } = await api.get<PreviewStatusResponse>(`/task-groups/${id}/preview/status`);
+  return data;
+};
+
+export const startTaskGroupPreview = async (id: string): Promise<{ success: boolean; instances: PreviewInstanceSummary[] }> => {
+  const { data } = await api.post<{ success: boolean; instances: PreviewInstanceSummary[] }>(`/task-groups/${id}/preview/start`);
+  return data;
+};
+
+export const stopTaskGroupPreview = async (id: string): Promise<{ success: boolean }> => {
+  const { data } = await api.post<{ success: boolean }>(`/task-groups/${id}/preview/stop`);
+  return data;
+};
+
+// Trigger manual dependency installs for TaskGroup previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export const installTaskGroupPreviewDependencies = async (
+  id: string
+): Promise<{ success: boolean; result: DependencyResult }> => {
+  const { data } = await api.post<{ success: boolean; result: DependencyResult }>(
+    `/task-groups/${id}/preview/dependencies/install`
+  );
+  return data;
+};
+
+// Fetch repository preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export const fetchRepoPreviewConfig = async (id: string): Promise<RepoPreviewConfigResponse> => {
+  const { data } = await api.get<RepoPreviewConfigResponse>(`/repos/${id}/preview/config`);
+  return data;
 };
 
 export const executeChat = async (params: {
@@ -195,11 +425,13 @@ export const executeChat = async (params: {
   robotId: string;
   text: string;
   taskGroupId?: string;
+  timeWindow?: TimeWindow | null;
 }): Promise<{ taskGroup: TaskGroup; task: Task }> => {
   // Business context:
   // - Manual trigger without Webhooks (frontend Chat page + chat embeds under task/taskGroup pages).
   // - Change record: added to call backend `/chat` endpoint.
   const { data } = await api.post<{ taskGroup: TaskGroup; task: Task }>('/chat', params);
+  invalidateTaskCaches();
   return data;
 };
 
@@ -210,8 +442,10 @@ export const fetchTasks = async (options?: {
   status?: TaskStatus | 'success';
   eventType?: string;
   archived?: ArchiveScope;
+  // Allow dashboards to skip queue diagnosis to reduce payload cost. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  includeQueue?: boolean;
 }): Promise<Task[]> => {
-  const { data } = await api.get<{ tasks: Task[] }>('/tasks', { params: options });
+  const data = await getCached<{ tasks: Task[] }>('/tasks', { params: options });
   return data.tasks;
 };
 
@@ -229,7 +463,10 @@ export const fetchTaskStats = async (options?: {
   eventType?: string;
   archived?: ArchiveScope;
 }): Promise<TaskStatusStats> => {
-  const { data } = await api.get<{ stats: TaskStatusStats }>('/tasks/stats', { params: options });
+  const data = await getCached<{ stats: TaskStatusStats }>('/tasks/stats', {
+    params: options,
+    cacheTtlMs: 5000
+  });
   return data.stats;
 };
 
@@ -247,7 +484,10 @@ export const fetchTaskVolumeByDay = async (options: {
   archived?: ArchiveScope;
 }): Promise<TaskVolumePoint[]> => {
   // Fetch per-day task volume for the repo dashboard trend chart (UTC buckets). dashtrendline20260119m9v2
-  const { data } = await api.get<{ points: TaskVolumePoint[] }>('/tasks/volume', { params: options });
+  const data = await getCached<{ points: TaskVolumePoint[] }>('/tasks/volume', {
+    params: options,
+    cacheTtlMs: 30000
+  });
   return data.points;
 };
 
@@ -270,27 +510,43 @@ export const fetchDashboardSidebar = async (options?: {
   eventType?: string;
 }): Promise<DashboardSidebarSnapshot> => {
   // Reduce redundant sidebar polling calls by fetching a consistent snapshot in one request. 7bqwou6abx4ste96ikhv
-  const { data } = await api.get<DashboardSidebarSnapshot>('/dashboard/sidebar', { params: options });
-  return data;
+  return getCached<DashboardSidebarSnapshot>('/dashboard/sidebar', { params: options, cacheTtlMs: 3000 });
 };
 
 export const fetchTask = async (taskId: string): Promise<Task> => {
-  const { data } = await api.get<{ task: Task }>(`/tasks/${taskId}`);
+  const data = await getCached<{ task: Task }>(`/tasks/${taskId}`);
   return data.task;
 };
 
 export const retryTask = async (taskId: string, options?: { force?: boolean }): Promise<Task> => {
   const params = options?.force ? { force: 'true' } : undefined;
   const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/retry`, null, { params });
+  invalidateTaskCaches();
+  return data.task;
+};
+
+export const executeTaskNow = async (taskId: string): Promise<Task> => {
+  // Override time-window gating for queued tasks. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/execute-now`);
+  invalidateTaskCaches();
+  return data.task;
+};
+
+export const pushTaskGitChanges = async (taskId: string): Promise<Task> => {
+  // Trigger a git push for forked task changes and return the updated task. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/git/push`);
+  invalidateTaskCaches();
   return data.task;
 };
 
 export const deleteTask = async (taskId: string): Promise<void> => {
   await api.delete(`/tasks/${taskId}`);
+  invalidateTaskCaches();
 };
 
 export const clearTaskLogs = async (taskId: string): Promise<void> => {
   await api.delete(`/tasks/${taskId}/logs`);
+  invalidateTaskCaches();
 };
 
 api.interceptors.request.use((config) => {
@@ -338,8 +594,7 @@ export interface AuthMeResponse {
 }
 
 export const fetchAuthMe = async (): Promise<AuthMeResponse> => {
-  const { data } = await api.get<AuthMeResponse>('/auth/me');
-  return data;
+  return getCached<AuthMeResponse>('/auth/me', { cacheTtlMs: 5000 });
 };
 
 export interface User {
@@ -352,12 +607,14 @@ export interface User {
 }
 
 export const fetchMe = async (): Promise<User> => {
-  const { data } = await api.get<{ user: User }>('/users/me');
+  const data = await getCached<{ user: User }>('/users/me', { cacheTtlMs: 5000 });
   return data.user;
 };
 
 export const updateMe = async (params: { displayName?: string | null }): Promise<User> => {
   const { data } = await api.patch<{ user: User }>('/users/me', params);
+  invalidateGetCache('/users/me');
+  invalidateGetCache('/auth/me');
   return data.user;
 };
 
@@ -398,8 +655,31 @@ export interface UserRepoProviderCredentialsPublic {
   defaultProfileId?: string;
 }
 
+// PAT scope types for API access tokens. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+export type ApiTokenScopeGroup = 'account' | 'repos' | 'tasks' | 'events' | 'system';
+export type ApiTokenScopeLevel = 'read' | 'write';
+
+export interface ApiTokenScope {
+  group: ApiTokenScopeGroup;
+  level: ApiTokenScopeLevel;
+}
+
+export interface UserApiTokenPublic {
+  id: string;
+  name: string;
+  tokenPrefix: string;
+  tokenLast4?: string | null;
+  scopes: ApiTokenScope[];
+  createdAt: string;
+  expiresAt?: string | null;
+  revokedAt?: string | null;
+  lastUsedAt?: string | null;
+}
+
 export const fetchMyModelCredentials = async (): Promise<UserModelCredentialsPublic> => {
-  const { data } = await api.get<{ credentials: UserModelCredentialsPublic }>('/users/me/model-credentials');
+  const data = await getCached<{ credentials: UserModelCredentialsPublic }>('/users/me/model-credentials', {
+    cacheTtlMs: 60000
+  });
   return data.credentials;
 };
 
@@ -456,7 +736,38 @@ export const updateMyModelCredentials = async (params: {
   } | null;
 }): Promise<UserModelCredentialsPublic> => {
   const { data } = await api.patch<{ credentials: UserModelCredentialsPublic }>('/users/me/model-credentials', params);
+  invalidateGetCache('/users/me/model-credentials');
   return data.credentials;
+};
+
+export const fetchMyApiTokens = async (): Promise<UserApiTokenPublic[]> => {
+  const data = await getCached<{ tokens: UserApiTokenPublic[] }>('/users/me/api-tokens', { cacheTtlMs: 30000 });
+  return data.tokens;
+};
+
+export const createMyApiToken = async (params: {
+  name: string;
+  scopes: ApiTokenScope[];
+  expiresInDays?: number | null;
+}): Promise<{ token: string; apiToken: UserApiTokenPublic }> => {
+  const { data } = await api.post<{ token: string; apiToken: UserApiTokenPublic }>('/users/me/api-tokens', params);
+  invalidateGetCache('/users/me/api-tokens');
+  return data;
+};
+
+export const updateMyApiToken = async (
+  id: string,
+  params: { name?: string; scopes?: ApiTokenScope[]; expiresInDays?: number | null }
+): Promise<UserApiTokenPublic> => {
+  const { data } = await api.patch<{ apiToken: UserApiTokenPublic }>(`/users/me/api-tokens/${id}`, params);
+  invalidateGetCache('/users/me/api-tokens');
+  return data.apiToken;
+};
+
+export const revokeMyApiToken = async (id: string): Promise<UserApiTokenPublic> => {
+  const { data } = await api.post<{ apiToken: UserApiTokenPublic }>(`/users/me/api-tokens/${id}/revoke`);
+  invalidateGetCache('/users/me/api-tokens');
+  return data.apiToken;
 };
 
 export type ModelProviderModelsSource = 'remote' | 'fallback';
@@ -494,8 +805,12 @@ export interface AdminToolsMeta {
 }
 
 export const fetchAdminToolsMeta = async (): Promise<AdminToolsMeta> => {
-  const { data } = await api.get<AdminToolsMeta>('/tools/meta');
-  return data;
+  return getCached<AdminToolsMeta>('/tools/meta', { cacheTtlMs: 30000 });
+};
+
+export const fetchSystemRuntimes = async (): Promise<SystemRuntimesResponse> => {
+  // Fetch detected runtimes for the environment panel. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  return getCached<SystemRuntimesResponse>('/system/runtimes', { cacheTtlMs: 60000 });
 };
 
 export type RepoProvider = 'gitlab' | 'github';
@@ -548,8 +863,8 @@ export interface CodexRobotProviderConfigPublic {
   credential?: { apiBaseUrl?: string; hasApiKey: boolean; remark?: string };
   model: CodexModel;
   sandbox: CodexSandbox;
+  // Codex network access is always enabled and no longer part of the config payload. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
   model_reasoning_effort: CodexReasoningEffort;
-  sandbox_workspace_write: { network_access: boolean };
 }
 
 export type ClaudeCodeSandbox = 'workspace-write' | 'read-only';
@@ -605,9 +920,15 @@ export interface RepoRobot {
   language?: string;
   modelProvider?: ModelProvider;
   modelProviderConfig?: CodexRobotProviderConfigPublic | ClaudeCodeRobotProviderConfigPublic | GeminiCliRobotProviderConfigPublic;
+  // Dependency overrides for multi-language installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyConfig?: { enabled?: boolean; failureMode?: 'soft' | 'hard'; allowCustomInstall?: boolean };
   defaultBranch?: string;
   // Compatibility: legacy field.
   defaultBranchRole?: 'main' | 'dev' | 'test';
+  // Repo workflow mode selection (auto/direct/fork). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork';
+  // Optional hour-level execution window for this robot. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindow;
   activatedAt?: string;
   lastTestAt?: string;
   lastTestOk?: boolean;
@@ -649,6 +970,8 @@ export interface AutomationRule {
   enabled: boolean;
   match?: AutomationMatch;
   actions: AutomationAction[];
+  // Trigger-level scheduling window for this rule. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindow;
 }
 
 export interface AutomationEventConfig {
@@ -690,7 +1013,8 @@ export interface RepoWebhookDeliveryDetail extends RepoWebhookDeliverySummary {
 }
 
 export const listRepos = async (options?: { archived?: ArchiveScope }): Promise<Repository[]> => {
-  const { data } = await api.get<{ repos: Repository[] }>('/repos', { params: options });
+  // Cache repo lists briefly to dedupe repeated navigation between repo pages. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  const data = await getCached<{ repos: Repository[] }>('/repos', { params: options, cacheTtlMs: 5000 });
   return data.repos;
 };
 
@@ -700,6 +1024,9 @@ export const archiveRepo = async (
   const { data } = await api.post<{ repo: Repository; tasksArchived: number; taskGroupsArchived: number }>(
     `/repos/${repoId}/archive`
   );
+  // Keep repo/task caches aligned after archival mutates repo visibility and task groups. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
+  invalidateTaskCaches();
   return data;
 };
 
@@ -709,11 +1036,15 @@ export const unarchiveRepo = async (
   const { data } = await api.post<{ repo: Repository; tasksRestored: number; taskGroupsRestored: number }>(
     `/repos/${repoId}/unarchive`
   );
+  // Keep repo/task caches aligned after restoring archival state. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
+  invalidateTaskCaches();
   return data;
 };
 
 export const listRepoRobots = async (repoId: string): Promise<RepoRobot[]> => {
-  const { data } = await api.get<{ robots: RepoRobot[] }>(`/repos/${repoId}/robots`);
+  // Cache repo robot lists to reduce repeated robot picker loads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  const data = await getCached<{ robots: RepoRobot[] }>(`/repos/${repoId}/robots`, { cacheTtlMs: 5000 });
   return data.robots;
 };
 
@@ -725,6 +1056,8 @@ export const createRepo = async (params: {
   webhookSecret?: string | null;
 }): Promise<{ repo: Repository; webhookSecret: string; webhookPath: string }> => {
   const { data } = await api.post<{ repo: Repository; webhookSecret: string; webhookPath: string }>('/repos', params);
+  // Refresh repo list caches after creating a new repository. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
   return data;
 };
 
@@ -738,14 +1071,15 @@ export const fetchRepo = async (
   webhookPath?: string;
   repoScopedCredentials?: RepoScopedCredentialsPublic;
 }> => {
-  const { data } = await api.get<{
+  // Cache repo detail snapshots briefly to avoid N+1 summary storms. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  const data = await getCached<{
     repo: Repository;
     robots: RepoRobot[];
     automationConfig: RepoAutomationConfig | null;
     webhookSecret?: string | null;
     webhookPath?: string;
     repoScopedCredentials?: RepoScopedCredentialsPublic;
-  }>(`/repos/${id}`);
+  }>(`/repos/${id}`, { cacheTtlMs: 5000 });
   return data;
 };
 
@@ -756,11 +1090,11 @@ export const fetchRepoProviderMeta = async (
   params?: { credentialSource?: 'user' | 'repo' | 'anonymous'; credentialProfileId?: string }
 ): Promise<{ provider: RepoProvider; visibility: RepoProviderVisibility; webUrl?: string }> => {
   // Fetch provider metadata for repo onboarding (visibility, links) without leaking any credentials. 58w1q3n5nr58flmempxe
-  const { data } = await api.get<{ provider: RepoProvider; visibility: RepoProviderVisibility; webUrl?: string }>(
+  // Cache provider meta briefly to reduce repeated visibility probes on page load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  return getCached<{ provider: RepoProvider; visibility: RepoProviderVisibility; webUrl?: string }>(
     `/repos/${repoId}/provider-meta`,
-    { params }
+    { params, cacheTtlMs: 15000 }
   );
-  return data;
 };
 
 export interface RepoProviderActivityItem {
@@ -807,24 +1141,26 @@ export const fetchRepoProviderActivity = async (
   }
 ): Promise<RepoProviderActivity> => {
   // Fetch provider activity for the repo detail dashboard row without exposing tokens to the browser. kzxac35mxk0fg358i7zs
-  const { data } = await api.get<RepoProviderActivity>(`/repos/${repoId}/provider-activity`, { params });
-  return data;
+  // Cache provider activity briefly to dedupe refreshes across columns and re-renders. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  return getCached<RepoProviderActivity>(`/repos/${repoId}/provider-activity`, { params, cacheTtlMs: 10000 });
 };
 
 export const listRepoWebhookDeliveries = async (
   repoId: string,
   params?: { limit?: number; cursor?: string }
 ): Promise<{ deliveries: RepoWebhookDeliverySummary[]; nextCursor?: string }> => {
-  const { data } = await api.get<{ deliveries: RepoWebhookDeliverySummary[]; nextCursor?: string }>(
+  // Cache webhook delivery summaries briefly to avoid duplicate panel requests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  return getCached<{ deliveries: RepoWebhookDeliverySummary[]; nextCursor?: string }>(
     `/repos/${repoId}/webhook-deliveries`,
-    { params }
+    { params, cacheTtlMs: 5000 }
   );
-  return data;
 };
 
 export const fetchRepoWebhookDelivery = async (repoId: string, deliveryId: string): Promise<RepoWebhookDeliveryDetail> => {
-  const { data } = await api.get<{ delivery: RepoWebhookDeliveryDetail }>(
-    `/repos/${repoId}/webhook-deliveries/${deliveryId}`
+  // Cache webhook delivery detail responses for quick reopen without refetching. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  const data = await getCached<{ delivery: RepoWebhookDeliveryDetail }>(
+    `/repos/${repoId}/webhook-deliveries/${deliveryId}`,
+    { cacheTtlMs: 30000 }
   );
   return data.delivery;
 };
@@ -895,6 +1231,8 @@ export const updateRepo = async (
     `/repos/${id}`,
     params
   );
+  // Refresh repo caches after settings updates so list/detail views stay in sync. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
   return data;
 };
 
@@ -911,14 +1249,21 @@ export const createRepoRobot = async (
     language?: string | null;
     modelProvider?: ModelProvider | null;
     modelProviderConfig?: unknown;
+    // Dependency overrides for robot-level install control. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    dependencyConfig?: { enabled?: boolean; failureMode?: 'soft' | 'hard'; allowCustomInstall?: boolean } | null;
     defaultBranch?: string | null;
     // Compatibility: legacy field accepted by backend (main/dev/test).
     defaultBranchRole?: 'main' | 'dev' | 'test' | null;
+    repoWorkflowMode?: 'auto' | 'direct' | 'fork' | null;
+    // Optional execution window for robot-level scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    timeWindow?: TimeWindow | null;
     enabled?: boolean;
     isDefault?: boolean;
   }
 ): Promise<RepoRobot> => {
   const { data } = await api.post<{ robot: RepoRobot }>(`/repos/${repoId}/robots`, params);
+  // Refresh repo caches after robot creation so pickers and summaries stay current. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
   return data.robot;
 };
 
@@ -936,14 +1281,21 @@ export const updateRepoRobot = async (
     language: string | null;
     modelProvider: ModelProvider | null;
     modelProviderConfig: unknown;
+    // Dependency overrides for robot-level install control. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    dependencyConfig: { enabled?: boolean; failureMode?: 'soft' | 'hard'; allowCustomInstall?: boolean } | null;
     defaultBranch: string | null;
     // Compatibility: legacy field accepted by backend (main/dev/test).
     defaultBranchRole: 'main' | 'dev' | 'test' | null;
+    repoWorkflowMode: 'auto' | 'direct' | 'fork' | null;
+    // Optional execution window for robot-level scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    timeWindow: TimeWindow | null;
     enabled: boolean;
     isDefault: boolean;
   }>
 ): Promise<RepoRobot> => {
   const { data } = await api.patch<{ robot: RepoRobot }>(`/repos/${repoId}/robots/${robotId}`, params);
+  // Refresh repo caches after robot edits to keep robot lists consistent. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
   return data.robot;
 };
 
@@ -952,16 +1304,38 @@ export const testRepoRobot = async (
   robotId: string,
   params?: { branch?: string; reason?: string }
 ): Promise<{ ok: boolean; robot: RepoRobot; message?: string }> => {
-  const { data } = await api.post<{ ok: boolean; robot: RepoRobot; message?: string }>(`/repos/${repoId}/robots/${robotId}/test`, params);
+  const { data } = await api.post<{ ok: boolean; robot: RepoRobot; message?: string }>(
+    `/repos/${repoId}/robots/${robotId}/test`,
+    params
+  );
+  // Refresh repo caches after robot test runs update metadata. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
+  return data;
+};
+
+// Trigger a direct/fork workflow check for a robot configuration. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+export const testRepoRobotWorkflow = async (
+  repoId: string,
+  robotId: string,
+  params?: { mode?: 'auto' | 'direct' | 'fork' | null }
+): Promise<{ ok: boolean; mode: 'auto' | 'direct' | 'fork'; robot?: RepoRobot; message?: string }> => {
+  const { data } = await api.post<{ ok: boolean; mode: 'auto' | 'direct' | 'fork'; robot?: RepoRobot; message?: string }>(
+    `/repos/${repoId}/robots/${robotId}/workflow/test`,
+    params
+  );
   return data;
 };
 
 export const deleteRepoRobot = async (repoId: string, robotId: string): Promise<void> => {
   await api.delete(`/repos/${repoId}/robots/${robotId}`);
+  // Refresh repo caches after robot deletion to avoid stale robot summaries. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
 };
 
 export const updateRepoAutomation = async (repoId: string, config: RepoAutomationConfig): Promise<RepoAutomationConfig> => {
   const { data } = await api.put<{ config: RepoAutomationConfig }>(`/repos/${repoId}/automation`, { config });
+  // Refresh repo caches after automation edits so trigger summaries stay correct. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
   return data.config;
 };
 
@@ -979,7 +1353,10 @@ export interface RepoCredentialProfile {
 }
 
 export const listRepoCredentialProfiles = async (repoId: string): Promise<RepoCredentialProfile[]> => {
-  const { data } = await api.get<{ profiles: RepoCredentialProfile[] }>(`/repos/${repoId}/credential-profiles`);
+  // Cache repo credential profiles briefly to avoid repeated settings requests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  const data = await getCached<{ profiles: RepoCredentialProfile[] }>(`/repos/${repoId}/credential-profiles`, {
+    cacheTtlMs: 10000
+  });
   return data.profiles;
 };
 
@@ -988,6 +1365,8 @@ export const createRepoCredentialProfile = async (
   params: { name: string; token?: string | null; cloneUsername?: string | null }
 ): Promise<{ profile: RepoCredentialProfile }> => {
   const { data } = await api.post<{ profile: RepoCredentialProfile }>(`/repos/${repoId}/credential-profiles`, params);
+  // Refresh repo caches after profile creation to keep selectors current. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
   return data;
 };
 
@@ -1000,9 +1379,13 @@ export const updateRepoCredentialProfile = async (
     `/repos/${repoId}/credential-profiles/${profileId}`,
     params
   );
+  // Refresh repo caches after profile edits to avoid stale credential status. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
   return data;
 };
 
 export const deleteRepoCredentialProfile = async (repoId: string, profileId: string): Promise<void> => {
   await api.delete(`/repos/${repoId}/credential-profiles/${profileId}`);
+  // Refresh repo caches after profile removal so lists update immediately. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  invalidateRepoCaches();
 };

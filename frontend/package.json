@@ -7,8 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "echo \"add frontend linting (eslint) later\"",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "node ./scripts/run-vitest.cjs",
+    "test:watch": "node ./scripts/run-vitest.cjs --watch"
   },
   "dependencies": {
     "@ant-design/icons": "^5.2.6",

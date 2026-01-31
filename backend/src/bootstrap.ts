@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 import dotenv from 'dotenv';
 import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import type { DynamicModule, Type } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -11,8 +12,13 @@ import { closeDb, ensureSchema } from './db';
 import { isTruthy } from './utils/env';
 import { isAdminToolsEmbeddedEnabled } from './adminTools/config';
 import { startAdminTools, type AdminToolsHandle } from './adminTools/startAdminTools';
+import { createOpenApiSpec } from './adminTools/openapi';
 import { TaskService } from './modules/tasks/task.service';
 import { UserService } from './modules/users/user.service';
+import { RuntimeService } from './services/runtimeService';
+import { OpenApiSpecStore } from './modules/openapi/openapi-spec.store';
+import { PreviewWsProxyService } from './modules/tasks/preview-ws-proxy.service';
+import { PreviewHostProxyService } from './modules/tasks/preview-host-proxy.service';
 
 dotenv.config();
 
@@ -95,6 +101,17 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
     credentials: true
   });
 
+  try {
+    // Attach preview host proxy middleware for subdomain routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const previewHostProxy = app.get(PreviewHostProxyService);
+    // Add Express parameter types to satisfy test-time TS checks. docs/en/developer/plans/testfix20260131/task_plan.md testfix20260131
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      void previewHostProxy.handle(req, res, next);
+    });
+  } catch (err) {
+    console.warn(`${logTag} preview host proxy attach failed`, err);
+  }
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -115,6 +132,29 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
 
   app.setGlobalPrefix(globalPrefix, options.globalPrefixExclude ? { exclude: options.globalPrefixExclude } : undefined);
   await app.init();
+
+  try {
+    // Cache OpenAPI specs for docs rendering via /api/openapi.json. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126
+    const openApiBaseUrl = (
+      process.env.OPENAPI_BASE_URL ||
+      process.env.ADMIN_TOOLS_API_BASE_URL ||
+      `http://${host}:${port}/${globalPrefix}`
+    ).trim();
+    const openApiSpecStore = app.get(OpenApiSpecStore);
+    openApiSpecStore.setSpec('en-US', createOpenApiSpec({ apiBaseUrl: openApiBaseUrl, app, locale: 'en-US' }));
+    openApiSpecStore.setSpec('zh-CN', createOpenApiSpec({ apiBaseUrl: openApiBaseUrl, app, locale: 'zh-CN' }));
+  } catch (err) {
+    console.warn(`${logTag} openapi spec generation failed`, err);
+  }
+
+  const runtimeService = app.get(RuntimeService);
+  try {
+    // Detect available runtimes once on startup for dependency installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const runtimes = await runtimeService.detectRuntimes();
+    console.log(`${logTag} detected runtimes`, runtimes.map((rt) => `${rt.language}@${rt.version}`));
+  } catch (err) {
+    console.warn(`${logTag} runtime detection failed`, err);
+  }
 
   const userService = app.get(UserService);
   await userService.ensureBootstrapUser();
@@ -145,6 +185,14 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
 
   await app.listen(port, host);
   console.log(`${logTag} listening on http://${host}:${port}`);
+
+  try {
+    // Attach WS upgrade proxy for preview HMR support. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const previewWsProxy = app.get(PreviewWsProxyService);
+    previewWsProxy.attach(app.getHttpServer());
+  } catch (err) {
+    console.warn(`${logTag} preview WS proxy attach failed`, err);
+  }
 
   const adminToolsEmbedded = isAdminToolsEmbeddedEnabled();
   if (adminToolsEmbedded) {

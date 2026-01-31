@@ -7,6 +7,7 @@ import {
   HttpException,
   InternalServerErrorException,
   NotFoundException,
+  Param,
   Patch,
   Post,
   Req,
@@ -28,18 +29,22 @@ import { UserService } from './user.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateModelCredentialsDto } from './dto/update-model-credentials.dto';
+import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
 import { PatchMeResponseDto } from './dto/patch-me-response.dto';
 import { ModelCredentialsResponseDto } from './dto/model-credentials.dto';
 import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
 import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
+import { CreateUserApiTokenDto, CreateUserApiTokenResponseDto, ListUserApiTokensResponseDto, UpdateUserApiTokenDto, UserApiTokenResponseDto } from './dto/api-tokens.dto';
+import { UserApiTokenService } from './user-api-token.service';
 
 @Controller('users')
 @ApiTags('Users')
 @ApiBearerAuth('bearerAuth')
+@AuthScopeGroup('account') // Scope user APIs under the account group for PAT access. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 export class UsersController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService, private readonly apiTokenService: UserApiTokenService) {}
 
   @Patch('me')
   @ApiOperation({
@@ -222,6 +227,100 @@ export class UsersController {
       }
       console.error('[users] list model provider models failed', err);
       throw new InternalServerErrorException({ error: 'Failed to list model provider models' });
+    }
+  }
+
+  @Get('me/api-tokens')
+  @ApiOperation({
+    summary: 'List my API tokens',
+    description: 'Returns redacted API tokens for the current user.',
+    operationId: 'users_list_api_tokens'
+  })
+  @ApiOkResponse({ description: 'OK', type: ListUserApiTokensResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  async listMyApiTokens(@Req() req: Request) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      const tokens = await this.apiTokenService.listTokens(req.user.id);
+      return { tokens };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[users] list api tokens failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to list api tokens' });
+    }
+  }
+
+  @Post('me/api-tokens')
+  @ApiOperation({
+    summary: 'Create my API token',
+    description: 'Issues a new API token and returns it once.',
+    operationId: 'users_create_api_token'
+  })
+  @ApiOkResponse({ description: 'OK', type: CreateUserApiTokenResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  async createMyApiToken(@Req() req: Request, @Body() body: CreateUserApiTokenDto) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      const result = await this.apiTokenService.createToken(req.user.id, body);
+      return { token: result.token, apiToken: result.apiToken };
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      const message = err?.message ? String(err.message) : '';
+      if (message.includes('api token') || message.includes('expiresInDays')) {
+        throw new BadRequestException({ error: message });
+      }
+      console.error('[users] create api token failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to create api token' });
+    }
+  }
+
+  @Patch('me/api-tokens/:id')
+  @ApiOperation({
+    summary: 'Update my API token',
+    description: 'Updates name/scopes/expiry for the token.',
+    operationId: 'users_update_api_token'
+  })
+  @ApiOkResponse({ description: 'OK', type: UserApiTokenResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async updateMyApiToken(@Req() req: Request, @Param('id') id: string, @Body() body: UpdateUserApiTokenDto) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      const token = await this.apiTokenService.updateToken(req.user.id, id, body);
+      if (!token) throw new NotFoundException({ error: 'API token not found' });
+      return { apiToken: token };
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      const message = err?.message ? String(err.message) : '';
+      if (message.includes('api token') || message.includes('expiresInDays')) {
+        throw new BadRequestException({ error: message });
+      }
+      console.error('[users] update api token failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to update api token' });
+    }
+  }
+
+  @Post('me/api-tokens/:id/revoke')
+  @ApiOperation({
+    summary: 'Revoke my API token',
+    description: 'Revokes an API token so it can no longer be used.',
+    operationId: 'users_revoke_api_token'
+  })
+  @ApiOkResponse({ description: 'OK', type: UserApiTokenResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async revokeMyApiToken(@Req() req: Request, @Param('id') id: string) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      const token = await this.apiTokenService.revokeToken(req.user.id, id);
+      if (!token) throw new NotFoundException({ error: 'API token not found' });
+      return { apiToken: token };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[users] revoke api token failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to revoke api token' });
     }
   }
 }

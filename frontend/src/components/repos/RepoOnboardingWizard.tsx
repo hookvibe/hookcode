@@ -7,6 +7,7 @@ import { useT } from '../../i18n';
 import { buildTaskGroupHash } from '../../router';
 import { extractTaskResultText, isTerminalStatus } from '../../utils/task';
 import { isLocalhostUrl } from '../../utils/url';
+import { formatRobotLabelWithProvider } from '../../utils/robot';
 import { MarkdownViewer } from '../MarkdownViewer';
 import { pickRepoProviderCredentials, type RepoProviderCredentialSource } from './repoProviderCredentials';
 
@@ -79,7 +80,12 @@ export const RepoOnboardingWizard: FC<RepoOnboardingWizardProps> = ({
 
   const enabledRobots = useMemo(() => (robots ?? []).filter((r) => Boolean(r?.enabled)), [robots]);
   const robotOptions = useMemo(
-    () => enabledRobots.map((r) => ({ value: r.id, label: r.name || r.id })),
+    () =>
+      enabledRobots.map((r) => ({
+        value: r.id,
+        // Add bound AI provider to robot selection labels in onboarding chat. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+        label: formatRobotLabelWithProvider(r.name || r.id, r.modelProvider)
+      })),
     [enabledRobots]
   );
 

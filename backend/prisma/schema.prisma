@@ -25,6 +25,8 @@ model Task {
   issueId      Int?     @map("issue_id")
   retries      Int      @default(0)
   result       Json?    @map("result_json") @db.JsonB
+  /// Persist dependency install outcomes for multi-language repos. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyResult Json? @map("dependency_result") @db.JsonB
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
@@ -34,6 +36,10 @@ model Task {
   @@index([status, createdAt], map: "tasks_status_created_at_idx")
   @@index([groupId, createdAt], map: "tasks_group_id_created_at_idx")
   @@index([archivedAt], map: "tasks_archived_at_idx")
+  /// Speed up repo-scoped task lists and stats with repo/status/time indexes. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  @@index([repoId, status, updatedAt], map: "tasks_repo_status_updated_at_idx")
+  @@index([repoId, createdAt], map: "tasks_repo_created_at_idx")
+  @@index([repoId, archivedAt], map: "tasks_repo_archived_at_idx")
 }
 
 model TaskGroup {
@@ -57,6 +63,10 @@ model TaskGroup {
   @@map("task_groups")
   @@index([repoId, robotId, updatedAt], map: "task_groups_repo_robot_updated_at_idx")
   @@index([archivedAt], map: "task_groups_archived_at_idx")
+  /// Accelerate provider activity bindings by indexing repo + provider identifiers. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  @@index([repoId, commitSha, archivedAt], map: "task_groups_repo_commit_archived_idx")
+  @@index([repoId, mrId, archivedAt], map: "task_groups_repo_mr_archived_idx")
+  @@index([repoId, issueId, archivedAt], map: "task_groups_repo_issue_archived_idx")
 }
 
 model User {
@@ -71,7 +81,33 @@ model User {
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
+  /// Link PAT records back to the owning account. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  apiTokens        UserApiToken[]
+
   @@map("users")
+}
+
+/// Persist user-scoped PAT metadata for API access. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+model UserApiToken {
+  id         String    @id @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  name       String
+  tokenHash  String    @map("token_hash")
+  tokenPrefix String   @map("token_prefix")
+  tokenLast4 String?   @map("token_last4")
+  scopes     Json      @map("scopes_json") @db.JsonB
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(6)
+  lastUsedIp String?   @map("last_used_ip")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_api_tokens")
+  @@unique([tokenHash], map: "user_api_tokens_token_hash_unique")
+  @@index([userId, createdAt], map: "user_api_tokens_user_created_at_idx")
 }
 
 model Repository {
@@ -118,6 +154,8 @@ model RepoWebhookDelivery {
 
   @@map("repo_webhook_deliveries")
   @@index([repoId, createdAt], map: "repo_webhook_deliveries_repo_id_created_at_idx")
+  /// Support cursor pagination for repo webhook delivery lists. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  @@index([repoId, createdAt, id], map: "repo_webhook_deliveries_repo_created_id_idx")
 }
 
 model RepoRobot {
@@ -136,10 +174,18 @@ model RepoRobot {
   repoTokenUserEmail    String?   @map("repo_token_user_email")
   repoTokenRepoRole     String?   @map("repo_token_repo_role")
   repoTokenRepoRoleJson Json?     @map("repo_token_repo_role_json") @db.JsonB
+  /// Store explicit robot workflow mode (auto/direct/fork) for repo pull control. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  repoWorkflowMode      String?   @map("repo_workflow_mode")
+  /// Store robot-level time windows for hour-based execution scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindowStartHour   Int?      @map("time_window_start_hour")
+  /// Store robot-level time windows for hour-based execution scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindowEndHour     Int?      @map("time_window_end_hour")
   promptDefault         String?   @map("prompt_default")
   language              String?
   modelProvider         String    @default("codex") @map("model_provider")
   modelProviderConfig   Json?     @map("model_provider_config_json") @db.JsonB
+  /// Store dependency management overrides per robot. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyConfig      Json?     @map("dependency_config_json") @db.JsonB
   defaultBranchRole     String?   @map("default_branch_role")
   defaultBranch         String?   @map("default_branch")
   activatedAt           DateTime? @map("activated_at") @db.Timestamptz(6)

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { TimeWindowDto } from '../../common/dto/time-window.dto';
 import {
   ModelProviderCredentialsPublicDto,
   RepoProviderCredentialsPublicDto
@@ -211,11 +212,23 @@ export class RepoRobotSwaggerDto {
   @ApiPropertyOptional()
   modelProviderConfig?: unknown;
 
+  @ApiPropertyOptional()
+  // Document dependency overrides on robot records. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyConfig?: unknown;
+
   @ApiPropertyOptional({ nullable: true })
   defaultBranch?: string | null;
 
   @ApiPropertyOptional({ nullable: true, enum: ['main', 'dev', 'test'] })
   defaultBranchRole?: 'main' | 'dev' | 'test' | null;
+
+  // Surface the robot workflow mode so UI can render direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  @ApiPropertyOptional({ nullable: true, enum: ['auto', 'direct', 'fork'] })
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork' | null;
+
+  @ApiPropertyOptional({ type: TimeWindowDto, nullable: true })
+  // Expose robot-level time windows for scheduling UI. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindowDto | null;
 
   @ApiPropertyOptional({ nullable: true, format: 'date-time' })
   activatedAt?: string | null;
@@ -329,6 +342,21 @@ export class UpdateRepoRobotResponseDto {
 export class TestRobotResponseDto {
   @ApiProperty()
   ok!: boolean;
+
+  @ApiPropertyOptional()
+  message?: string;
+
+  @ApiPropertyOptional({ type: RepoRobotSwaggerDto })
+  robot?: RepoRobotSwaggerDto;
+}
+
+// Response shape for repo workflow check actions (direct/fork). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+export class TestRobotWorkflowResponseDto {
+  @ApiProperty()
+  ok!: boolean;
+
+  @ApiProperty()
+  mode!: 'auto' | 'direct' | 'fork';
 
   @ApiPropertyOptional()
   message?: string;

@@ -1,11 +1,13 @@
 import { FC, useEffect, useMemo, useState } from 'react';
 import { Alert, Badge, Divider, Form, Input, Select, Space, Switch, Tabs, Typography } from 'antd';
-import type { AutomationClause, AutomationEventKey, AutomationRule, RepoRobot, Repository } from '../../api';
+import type { AutomationClause, AutomationEventKey, AutomationRule, RepoRobot, Repository, TimeWindow } from '../../api';
 import { useT } from '../../i18n';
 import { TemplateEditor } from '../TemplateEditor';
 import { getTemplateVariableGroups } from '../templateEditorVariables';
 import { ResponsiveDialog } from '../dialogs/ResponsiveDialog';
 import { findClause, uuid } from './utils';
+import { TimeWindowPicker } from '../TimeWindowPicker';
+import { getRobotProviderLabel } from '../../utils/robot';
 
 /**
  * TriggerRuleModal:
@@ -65,6 +67,8 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
   const [assignees, setAssignees] = useState<string[]>([]);
   const [mentionRobotIds, setMentionRobotIds] = useState<string[]>([]);
   const [mentionLegacyHandles, setMentionLegacyHandles] = useState<string[]>([]);
+  // Track trigger-level time windows for scheduled execution. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  const [timeWindow, setTimeWindow] = useState<TimeWindow | null>(null);
 
   const [robotIds, setRobotIds] = useState<string[]>([]);
   const [robotIdsTouched, setRobotIdsTouched] = useState(false);
@@ -129,6 +133,9 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
 
     const ids = (value?.actions ?? []).map((a) => a.robotId);
     setRobotIds(ids);
+
+    // Sync trigger-level scheduling window from the rule. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    setTimeWindow(value?.timeWindow ?? null);
 
     const map: Record<string, { id: string; promptPatch?: string; promptOverride?: string; enabled: boolean }> = {};
     for (const a of value?.actions ?? []) {
@@ -284,7 +291,9 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
       enabled: Boolean(enabled),
       name: name.trim() || t('repoAutomation.rule.untitled'),
       match: clauses.length ? { all: clauses } : undefined,
-      actions
+      actions,
+      // Persist trigger-level time window settings in the rule payload. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      timeWindow: timeWindow ?? undefined
     };
   };
 
@@ -431,6 +440,18 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
 
         <Divider plain style={{ marginTop: 6, marginBottom: 6 }}>
           <Typography.Text strong style={{ fontSize: 14 }}>
+            {t('repoAutomation.rule.section.schedule')}
+          </Typography.Text>
+        </Divider>
+
+        {/* Provide trigger-level time window configuration for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
+        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          <Typography.Text>{t('repoAutomation.rule.timeWindow')}</Typography.Text>
+          <TimeWindowPicker value={timeWindow} onChange={setTimeWindow} disabled={readOnly} size="middle" />
+        </Space>
+
+        <Divider plain style={{ marginTop: 6, marginBottom: 6 }}>
+          <Typography.Text strong style={{ fontSize: 14 }}>
             {t('repoAutomation.rule.section.actions')}
           </Typography.Text>
         </Divider>
@@ -450,6 +471,8 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
               options={robotOptions.map((o) => {
                 const r = o.robot;
                 const status = getRobotStatus(r);
+                // Surface bound AI provider alongside robot badges in automation selectors. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+                const providerLabel = getRobotProviderLabel(r.modelProvider);
                 return {
                   value: o.value,
                   label: (
@@ -457,6 +480,11 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
                       <Badge color={status.color} text={status.short ?? status.text} />
                       <Badge color={getRobotPermissionColor(r)} text={r.permission} />
                       <span>{o.label}</span>
+                      {providerLabel ? (
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          {providerLabel}
+                        </Typography.Text>
+                      ) : null}
                     </Space>
                   )
                 } as any;
@@ -484,6 +512,15 @@ export const TriggerRuleModal: FC<Props> = ({ open, eventKey, robots, repo, valu
                     <Space size={8} wrap>
                       <Badge color={status.color} text={status.short ?? status.text} />
                       <span>{r.name}</span>
+                      {/* Show bound AI provider in action tabs for quick identification. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128 */}
+                      {(() => {
+                        const providerLabel = getRobotProviderLabel(r.modelProvider);
+                        return providerLabel ? (
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            {providerLabel}
+                          </Typography.Text>
+                        ) : null;
+                      })()}
                     </Space>
                   ),
                   children: (

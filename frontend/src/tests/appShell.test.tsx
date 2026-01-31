@@ -129,6 +129,12 @@ vi.mock('../api', () => {
     updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null })),
     fetchMe: vi.fn(async () => ({ id: 'u', username: 'u', displayName: 'User', roles: [], createdAt: '', updatedAt: '' })),
     updateMe: vi.fn(async () => ({ id: 'u', username: 'u', displayName: 'User', roles: [], createdAt: '', updatedAt: '' })),
+    // Mock createMyApiToken to satisfy UserPanelPopover API usage in AppShell tests. docs/en/developer/plans/account-edit-feature-toggle-test/task_plan.md account-edit-feature-toggle-test
+    createMyApiToken: vi.fn(async () => ({ token: { id: 'tok1', name: 'Token 1', prefix: 'hc', createdAt: '', lastUsedAt: null } })),
+    // Mock PAT API helpers used by UserPanelPopover so module imports do not fail. docs/en/developer/plans/account-edit-feature-toggle-test/task_plan.md account-edit-feature-toggle-test
+    fetchMyApiTokens: vi.fn(async () => []),
+    updateMyApiToken: vi.fn(async () => ({ id: 'tok1', name: 'Token 1', prefix: 'hc', createdAt: '', lastUsedAt: null })),
+    revokeMyApiToken: vi.fn(async () => ({ id: 'tok1', name: 'Token 1', prefix: 'hc', createdAt: '', lastUsedAt: null })),
     changeMyPassword: vi.fn(async () => undefined),
     fetchMyModelCredentials: vi.fn(async () => ({
       codex: { profiles: [], defaultProfileId: null },
@@ -137,6 +143,8 @@ vi.mock('../api', () => {
       gitlab: { profiles: [], defaultProfileId: null },
       github: { profiles: [], defaultProfileId: null }
     })),
+    // Mock model discovery API used by UserPanelPopover credentials tab. docs/en/developer/plans/account-edit-feature-toggle-test/task_plan.md account-edit-feature-toggle-test
+    listMyModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })),
     fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' })), // Mock provider visibility for repo activity row. kzxac35mxk0fg358i7zs
     fetchRepoProviderActivity: vi.fn(async () => ({
       provider: 'gitlab',
@@ -144,6 +152,24 @@ vi.mock('../api', () => {
       merges: { items: [], page: 1, pageSize: 5, hasMore: false },
       issues: { items: [], page: 1, pageSize: 5, hasMore: false }
     })), // Mock provider activity for provider activity row. kzxac35mxk0fg358i7zs
+    // Mock preview config discovery so RepoDetailPage can render safely. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    fetchRepoPreviewConfig: vi.fn(async () => ({ available: false, instances: [], reason: 'config_missing' })),
+    // Provide webhook delivery mocks for shared repo dashboard cards to avoid missing export errors. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    listRepoWebhookDeliveries: vi.fn(async () => ({ deliveries: [], nextCursor: undefined })),
+    fetchRepoWebhookDelivery: vi.fn(async () => ({
+      id: 'd1',
+      repoId: 'r1',
+      provider: 'github',
+      eventName: 'push',
+      result: 'accepted',
+      httpStatus: 200,
+      code: 'ok',
+      message: 'accepted',
+      taskIds: ['t1'],
+      createdAt: '2026-01-28T00:00:00.000Z',
+      payload: { foo: 'bar' },
+      response: { status: 'ok' }
+    })),
     updateMyModelCredentials: vi.fn(async () => ({
       codex: { profiles: [], defaultProfileId: null },
       claude_code: { profiles: [], defaultProfileId: null },
@@ -152,6 +178,8 @@ vi.mock('../api', () => {
       github: { profiles: [], defaultProfileId: null }
     })),
     fetchAdminToolsMeta: vi.fn(async () => ({ enabled: true, ports: { prisma: 7215, swagger: 7216 } })),
+    // Provide runtime API mocks for environment tab usage. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    fetchSystemRuntimes: vi.fn(async () => ({ runtimes: [], detectedAt: null })),
     fetchTask: vi.fn(async (id: string) => makeTask({ id, title: `Task ${id}`, status: 'succeeded', eventType: 'issue', issueId: 1 })),
     fetchTaskGroup: vi.fn(async (id: string) => ({
       id,
@@ -161,6 +189,8 @@ vi.mock('../api', () => {
       createdAt: '',
       updatedAt: '2026-01-11T00:00:00.000Z'
     })),
+    // Provide preview status mock for TaskGroupChatPage side effects. docs/en/developer/plans/test-output-noise-20260129/task_plan.md test-output-noise-20260129
+    fetchTaskGroupPreviewStatus: vi.fn(async () => ({ available: false, instances: [] })),
     fetchTaskGroupTasks: vi.fn(async () => []),
     executeChat: vi.fn(async () => ({
       taskGroup: { id: 'g_new', kind: 'chat', bindingKey: 'b1', title: 'Group new', createdAt: '', updatedAt: '' },
@@ -213,7 +243,8 @@ describe('AppShell (frontend-chat migration)', () => {
     const viewAllLabel = await screen.findByText('View all');
     const viewAllButton = viewAllLabel.closest('button');
     expect(viewAllButton).toBeTruthy();
-    expect(viewAllButton?.querySelector('.hc-sider-item__icon')).toBeTruthy();
+    // View All redesign: render a trailing arrow to reinforce navigation. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
+    expect(viewAllButton?.querySelector('.hc-sider-item__suffix')).toBeTruthy();
     // UX: empty sections should start collapsed so the "No tasks" hint does not show unless expanded.
     await waitFor(() => expect(screen.queryByText('No tasks')).not.toBeInTheDocument());
 
@@ -221,6 +252,20 @@ describe('AppShell (frontend-chat migration)', () => {
     const groupLabel = await screen.findByText('Group 1');
     const groupItem = groupLabel.closest('li');
     expect(groupItem?.querySelector('.ant-menu-item-icon, .anticon')).toBeTruthy();
+  });
+
+  test('renders sidebar dividers in expanded and collapsed modes', async () => {
+    // Divider UX: keep section separators visible regardless of sidebar collapse state. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
+    const ui = userEvent.setup();
+    renderApp();
+
+    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    expect(document.querySelectorAll('.hc-sider__divider')).toHaveLength(2);
+
+    const collapseButton = await screen.findByRole('button', { name: 'Collapse sidebar' });
+    await ui.click(collapseButton);
+    expect(await screen.findByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.hc-sider__divider')).toHaveLength(2);
   });
 
   test('persists sidebar collapsed state across refresh', async () => {
@@ -306,10 +351,11 @@ describe('AppShell (frontend-chat migration)', () => {
     expect(window.location.hash).toBe('#/tasks?status=queued');
     window.dispatchEvent(new Event('hashchange'));
     expect(await screen.findByPlaceholderText('Search tasks (title/repo/id)')).toBeInTheDocument();
-    const activeLabel = await screen.findByText('View all');
-    const activeButton = activeLabel.closest('button');
-    expect(activeButton).toBeTruthy();
-    expect(activeButton).toHaveClass('hc-sider-item--active');
+    // Active status highlight should live on the section header, not the View All row. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
+    const queuedHeader = await screen.findByRole('button', { name: 'Queued' });
+    const queuedSection = queuedHeader.closest('.hc-sider-section');
+    expect(queuedSection).toBeTruthy();
+    expect(queuedSection).toHaveClass('hc-sider-section--active');
   });
 
   test('navigates to tasks list when clicking the status header nav button', async () => {

@@ -22,6 +22,10 @@ describe('AuthGuard', () => {
         } as any,
         {
           loadUser: jest.fn().mockRejectedValue(new Error('db down'))
+        } as any,
+        {
+          // Stub PAT verification for AuthGuard constructor signature. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+          verifyToken: jest.fn()
         } as any
       );
 

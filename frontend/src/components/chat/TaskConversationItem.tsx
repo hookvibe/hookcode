@@ -14,8 +14,9 @@ import { TaskGitStatusPanel } from '../tasks/TaskGitStatusPanel';
  * - Business context: render a single task execution as a "chat-like" 4-part structure.
  *   1) User question (right bubble)
  *   2) Task card (left)
- *   3) Thought chain (left, always visible) -> real-time logs (SSE)
+ *   3) Dialog-style execution log (left, always visible) -> real-time logs (SSE)
  *   4) Final result text (left)
+ *   Note: Replace ThoughtChain with custom dialog log layout. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
  *
  * Change record:
  * - 2026-01-11: Added for `frontend-chat` Home/TaskGroup views to replace legacy UI pages with a chat-first experience.
@@ -26,9 +27,11 @@ interface Props {
   taskDetail?: Task | null;
   onOpenTask?: (task: Task) => void;
   taskLogsEnabled?: boolean | null;
+  // Mark the newest chat item so it can animate in-place during task-group creation. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+  entering?: boolean;
 }
 
-export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, taskLogsEnabled }) => {
+export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, taskLogsEnabled, entering }) => {
   const t = useT();
 
   const mergedTask = taskDetail ?? task;
@@ -37,9 +40,11 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
   const title = useMemo(() => getTaskTitle(mergedTask), [mergedTask]);
   const resultText = useMemo(() => extractTaskResultText(mergedTask), [mergedTask]);
   const showResult = isTerminalStatus(task.status);
+  // Attach an entry animation class when a new task should transition into view. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+  const rootClassName = `hc-chat-item${entering ? ' hc-chat-item--enter' : ''}`;
 
   return (
-    <div className="hc-chat-item">
+    <div className={rootClassName}>
       {/* 1) User question (right) */}
       <div className="hc-chat-item__user">
         <div className="hc-chat-bubble hc-chat-bubble--user">{userText}</div>
@@ -77,17 +82,10 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
         </Card>
       </div>
 
-      {mergedTask?.result?.gitStatus?.enabled ? (
-        <div className="hc-chat-item__assistant">
-          {/* Show git status in task groups so write-enabled changes are visible in chat. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
-          <TaskGitStatusPanel task={mergedTask} variant="compact" />
-        </div>
-      ) : null}
-
-      {/* 3) Thought chain (logs) */}
+      {/* 3) Dialog-style execution logs (non-bubble work area). docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
       <div className="hc-chat-item__assistant">
         <Card size="small" className="hc-chat-logs-card" styles={{ body: { padding: 12 } }}>
-          {/* Always render the task ThoughtChain inline (Task Detail parity) and rely on TaskGroup reverse paging to avoid an overly long page. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */}
+          {/* Always render the dialog-style logs inline to keep TaskGroup parity with Task Detail. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
           {/* Guard SSE logs viewer when backend task logs are disabled. 0nazpc53wnvljv5yh7c6 */}
           {effectiveTaskLogsEnabled === false ? (
             <Alert type="info" showIcon message={t('logViewer.disabled')} />
@@ -110,6 +108,13 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
           ) : (
             <Typography.Text type="secondary">{t('chat.message.resultEmpty')}</Typography.Text>
           )}
+        </div>
+      ) : null}
+
+      {mergedTask?.result?.gitStatus?.enabled ? (
+        <div className="hc-chat-item__assistant">
+          {/* Place git status at the bottom of each chat item with full width. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
+          <TaskGitStatusPanel task={mergedTask} variant="compact" />
         </div>
       ) : null}
     </div>

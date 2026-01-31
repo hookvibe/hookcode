@@ -14,6 +14,7 @@ import { TaskRunner } from './modules/tasks/task-runner.service';
 import { TaskService } from './modules/tasks/task.service';
 import { WorkerModule } from './modules/worker/worker.module';
 import { isPreferredWorkerPresent, tryAcquirePreferredWorkerLock, type PreferredWorkerLockHandle } from './services/workerPriority';
+import { RuntimeService } from './services/runtimeService';
 
 dotenv.config();
 
@@ -56,6 +57,14 @@ const main = async () => {
   app = await NestFactory.createApplicationContext(WorkerModule, { logger: ['error', 'warn'] });
   const taskRunner = app.get(TaskRunner);
   const taskService = app.get(TaskService);
+  const runtimeService = app.get(RuntimeService);
+
+  // Detect runtimes in the worker so dependency installs can validate availability. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  try {
+    await runtimeService.detectRuntimes();
+  } catch (err) {
+    console.warn('[worker] runtime detection failed (continuing)', err);
+  }
 
   try {
     const recovered = await taskService.recoverStaleProcessing(staleMs);

@@ -46,8 +46,8 @@ describe('TaskLogViewer auto-scroll', () => {
 });
 
 describe('TaskLogViewer reasoning visibility', () => {
-  test('shows reasoning items in flat ThoughtChain by default', async () => {
-    // Validate reasoning visibility in flat ThoughtChain for Codex logs. docs/en/developer/plans/thoughtchain-log-display/task_plan.md thoughtchain-log-display
+  test('shows reasoning items in dialog-style logs by default', async () => {
+    // Validate reasoning visibility in the dialog-style log renderer. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
     render(
       <AntdApp>
         <TaskLogViewer taskId="t_reasoning" tail={2} variant="flat" />
@@ -68,6 +68,7 @@ describe('TaskLogViewer reasoning visibility', () => {
       })
     });
 
-    expect(await screen.findByText('why this matters')).toBeInTheDocument();
+    const matches = await screen.findAllByText('why this matters');
+    expect(matches.length).toBeGreaterThan(0);
   });
 });

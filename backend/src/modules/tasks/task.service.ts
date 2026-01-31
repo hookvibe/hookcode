@@ -16,6 +16,8 @@ import {
 import type { TaskGroup, TaskGroupWithMeta } from '../../types/taskGroup';
 import type { RepoProvider } from '../../types/repository';
 import { isTruthy } from '../../utils/env';
+import { extractTaskSchedule, isTimeWindowActive } from '../../utils/timeWindow';
+import type { TaskScheduleSnapshot } from '../../types/timeWindow';
 
 /**
  * tasks table access layer (the "source of truth" for the queue/task state machine):
@@ -71,6 +73,10 @@ export interface TaskListOptions {
    */
   allowedRepoIds?: string[];
   includeMeta?: boolean;
+  /**
+   * Toggle queue diagnosis hydration to avoid extra global queue queries when callers only need task summaries. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+   */
+  includeQueue?: boolean;
 }
 
 export interface TaskStatsOptions {
@@ -109,6 +115,17 @@ const toIso = (value: unknown): string => {
   return new Date().toISOString();
 };
 
+const resolveScheduleState = (
+  payload: unknown,
+  now: Date
+): { schedule: TaskScheduleSnapshot | null; blocked: boolean } => {
+  // Evaluate time-window scheduling and manual overrides for queued tasks. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  const schedule = extractTaskSchedule(payload);
+  if (!schedule) return { schedule: null, blocked: false };
+  if (schedule.override) return { schedule, blocked: false };
+  return { schedule, blocked: !isTimeWindowActive(schedule.window, now) };
+};
+
 const taskRecordToTask = (row: any): Task => ({
   id: String(row.id),
   groupId: row.groupId ? String(row.groupId) : undefined,
@@ -128,6 +145,8 @@ const taskRecordToTask = (row: any): Task => ({
   issueId: row.issueId ?? undefined,
   retries: typeof row.retries === 'number' ? row.retries : Number(row.retries ?? 0),
   result: row.result ?? undefined,
+  // Map dependency install results from task rows into API output. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyResult: row.dependencyResult ?? row.dependency_result ?? undefined,
   createdAt: toIso(row.createdAt),
   updatedAt: toIso(row.updatedAt)
 });
@@ -151,6 +170,8 @@ const rowToTaskFromSql = (row: any): Task => ({
   issueId: row.issue_id ?? undefined,
   retries: typeof row.retries === 'number' ? row.retries : Number(row.retries ?? 0),
   result: row.result_json ?? undefined,
+  // Preserve dependency install results when using raw SQL task queries. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyResult: row.dependency_result ?? row.dependencyResult ?? undefined,
   createdAt: toIso(row.created_at),
   updatedAt: toIso(row.updated_at)
 });
@@ -400,6 +421,7 @@ export class TaskService {
     const staleBefore = new Date(Date.now() - (Number.isFinite(staleMs) && staleMs > 0 ? staleMs : 30 * 60 * 1000));
 
     const inlineWorkerEnabled = isTruthy(process.env.INLINE_WORKER_ENABLED, true);
+    const now = new Date();
 
     const [posRows, processingRows] = await Promise.all([
       db.$queryRaw<QueuePosRow[]>`
@@ -442,14 +464,26 @@ export class TaskService {
       const pos = posMap.get(task.id);
       const ahead = pos ? pos.ahead : 0;
       const queuedTotal = pos ? pos.total : queued.length;
-      const reasonCode = this.resolveQueueReasonCode({ ahead, processing, inlineWorkerEnabled });
+      const scheduleState = resolveScheduleState(task.payload, now);
+      const reasonCode = scheduleState.blocked
+        ? 'outside_time_window'
+        : this.resolveQueueReasonCode({ ahead, processing, inlineWorkerEnabled });
       const queue: TaskQueueDiagnosis = {
         reasonCode,
         ahead,
         queuedTotal,
         processing,
         staleProcessing,
-        inlineWorkerEnabled
+        inlineWorkerEnabled,
+        // Attach time window context when queued due to schedule. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        timeWindow: scheduleState.blocked && scheduleState.schedule
+          ? {
+              startHour: scheduleState.schedule.window.startHour,
+              endHour: scheduleState.schedule.window.endHour,
+              source: scheduleState.schedule.source,
+              timezone: 'server'
+            }
+          : undefined
       };
       return { ...task, queue };
     });
@@ -804,6 +838,7 @@ export class TaskService {
     const tasks = rows.map(taskRecordToTask) as TaskWithMeta[];
     if (!options?.includeMeta) return tasks;
     const withMeta = await this.attachMeta(tasks);
+    // Preserve queue diagnosis for task-group detail views. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
     return this.attachQueueDiagnosis(withMeta);
   }
 
@@ -1005,6 +1040,9 @@ export class TaskService {
 
     if (!options?.includeMeta) return tasks;
     const withMeta = await this.attachMeta(tasks);
+    const includeQueue = options?.includeQueue !== undefined ? options.includeQueue : true;
+    if (!includeQueue) return withMeta;
+    // Skip queue diagnosis when callers only need task summaries for dashboards. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
     return this.attachQueueDiagnosis(withMeta);
   }
 
@@ -1152,6 +1190,27 @@ export class TaskService {
     }
   }
 
+  async updateDependencyResult(
+    id: string,
+    dependencyResult: Task['dependencyResult'] | null
+  ): Promise<Task | undefined> {
+    // Persist dependency install outcomes alongside task state for UI/diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const now = new Date();
+    try {
+      const row = await db.task.update({
+        where: { id },
+        data: {
+          dependencyResult: dependencyResult === null ? null : (dependencyResult as any),
+          updatedAt: now
+        }
+      });
+      return taskRecordToTask(row);
+    } catch (err) {
+      if (isNotFoundError(err)) return undefined;
+      throw err;
+    }
+  }
+
   /**
    * Update result_json via JSON merge patch, and optionally update status.
    * - Does not need to read the previous result first (avoids read-before-write for high-frequency log updates).
@@ -1191,27 +1250,75 @@ export class TaskService {
     }
   }
 
-  async takeNextQueued(): Promise<Task | undefined> {
-    const now = new Date();
-    // Skip archived tasks so the worker does not process tasks hidden in the Archive area. qnp1mtxhzikhbi0xspbc
+  async hasQueuedTaskForRule(params: { repoId: string; robotId: string; ruleId: string }): Promise<boolean> {
+    // Guard against duplicate trigger-level tasks while waiting for a time window. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
     const rows = await db.$queryRaw<any[]>`
-      WITH next AS (
-        SELECT id
-        FROM tasks
-        WHERE status = 'queued'
-          AND archived_at IS NULL
-        ORDER BY created_at ASC
-        LIMIT 1
-        FOR UPDATE SKIP LOCKED
-      )
-      UPDATE tasks t
-      SET status = 'processing', updated_at = ${now}
-      FROM next
-      WHERE t.id = next.id
-      RETURNING t.*;
+      SELECT id
+      FROM tasks
+      WHERE status = 'queued'
+        AND archived_at IS NULL
+        AND repo_id = ${params.repoId}
+        AND robot_id = ${params.robotId}
+        AND payload_json -> '__schedule' ->> 'ruleId' = ${params.ruleId}
+      LIMIT 1;
+    `;
+    return (rows?.length ?? 0) > 0;
+  }
+
+  async setTaskScheduleOverride(id: string, override: boolean): Promise<Task | undefined> {
+    // Persist a manual override flag so queued tasks can run outside the configured window. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    const existing = await db.task.findUnique({ where: { id } });
+    if (!existing) return undefined;
+    const payload = existing.payload ?? {};
+    const schedule = extractTaskSchedule(payload);
+    if (!schedule) return undefined;
+    const nextPayload = {
+      ...(payload as any),
+      __schedule: {
+        ...schedule,
+        override,
+        overrideAt: new Date().toISOString()
+      }
+    };
+    const row = await db.task.update({
+      where: { id },
+      data: { payload: nextPayload as any, updatedAt: new Date() }
+    });
+    return taskRecordToTask(row);
+  }
+
+  async takeNextQueued(): Promise<Task | undefined> {
+    const batchSize = 50;
+    // Scan queued tasks in order and skip those blocked by time windows; claim the first eligible row. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    const candidates = await db.$queryRaw<any[]>`
+      SELECT *
+      FROM tasks
+      WHERE status = 'queued'
+        AND archived_at IS NULL
+      ORDER BY created_at ASC
+      LIMIT ${batchSize};
     `;
 
-    return rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+    if (!candidates?.length) return undefined;
+
+    const now = new Date();
+    for (const row of candidates) {
+      const task = rowToTaskFromSql(row);
+      const scheduleState = resolveScheduleState(task.payload, now);
+      if (scheduleState.blocked) continue;
+
+      const claimed = await db.$queryRaw<any[]>`
+        UPDATE tasks
+        SET status = 'processing', updated_at = ${now}
+        WHERE id = ${task.id}
+          AND status = 'queued'
+          AND archived_at IS NULL
+        RETURNING *;
+      `;
+      if (claimed?.[0]) return rowToTaskFromSql(claimed[0]);
+    }
+
+    return undefined;
   }
 
   async deleteTask(id: string): Promise<boolean> {

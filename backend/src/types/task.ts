@@ -1,5 +1,7 @@
 import type { RepoProvider } from './repository';
 import type { RobotPermission } from './repoRobot';
+import type { DependencyResult } from './dependency';
+import type { TimeWindowSource } from './timeWindow';
 
 export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
 
@@ -46,7 +48,7 @@ export interface TaskResult {
     totalTokens: number;
   };
   /**
-   * Redacted final output captured from `codex-output.txt`.
+   * Redacted final output captured from provider output files (codex/claude/gemini) stored outside the repo. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
    * - Intended to be safe for broader visibility than raw execution logs.
    */
   outputText?: string;
@@ -115,7 +117,21 @@ export interface TaskGitStatus {
   errors?: string[];
 }
 
-export type TaskQueueReasonCode = 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
+// Include time-window gating as a first-class queue reason. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+export type TaskQueueReasonCode =
+  | 'queue_backlog'
+  | 'no_active_worker'
+  | 'inline_worker_disabled'
+  | 'outside_time_window'
+  | 'unknown';
+
+export interface TaskQueueTimeWindow {
+  // Surface the resolved scheduling window so the UI can explain queued tasks. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  startHour: number;
+  endHour: number;
+  source: TimeWindowSource;
+  timezone: 'server';
+}
 
 export interface TaskQueueDiagnosis {
   reasonCode: TaskQueueReasonCode;
@@ -127,6 +143,8 @@ export interface TaskQueueDiagnosis {
   processing: number;
   staleProcessing: number;
   inlineWorkerEnabled: boolean;
+  // Attach time window context when tasks are blocked by schedule. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TaskQueueTimeWindow;
 }
 
 export interface Task {
@@ -157,6 +175,8 @@ export interface Task {
   // Provide a best-effort explanation for long-waiting queued tasks in the console UI. f3a9c2d8e1b7f4a0c6d1
   queue?: TaskQueueDiagnosis;
   result?: TaskResult;
+  // Persist dependency install outcomes for multi-language repos. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyResult?: DependencyResult;
   createdAt: string;
   updatedAt: string;
 }

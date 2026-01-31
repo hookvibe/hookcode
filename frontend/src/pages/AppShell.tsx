@@ -16,7 +16,6 @@ import {
   ProjectOutlined,
   PullRequestOutlined,
   UnorderedListOutlined,
-  EllipsisOutlined,
   CaretRightOutlined,
   InboxOutlined
 } from '@ant-design/icons';
@@ -31,6 +30,7 @@ import {
   buildReposHash,
   buildTaskGroupHash,
   buildTaskHash,
+  buildTaskGroupsHash,
   buildTasksHash,
   type RouteState
 } from '../router';
@@ -45,6 +45,7 @@ import { RepoDetailPage } from './RepoDetailPage';
 import { ReposPage } from './ReposPage';
 import { TaskDetailPage } from './TaskDetailPage';
 import { TaskGroupChatPage } from './TaskGroupChatPage';
+import { TaskGroupsPage } from './TaskGroupsPage';
 import { TasksPage } from './TasksPage';
 import { ArchivePage } from './ArchivePage';
 
@@ -448,6 +449,11 @@ export const AppShell: FC<AppShellProps> = ({
     navigateFromSidebar(buildArchiveHash());
   }, []);
 
+  const goTaskGroups = useCallback(() => {
+    // Navigation rule: taskgroup list entry should reset the header-back chain. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+    navigateFromSidebar(buildTaskGroupsHash());
+  }, []);
+
   const groupMenuItems = useMemo<MenuProps['items']>(() => {
     return taskGroups.map((g) => ({
       key: g.id,
@@ -469,6 +475,7 @@ export const AppShell: FC<AppShellProps> = ({
   }, [taskGroups]);
 
   const activeGroupKey = route.page === 'taskGroup' ? route.taskGroupId : undefined;
+  const taskGroupsListActive = route.page === 'taskGroups';
   const reposActive = route.page === 'repos' || route.page === 'repo';
   const archiveActive = route.page === 'archive';
   const activeTaskId = route.page === 'task' ? route.taskId : undefined;
@@ -500,7 +507,8 @@ export const AppShell: FC<AppShellProps> = ({
               ? taskStats.success
               : taskStats.failed;
 
-      const viewAllActive = Boolean(activeTasksStatus && activeTasksStatus === section.statusFilter);
+      // Highlight the active task status on the section header instead of the View All row. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
+      const sectionActive = Boolean(activeTasksStatus && activeTasksStatus === section.statusFilter);
       const headerIcon =
         !siderCollapsed
           ? undefined
@@ -510,13 +518,14 @@ export const AppShell: FC<AppShellProps> = ({
             : section.icon;
 
       return (
-        <div key={sectionKey} className="hc-sider-section">
+        <div key={sectionKey} className={`hc-sider-section${sectionActive ? ' hc-sider-section--active' : ''}`}>
           <div className="hc-sider-section__header">
             <Button
               type="text"
               className="hc-sider-section__titleBtn"
               // A11y/test note: set an explicit label so the section button doesn't get mixed up with task item buttons.
               aria-label={t(section.labelKey)}
+              aria-current={sectionActive ? 'page' : undefined}
               onClick={() => {
                 // UX:
                 // - Clicking the section header toggles expand/collapse (so the header behaves like an accordion).
@@ -595,18 +604,17 @@ export const AppShell: FC<AppShellProps> = ({
                     <Button
                       type="text"
                       block
-                      // UX: keep "View all" highlighted while user is on the filtered Tasks page (`#/tasks?status=...`).
-                      className={`hc-sider-item hc-sider-item--more${viewAllActive ? ' hc-sider-item--active' : ''}`}
-                      aria-current={viewAllActive ? 'page' : undefined}
-                    onClick={() => {
+                      // Redesign the View All button as a compact CTA row with a trailing arrow. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
+                      className="hc-sider-item hc-sider-item--more hc-sider-item--viewAll"
+                      onClick={() => {
                         // Navigation rule: "View all" is a sidebar navigation entry.
                         navigateFromSidebar(buildTasksHash({ status: section.statusFilter }));
                       }}
                     >
-                      <span className="hc-sider-item__icon">
-                        <EllipsisOutlined />
-                      </span>
                       <span className="hc-sider-item__text">{t('sidebar.tasks.viewAll')}</span>
+                      <span className="hc-sider-item__suffix" aria-hidden="true">
+                        <RightOutlined />
+                      </span>
                     </Button>
                   ) : null}
                 </>
@@ -714,6 +722,9 @@ export const AppShell: FC<AppShellProps> = ({
               </Button>
             </div>
 
+            {/* Separate repos from task statuses in both expanded/collapsed sidebar modes. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */}
+            <div className="hc-sider__divider" aria-hidden="true" />
+
             {!siderCollapsed ? (
               <Typography.Text className="hc-sider__sectionLabel">{t('sidebar.section.tasks')}</Typography.Text>
             ) : null}
@@ -721,6 +732,9 @@ export const AppShell: FC<AppShellProps> = ({
             {renderSidebarTaskSection('processing')}
             {renderSidebarTaskSection('success')}
             {renderSidebarTaskSection('failed')}
+
+            {/* Separate task statuses from task groups in both expanded/collapsed sidebar modes. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */}
+            <div className="hc-sider__divider" aria-hidden="true" />
 
             {!siderCollapsed ? (
               <Typography.Text className="hc-sider__sectionLabel" style={{ marginTop: 16 }}>
@@ -738,6 +752,19 @@ export const AppShell: FC<AppShellProps> = ({
                 openTaskGroup(String(info.key));
               }}
             />
+            {/* Add a taskgroup list CTA below the menu so the card list is reachable from the taskgroup area. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+            <Tooltip title={siderCollapsed ? t('taskGroups.page.viewAll') : undefined}>
+              <Button
+                type="text"
+                block
+                className={`hc-sider-item hc-sider-item--more hc-sider-item--viewAll${taskGroupsListActive ? ' hc-sider-item--active' : ''}`}
+                aria-current={taskGroupsListActive ? 'page' : undefined}
+                icon={siderCollapsed ? <UnorderedListOutlined /> : undefined}
+                onClick={() => goTaskGroups()}
+              >
+                {!siderCollapsed ? t('taskGroups.page.viewAll') : null}
+              </Button>
+            </Tooltip>
           </div>
 
           <div className="hc-sider__bottom">
@@ -760,6 +787,8 @@ export const AppShell: FC<AppShellProps> = ({
         {route.page === 'archive' ? <ArchivePage tab={route.archiveTab} userPanel={userPanel} /> : null}
         {/* Pass repoId query to TasksPage so repo dashboards can deep-link into scoped task lists. aw85xyfsp5zfg6ihq3jr */}
         {route.page === 'tasks' ? <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} /> : null}
+        {/* Route the task group list to a card-first page for quick browsing. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
+        {route.page === 'taskGroups' ? <TaskGroupsPage userPanel={userPanel} /> : null}
         {/* Pass backend feature toggles to pages that mount log streaming components. 0nazpc53wnvljv5yh7c6 */}
         {route.page === 'task' && route.taskId ? (
           <TaskDetailPage taskId={route.taskId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} />

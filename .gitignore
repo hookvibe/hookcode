@@ -23,4 +23,3 @@ logs
 __pycache__/
 *.pyc
 .ipynb_checkpoints
-happy

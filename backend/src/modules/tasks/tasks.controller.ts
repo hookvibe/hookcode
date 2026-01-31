@@ -20,6 +20,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiProduces,
   ApiTags,
   ApiUnauthorizedResponse
@@ -27,6 +28,7 @@ import {
 import type { Request, Response } from 'express';
 import type { TaskLogStreamEvent } from './task-log-stream.service';
 import { TaskLogStream } from './task-log-stream.service';
+import { TaskGitPushService } from './task-git-push.service';
 import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
 import type { TaskStatus } from '../../types/task';
@@ -34,8 +36,9 @@ import { isTaskLogsEnabled } from '../../config/features';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { computeTaskLogsDelta, extractTaskLogsSnapshot, sliceLogsTail } from '../../services/taskLogs';
 import { isTruthy } from '../../utils/env';
-import { normalizeString, parsePositiveInt } from '../../utils/parse';
-import { AllowQueryToken } from '../auth/auth.decorator';
+import { normalizeString, parseOptionalBoolean, parsePositiveInt } from '../../utils/parse';
+import { extractTaskSchedule } from '../../utils/timeWindow';
+import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
 import {
@@ -47,6 +50,7 @@ import {
   TaskVolumeByDayResponseDto
 } from './dto/tasks-swagger.dto';
 
+@AuthScopeGroup('tasks') // Scope task APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('tasks')
 @ApiTags('Tasks')
 @ApiBearerAuth('bearerAuth')
@@ -54,7 +58,8 @@ export class TasksController {
   constructor(
     private readonly taskService: TaskService,
     private readonly taskLogStream: TaskLogStream,
-    private readonly taskRunner: TaskRunner
+    private readonly taskRunner: TaskRunner,
+    private readonly taskGitPushService: TaskGitPushService
   ) {}
 
   private normalizeTaskStatusFilter(value: unknown): TaskStatus | 'success' | undefined {
@@ -100,6 +105,8 @@ export class TasksController {
     description: 'List tasks with optional filters.',
     operationId: 'tasks_list'
   })
+  // Add includeQueue query support to control queue diagnosis payloads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  @ApiQuery({ name: 'includeQueue', required: false, description: 'Include queue diagnosis fields for queued tasks.' })
   @ApiOkResponse({ description: 'OK', type: ListTasksResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
@@ -109,7 +116,8 @@ export class TasksController {
     @Query('robotId') robotIdRaw: string | undefined,
     @Query('status') statusRaw: string | undefined,
     @Query('eventType') eventTypeRaw: string | undefined,
-    @Query('archived') archivedRaw: string | undefined
+    @Query('archived') archivedRaw: string | undefined,
+    @Query('includeQueue') includeQueueRaw: string | undefined
   ) {
     try {
       const limit = parsePositiveInt(limitRaw, 50);
@@ -118,6 +126,7 @@ export class TasksController {
       const status = this.normalizeTaskStatusFilter(statusRaw);
       const eventType = normalizeString(eventTypeRaw);
       const archived = this.normalizeArchiveScope(archivedRaw);
+      const includeQueue = parseOptionalBoolean(includeQueueRaw);
 
       if (normalizeString(statusRaw) && !status) {
         throw new BadRequestException({ error: 'Invalid status' });
@@ -130,7 +139,9 @@ export class TasksController {
         status,
         eventType: eventType as any,
         archived,
-        includeMeta: true
+        includeMeta: true,
+        // Allow list callers to skip queue diagnosis for faster summary reads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+        includeQueue: includeQueue ?? true
       });
       const decorated = this.attachTaskPermissions(tasks as any[]);
       const sanitized = decorated.map((t) =>
@@ -475,6 +486,77 @@ export class TasksController {
       if (err instanceof HttpException) throw err;
       console.error('[tasks] retry failed', err);
       throw new InternalServerErrorException({ error: 'Failed to retry task' });
+    }
+  }
+
+  @Post(':id/execute-now')
+  @ApiOperation({
+    summary: 'Execute task now',
+    description: 'Override the configured time window so a queued task can execute immediately.',
+    operationId: 'tasks_execute_now'
+  })
+  @ApiOkResponse({ description: 'OK', type: RetryTaskResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  async executeNow(@Param('id') id: string) {
+    try {
+      const existing = await this.taskService.getTask(id);
+      if (!existing) {
+        throw new NotFoundException({ error: 'Task not found' });
+      }
+      if (existing.archivedAt) {
+        throw new ConflictException({ error: 'Task is archived; execute-now is blocked' });
+      }
+      if (existing.status !== 'queued') {
+        throw new ConflictException({ error: 'Task is not queued' });
+      }
+      const schedule = extractTaskSchedule(existing.payload);
+      if (!schedule) {
+        throw new ConflictException({ error: 'Task has no time window to override' });
+      }
+
+      // Allow manual override for time-windowed tasks and trigger the worker. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      const task = await this.taskService.setTaskScheduleOverride(id, true);
+      if (!task) {
+        throw new ConflictException({ error: 'Task schedule override failed' });
+      }
+      if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
+        this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
+      }
+      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      return { task: decorated };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[tasks] execute-now failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to execute task now' });
+    }
+  }
+
+  @Post(':id/git/push')
+  @ApiOperation({
+    summary: 'Push git changes',
+    description: 'Push forked repo changes captured by a write-enabled task.',
+    operationId: 'tasks_git_push'
+  })
+  @ApiOkResponse({ description: 'OK', type: GetTaskResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  async pushGit(@Param('id') id: string) {
+    try {
+      // Push forked changes and return refreshed git status for the UI. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+      const task = await this.taskGitPushService.pushTask(id);
+      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      const sanitized = sanitizeTaskForViewer(decorated, {
+        canViewLogs: Boolean(decorated?.permissions?.canManage) && isTaskLogsEnabled(),
+        includeOutputText: true
+      });
+      return { task: sanitized };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[tasks] push failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to push changes' });
     }
   }
 

@@ -140,6 +140,41 @@ export class TaskResultDto {
   gitStatus?: TaskGitStatusDto;
 }
 
+export class DependencyInstallStepDto {
+  // Swagger DTO for dependency install steps recorded per task. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  @ApiProperty({ enum: ['node', 'python', 'java', 'ruby', 'go'] })
+  language!: 'node' | 'python' | 'java' | 'ruby' | 'go';
+
+  @ApiPropertyOptional()
+  command?: string;
+
+  @ApiPropertyOptional()
+  workdir?: string;
+
+  @ApiProperty({ enum: ['success', 'skipped', 'failed'] })
+  status!: 'success' | 'skipped' | 'failed';
+
+  @ApiPropertyOptional()
+  duration?: number;
+
+  @ApiPropertyOptional()
+  error?: string;
+
+  @ApiPropertyOptional()
+  reason?: string;
+}
+
+export class DependencyResultDto {
+  @ApiProperty({ enum: ['success', 'partial', 'skipped', 'failed'] })
+  status!: 'success' | 'partial' | 'skipped' | 'failed';
+
+  @ApiProperty({ type: DependencyInstallStepDto, isArray: true })
+  steps!: DependencyInstallStepDto[];
+
+  @ApiProperty()
+  totalDuration!: number;
+}
+
 export class TaskRepoSummaryDto {
   @ApiProperty()
   id!: string;
@@ -176,10 +211,27 @@ export class TaskPermissionsDto {
   canManage!: boolean;
 }
 
+
+
+export class TaskQueueTimeWindowDto {
+  // Surface resolved time window metadata for queue explanations. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  @ApiProperty()
+  startHour!: number;
+
+  @ApiProperty()
+  endHour!: number;
+
+  @ApiProperty({ enum: ['robot', 'trigger', 'chat'] })
+  source!: 'robot' | 'trigger' | 'chat';
+
+  @ApiProperty({ enum: ['server'] })
+  timezone!: 'server';
+}
+
 export class TaskQueueDiagnosisDto {
   // Describe queued task diagnosis for the console UI. f3a9c2d8e1b7f4a0c6d1
-  @ApiProperty({ enum: ['queue_backlog', 'no_active_worker', 'inline_worker_disabled', 'unknown'] })
-  reasonCode!: 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'unknown';
+  @ApiProperty({ enum: ['queue_backlog', 'no_active_worker', 'inline_worker_disabled', 'outside_time_window', 'unknown'] })
+  reasonCode!: 'queue_backlog' | 'no_active_worker' | 'inline_worker_disabled' | 'outside_time_window' | 'unknown';
 
   @ApiProperty()
   ahead!: number;
@@ -195,6 +247,9 @@ export class TaskQueueDiagnosisDto {
 
   @ApiProperty()
   inlineWorkerEnabled!: boolean;
+
+  @ApiPropertyOptional({ type: TaskQueueTimeWindowDto })
+  timeWindow?: TaskQueueTimeWindowDto;
 }
 
 export class TaskWithMetaDto {
@@ -218,6 +273,10 @@ export class TaskWithMetaDto {
 
   @ApiPropertyOptional()
   projectId?: number;
+
+  // Surface dependency install results on task responses. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  @ApiPropertyOptional({ type: DependencyResultDto })
+  dependencyResult?: DependencyResultDto;
 
   @ApiPropertyOptional({ enum: ['gitlab', 'github'], nullable: true })
   repoProvider?: 'gitlab' | 'github' | null;

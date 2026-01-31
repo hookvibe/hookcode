@@ -1,11 +1,12 @@
 import { Controller, Get, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiProduces, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { AllowQueryToken } from '../auth/auth.decorator';
+import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { DashboardSidebarEventsService } from './dashboard-sidebar-events.service';
 import { EventStreamService } from './event-stream.service';
 
+@AuthScopeGroup('events') // Scope events APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('events')
 @ApiTags('Events')
 @ApiBearerAuth('bearerAuth')
@@ -69,4 +70,3 @@ export class EventsController {
     return;
   }
 }
-

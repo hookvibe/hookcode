@@ -33,6 +33,13 @@ jobs:
         with:
           node-version: 18
 
+      # Install native build tools for node-gyp in CI. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+      - name: Install build tools (node-gyp)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:

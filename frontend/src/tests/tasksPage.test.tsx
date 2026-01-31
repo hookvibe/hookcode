@@ -11,7 +11,8 @@ vi.mock('../api', () => {
     __esModule: true,
     fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 })),
     fetchTasks: vi.fn(async () => []),
-    retryTask: vi.fn(async () => ({ id: 't_alpha', status: 'queued', eventType: 'chat', retries: 1, createdAt: '', updatedAt: '' }))
+    retryTask: vi.fn(async () => ({ id: 't_alpha', status: 'queued', eventType: 'chat', retries: 1, createdAt: '', updatedAt: '' })),
+    executeTaskNow: vi.fn(async () => ({ id: 't_alpha', status: 'queued', eventType: 'chat', retries: 1, createdAt: '', updatedAt: '' }))
   };
 });
 
@@ -52,14 +53,16 @@ describe('TasksPage (frontend-chat migration)', () => {
     renderPage({ status: 'completed' });
 
     await waitFor(() => expect(api.fetchTasks).toHaveBeenCalled());
-    expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, status: 'success' });
+    // Assert includeQueue is disabled for task list browsing. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, status: 'success', includeQueue: false });
   });
 
   test('passes repoId filter to fetchTasks when provided', async () => {
     // Ensure repo dashboards can deep-link into a repo-scoped task list. aw85xyfsp5zfg6ihq3jr
     renderPage({ status: 'processing', repoId: 'r1' });
     await waitFor(() => expect(api.fetchTasks).toHaveBeenCalled());
-    expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, status: 'processing', repoId: 'r1' });
+    // Assert includeQueue is disabled for repo-scoped task list browsing. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    expect(api.fetchTasks).toHaveBeenCalledWith({ limit: 50, status: 'processing', repoId: 'r1', includeQueue: false });
   });
 
   test('filters tasks by search and navigates to detail on click', async () => {
@@ -126,6 +129,40 @@ describe('TasksPage (frontend-chat migration)', () => {
 
     await ui.click(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(api.retryTask).toHaveBeenCalledWith('t_alpha'));
+    expect(window.location.hash).toBe('#/tasks');
+  });
+
+  // Ensure time-window blocked tasks expose an execute-now action without triggering card navigation. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  test('shows execute-now button for time-window blocked tasks', async () => {
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchTasks)
+      .mockResolvedValueOnce([
+        {
+          id: 't_beta',
+          eventType: 'chat',
+          title: 'Beta task',
+          status: 'queued',
+          retries: 0,
+          createdAt: '2026-01-11T00:00:00.000Z',
+          updatedAt: '2026-01-11T00:00:00.000Z',
+          permissions: { canManage: true },
+          queue: {
+            reasonCode: 'outside_time_window',
+            ahead: 0,
+            queuedTotal: 1,
+            processing: 0,
+            staleProcessing: 0,
+            inlineWorkerEnabled: true
+          }
+        } as any
+      ])
+      .mockResolvedValueOnce([]);
+
+    renderPage();
+
+    expect(await screen.findByText('Beta task')).toBeInTheDocument();
+    await ui.click(screen.getByRole('button', { name: 'Run now' }));
+    await waitFor(() => expect(api.executeTaskNow).toHaveBeenCalledWith('t_beta'));
     expect(window.location.hash).toBe('#/tasks');
   });
 });

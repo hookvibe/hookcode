@@ -61,6 +61,17 @@ Automation rules can further adjust prompts via:
 - **promptPatch**: appended after the robot default template
 - **promptOverride**: full override (ignores the robot default template and patch)
 
+<!-- Document robot dependency overrides for install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 -->
+## Dependency install overrides
+
+Robots can override repository `.hookcode.yml` dependency settings on a per-robot basis:
+
+- **enabled**: disable dependency installs even if `.hookcode.yml` defines them.
+- **failureMode**: override `soft` vs `hard` handling for missing runtimes / install failures.
+- **allowCustomInstall**: allow install commands outside the allowlist (blocked characters are still rejected).
+
+If overrides are disabled, the robot follows the repository `.hookcode.yml` configuration.
+
 ## Language and default branch
 
 - **language**: recommended to use BCP 47 tags (e.g. `en-US`, `zh-CN`). Exposed to templates as `{{robot.language}}`.
@@ -81,4 +92,3 @@ Mark one robot as **default** for a repository to simplify:
 
 - Manual Chat selection
 - Rule creation (common default action choice)
-

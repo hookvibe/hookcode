@@ -1,4 +1,4 @@
-import { normalizeString, parsePositiveInt } from '../../utils/parse';
+import { normalizeString, parseOptionalBoolean, parsePositiveInt } from '../../utils/parse';
 
 describe('utils/parse', () => {
   test('parsePositiveInt: parses positive integers', () => {
@@ -23,5 +23,19 @@ describe('utils/parse', () => {
     expect(normalizeString('   ')).toBeUndefined();
     expect(normalizeString('  hello  ')).toBe('hello');
   });
-});
 
+  test('parseOptionalBoolean: parses truthy/falsey strings', () => {
+    // Cover query toggles used by list endpoints. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    expect(parseOptionalBoolean('true')).toBe(true);
+    expect(parseOptionalBoolean('1')).toBe(true);
+    expect(parseOptionalBoolean('yes')).toBe(true);
+    expect(parseOptionalBoolean('on')).toBe(true);
+    expect(parseOptionalBoolean('false')).toBe(false);
+    expect(parseOptionalBoolean('0')).toBe(false);
+    expect(parseOptionalBoolean('no')).toBe(false);
+    expect(parseOptionalBoolean('off')).toBe(false);
+    expect(parseOptionalBoolean('')).toBeUndefined();
+    expect(parseOptionalBoolean('maybe')).toBeUndefined();
+    expect(parseOptionalBoolean(undefined)).toBeUndefined();
+  });
+});

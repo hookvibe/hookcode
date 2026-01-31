@@ -1,3 +1,6 @@
+import type { RobotDependencyConfig } from './dependency';
+import type { TimeWindow } from './timeWindow';
+
 export type RobotPermission = 'read' | 'write';
 
 /**
@@ -105,11 +108,23 @@ export interface RepoRobot {
    */
   modelProviderConfig?: unknown;
   /**
+   * Dependency management overrides for this robot (enable/disable, failure mode, custom install). docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+   */
+  dependencyConfig?: RobotDependencyConfig;
+  /**
    * Default checkout branch (branch name):
    * - Fallback branch for tasks without explicit branch info (e.g. commit comments, MR comments, issues)
    * - Also exposed to prompts as a template variable (see promptBuilder)
    */
   defaultBranch?: string;
+  /**
+   * Repository workflow mode (auto/direct/fork) used to control upstream vs fork behavior. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+   */
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork';
+  /**
+   * Optional hour-level execution window for this robot (server-local time). docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+   */
+  timeWindow?: TimeWindow;
   /**
    * Compatibility field: legacy branch roles (main/dev/test).
    */

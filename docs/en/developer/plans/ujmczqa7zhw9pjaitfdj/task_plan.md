@@ -10,43 +10,44 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Design and (after approval) implement a reliable mechanism to track local code changes, branch divergence, and commit/push status for write-enabled robots, then surface this status clearly in the frontend.
+Move the git status panel to the bottom of each task group message with full-width layout, add a push-from-panel flow, and guard against pushing mismatched commits or misconfigured remotes.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-Phase 1
+Phase 5
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
 
 ### Phase 1: Requirements & Discovery
 {/* WHAT: Understand what needs to be done and gather initial information. WHY: Starting without understanding leads to wasted effort. This phase prevents that. */}
-- [x] Confirm user intent and expected UX signals for write-enabled robots
-- [x] Identify existing workflow hooks for git operations and task execution
-- [x] Capture constraints (permissions, security, backend/frontend boundaries)
+- [x] Confirm desired panel position/width and push action UX
+- [x] Identify existing git status panel placement in TaskGroup UI
+- [x] Identify backend capabilities for pushing and required permissions
 - [x] Document findings in findings.md
 - **Status:** complete
 {/* STATUS VALUES: - pending: Not started yet - in_progress: Currently working on this - complete: Finished this phase */}
 
 ### Phase 2: Planning & Structure
 {/* WHAT: Decide how you'll approach the problem and what structure you'll use. WHY: Good planning prevents rework. Document decisions so you remember why you chose them. */}
-- [x] Define status model (local changes, branch divergence, commit/push state)
-- [x] Define backend data flow and persistence strategy
-- [x] Define frontend display and API contract
+- [x] Define UI placement/layout changes and styling approach
+- [x] Define backend push API contract and safety checks
+- [x] Define frontend push flow and error handling
 - [x] Document decisions with rationale
 - **Status:** complete
 
 ### Phase 3: Implementation
 {/* WHAT: Actually build/create/write the solution. WHY: This is where the work happens. Break into smaller sub-tasks if needed. */}
-- [x] Implement backend tracking and status aggregation
-- [x] Implement frontend status display
-- [x] Add traceability comments and docs updates
-- [x] Test incrementally
+- [x] Implement UI placement and full-width layout changes
+- [x] Implement backend push endpoint and Git operations
+- [x] Implement frontend push action wiring + feedback
+- [x] Add push guards for head/remote mismatches
+- [x] Update tests and docs
 - **Status:** complete
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Verify everything works and meets requirements. WHY: Catching issues early saves time. Document test results in progress.md. */}
-- [x] Verify all requirements met
+- [x] Verify UI layout and push behavior
 - [x] Document test results in progress.md
 - [x] Fix any issues found
 - **Status:** complete
@@ -69,13 +70,16 @@ Phase 1
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
 | Decision | Rationale |
 |----------|-----------|
-|          |           |
+| Add a dedicated `POST /tasks/:id/git/push` endpoint that runs `git push` in the task workspace and refreshes git status. | Keeps the push action explicit, permission-guarded, and returns updated git status for the UI. |
+| Reuse exported helpers from `backend/src/agent/agent.ts` (repoDir derivation, git command capture) instead of duplicating logic. | Avoids logic drift between agent execution and push action, and aligns with shared workflow behavior. |
+| Move TaskGroup git status panel to the bottom and apply a chat-width class. | Matches the requested placement and ensures consistent full-width layout with other chat cards. |
+| Label push success with target and show explicit mismatch warnings. | Prevents confusion when fork pushes succeed or when workspace HEAD drifts from the task snapshot. |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-|       | 1       |            |
+| taskGitPush tests failed (injectBasicAuth undefined after resetAllMocks) | 1 | Switched to clearAllMocks to preserve mock implementations. |
 
 ## Notes
 {/* REMINDERS: - Update phase status as you progress: pending → in_progress → complete - Re-read this plan before major decisions (attention manipulation) - Log ALL errors - they help avoid repetition - Never repeat a failed action - mutate your approach instead */}

@@ -2,6 +2,8 @@ import { HttpException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { UsersController } from '../../modules/users/users.controller';
 import { UserService } from '../../modules/users/user.service';
+// Include UserApiTokenService for controller DI mocks in this test. docs/en/developer/plans/account-edit-feature-toggle-test/task_plan.md account-edit-feature-toggle-test
+import { UserApiTokenService } from '../../modules/users/user-api-token.service';
 
 describe('users account edit feature toggle (VITE_DISABLE_ACCOUNT_EDIT)', () => {
   test('patchMe/patchPassword return 403 when disabled', async () => {
@@ -13,10 +15,15 @@ describe('users account edit feature toggle (VITE_DISABLE_ACCOUNT_EDIT)', () => 
       verifyPassword: jest.fn(),
       setPassword: jest.fn()
     } as any;
+    const apiTokenService = {} as any;
 
     const moduleRef = await Test.createTestingModule({
       controllers: [UsersController],
-      providers: [{ provide: UserService, useValue: userService }]
+      // Provide UserApiTokenService mock to satisfy UsersController DI in unit tests. docs/en/developer/plans/account-edit-feature-toggle-test/task_plan.md account-edit-feature-toggle-test
+      providers: [
+        { provide: UserService, useValue: userService },
+        { provide: UserApiTokenService, useValue: apiTokenService }
+      ]
     }).compile();
     const ctrl = moduleRef.get(UsersController);
 
@@ -57,10 +64,15 @@ describe('users account edit feature toggle (VITE_DISABLE_ACCOUNT_EDIT)', () => 
       verifyPassword: jest.fn().mockResolvedValue(true),
       setPassword: jest.fn().mockResolvedValue(undefined)
     } as any;
+    const apiTokenService = {} as any;
 
     const moduleRef = await Test.createTestingModule({
       controllers: [UsersController],
-      providers: [{ provide: UserService, useValue: userService }]
+      // Provide UserApiTokenService mock to satisfy UsersController DI in unit tests. docs/en/developer/plans/account-edit-feature-toggle-test/task_plan.md account-edit-feature-toggle-test
+      providers: [
+        { provide: UserService, useValue: userService },
+        { provide: UserApiTokenService, useValue: apiTokenService }
+      ]
     }).compile();
     const ctrl = moduleRef.get(UsersController);
 
@@ -80,4 +92,3 @@ describe('users account edit feature toggle (VITE_DISABLE_ACCOUNT_EDIT)', () => 
     else delete process.env.VITE_DISABLE_ACCOUNT_EDIT;
   });
 });
-

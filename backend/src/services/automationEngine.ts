@@ -2,6 +2,7 @@ import type { RepoRobot } from '../types/repoRobot';
 import type { RepoAutomationConfig, AutomationClause, AutomationEventConfig, AutomationRule } from '../types/automation';
 import type { TaskEventType } from '../types/task';
 import type { Repository } from '../types/repository';
+import type { TimeWindow } from '../types/timeWindow';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -120,6 +121,8 @@ export interface ResolvedAutomationAction {
   robotId: string;
   promptCustom?: string | null;
   ruleId: string;
+  // Carry trigger-level time windows forward so task creation can resolve scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindow;
 }
 
 const buildPromptCustom = (robot: RepoRobot, action: { promptOverride?: string; promptPatch?: string }): string | null => {
@@ -363,7 +366,9 @@ export const resolveAutomationActions = (input: {
       resolved.push({
         robotId: action.robotId,
         ruleId: rule.id,
-        promptCustom: buildPromptCustom(robot, action)
+        promptCustom: buildPromptCustom(robot, action),
+        // Preserve the matched rule's time window for downstream scheduling decisions. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        timeWindow: rule.timeWindow
       });
     }
   }

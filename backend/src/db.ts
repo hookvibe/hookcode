@@ -169,10 +169,30 @@ export const pingDb = async () => {
   }
 };
 
+// Graceful shutdown timeout for dev mode hot-reload. docs/en/developer/plans/devhotfix20260126/task_plan.md devhotfix20260126
+const CLOSE_TIMEOUT_MS = 2000;
+
 export const closeDb = async (): Promise<void> => {
+  const withTimeout = <T>(promise: Promise<T>, label: string): Promise<T | void> =>
+    Promise.race([
+      promise,
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          console.warn(`[db] ${label} timed out after ${CLOSE_TIMEOUT_MS}ms, forcing close`);
+          resolve();
+        }, CLOSE_TIMEOUT_MS)
+      )
+    ]);
+
   try {
-    await db.$disconnect();
-  } finally {
-    await pool.end();
+    await withTimeout(db.$disconnect(), 'prisma disconnect');
+  } catch (err) {
+    console.warn('[db] prisma disconnect error', err);
+  }
+
+  try {
+    await withTimeout(pool.end(), 'pool end');
+  } catch (err) {
+    console.warn('[db] pool end error', err);
   }
 };

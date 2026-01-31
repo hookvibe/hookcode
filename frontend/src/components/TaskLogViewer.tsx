@@ -12,7 +12,8 @@ import { applyExecutionLogLine, buildExecutionTimeline, createEmptyTimeline, typ
  *
  * Business context:
  * - Module: Frontend Chat / Tasks / Logs.
- * - Purpose: show real-time execution logs ("thought chain") for tasks and task groups.
+ * - Purpose: show real-time execution logs (dialog-style) for tasks and task groups.
+ * - Note: ThoughtChain is replaced with a custom dialog layout. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
  *
  * Backend endpoint:
  * - `GET /api/tasks/:id/logs/stream` (SSE, supports `?token=` via `AllowQueryToken`).
@@ -108,7 +109,7 @@ export const TaskLogViewer: FC<Props> = ({
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState(0);
   const [clearing, setClearing] = useState(false);
-  const [showReasoning, setShowReasoning] = useState(true); // Default to showing reasoning so Codex text is visible in ThoughtChain. docs/en/developer/plans/thoughtchain-log-display/task_plan.md thoughtchain-log-display
+  const [showReasoning, setShowReasoning] = useState(true); // Default to showing reasoning in dialog-style logs for task execution clarity. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
   const [wrapDiffLines, setWrapDiffLines] = useState(true);
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [timeline, dispatchTimeline] = useReducer(timelineReducer, undefined, () => createEmptyTimeline());
@@ -350,7 +351,7 @@ export const TaskLogViewer: FC<Props> = ({
         {error ? <Alert type="warning" showIcon message={error} style={{ marginBottom: 8 }} /> : null}
         {timeline.items.length ? (
           <>
-            {/* Show reasoning in flat ThoughtChain to surface Codex text by default. docs/en/developer/plans/thoughtchain-log-display/task_plan.md thoughtchain-log-display */}
+            {/* Show reasoning in flat dialog logs to surface Codex text by default. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
             <ExecutionTimeline items={timeline.items} showReasoning={showReasoning} wrapDiffLines={true} showLineNumbers={true} />
           </>
         ) : logs.length ? (

@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
 import { mkdir, rm, writeFile, stat, readFile, chmod } from 'fs/promises';
 import path from 'path';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
@@ -56,10 +57,17 @@ import {
 } from '../utils/repoPayload';
 // Reuse a shared console URL builder so provider messages consistently link back to the task detail page. docs/en/developer/plans/taskdetailbacklink20260122k4p8/task_plan.md taskdetailbacklink20260122k4p8
 import { getTaskConsoleUrl } from '../utils/taskConsoleUrl';
+// Build repo-external task output paths to avoid polluting working directories. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
+import { buildTaskOutputFilePath } from '../utils/taskOutputPath';
 // Keep git workflow helpers and config keys centralized for hook guard logic. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
 import { canTokenPushToUpstream, GIT_CONFIG_KEYS, normalizeGitRemoteUrl, toRepoWebUrl } from '../utils/gitWorkflow';
+import { ensureGithubForkRepo, ensureGitlabForkProject, resolveRepoWorkflowMode } from '../services/repoWorkflowMode';
 // Pull git status helpers to report repo changes after write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAheadBehind } from '../utils/gitStatus';
+import { installDependencies, DependencyInstallerError } from './dependencyInstaller';
+import { RuntimeService } from '../services/runtimeService';
+import { HookcodeConfigService } from '../services/hookcodeConfigService';
+import type { DependencyResult, HookcodeConfig, RobotDependencyConfig } from '../types/dependency';
 
 /**
  * Core task execution (callAgent):
@@ -71,7 +79,26 @@ import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAhea
  *   which powers console SSE (`backend/src/routes/tasks.ts`) and the frontend log viewer (`frontend/src/components/TaskLogViewer.tsx`).
  * - Security: redacts sensitive info in external logs (tokens / URL basic auth) to avoid storing secrets in DB or provider comments.
  */
-const BUILD_ROOT = path.join(__dirname, 'build');
+const resolveBuildRoot = (): string => {
+  // Prefer explicit or repo-root build directories to keep API/worker workspace paths aligned. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const explicit = (process.env.HOOKCODE_BUILD_ROOT ?? '').trim();
+  if (explicit && existsSync(explicit)) return explicit;
+  const cwd = process.cwd();
+  const candidates = [
+    path.join(cwd, 'backend', 'src', 'agent', 'build'),
+    path.join(cwd, 'src', 'agent', 'build')
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return path.join(__dirname, 'build');
+};
+
+// Resolve the build root deterministically to prevent preview workspace mismatches. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+// Export agent workspace root for shared git operations. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const BUILD_ROOT = resolveBuildRoot();
+// Centralize task-group workspace root so each group maps to a single checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+export const TASK_GROUP_WORKSPACE_ROOT = path.join(BUILD_ROOT, 'task-groups');
 const MAX_LOG_LINES = 1000;
 
 let taskService: TaskService;
@@ -79,6 +106,8 @@ let taskLogStream: TaskLogStream;
 let repositoryService: RepositoryService;
 let repoRobotService: RepoRobotService;
 let userService: UserService;
+let runtimeService: RuntimeService;
+let hookcodeConfigService: HookcodeConfigService;
 
 export const setAgentServices = (services: {
   taskService: TaskService;
@@ -86,16 +115,21 @@ export const setAgentServices = (services: {
   repositoryService: RepositoryService;
   repoRobotService: RepoRobotService;
   userService: UserService;
+  runtimeService: RuntimeService;
+  hookcodeConfigService: HookcodeConfigService;
 }) => {
+  // Inject runtime/config services so dependency installs run inside the agent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   taskService = services.taskService;
   taskLogStream = services.taskLogStream;
   repositoryService = services.repositoryService;
   repoRobotService = services.repoRobotService;
   userService = services.userService;
+  runtimeService = services.runtimeService;
+  hookcodeConfigService = services.hookcodeConfigService;
 };
 
 const assertAgentServicesReady = () => {
-  if (!taskService || !taskLogStream || !repositoryService || !repoRobotService || !userService) {
+  if (!taskService || !taskLogStream || !repositoryService || !repoRobotService || !userService || !runtimeService || !hookcodeConfigService) {
     throw new Error('[agent] services are not initialized (missing setAgentServices call)');
   }
 };
@@ -104,6 +138,57 @@ const formatRef = (ref?: string) => ref?.replace(/^refs\/heads\//, '');
 const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 const isUuidLike = (value: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+const normalizeRobotDependencyConfig = (value: unknown): RobotDependencyConfig | null => {
+  // Normalize robot dependency overrides to a safe, typed shape. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const enabled = typeof raw.enabled === 'boolean' ? raw.enabled : undefined;
+  const allowCustomInstall = typeof raw.allowCustomInstall === 'boolean' ? raw.allowCustomInstall : undefined;
+  const failureModeRaw = typeof raw.failureMode === 'string' ? raw.failureMode.trim().toLowerCase() : '';
+  const failureMode = failureModeRaw === 'soft' || failureModeRaw === 'hard' ? failureModeRaw : undefined;
+  return { enabled, allowCustomInstall, failureMode };
+};
+
+// Provide package hints for custom runtime Docker images. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+const INSTALL_HINTS: Record<string, string> = {
+  python: 'python3 py3-pip',
+  java: 'openjdk17-jre maven',
+  ruby: 'ruby ruby-bundler',
+  go: 'go',
+  node: 'nodejs npm'
+};
+
+const buildRuntimeMissingMessage = (language: string): string => {
+  // Provide actionable guidance when a required runtime is missing. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const hint = INSTALL_HINTS[language] ?? language;
+  return [
+    `Runtime "${language}" is required but not installed.`,
+    '',
+    'To add runtime support, build a custom Docker image:',
+    '',
+    '1. Create backend/Dockerfile.custom:',
+    '   FROM node:18-alpine',
+    `   RUN apk add --no-cache ${hint}`,
+    '',
+    '2. Update docker/docker-compose.yml to use backend/Dockerfile.custom.',
+    '',
+    'See docs: /docs/en/user-docs/custom-dockerfile'
+  ].join('\n');
+};
+
+// Build task-group workspace paths with a taskId fallback when group ids are missing. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+export const buildTaskGroupWorkspaceDir = (params: {
+  taskGroupId?: string | null;
+  taskId: string;
+  provider: RepoProvider;
+  repoSlug: string;
+}): string => {
+  const workspaceKey = safeTrim(params.taskGroupId) || safeTrim(params.taskId) || 'task';
+  const providerKey = safeTrim(params.provider) || 'repo';
+  const slugKey = safeTrim(params.repoSlug) || 'repo';
+  return path.join(TASK_GROUP_WORKSPACE_ROOT, `${workspaceKey}__${providerKey}__${slugKey}`);
+};
 
 const pickCredentialProfile = (
   creds: { profiles?: Array<{ id?: string; apiKey?: string; apiBaseUrl?: string }> | null; defaultProfileId?: string } | null | undefined,
@@ -147,12 +232,53 @@ const toErrorSummary = (err: unknown): Record<string, unknown> => {
   }
   return { message: String(err) };
 };
-const shDoubleQuote = (value: string) =>
+// Export shell-escape helper for shared git commands. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const shDoubleQuote = (value: string) =>
   `"${String(value)
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
     .replace(/`/g, '\\`')
     .replace(/\$/g, '\\$')}"`;
+
+/**
+ * Build git proxy flags from GIT_HTTP_PROXY env var.
+ * Returns `-c http.proxy=<proxy> -c https.proxy=<proxy>` if set, otherwise empty string.
+ * gitproxyfix20260127
+ */
+export const buildGitProxyFlags = (): string => {
+  const proxy = (process.env.GIT_HTTP_PROXY ?? '').trim();
+  if (!proxy) return '';
+  return `-c http.proxy=${shDoubleQuote(proxy)} -c https.proxy=${shDoubleQuote(proxy)}`;
+};
+
+/**
+ * Configure repo-local git proxy settings to override user's global ~/.gitconfig.
+ *
+ * Problem: User's ~/.gitconfig may have http.proxy=127.0.0.1:7890 which is unreachable
+ * from Codex/Claude sandbox. When the model executes `git push`, it reads ~/.gitconfig
+ * and fails because 127.0.0.1 inside sandbox points to sandbox itself, not host machine.
+ *
+ * Solution: Set repo-local git config (in .git/config) which has higher priority than
+ * ~/.gitconfig. This ensures all git commands in the repo use the correct proxy.
+ *
+ * docs/en/developer/plans/gitproxyfix20260127/task_plan.md gitproxyfix20260127
+ */
+export const configureRepoLocalGitProxy = async (repoDir: string): Promise<void> => {
+  const proxy = (process.env.GIT_HTTP_PROXY ?? '').trim();
+  if (!proxy) return;
+
+  // Set repo-local http.proxy and https.proxy to override ~/.gitconfig settings.
+  // Repo-local config (.git/config) has higher priority than user global (~/.gitconfig).
+  // gitproxyfix20260127
+  const { execSync } = await import('child_process');
+  try {
+    execSync(`git config --local http.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
+    execSync(`git config --local https.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
+  } catch (err) {
+    // Best-effort: log warning but don't fail the task if proxy config fails
+    console.warn('[agent] Failed to configure repo-local git proxy:', err);
+  }
+};
 
 const resolveRepoDefaultBranch = (repo: Repository | null): string => {
   if (!repo) return '';
@@ -179,7 +305,8 @@ const resolveBranchByLegacyRole = (repo: Repository | null, role: RepoRobot['def
   return '';
 };
 
-const resolveCheckoutRef = (params: {
+// Export checkout ref resolution so push actions reuse task branch selection. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const resolveCheckoutRef = (params: {
   task: Task;
   payload: any;
   repo: Repository | null;
@@ -227,7 +354,8 @@ const redactTokensInText = (text: string): string =>
 const redactSensitiveText = (text: string): string =>
   redactTokensInText(redactUrlAuthInText(text));
 
-const injectBasicAuth = (
+// Export git auth injection helper for push flows. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const injectBasicAuth = (
   rawUrl: string,
   auth?: { username: string; password: string }
 ): { execUrl: string; displayUrl: string } => {
@@ -271,7 +399,8 @@ const buildGitlabLogDetails = (logs: string[]): string => {
   return `<details${open}><summary>${escapeHtml(summary)}</summary>\n\n<pre><code>${detailsBody}</code></pre>\n\n</details>`;
 };
 
-const getRepoCloneUrl = (provider: RepoProvider, payload: any): string | undefined => {
+// Export repo URL helper for git push actions. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const getRepoCloneUrl = (provider: RepoProvider, payload: any): string | undefined => {
   if (provider === 'gitlab') {
     const project = payload?.project ?? {};
     return project.git_http_url || project.http_url || project.http_url_to_repo;
@@ -283,7 +412,8 @@ const getRepoCloneUrl = (provider: RepoProvider, payload: any): string | undefin
   return undefined;
 };
 
-const getRepoSlug = (provider: RepoProvider, payload: any, fallback: string): string => {
+// Export repo slug helper to align workspace paths across actions. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const getRepoSlug = (provider: RepoProvider, payload: any, fallback: string): string => {
   if (provider === 'gitlab') {
     const project = payload?.project ?? {};
     return (
@@ -350,7 +480,8 @@ interface ResolvedExecution {
   github?: GithubService;
 }
 
-const resolveExecution = async (
+// Export execution resolver for shared push flows. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const resolveExecution = async (
   task: Task,
   payload: any,
   log: (msg: string) => Promise<void>
@@ -515,6 +646,34 @@ async function callAgent(
     await appendLine(line);
   };
 
+  const appendThoughtChainLine = async (payload: Record<string, unknown>) => {
+    // Emit structured JSONL log entries for ThoughtChain rendering. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    await appendLine(JSON.stringify(payload));
+  };
+
+  const appendThoughtChainCommand = async (params: {
+    id: string;
+    status: 'started' | 'completed' | 'failed';
+    command: string;
+    output?: string;
+    exitCode?: number | null;
+  }) => {
+    // Normalize git workspace logs into command_execution items for the UI timeline. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    const status = params.status === 'started' ? 'in_progress' : params.status;
+    const type = params.status === 'started' ? 'item.started' : 'item.completed';
+    await appendThoughtChainLine({
+      type,
+      item: {
+        id: params.id,
+        type: 'command_execution',
+        status,
+        command: redactSensitiveText(params.command),
+        aggregated_output: params.output ? redactSensitiveText(params.output) : undefined,
+        exit_code: typeof params.exitCode === 'number' ? params.exitCode : undefined
+      }
+    });
+  };
+
   const finalizeGitStatus = (finalCapture: {
     snapshot?: TaskGitStatusSnapshot;
     workingTree?: TaskGitStatusWorkingTree;
@@ -567,16 +726,17 @@ async function callAgent(
       robot: execution.robot
     });
     const checkoutRef = checkout.ref;
-    const refSlug = checkoutRef ? checkoutRef.replace(/[^\w.-]/g, '_') : 'default';
     // Keep repoDir in outer scope so failure handlers can still inspect git state. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-    repoDir = path.join(BUILD_ROOT, `${execution.provider}__${repoSlug}__${refSlug}`);
+    // Bind the workspace to task group ids so each group has a dedicated repo checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    repoDir = buildTaskGroupWorkspaceDir({ taskGroupId, taskId: task.id, provider: execution.provider, repoSlug });
 
     if (!repoUrl) {
       await appendLog('Repository URL not found; cannot proceed');
       throw new Error('missing repo url');
     }
 
-    await mkdir(BUILD_ROOT, { recursive: true });
+    // Ensure the task-group workspace root exists before clone/pull operations. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    await mkdir(TASK_GROUP_WORKSPACE_ROOT, { recursive: true });
 
     await appendLog(`Preparing work directory ${repoDir}`);
     if (checkoutRef) {
@@ -584,13 +744,35 @@ async function callAgent(
     } else {
       await appendLog('No checkout branch specified; using the repository default branch');
     }
-    let repoExists = false;
+    // Treat task-group workspaces as ready only when a .git directory exists to avoid partial clones. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    const workspaceLabel = taskGroupId ? `task group ${taskGroupId}` : `task ${task.id}`;
+    const workspaceItemId = `task_group_workspace_${taskGroupId ?? task.id}`;
+    const gitDir = path.join(repoDir, '.git');
+    let workspaceReady = false;
+    let repoDirExists = false;
     try {
       await stat(repoDir);
-      repoExists = true;
+      repoDirExists = true;
     } catch (_) {
-      repoExists = false;
+      repoDirExists = false;
     }
+    if (repoDirExists) {
+      try {
+        await stat(gitDir);
+        workspaceReady = true;
+      } catch (_) {
+        workspaceReady = false;
+      }
+    }
+    if (repoDirExists && !workspaceReady) {
+      await appendLog('Workspace directory exists without git metadata; recreating workspace');
+      await rm(repoDir, { recursive: true, force: true });
+    }
+    // Only allow git network sync during the first task-group workspace initialization. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    const allowNetworkPull = !workspaceReady;
+
+    // Build git proxy flags from GIT_HTTP_PROXY env var for network operations. gitproxyfix20260127
+    const gitProxyFlags = buildGitProxyFlags();
 
     const cloneRepo = async () => {
       const injected = upstreamInjected;
@@ -598,8 +780,9 @@ async function callAgent(
       if (checkoutRef) {
         try {
           await appendLog(`Cloning repository (branch ${checkoutRef}) ${injected.displayUrl}`);
+          // Use gitProxyFlags to pass proxy config to git commands. gitproxyfix20260127
           await streamCommand(
-            `git clone --branch ${shDoubleQuote(checkoutRef)} ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
+            `git ${gitProxyFlags} clone --branch ${shDoubleQuote(checkoutRef)} ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
             appendRawLog,
             {
               env: { GIT_TERMINAL_PROMPT: '0' },
@@ -613,8 +796,9 @@ async function callAgent(
       }
 
       await appendLog(`Cloning repository ${injected.displayUrl}`);
+      // Use gitProxyFlags to pass proxy config to git commands. gitproxyfix20260127
       await streamCommand(
-        `git clone ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
+        `git ${gitProxyFlags} clone ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
         appendRawLog,
         {
           env: { GIT_TERMINAL_PROMPT: '0' },
@@ -633,24 +817,31 @@ async function callAgent(
     });
     const upstreamInjected = injectBasicAuth(repoUrl, cloneAuth); // Ensure fetch/pull always uses upstream even after remotes drift. 24yz61mdik7tqdgaa152
 
-    if (!repoExists) {
-      await cloneRepo();
-    } else {
-      await appendLog(`Updating repository ${repoDir}`);
+    // Emit a ThoughtChain command entry for task-group repo preparation. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    if (!workspaceReady) {
+      const cloneCommand = `git clone ${upstreamInjected.displayUrl} ${repoDir} (${workspaceLabel})`;
+      await appendThoughtChainCommand({ id: workspaceItemId, status: 'started', command: cloneCommand });
       try {
-        await streamCommand(`cd ${repoDir} && git remote set-url origin ${shDoubleQuote(upstreamInjected.execUrl)}`, appendRawLog, {
-          env: { GIT_TERMINAL_PROMPT: '0' },
-          redact: redactSensitiveText
-        });
-        await streamCommand(`cd ${repoDir} && git fetch origin`, appendRawLog, {
-          env: { GIT_TERMINAL_PROMPT: '0' },
-          redact: redactSensitiveText
-        });
-      } catch (err: any) {
-        await appendLog(`git fetch failed; trying to re-clone: ${err.message || err}`);
-        await rm(repoDir, { recursive: true, force: true });
         await cloneRepo();
+        // Configure repo-local git proxy to override ~/.gitconfig (e.g., 127.0.0.1 → LAN IP).
+        // This ensures model-executed git commands use the correct proxy. gitproxyfix20260127
+        await configureRepoLocalGitProxy(repoDir);
+        await appendThoughtChainCommand({ id: workspaceItemId, status: 'completed', command: cloneCommand });
+      } catch (err: any) {
+        await appendThoughtChainCommand({
+          id: workspaceItemId,
+          status: 'failed',
+          command: cloneCommand,
+          output: err?.message || String(err)
+        });
+        throw err;
       }
+    } else {
+      await appendThoughtChainCommand({
+        id: workspaceItemId,
+        status: 'completed',
+        command: `Reuse task group workspace (skip git pull): ${repoDir} (${workspaceLabel})`
+      });
     }
 
     if (checkoutRef) {
@@ -660,21 +851,28 @@ async function callAgent(
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
         });
-        await streamCommand(
-          `cd ${repoDir} && git pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`,
-          appendRawLog,
-          {
-            env: { GIT_TERMINAL_PROMPT: '0' },
-            redact: redactSensitiveText
-          }
-        );
+        if (allowNetworkPull) {
+          // Use gitProxyFlags to pass proxy config to git pull. gitproxyfix20260127
+          await streamCommand(
+            `cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`,
+            appendRawLog,
+            {
+              env: { GIT_TERMINAL_PROMPT: '0' },
+              redact: redactSensitiveText
+            }
+          );
+        } else {
+          // Keep logs explicit when skipping network pulls for existing task-group workspaces. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+          await appendLog(`Skipping git pull for existing ${workspaceLabel} workspace`);
+        }
       } catch (err: any) {
         await appendLog(`Checkout/pull failed: ${err.message || err}`);
       }
-    } else if (repoExists) {
+    } else if (allowNetworkPull) {
       try {
         await appendLog('Updating default branch');
-        await streamCommand(`cd ${repoDir} && git pull --no-rebase`, appendRawLog, {
+        // Use gitProxyFlags to pass proxy config to git pull. gitproxyfix20260127
+        await streamCommand(`cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase`, appendRawLog, {
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
         });
@@ -746,108 +944,6 @@ exit 0
       );
     };
 
-    const isProviderStatusError = (provider: RepoProvider, status: number, err: unknown): boolean => {
-      const message = err instanceof Error ? err.message : String(err);
-      return message.startsWith(`[${provider}] ${status} `);
-    };
-
-    const ensureGithubForkRepo = async (params: {
-      upstream: { owner: string; repo: string };
-    }): Promise<{ slug: string; webUrl?: string; cloneUrl?: string } | null> => {
-      if (!execution!.github) return null;
-      const me = await execution!.github.getCurrentUser();
-      const forkOwner = safeTrim(me?.login);
-      if (!forkOwner) throw new Error('github current user login is missing');
-
-      const forkSlug = `${forkOwner}/${params.upstream.repo}`;
-      try {
-        const existing = await execution!.github.getRepository(forkOwner, params.upstream.repo);
-        const parentFull = safeTrim((existing as any)?.parent?.full_name);
-        const expectedParent = `${params.upstream.owner}/${params.upstream.repo}`;
-        if ((existing as any)?.fork && parentFull.toLowerCase() === expectedParent.toLowerCase()) {
-          return {
-            slug: forkSlug,
-            webUrl: safeTrim((existing as any)?.html_url) || undefined,
-            cloneUrl: safeTrim((existing as any)?.clone_url) || undefined
-          };
-        }
-        throw new Error(`existing repo ${forkSlug} is not a fork of ${expectedParent}`);
-      } catch (err: any) {
-        if (!isProviderStatusError('github', 404, err)) throw err;
-      }
-
-      await appendLog(`Creating fork ${forkSlug} for upstream PR workflow`);
-      try {
-        await execution!.github.createFork(params.upstream.owner, params.upstream.repo);
-      } catch (err: any) {
-        // If the fork already exists, GitHub may return a conflict; fall back to polling. 24yz61mdik7tqdgaa152
-        await appendLog(`Fork request failed (will retry lookup): ${err?.message || err}`);
-      }
-
-      const deadline = Date.now() + 60_000;
-      while (Date.now() < deadline) {
-        try {
-          const forkRepo = await execution!.github.getRepository(forkOwner, params.upstream.repo);
-          return {
-            slug: forkSlug,
-            webUrl: safeTrim((forkRepo as any)?.html_url) || undefined,
-            cloneUrl: safeTrim((forkRepo as any)?.clone_url) || undefined
-          };
-        } catch (err: any) {
-          if (!isProviderStatusError('github', 404, err)) throw err;
-          await sleep(1500);
-        }
-      }
-      throw new Error(`fork not ready after timeout: ${forkSlug}`);
-    };
-
-    const ensureGitlabForkProject = async (params: {
-      upstreamProject: string | number;
-    }): Promise<{ slug: string; webUrl?: string; cloneUrl?: string } | null> => {
-      if (!execution!.gitlab) return null;
-      const upstream = await execution!.gitlab.getProject(params.upstreamProject);
-      const upstreamId = upstream.id;
-
-      const forks = await execution!.gitlab.listProjectForks(upstreamId, { owned: true, perPage: 100, page: 1 });
-      if (forks.length) {
-        const picked = forks[0];
-        return {
-          slug: safeTrim(picked.path_with_namespace),
-          webUrl: safeTrim((picked as any)?.web_url) || undefined,
-          cloneUrl: safeTrim((picked as any)?.http_url_to_repo) || undefined
-        };
-      }
-
-      await appendLog(`Creating fork for upstream MR workflow (project ${upstreamId})`);
-      let forked: any;
-      try {
-        forked = await execution!.gitlab.forkProject(upstreamId, { mrDefaultTargetSelf: false });
-      } catch (err: any) {
-        if (!isProviderStatusError('gitlab', 409, err)) throw err;
-        const retry = await execution!.gitlab.listProjectForks(upstreamId, { owned: true, perPage: 100, page: 1 });
-        if (!retry.length) throw err;
-        forked = retry[0];
-      }
-
-      const forkId = typeof forked?.id === 'number' ? forked.id : null;
-      if (!forkId) throw new Error('gitlab fork response is missing project id');
-
-      const deadline = Date.now() + 60_000;
-      while (Date.now() < deadline) {
-        const current = await execution!.gitlab.getProject(forkId);
-        const importStatus = safeTrim((current as any)?.import_status).toLowerCase();
-        if (!importStatus || importStatus === 'finished') {
-          return {
-            slug: safeTrim(current.path_with_namespace),
-            webUrl: safeTrim((current as any)?.web_url) || undefined,
-            cloneUrl: safeTrim((current as any)?.http_url_to_repo) || undefined
-          };
-        }
-        await sleep(1500);
-      }
-      throw new Error(`fork not ready after timeout: gitlab project ${forkId}`);
-    };
-
     const configureGitWorkflow = async () => {
       const repoCredentialSource = inferRobotRepoProviderCredentialSource(execution!.robot);
       const auth = resolveGitCloneAuth({
@@ -900,23 +996,82 @@ exit 0
         { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
       );
 
+      const expectedUpstreamUrl = upstream.cloneUrl || repoUrl;
+      // Resolve the robot-configured workflow mode (auto/direct/fork) for this run. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      const workflowMode = resolveRepoWorkflowMode((execution!.robot as any)?.repoWorkflowMode);
       const writeEnabled = execution!.robot.permission === 'write';
       const upstreamCanPush = canTokenPushToUpstream(execution!.provider, execution!.robot.repoTokenRepoRole);
 
-      if (!writeEnabled) {
-        repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
-        await persistLogsBestEffort();
-        return;
-      }
-
-      const expectedUpstreamUrl = upstream.cloneUrl || repoUrl;
-      // Always reset origin push URL first to avoid stale fork pushUrl when fork setup is skipped/fails. 24yz61mdik7tqdgaa152
+      // Always reset origin push URL first to avoid stale fork pushUrl when workflow changes. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
       await streamCommand(
         `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(upstreamInjected.execUrl)}`,
         appendRawLog,
         { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
       );
       await installGitPrePushGuard({ expectedUpstream: expectedUpstreamUrl, expectedPush: expectedUpstreamUrl });
+
+      if (workflowMode === 'direct') {
+        // Respect explicit direct mode even when upstream push is unavailable. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
+        await appendLog('Repo workflow mode: direct (skip fork setup)');
+        await persistLogsBestEffort();
+        return;
+      }
+
+      if (workflowMode === 'fork') {
+        // Enforce explicit fork mode by creating/using a fork before push configuration. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        if (!writeEnabled) {
+          await appendLog('Repo workflow mode: fork (read-only run, skipping push configuration)');
+        }
+        if (execution!.provider === 'github' && upstream.github) {
+          const fork = await ensureGithubForkRepo({ github: execution!.github!, upstream: upstream.github, log: appendLog });
+          const forkCloneUrl = safeTrim(fork?.cloneUrl);
+          if (!fork || !forkCloneUrl) {
+            throw new Error('fork workflow requested but fork repository clone URL is missing');
+          }
+
+          const forkInjected = injectBasicAuth(forkCloneUrl, auth);
+          await streamCommand(
+            `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
+            appendRawLog,
+            { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
+          );
+          await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
+          repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
+          await appendLog(`Repo workflow mode: fork (upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug})`);
+          await persistLogsBestEffort();
+          return;
+        }
+
+        if (execution!.provider === 'gitlab' && upstream.gitlabProject) {
+          const fork = await ensureGitlabForkProject({ gitlab: execution!.gitlab!, upstreamProject: upstream.gitlabProject, log: appendLog });
+          const forkCloneUrl = safeTrim(fork?.cloneUrl) || (safeTrim(fork?.webUrl) ? `${safeTrim(fork?.webUrl)}.git` : '');
+          if (!fork || !forkCloneUrl) {
+            throw new Error('fork workflow requested but fork project clone URL is missing');
+          }
+
+          const forkInjected = injectBasicAuth(forkCloneUrl, auth);
+          await streamCommand(
+            `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
+            appendRawLog,
+            { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
+          );
+          await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
+          repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
+          await appendLog(`Repo workflow mode: fork (upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug})`);
+          await persistLogsBestEffort();
+          return;
+        }
+
+        throw new Error(`fork workflow requested but provider ${execution!.provider} is unsupported or upstream is missing`);
+      }
+
+      if (!writeEnabled) {
+        // Default to direct workflow for read-only runs when mode is auto. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
+        await persistLogsBestEffort();
+        return;
+      }
 
       if (upstreamCanPush) {
         repoWorkflow = { mode: 'direct', provider: execution!.provider, upstream: upstream };
@@ -925,7 +1080,7 @@ exit 0
       }
 
       if (execution!.provider === 'github' && upstream.github) {
-        const fork = await ensureGithubForkRepo({ upstream: upstream.github });
+        const fork = await ensureGithubForkRepo({ github: execution!.github!, upstream: upstream.github, log: appendLog });
         const forkCloneUrl = safeTrim(fork?.cloneUrl);
         if (!fork || !forkCloneUrl) {
           await appendLog('Fork workflow skipped: fork repository clone URL is missing');
@@ -948,7 +1103,7 @@ exit 0
       }
 
       if (execution!.provider === 'gitlab' && upstream.gitlabProject) {
-        const fork = await ensureGitlabForkProject({ upstreamProject: upstream.gitlabProject });
+        const fork = await ensureGitlabForkProject({ gitlab: execution!.gitlab!, upstreamProject: upstream.gitlabProject, log: appendLog });
         const forkCloneUrl = safeTrim(fork?.cloneUrl) || (safeTrim(fork?.webUrl) ? `${safeTrim(fork?.webUrl)}.git` : '');
         if (!fork || !forkCloneUrl) {
           await appendLog('Fork workflow skipped: fork project clone URL is missing');
@@ -978,6 +1133,58 @@ exit 0
       await configureGitWorkflow();
     } catch (err: any) {
       await appendLog(`Git workflow setup failed (continuing): ${err?.message || err}`);
+    }
+
+    let dependencyResult: DependencyResult | null = null;
+    const robotDependencyConfig = normalizeRobotDependencyConfig((execution.robot as any).dependencyConfig);
+    let hookcodeConfig: HookcodeConfig | null = null;
+    try {
+      // Parse repository dependency configuration to determine install steps. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      hookcodeConfig = await hookcodeConfigService.parseConfig(repoDir);
+    } catch (err: any) {
+      await appendLog(`Failed to parse .hookcode.yml: ${err?.message || err}`);
+      throw err;
+    }
+
+    // Apply robot overrides and run dependency installs before model execution. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (hookcodeConfig?.dependency && robotDependencyConfig?.enabled === false) {
+      await appendLog('Dependency installation disabled by robot configuration');
+      dependencyResult = { status: 'skipped', steps: [], totalDuration: 0 };
+      await taskService.updateDependencyResult(task.id, dependencyResult);
+    } else if (hookcodeConfig?.dependency) {
+      try {
+        dependencyResult = await installDependencies({
+          workspaceDir: repoDir,
+          config: hookcodeConfig,
+          runtimeService,
+          failureMode: robotDependencyConfig?.failureMode,
+          allowCustomInstall: robotDependencyConfig?.allowCustomInstall,
+          appendLog,
+          runCommand: async ({ command, cwd, timeoutMs }) => {
+            // Execute dependency installs with explicit cwd to avoid path drift after clone. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+            const { exitCode, output } = await runCommandWithLogs(command, appendRawLog, {
+              cwd,
+              timeoutMs,
+              redact: redactSensitiveText
+            });
+            return { exitCode, output };
+          },
+          appendThoughtChainCommand
+        });
+        await taskService.updateDependencyResult(task.id, dependencyResult);
+      } catch (err: any) {
+        if (err instanceof DependencyInstallerError) {
+          dependencyResult = err.result;
+          await taskService.updateDependencyResult(task.id, dependencyResult);
+          if (err.code === 'RUNTIME_MISSING') {
+            const message = err.message;
+            const match = message.match(/Runtime \"([^\"]+)\"/);
+            const language = match ? match[1] : 'unknown';
+            await appendLog(buildRuntimeMissingMessage(language));
+          }
+        }
+        throw err;
+      }
     }
 
     if (writeEnabled) {
@@ -1018,12 +1225,19 @@ exit 0
       throw new Error(`unsupported model provider: ${modelProvider}`);
     }
 
-    const outputLastMessageFile = isClaudeCodeProvider
+    const outputLastMessageFileName = isClaudeCodeProvider
       ? 'claude-output.txt'
       : isGeminiCliProvider
         ? 'gemini-output.txt'
         : 'codex-output.txt';
-    await rm(path.join(repoDir, outputLastMessageFile), { force: true });
+    // Store provider outputs under a task-scoped directory outside the repo to avoid git pollution. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
+    const outputSelection = buildTaskOutputFilePath({ taskId: task.id, fileName: outputLastMessageFileName, repoDir });
+    const outputLastMessageFile = outputSelection.filePath;
+    if (outputSelection.selection.source === 'repo-conflict') {
+      await appendLog('Configured task output dir points inside the repo; falling back to safe default output root.');
+    }
+    await mkdir(outputSelection.dir, { recursive: true });
+    await rm(outputLastMessageFile, { force: true });
 
     const codexCfg = isCodexProvider ? normalizeCodexRobotProviderConfig(execution.robot.modelProviderConfigRaw) : null;
     const claudeCfg = isClaudeCodeProvider ? normalizeClaudeCodeRobotProviderConfig(execution.robot.modelProviderConfigRaw) : null;
@@ -1033,8 +1247,9 @@ exit 0
       : isClaudeCodeProvider
         ? claudeCfg!.sandbox
         : geminiCfg!.sandbox;
+    // Codex network access is always enabled; only non-Codex providers read robot config. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
     const networkAccess = isCodexProvider
-      ? codexCfg!.sandbox_workspace_write.network_access
+      ? true
       : isClaudeCodeProvider
         ? claudeCfg!.sandbox_workspace_write.network_access
         : geminiCfg!.sandbox_workspace_write.network_access;
@@ -1110,8 +1325,8 @@ exit 0
         promptFile,
         model: codexCfg!.model,
         sandbox: codexCfg!.sandbox,
+        // Codex execution now defaults to network access enabled regardless of robot config. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
         modelReasoningEffort: codexCfg!.model_reasoning_effort,
-        networkAccess,
         resumeThreadId: resumeThreadId || undefined,
         apiKey,
         apiBaseUrl: apiBaseUrl || undefined,
@@ -1381,23 +1596,37 @@ exit 0
 
 export { callAgent };
 
-async function streamCommand(
+const runCommandWithLogs = async (
   command: string,
   log: (msg: string) => Promise<void>,
   options: StreamOptions = {}
-): Promise<void> {
-  // All external commands (git/codex) in `callAgent()` go through this function: split stdout/stderr by line and write into task logs.
+): Promise<{ exitCode: number; output: string }> => {
+  // Capture streaming command output for dependency installs while keeping log behavior consistent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   const redact = options.redact ?? redactSensitiveText;
-  await new Promise<void>((resolve, reject) => {
+  return await new Promise((resolve, reject) => {
+    // Run commands in the resolved workspace cwd to avoid shell cd path drift. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const child = spawn('sh', ['-c', command], {
       env: { ...process.env, ...(options.env ?? {}) },
+      cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
+    let timedOut = false;
+    let timer: NodeJS.Timeout | null = null;
+    if (options.timeoutMs && options.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGKILL');
+      }, options.timeoutMs);
+    }
+
     let chain = Promise.resolve();
+    const outputLines: string[] = [];
     const enqueue = (line: string) => {
-      chain = chain.then(() => log(redact(line))).catch((err) => {
-        console.error('[streamCommand] log failed', err);
+      const redacted = redact(line);
+      outputLines.push(redacted);
+      chain = chain.then(() => log(redacted)).catch((err) => {
+        console.error('[runCommandWithLogs] log failed', err);
       });
     };
 
@@ -1429,43 +1658,66 @@ async function streamCommand(
     child.stderr.on('data', (data: Buffer) => stderrBuffer.push(data));
 
     child.on('error', (err) => {
+      if (timer) clearTimeout(timer);
       reject(err);
     });
     child.on('close', async (code) => {
+      if (timer) clearTimeout(timer);
       stdoutBuffer.flush();
       stderrBuffer.flush();
 
-      if (code === 0) {
-        await chain;
-        resolve();
-      } else {
-        enqueue(`[exit ${code}] ${command}`);
-        await chain;
-        reject(new Error(`command failed with code ${code}`));
+      const exitCode = timedOut ? -1 : typeof code === 'number' ? code : -1;
+      if (timedOut) {
+        enqueue(`[timeout] ${command}`);
+      } else if (exitCode !== 0) {
+        enqueue(`[exit ${exitCode}] ${command}`);
       }
+
+      await chain;
+      resolve({ exitCode, output: outputLines.join('\n') });
     });
   });
+};
+
+async function streamCommand(
+  command: string,
+  log: (msg: string) => Promise<void>,
+  options: StreamOptions = {}
+): Promise<void> {
+  // Stream command output into task logs while preserving failure handling. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const result = await runCommandWithLogs(command, log, options);
+  if (result.exitCode !== 0) {
+    throw new Error(`command failed with code ${result.exitCode}`);
+  }
 }
 
 interface StreamOptions {
   env?: Record<string, string | undefined>;
   redact?: (text: string) => string;
+  timeoutMs?: number;
+  // Allow explicit command cwd to keep dependency installs on the intended repo root. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  cwd?: string;
 }
 
 interface CaptureOptions {
   env?: Record<string, string | undefined>;
   redact?: (text: string) => string;
+  // Allow explicit cwd for command capture outside agent flow. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  cwd?: string;
 }
 
-const runCommandCapture = async (
+// Export command capture for shared git operations outside the agent run. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const runCommandCapture = async (
   command: string,
   options: CaptureOptions = {}
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
   // Capture command output for git status probing without spamming task logs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   const redact = options.redact ?? redactSensitiveText;
   return await new Promise((resolve, reject) => {
+    // Honor explicit cwd to keep non-agent commands aligned with task-group workspaces. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const child = spawn('sh', ['-c', command], {
       env: { ...process.env, ...(options.env ?? {}) },
+      cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
@@ -1492,7 +1744,8 @@ const runCommandCapture = async (
   });
 };
 
-const collectGitStatusSnapshot = async (params: {
+// Export git status capture so push actions can refresh status. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+export const collectGitStatusSnapshot = async (params: {
   repoDir: string;
   includeWorkingTree?: boolean;
 }): Promise<{
@@ -1505,6 +1758,8 @@ const collectGitStatusSnapshot = async (params: {
   const errors: string[] = [];
   const gitEnv = { GIT_TERMINAL_PROMPT: '0' };
   const runGit = (cmd: string) => runCommandCapture(`cd ${shDoubleQuote(params.repoDir)} && ${cmd}`, { env: gitEnv });
+  // Build git proxy flags for network commands like ls-remote. gitproxyfix20260127
+  const gitProxyFlags = buildGitProxyFlags();
 
   const branchRes = await runGit('git rev-parse --abbrev-ref HEAD');
   const branch = branchRes.exitCode === 0 ? branchRes.stdout.trim() : '';
@@ -1552,7 +1807,8 @@ const collectGitStatusSnapshot = async (params: {
 
   let pushTargetSha: string | undefined;
   if (pushRemoteRaw && branch && branch !== 'HEAD') {
-    const lsRemoteRes = await runGit(`git ls-remote --heads ${shDoubleQuote(pushRemoteRaw)} ${shDoubleQuote(branch)}`);
+    // Use gitProxyFlags to pass proxy config to ls-remote. gitproxyfix20260127
+    const lsRemoteRes = await runGit(`git ${gitProxyFlags} ls-remote --heads ${shDoubleQuote(pushRemoteRaw)} ${shDoubleQuote(branch)}`);
     if (lsRemoteRes.exitCode === 0) {
       const line = lsRemoteRes.stdout.trim().split(/\r?\n/)[0] ?? '';
       const sha = line.split(/\s+/)[0] ?? '';

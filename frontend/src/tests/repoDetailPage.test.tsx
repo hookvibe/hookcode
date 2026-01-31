@@ -62,7 +62,9 @@ vi.mock('../api', () => {
       commits: { items: [], page: 1, pageSize: 5, hasMore: false },
       merges: { items: [], page: 1, pageSize: 5, hasMore: false },
       issues: { items: [], page: 1, pageSize: 5, hasMore: false }
-    })) // Mock activity fetch for the provider activity row. kzxac35mxk0fg358i7zs
+    })), // Mock activity fetch for the provider activity row. kzxac35mxk0fg358i7zs
+    // Mock preview config discovery for repo detail Phase 2 UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    fetchRepoPreviewConfig: vi.fn(async () => ({ available: false, instances: [], reason: 'config_missing' }))
   };
 });
 
@@ -79,6 +81,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     setLocale('en-US');
     window.location.hash = '#/repos/r1';
     window.localStorage.clear();
+    // Reset preview config mock between tests. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    vi.mocked(api.fetchRepoPreviewConfig).mockResolvedValue({ available: false, instances: [], reason: 'config_missing' });
   });
 
   test('shows recent tasks per status in Task activity and supports navigation', async () => {
@@ -134,6 +138,83 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
         enabled: true
       })
     );
+  });
+
+  test('loads webhook deliveries once for shared dashboard cards', async () => {
+    // Avoid duplicate webhook delivery fetches across repo dashboard widgets. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+    await waitFor(() => expect(api.listRepoWebhookDeliveries).toHaveBeenCalled());
+
+    expect(api.listRepoWebhookDeliveries).toHaveBeenCalledTimes(1);
+  });
+
+  test('renders preview config card with instances', async () => {
+    // Validate preview config discovery appears in the repo dashboard. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    vi.mocked(api.fetchRepoPreviewConfig).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'frontend', workdir: 'frontend' }]
+    });
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepoPreviewConfig).toHaveBeenCalled());
+    const matches = await screen.findAllByText('frontend');
+    expect(matches.length).toBeGreaterThan(0);
+  });
+
+  test('renders unified model credential list with provider tags', async () => {
+    // Verify unified model credential list renders provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    vi.mocked(api.fetchRepo).mockResolvedValueOnce({
+      repo: {
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'Repo 1',
+        externalId: '',
+        apiBaseUrl: '',
+        enabled: true,
+        createdAt: '2026-01-11T00:00:00.000Z',
+        updatedAt: '2026-01-11T00:00:00.000Z'
+      },
+      robots: [],
+      automationConfig: null,
+      webhookSecret: null,
+      webhookPath: null,
+      repoScopedCredentials: {
+        repoProvider: { profiles: [], defaultProfileId: null },
+        modelProvider: {
+          codex: { profiles: [{ id: 'c1', remark: 'primary', hasApiKey: true, apiBaseUrl: 'https://api.codex' }], defaultProfileId: 'c1' },
+          claude_code: { profiles: [{ id: 'cc1', remark: 'claude', hasApiKey: false }], defaultProfileId: null },
+          gemini_cli: { profiles: [], defaultProfileId: null }
+        }
+      }
+    });
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+    // List-only rendering means the profile remark appears once. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(await screen.findByText('primary')).toBeInTheDocument();
+    expect(screen.getByText('claude')).toBeInTheDocument();
+    expect(screen.getByText('codex')).toBeInTheDocument();
+    expect(screen.getByText('claude_code')).toBeInTheDocument();
+    // Default selection now lives inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(screen.queryByText('Select default profile')).not.toBeInTheDocument();
+
+    // Open the model-provider add flow from the card wrapper. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const modelCard = screen
+      .getAllByText('Model provider')
+      .map((node) => node.closest('.ant-card'))
+      .find((card): card is HTMLElement => Boolean(card));
+    expect(modelCard).toBeTruthy();
+    await ui.click(within(modelCard as HTMLElement).getByRole('button', { name: /Add/i }));
+    expect(await screen.findByText('Set as default')).toBeInTheDocument();
   });
 
   test('loads provider activity row for public repos', async () => {
@@ -319,5 +400,32 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await ui.click(modelButton);
 
     await waitFor(() => expect(modelInput).toHaveValue('gpt-4o'));
+  });
+
+  test('shows dependency override controls in robot editor', async () => {
+    // Validate dependency override UI toggles for robot-level install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    await ui.click(screen.getByRole('button', { name: /new robot/i }));
+
+    const failureModeLabel = await screen.findByText('Failure mode');
+    const failureModeItem = failureModeLabel.closest('.ant-form-item');
+    expect(failureModeItem).toBeTruthy();
+    const failureModeSelect = failureModeItem?.querySelector('.ant-select');
+    expect(failureModeSelect).toHaveClass('ant-select-disabled');
+
+    const overrideLabel = screen.getByText('Override dependency behavior');
+    const overrideItem = overrideLabel.closest('.ant-form-item');
+    expect(overrideItem).toBeTruthy();
+    const overrideSwitch = within(overrideItem as HTMLElement).getByRole('switch');
+    await ui.click(overrideSwitch);
+
+    const failureModeSelectAfter = failureModeItem?.querySelector('.ant-select');
+    expect(failureModeSelectAfter).not.toHaveClass('ant-select-disabled');
   });
 });

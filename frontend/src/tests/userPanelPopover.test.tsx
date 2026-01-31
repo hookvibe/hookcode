@@ -27,7 +27,47 @@ vi.mock('../api', () => {
       gitlab: { profiles: [], defaultProfileId: null },
       github: { profiles: [], defaultProfileId: null }
     })),
-    fetchAdminToolsMeta: vi.fn(async () => ({ enabled: true, ports: { prisma: 7215, swagger: 7216 } }))
+    // Mock PAT APIs for the new credentials section. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+    fetchMyApiTokens: vi.fn(async () => []),
+    createMyApiToken: vi.fn(async () => ({
+      token: 'hcpat_test',
+      apiToken: {
+        id: 'pat-1',
+        name: 'CI',
+        tokenPrefix: 'hcpat_abcd',
+        tokenLast4: 'wxyz',
+        scopes: [{ group: 'tasks', level: 'read' }],
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        revokedAt: null,
+        lastUsedAt: null
+      }
+    })),
+    updateMyApiToken: vi.fn(async () => ({
+      id: 'pat-1',
+      name: 'CI',
+      tokenPrefix: 'hcpat_abcd',
+      tokenLast4: 'wxyz',
+      scopes: [{ group: 'tasks', level: 'read' }],
+      createdAt: new Date().toISOString(),
+      expiresAt: null,
+      revokedAt: null,
+      lastUsedAt: null
+    })),
+    revokeMyApiToken: vi.fn(async () => ({
+      id: 'pat-1',
+      name: 'CI',
+      tokenPrefix: 'hcpat_abcd',
+      tokenLast4: 'wxyz',
+      scopes: [{ group: 'tasks', level: 'read' }],
+      createdAt: new Date().toISOString(),
+      expiresAt: null,
+      revokedAt: new Date().toISOString(),
+      lastUsedAt: null
+    })),
+    fetchAdminToolsMeta: vi.fn(async () => ({ enabled: true, ports: { prisma: 7215, swagger: 7216 } })),
+    // Provide runtime API mocks for the environment tab. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    fetchSystemRuntimes: vi.fn(async () => ({ runtimes: [], detectedAt: null }))
   };
 });
 
@@ -94,8 +134,11 @@ describe('UserPanelPopover', () => {
     expect(screen.getByRole('button', { name: 'Me' })).not.toBeDisabled();
 
     await ui.click(screen.getByRole('button', { name: 'Credentials' }));
-    expect(await screen.findByText('Model provider credentials')).toBeInTheDocument();
-    expect(await screen.findByText('Claude Code')).toBeInTheDocument();
+    // Model provider title appears in both section header and card title after list unification. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const modelTitles = await screen.findAllByText('Model provider credentials');
+    expect(modelTitles.length).toBeGreaterThan(0);
+    // Default selection now lives inside the manage modal, so list-level defaults should be absent. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(screen.queryByText('Default profile')).not.toBeInTheDocument();
   });
 
   test('renders placeholders for panel inputs', async () => {
@@ -117,12 +160,18 @@ describe('UserPanelPopover', () => {
     expect(confirmPassword.placeholder).not.toBe('');
 
     await ui.click(screen.getByRole('button', { name: 'Credentials' }));
-    expect(await screen.findByText('Model provider credentials')).toBeInTheDocument();
+    // Model provider title appears in both section header and card title after list unification. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const modelTitles = await screen.findAllByText('Model provider credentials');
+    expect(modelTitles.length).toBeGreaterThan(0);
 
-    const codexCard = screen.getByText('Codex').closest('.ant-card');
-    expect(codexCard).toBeTruthy();
+    // Open the model-provider add flow from its card header. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const modelCard = screen
+      .getAllByText('Model provider credentials')
+      .map((node) => node.closest('.ant-card'))
+      .find((card): card is HTMLElement => Boolean(card));
+    expect(modelCard).toBeTruthy();
 
-    await ui.click(within(codexCard as HTMLElement).getByRole('button', { name: /Add/i }));
+    await ui.click(within(modelCard as HTMLElement).getByRole('button', { name: /Add/i }));
     expect(await screen.findByText('Add credential profile')).toBeInTheDocument();
 
     // Modal structure note:
@@ -130,6 +179,10 @@ describe('UserPanelPopover', () => {
     //   so we assert placeholders by checking all visible textboxes within the profile dialog.
     const dialogs = screen.getAllByRole('dialog');
     const profileDialog = dialogs[dialogs.length - 1] as HTMLElement;
+    // Assert provider selector is visible for unified credential adds. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(within(profileDialog).getByText('Provider')).toBeInTheDocument();
+    // Default selection is managed inside the modal via the new toggle. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    expect(within(profileDialog).getByText('Set as default')).toBeInTheDocument();
     const textboxes = within(profileDialog).getAllByRole('textbox') as HTMLInputElement[];
     for (const input of textboxes) {
       expect(input.placeholder).not.toBe('');
@@ -158,5 +211,20 @@ describe('UserPanelPopover', () => {
 
     expect(await screen.findByLabelText('Display name')).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /Save/i })).not.toBeDisabled();
+  });
+
+  test('renders API token section in credentials', async () => {
+    const ui = userEvent.setup();
+    renderPopover({ token: 't' });
+
+    await ui.click(screen.getByRole('button', { name: /Panel/i }));
+    await ui.click(screen.getByRole('button', { name: 'Credentials' }));
+
+    // Ensure PAT section appears inside the credentials tab. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+    const titles = await screen.findAllByText('Open API access tokens');
+    expect(titles.length).toBeGreaterThan(0);
+
+    await ui.click(screen.getByRole('button', { name: 'Request PAT' }));
+    expect(await screen.findByText('Request API token')).toBeInTheDocument();
   });
 });

@@ -11,7 +11,8 @@ describe('TasksController.volumeByDay', () => {
       getTaskVolumeByDay: jest.fn().mockResolvedValue([{ day: '2026-01-19', count: 1 }])
     };
 
-    const controller = new TasksController(taskService, {} as any, {} as any);
+    // Provide a TaskGitPushService stub to satisfy the controller constructor. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+    const controller = new TasksController(taskService, {} as any, {} as any, {} as any);
     // Keep API parity with the new `archived` query param added to volumeByDay. qnp1mtxhzikhbi0xspbc
     const res = await controller.volumeByDay(repoId, '2026-01-01', '2026-01-02', undefined, undefined, undefined);
 
@@ -25,7 +26,8 @@ describe('TasksController.volumeByDay', () => {
 
   test('rejects invalid date inputs', async () => {
     const taskService: any = { getTaskVolumeByDay: jest.fn() };
-    const controller = new TasksController(taskService, {} as any, {} as any);
+    // Provide a TaskGitPushService stub to satisfy the controller constructor. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+    const controller = new TasksController(taskService, {} as any, {} as any, {} as any);
 
     await expect(
       controller.volumeByDay(repoId, '2026-99-01', '2026-01-02', undefined, undefined, undefined)

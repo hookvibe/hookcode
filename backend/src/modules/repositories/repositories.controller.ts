@@ -30,6 +30,7 @@ import {
   ApiUnauthorizedResponse
 } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { AuthScopeGroup } from '../auth/auth.decorator';
 import { RepoAutomationService, findRobotAutomationUsages, RepoAutomationConfigValidationError } from './repo-automation.service';
 import { RepoRobotService } from './repo-robot.service';
 import { RepoWebhookDeliveryService } from './repo-webhook-delivery.service';
@@ -45,12 +46,14 @@ import type { RobotDefaultBranchRole } from '../../types/repoRobot';
 import { CODEX_PROVIDER_KEY, normalizeCodexRobotProviderConfig } from '../../modelProviders/codex';
 import { CLAUDE_CODE_PROVIDER_KEY, normalizeClaudeCodeRobotProviderConfig } from '../../modelProviders/claudeCode';
 import { GEMINI_CLI_PROVIDER_KEY, normalizeGeminiCliRobotProviderConfig } from '../../modelProviders/geminiCli';
+import type { RobotDependencyConfig } from '../../types/dependency';
 import { CreateRepositoryDto } from './dto/create-repository.dto';
 import { UpdateRepositoryDto } from './dto/update-repository.dto';
 import { CreateRepoRobotDto } from './dto/create-repo-robot.dto';
 import { UpdateRepoRobotDto } from './dto/update-repo-robot.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { parsePositiveInt } from '../../utils/parse';
+import { TtlCache } from '../../utils/ttlCache';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import {
   ArchiveRepositoryResponseDto,
@@ -65,12 +68,22 @@ import {
   ListRepoWebhookDeliveriesResponseDto,
   ListRepositoriesResponseDto,
   TestRobotResponseDto,
+  TestRobotWorkflowResponseDto,
   UnarchiveRepositoryResponseDto,
   UpdateRepoRobotResponseDto,
   UpdateRepositoryResponseDto
 } from './dto/repositories-swagger.dto';
+import { RepoPreviewConfigResponseDto } from './dto/repo-preview-config.dto';
+import { PreviewService } from '../tasks/preview.service';
 import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
 import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
+import {
+  ensureGithubForkRepo,
+  ensureGitlabForkProject,
+  normalizeRepoWorkflowMode,
+  resolveRepoWorkflowMode
+} from '../../services/repoWorkflowMode'; // Import fork workflow helpers for controller checks. docs/en/developer/plans/repoctrlfix20260124/task_plan.md repoctrlfix20260124
+import { TestRepoRobotWorkflowDto } from './dto/test-repo-robot-workflow.dto';
 
 const normalizeProvider = (value: unknown): RepoProvider => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -103,6 +116,12 @@ const normalizeNullableTrimmedString = (value: unknown, fieldName: string): stri
   return trimmed ? trimmed : null;
 };
 
+const normalizeRepoUpdatedAt = (value: unknown): string => {
+  // Normalize repo.updatedAt into a stable cache key segment without primitive instanceof errors. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  if ((value as any) instanceof Date) return (value as Date).toISOString();
+  return String(value ?? '');
+};
+
 const normalizeRepoCredentialSource = (
   value: unknown
 ): 'robot' | 'user' | 'repo' | null | undefined => {
@@ -115,6 +134,15 @@ const normalizeRepoCredentialSource = (
   throw new Error('repoCredentialSource must be robot/user/repo or null');
 };
 
+const normalizeRepoWorkflowModeInput = (value: unknown): 'auto' | 'direct' | 'fork' | null | undefined => {
+  // Parse workflow mode inputs for robot create/update + checks. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const normalized = normalizeRepoWorkflowMode(value);
+  if (!normalized) throw new Error('repoWorkflowMode must be auto/direct/fork or null');
+  return normalized;
+};
+
 const normalizeArchiveScope = (value: unknown): ArchiveScope => {
   // Keep query parsing tolerant so the Archive page can use `archived=1` while future APIs can use `archived=all`. qnp1mtxhzikhbi0xspbc
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -122,6 +150,21 @@ const normalizeArchiveScope = (value: unknown): ArchiveScope => {
   if (raw === '1' || raw === 'true' || raw === 'archived') return 'archived';
   if (raw === 'all') return 'all';
   return 'active';
+};
+
+type ProviderMetaSnapshot = { provider: RepoProvider; visibility: 'public' | 'private' | 'internal' | 'unknown'; webUrl?: string };
+
+const PROVIDER_META_CACHE_TTL_MS = 5 * 60 * 1000;
+const PROVIDER_ACTIVITY_CACHE_TTL_MS = 60 * 1000;
+// Cache repo provider calls to avoid repeated external API requests on page load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+const providerMetaCache = new TtlCache<string, ProviderMetaSnapshot>(300);
+const providerActivityCache = new TtlCache<string, RepoProviderActivityResponseDto>(200);
+
+const buildProviderCacheKey = (parts: Record<string, string | number | undefined | null>): string => {
+  // Build stable cache keys for provider meta/activity responses across repeated dashboard refreshes. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  return Object.entries(parts)
+    .map(([key, value]) => `${key}=${value ?? ''}`)
+    .join('&');
 };
 
 const assertRepoWritable = (repo: Repository): void => {
@@ -133,16 +176,19 @@ const assertRepoWritable = (repo: Repository): void => {
   });
 };
 
+@AuthScopeGroup('repos') // Scope repository APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('repos')
 @ApiTags('Repos')
 @ApiBearerAuth('bearerAuth')
 export class RepositoriesController {
+  // Inject preview service to expose repo preview config endpoints. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   constructor(
     private readonly repositoryService: RepositoryService,
     private readonly repoRobotService: RepoRobotService,
     private readonly repoAutomationService: RepoAutomationService,
     private readonly repoWebhookDeliveryService: RepoWebhookDeliveryService,
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    private readonly previewService: PreviewService
   ) {}
 
   @Get()
@@ -262,17 +308,44 @@ export class RepositoriesController {
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
 
-      const robots = await this.repoRobotService.listByRepo(repoId);
-      const automationConfig = await this.repoAutomationService.getConfig(repoId);
+      // Parallelize repo detail hydration to reduce initial repo dashboard latency. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+      const [robots, automationConfig, repoSecretRow, repoScopedCredentialsRow] = await Promise.all([
+        this.repoRobotService.listByRepo(repoId),
+        this.repoAutomationService.getConfig(repoId),
+        this.repositoryService.getByIdWithSecret(repoId),
+        this.repositoryService.getRepoScopedCredentials(repoId)
+      ]);
       const webhookPath = `/api/webhook/${repo.provider}/${repoId}`;
-      const webhookSecret = (await this.repositoryService.getByIdWithSecret(repoId))?.webhookSecret ?? null;
-      const repoScopedCredentials = (await this.repositoryService.getRepoScopedCredentials(repoId))?.public ?? undefined;
+      const webhookSecret = repoSecretRow?.webhookSecret ?? null;
+      const repoScopedCredentials = repoScopedCredentialsRow?.public ?? undefined;
 
       return { repo, robots, automationConfig, webhookSecret, webhookPath, repoScopedCredentials };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get failed', err);
       throw new InternalServerErrorException({ error: 'Failed to fetch repo' });
+    }
+  }
+
+  // Provide repo-level preview config discovery for the UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  @Get(':id/preview/config')
+  @ApiOperation({
+    summary: 'Get repository preview config',
+    description: 'Detect preview configuration for a repository workspace.',
+    operationId: 'repos_preview_config'
+  })
+  @ApiOkResponse({ description: 'OK', type: RepoPreviewConfigResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async previewConfig(@Param('id') id: string): Promise<RepoPreviewConfigResponseDto> {
+    try {
+      const repo = await this.repositoryService.getById(id);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+
+      return await this.previewService.getRepoPreviewConfig(id);
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] preview config failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch preview config' });
     }
   }
 
@@ -353,68 +426,86 @@ export class RepositoriesController {
         return 'user';
       })();
       const credentialProfileId = typeof credentialProfileIdRaw === 'string' ? credentialProfileIdRaw.trim() : '';
+      // Ensure repo updatedAt is normalized before building provider cache keys. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+      const repoUpdatedAt = normalizeRepoUpdatedAt(repo.updatedAt);
+      const cacheKey = buildProviderCacheKey({
+        kind: 'provider-meta',
+        repoId,
+        repoUpdatedAt,
+        provider: repo.provider,
+        identity: repoIdentity,
+        credentialSource,
+        credentialProfileId,
+        userId: credentialSource === 'user' ? String(req.user?.id ?? '') : ''
+      });
 
-      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
-      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+      const meta = await providerMetaCache.getOrSet(cacheKey, PROVIDER_META_CACHE_TTL_MS, async () => {
+        const userCredentials = credentialSource === 'user' && req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+        const repoScopedCredentials =
+          credentialSource === 'anonymous' ? null : await this.repositoryService.getRepoScopedCredentials(repoId);
 
-      const token =
-        credentialSource === 'anonymous'
-          ? ''
-          : resolveRobotProviderToken({
-              provider: repo.provider,
-              robot: { repoCredentialProfileId: credentialProfileId || null },
-              userCredentials,
-              repoCredentials: repoScopedCredentials?.repoProvider ?? null,
-              source: credentialSource === 'repo' ? 'repo' : 'user'
-            });
-      if (credentialSource !== 'anonymous' && !token) {
-        throw new BadRequestException({
-          error: 'repo provider token is required to fetch visibility',
-          code: 'REPO_PROVIDER_TOKEN_REQUIRED'
-        });
-      }
-
-      const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
-
-      if (repo.provider === 'gitlab') {
-        try {
-          const gitlab = new GitlabService({ token, baseUrl: apiBaseUrl });
-          const project: any = await gitlab.getProject(repoIdentity);
-          const rawVisibility = String(project?.visibility ?? '').trim().toLowerCase();
-          const visibility = rawVisibility === 'public' ? 'public' : rawVisibility === 'internal' ? 'internal' : 'private';
-          const webUrl = String(project?.web_url ?? '').trim();
-          return { provider: repo.provider, visibility, webUrl: webUrl || undefined };
-        } catch (err) {
-          // Anonymous mode cannot distinguish private vs not-found; return `unknown` so onboarding can guide credentials. 58w1q3n5nr58flmempxe
-          if (credentialSource === 'anonymous') return { provider: repo.provider, visibility: 'unknown' };
-          throw err;
+        const token =
+          credentialSource === 'anonymous'
+            ? ''
+            : resolveRobotProviderToken({
+                provider: repo.provider,
+                robot: { repoCredentialProfileId: credentialProfileId || null },
+                userCredentials,
+                repoCredentials: repoScopedCredentials?.repoProvider ?? null,
+                source: credentialSource === 'repo' ? 'repo' : 'user'
+              });
+        if (credentialSource !== 'anonymous' && !token) {
+          throw new BadRequestException({
+            error: 'repo provider token is required to fetch visibility',
+            code: 'REPO_PROVIDER_TOKEN_REQUIRED'
+          });
         }
-      }
 
-      if (repo.provider === 'github') {
-        try {
-          // Suppress missing-token warnings when onboarding probes public GitHub repos anonymously. kzxac35mxk0fg358i7zs
-          const github = new GithubService({ token, apiBaseUrl, warnIfNoToken: Boolean(token) });
-          const repoIdOrSlug = repoIdentity;
-          const repoInfo: any = await (async () => {
-            if (!repoIdOrSlug.includes('/')) return github.getRepositoryById(repoIdOrSlug);
-            const [owner, repoName] = repoIdOrSlug.split('/');
-            if (!owner || !repoName) {
-              throw new BadRequestException({ error: 'invalid github externalId (expected owner/repo)' });
-            }
-            return github.getRepository(owner, repoName);
-          })();
-          const visibility = Boolean(repoInfo?.private) ? 'private' : 'public';
-          const webUrl = String(repoInfo?.html_url ?? '').trim();
-          return { provider: repo.provider, visibility, webUrl: webUrl || undefined };
-        } catch (err) {
-          // Anonymous mode cannot distinguish private vs not-found; return `unknown` so onboarding can guide credentials. 58w1q3n5nr58flmempxe
-          if (credentialSource === 'anonymous') return { provider: repo.provider, visibility: 'unknown' };
-          throw err;
+        const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
+
+        if (repo.provider === 'gitlab') {
+          try {
+            const gitlab = new GitlabService({ token, baseUrl: apiBaseUrl });
+            const project: any = await gitlab.getProject(repoIdentity);
+            const rawVisibility = String(project?.visibility ?? '').trim().toLowerCase();
+            const visibility = rawVisibility === 'public' ? 'public' : rawVisibility === 'internal' ? 'internal' : 'private';
+            const webUrl = String(project?.web_url ?? '').trim();
+            return { provider: repo.provider, visibility, webUrl: webUrl || undefined };
+          } catch (err) {
+            // Anonymous mode cannot distinguish private vs not-found; return `unknown` so onboarding can guide credentials. 58w1q3n5nr58flmempxe
+            if (credentialSource === 'anonymous') return { provider: repo.provider, visibility: 'unknown' };
+            throw err;
+          }
         }
-      }
 
-      throw new BadRequestException({ error: `unsupported provider: ${repo.provider}` });
+        if (repo.provider === 'github') {
+          try {
+            // Suppress missing-token warnings when onboarding probes public GitHub repos anonymously. kzxac35mxk0fg358i7zs
+            const github = new GithubService({ token, apiBaseUrl, warnIfNoToken: Boolean(token) });
+            const repoIdOrSlug = repoIdentity;
+            const repoInfo: any = await (async () => {
+              if (!repoIdOrSlug.includes('/')) return github.getRepositoryById(repoIdOrSlug);
+              const [owner, repoName] = repoIdOrSlug.split('/');
+              if (!owner || !repoName) {
+                throw new BadRequestException({ error: 'invalid github externalId (expected owner/repo)' });
+              }
+              return github.getRepository(owner, repoName);
+            })();
+            const visibility = Boolean(repoInfo?.private) ? 'private' : 'public';
+            const webUrl = String(repoInfo?.html_url ?? '').trim();
+            return { provider: repo.provider, visibility, webUrl: webUrl || undefined };
+          } catch (err) {
+            // Anonymous mode cannot distinguish private vs not-found; return `unknown` so onboarding can guide credentials. 58w1q3n5nr58flmempxe
+            if (credentialSource === 'anonymous') return { provider: repo.provider, visibility: 'unknown' };
+            throw err;
+          }
+        }
+
+        throw new BadRequestException({ error: `unsupported provider: ${repo.provider}` });
+      });
+
+      // Cache provider metadata results to avoid repeated external API calls. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+      return meta;
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get provider meta failed', err);
@@ -469,132 +560,155 @@ export class RepositoriesController {
       const mergesPage = Math.max(1, parsePositiveInt(mergesPageRaw, 1));
       const issuesPage = Math.max(1, parsePositiveInt(issuesPageRaw, 1));
 
-      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
-      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
-      const token =
-        credentialSource === 'anonymous'
-          ? ''
-          : resolveRobotProviderToken({
-              provider: repo.provider,
-              robot: { repoCredentialProfileId: credentialProfileId || null },
-              userCredentials,
-              repoCredentials: repoScopedCredentials?.repoProvider ?? null,
-              source: credentialSource === 'repo' ? 'repo' : 'user'
-            });
-      if (credentialSource !== 'anonymous' && !token) {
-        throw new BadRequestException({
-          error: 'repo provider token is required to fetch activity',
-          code: 'REPO_PROVIDER_TOKEN_REQUIRED'
-        });
-      }
-
-      const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
-      const activity = await fetchRepoProviderActivity({
+      // Ensure repo updatedAt is normalized before building provider cache keys. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+      const repoUpdatedAt = normalizeRepoUpdatedAt(repo.updatedAt);
+      const cacheKey = buildProviderCacheKey({
+        kind: 'provider-activity',
+        repoId,
+        repoUpdatedAt,
         provider: repo.provider,
-        repoIdentity,
-        token,
-        apiBaseUrl,
+        identity: repoIdentity,
+        credentialSource,
+        credentialProfileId,
         pageSize,
         commitsPage,
         mergesPage,
-        issuesPage
+        issuesPage,
+        userId: credentialSource === 'user' ? String(req.user?.id ?? '') : ''
       });
 
-      // Attach HookCode task-group bindings (and processing tasks) to provider items for the repo dashboard UI. kzxac35mxk0fg358i7zs
-      const attachBindings = async (items: Array<{ id: string; taskGroups?: any[] }>) => {
-        const commitShas = activity.commits.items.map((i) => String(i.id ?? '').trim()).filter(Boolean);
-        const mrIds = activity.merges.items
-          .map((i) => Number(i.id))
-          .filter((n) => Number.isFinite(n)) as number[];
-        const issueIds = activity.issues.items
-          .map((i) => Number(i.id))
-          .filter((n) => Number.isFinite(n)) as number[];
+      const response = await providerActivityCache.getOrSet(cacheKey, PROVIDER_ACTIVITY_CACHE_TTL_MS, async () => {
+        const userCredentials = credentialSource === 'user' && req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+        const repoScopedCredentials =
+          credentialSource === 'anonymous' ? null : await this.repositoryService.getRepoScopedCredentials(repoId);
+        const token =
+          credentialSource === 'anonymous'
+            ? ''
+            : resolveRobotProviderToken({
+                provider: repo.provider,
+                robot: { repoCredentialProfileId: credentialProfileId || null },
+                userCredentials,
+                repoCredentials: repoScopedCredentials?.repoProvider ?? null,
+                source: credentialSource === 'repo' ? 'repo' : 'user'
+              });
+        if (credentialSource !== 'anonymous' && !token) {
+          throw new BadRequestException({
+            error: 'repo provider token is required to fetch activity',
+            code: 'REPO_PROVIDER_TOKEN_REQUIRED'
+          });
+        }
 
-        if (!commitShas.length && !mrIds.length && !issueIds.length) return;
-
-        const groups = await db.taskGroup.findMany({
-          where: {
-            repoId,
-            archivedAt: null,
-            OR: [
-              commitShas.length ? { commitSha: { in: commitShas } } : undefined,
-              mrIds.length ? { mrId: { in: mrIds } } : undefined,
-              issueIds.length ? { issueId: { in: issueIds } } : undefined
-            ].filter(Boolean) as any[]
-          },
-          orderBy: { updatedAt: 'desc' },
-          select: {
-            id: true,
-            kind: true,
-            title: true,
-            updatedAt: true,
-            robotId: true,
-            commitSha: true,
-            mrId: true,
-            issueId: true,
-            tasks: {
-              where: { status: 'processing', archivedAt: null },
-              orderBy: { updatedAt: 'desc' },
-              take: 3,
-              select: { id: true, status: true, title: true, updatedAt: true }
-            }
-          }
+        const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
+        const activity = await fetchRepoProviderActivity({
+          provider: repo.provider,
+          repoIdentity,
+          token,
+          apiBaseUrl,
+          pageSize,
+          commitsPage,
+          mergesPage,
+          issuesPage
         });
 
-        const groupsByCommit = new Map<string, any[]>();
-        const groupsByMr = new Map<string, any[]>();
-        const groupsByIssue = new Map<string, any[]>();
+        // Attach HookCode task-group bindings (and processing tasks) to provider items for the repo dashboard UI. kzxac35mxk0fg358i7zs
+        const attachBindings = async (items: Array<{ id: string; taskGroups?: any[] }>) => {
+          const commitShas = activity.commits.items.map((i) => String(i.id ?? '').trim()).filter(Boolean);
+          const mrIds = activity.merges.items
+            .map((i) => Number(i.id))
+            .filter((n) => Number.isFinite(n)) as number[];
+          const issueIds = activity.issues.items
+            .map((i) => Number(i.id))
+            .filter((n) => Number.isFinite(n)) as number[];
 
-        for (const g of groups) {
-          const summary = {
-            id: g.id,
-            kind: g.kind,
-            title: g.title ?? undefined,
-            updatedAt: g.updatedAt instanceof Date ? g.updatedAt.toISOString() : String(g.updatedAt ?? ''),
-            robotId: g.robotId ?? undefined,
-            processingTasks: (g.tasks ?? []).map((t) => ({
-              id: t.id,
-              status: t.status,
-              title: t.title ?? undefined,
-              updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt ?? '')
-            }))
-          };
+          if (!commitShas.length && !mrIds.length && !issueIds.length) return;
 
-          if (g.kind === 'commit' && g.commitSha) {
-            const key = String(g.commitSha);
-            groupsByCommit.set(key, [...(groupsByCommit.get(key) ?? []), summary]);
+          const groups = await db.taskGroup.findMany({
+            where: {
+              repoId,
+              archivedAt: null,
+              OR: [
+                commitShas.length ? { commitSha: { in: commitShas } } : undefined,
+                mrIds.length ? { mrId: { in: mrIds } } : undefined,
+                issueIds.length ? { issueId: { in: issueIds } } : undefined
+              ].filter(Boolean) as any[]
+            },
+            orderBy: { updatedAt: 'desc' },
+            select: {
+              id: true,
+              kind: true,
+              title: true,
+              updatedAt: true,
+              robotId: true,
+              commitSha: true,
+              mrId: true,
+              issueId: true,
+              tasks: {
+                where: { status: 'processing', archivedAt: null },
+                orderBy: { updatedAt: 'desc' },
+                take: 3,
+                select: { id: true, status: true, title: true, updatedAt: true }
+              }
+            }
+          });
+
+          const groupsByCommit = new Map<string, any[]>();
+          const groupsByMr = new Map<string, any[]>();
+          const groupsByIssue = new Map<string, any[]>();
+
+          for (const g of groups) {
+            const summary = {
+              id: g.id,
+              kind: g.kind,
+              title: g.title ?? undefined,
+              updatedAt: g.updatedAt instanceof Date ? g.updatedAt.toISOString() : String(g.updatedAt ?? ''),
+              robotId: g.robotId ?? undefined,
+              processingTasks: (g.tasks ?? []).map((t) => ({
+                id: t.id,
+                status: t.status,
+                title: t.title ?? undefined,
+                updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt ?? '')
+              }))
+            };
+
+            if (g.kind === 'commit' && g.commitSha) {
+              const key = String(g.commitSha);
+              groupsByCommit.set(key, [...(groupsByCommit.get(key) ?? []), summary]);
+            }
+            if (g.kind === 'merge_request' && typeof g.mrId === 'number') {
+              const key = String(g.mrId);
+              groupsByMr.set(key, [...(groupsByMr.get(key) ?? []), summary]);
+            }
+            if (g.kind === 'issue' && typeof g.issueId === 'number') {
+              const key = String(g.issueId);
+              groupsByIssue.set(key, [...(groupsByIssue.get(key) ?? []), summary]);
+            }
           }
-          if (g.kind === 'merge_request' && typeof g.mrId === 'number') {
-            const key = String(g.mrId);
-            groupsByMr.set(key, [...(groupsByMr.get(key) ?? []), summary]);
-          }
-          if (g.kind === 'issue' && typeof g.issueId === 'number') {
-            const key = String(g.issueId);
-            groupsByIssue.set(key, [...(groupsByIssue.get(key) ?? []), summary]);
-          }
-        }
 
-        for (const item of items) {
-          const id = String(item.id ?? '').trim();
-          if (!id) continue;
-          const groups = groupsByCommit.get(id) ?? groupsByMr.get(id) ?? groupsByIssue.get(id) ?? [];
-          if (groups.length) {
-            item.taskGroups = groups;
+          for (const item of items) {
+            const id = String(item.id ?? '').trim();
+            if (!id) continue;
+            const groups = groupsByCommit.get(id) ?? groupsByMr.get(id) ?? groupsByIssue.get(id) ?? [];
+            if (groups.length) {
+              item.taskGroups = groups;
+            }
           }
-        }
-      };
+        };
 
-      const commits = activity.commits.items.map((i) => ({ ...i })) as any[];
-      const merges = activity.merges.items.map((i) => ({ ...i })) as any[];
-      const issues = activity.issues.items.map((i) => ({ ...i })) as any[];
-      await attachBindings([...commits, ...merges, ...issues]);
+        const commits = activity.commits.items.map((i) => ({ ...i })) as any[];
+        const merges = activity.merges.items.map((i) => ({ ...i })) as any[];
+        const issues = activity.issues.items.map((i) => ({ ...i })) as any[];
+        await attachBindings([...commits, ...merges, ...issues]);
 
-      return {
-        provider: repo.provider,
-        commits: { ...activity.commits, items: commits },
-        merges: { ...activity.merges, items: merges },
-        issues: { ...activity.issues, items: issues }
-      };
+        return {
+          provider: repo.provider,
+          commits: { ...activity.commits, items: commits },
+          merges: { ...activity.merges, items: merges },
+          issues: { ...activity.issues, items: issues }
+        };
+      });
+
+      // Cache provider activity results to reduce external API calls and heavy binding queries. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+      return response;
     } catch (err) {
       if (err instanceof RepoProviderAuthRequiredError) {
         throw new UnauthorizedException({ error: err.message, code: err.code, providerStatus: err.providerStatus });
@@ -887,6 +1001,9 @@ export class RepositoriesController {
       const repoCredentialProfileId = normalizeNullableTrimmedString(body?.repoCredentialProfileId, 'repoCredentialProfileId');
       const cloneUsername = normalizeNullableTrimmedString(body?.cloneUsername, 'cloneUsername');
       const repoCredentialRemark = normalizeNullableTrimmedString(body?.repoCredentialRemark, 'repoCredentialRemark');
+      // Capture explicit workflow mode for robot creation (auto/direct/fork). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      // De-duplicate repoWorkflowMode input parsing to avoid scope redeclare errors. docs/en/developer/plans/repoctrlfix20260124/task_plan.md repoctrlfix20260124
+      const repoWorkflowMode = normalizeRepoWorkflowModeInput(body?.repoWorkflowMode);
 
       // Enforce explicit scope selection (robot/user/repo) now that both user/repo credentials can have multiple profiles.
       const repoCredentialSource: 'robot' | 'user' | 'repo' = (() => {
@@ -925,7 +1042,12 @@ export class RepositoriesController {
       const language = typeof body?.language === 'string' ? body.language.trim() : undefined;
       const modelProvider = body?.modelProvider;
       const modelProviderConfig = body?.modelProviderConfig;
+      // Capture dependency overrides from robot creation payloads. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      // Cast dependency override payloads for service-level validation. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      const dependencyConfig = body?.dependencyConfig as RobotDependencyConfig | null | undefined;
       const isDefault = typeof body?.isDefault === 'boolean' ? body.isDefault : undefined;
+      // Forward robot-level time window inputs to the service for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      const timeWindow = body?.timeWindow;
 
       let repoScopedCredentials:
         | Awaited<ReturnType<RepositoryService['getRepoScopedCredentials']>>
@@ -1022,6 +1144,9 @@ export class RepositoriesController {
         language,
         modelProvider,
         modelProviderConfig,
+        dependencyConfig,
+        repoWorkflowMode,
+        timeWindow,
         isDefault
       });
 
@@ -1042,7 +1167,11 @@ export class RepositoriesController {
         message.includes('promptDefault is required') ||
         message.includes('repoCredential') ||
         message.includes('credentialProfileId') ||
-        message.includes('token must be null')
+        message.includes('token must be null') ||
+        message.includes('repoWorkflowMode must be') ||
+        message.includes('dependencyConfig') ||
+        // Treat timeWindow validation errors as client input problems. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        message.includes('timeWindow')
       ) {
         throw new BadRequestException({ error: message });
       }
@@ -1109,9 +1238,14 @@ export class RepositoriesController {
       const modelProvider =
         body?.modelProvider === undefined ? undefined : typeof body?.modelProvider === 'string' ? body.modelProvider : undefined;
       const modelProviderConfig = body?.modelProviderConfig;
+      // Accept dependency overrides on robot updates. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      // Cast dependency override payloads for service-level validation. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      const dependencyConfig = body?.dependencyConfig as RobotDependencyConfig | null | undefined;
       const defaultBranch = body?.defaultBranch === undefined ? undefined : normalizeDefaultBranch(body?.defaultBranch);
       const defaultBranchRole =
         body?.defaultBranchRole === undefined ? undefined : normalizeDefaultBranchRole(body?.defaultBranchRole);
+      // Normalize repo workflow mode patch input for robot updates. docs/en/developer/plans/repoctrlfix20260124/task_plan.md repoctrlfix20260124
+      const repoWorkflowMode = normalizeRepoWorkflowModeInput(body?.repoWorkflowMode);
       const promptDefault =
         body?.promptDefault === undefined ? undefined : typeof body?.promptDefault === 'string' ? body.promptDefault.trim() : '';
       if (body?.promptDefault !== undefined && !promptDefault) {
@@ -1119,6 +1253,8 @@ export class RepositoriesController {
       }
       const enabled = typeof body?.enabled === 'boolean' ? body.enabled : undefined;
       const isDefault = typeof body?.isDefault === 'boolean' ? body.isDefault : undefined;
+      // Forward robot-level time window updates to the service for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      const timeWindow = body?.timeWindow;
 
       const token =
         body?.token === undefined ? undefined : normalizeNullableTrimmedString(body?.token, 'token');
@@ -1267,6 +1403,10 @@ export class RepositoriesController {
         enabled,
         modelProvider,
         modelProviderConfig,
+        // Persist dependency overrides from robot patch requests. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        dependencyConfig,
+        repoWorkflowMode,
+        timeWindow,
         isDefault
       });
       if (!robot) throw new NotFoundException({ error: 'Robot not found' });
@@ -1288,7 +1428,11 @@ export class RepositoriesController {
         message.includes('promptDefault is required') ||
         message.includes('repoCredential') ||
         message.includes('credentialProfileId') ||
-        message.includes('token must be null')
+        message.includes('token must be null') ||
+        message.includes('repoWorkflowMode must be') ||
+        message.includes('dependencyConfig') ||
+        // Treat timeWindow validation errors as client input problems. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        message.includes('timeWindow')
       ) {
         throw new BadRequestException({ error: message });
       }
@@ -1486,6 +1630,134 @@ export class RepositoriesController {
       if (err instanceof HttpException) throw err;
       console.error('[repos] test robot failed', err);
       throw new InternalServerErrorException({ error: 'Failed to test robot' });
+    }
+  }
+
+  @Post(':id/robots/:robotId/workflow/test')
+  @ApiOperation({
+    summary: 'Test robot repo workflow (direct/fork)',
+    description: 'Validate the selected repo workflow mode by checking direct access or fork availability.',
+    operationId: 'repos_test_robot_workflow'
+  })
+  @ApiOkResponse({ description: 'OK', type: TestRobotWorkflowResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async testRobotWorkflow(
+    @Param('id') id: string,
+    @Param('robotId') robotId: string,
+    @Req() req: Request,
+    @Body() body: TestRepoRobotWorkflowDto
+  ) {
+    // Validate robot workflow mode by checking direct access or fork availability. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+    let resolvedMode: 'auto' | 'direct' | 'fork' = 'auto';
+    try {
+      const repoId = id;
+      const repo = await this.repositoryService.getById(repoId);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      assertRepoWritable(repo); // Block workflow tests for archived repos to keep archived state stable. qnp1mtxhzikhbi0xspbc
+
+      const existing = await this.repoRobotService.getByIdWithToken(robotId);
+      if (!existing || existing.repoId !== repoId) {
+        throw new NotFoundException({ error: 'Robot not found' });
+      }
+
+      const requestedMode =
+        body?.mode === undefined ? undefined : normalizeRepoWorkflowModeInput(body?.mode);
+      resolvedMode = resolveRepoWorkflowMode(requestedMode ?? existing.repoWorkflowMode);
+
+      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+      const source = inferRobotRepoProviderCredentialSource(existing);
+      const token = resolveRobotProviderToken({
+        provider: repo.provider,
+        robot: existing,
+        userCredentials,
+        repoCredentials: repoScopedCredentials?.repoProvider ?? null,
+        source
+      });
+      if (!token) {
+        throw new BadRequestException({
+          error: 'repo provider token is required for workflow test (configure per-robot, account-level, or repo-scoped credentials)'
+        });
+      }
+
+      const externalId = (repo.externalId ?? '').trim();
+      const repoIdentity = externalId || (repo.name ?? '').trim();
+      if (!repoIdentity) {
+        throw new BadRequestException({ error: 'repo identity is required for workflow test (externalId or name)' });
+      }
+
+      const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
+
+      const pickAutoMode = (canPush: boolean): 'direct' | 'fork' => {
+        // Keep auto mode aligned with agent workflow rules. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        if (existing.permission !== 'write') return 'direct';
+        return canPush ? 'direct' : 'fork';
+      };
+
+      if (repo.provider === 'github') {
+        const github = new GithubService({ token, apiBaseUrl });
+        let repoInfo: any;
+        if (repoIdentity.includes('/')) {
+          const [owner, repoName] = repoIdentity.split('/');
+          if (!owner || !repoName) throw new BadRequestException({ error: 'invalid github repo identity (expected owner/repo)' });
+          repoInfo = await github.getRepository(owner, repoName);
+        } else {
+          repoInfo = await github.getRepositoryById(repoIdentity);
+        }
+
+        const perms = (repoInfo as any)?.permissions ?? null;
+        const canPush = Boolean(perms?.admin || perms?.maintain || perms?.push);
+        const finalMode = resolvedMode === 'auto' ? pickAutoMode(canPush) : resolvedMode;
+        resolvedMode = finalMode;
+
+        if (finalMode === 'direct') {
+          if (existing.permission === 'write' && !canPush) {
+            return { ok: false, mode: finalMode, message: 'token lacks upstream push permission for direct workflow', robot: existing };
+          }
+          return { ok: true, mode: finalMode, message: 'direct workflow check ok', robot: existing };
+        }
+
+        const fullName = String((repoInfo as any)?.full_name ?? '').trim();
+        const [owner, repoName] = fullName.includes('/') ? fullName.split('/') : repoIdentity.split('/');
+        if (!owner || !repoName) throw new BadRequestException({ error: 'github repo identity is missing for fork workflow' });
+        await ensureGithubForkRepo({ github, upstream: { owner, repo: repoName } });
+        return { ok: true, mode: finalMode, message: 'fork workflow check ok', robot: existing };
+      }
+
+      if (repo.provider === 'gitlab') {
+        const gitlab = new GitlabService({ token, baseUrl: apiBaseUrl });
+        const project = await gitlab.getProject(repoIdentity);
+        const me = await gitlab.getCurrentUser();
+        const member = await gitlab.getProjectMember(project.id, me.id);
+
+        const accessLevel = typeof (member as any)?.access_level === 'number' ? (member as any).access_level : -1;
+        const canPush = accessLevel >= 30;
+        const finalMode = resolvedMode === 'auto' ? pickAutoMode(canPush) : resolvedMode;
+        resolvedMode = finalMode;
+
+        if (finalMode === 'direct') {
+          if (existing.permission === 'write' && !canPush) {
+            return { ok: false, mode: finalMode, message: 'token lacks upstream push permission for direct workflow', robot: existing };
+          }
+          return { ok: true, mode: finalMode, message: 'direct workflow check ok', robot: existing };
+        }
+
+        await ensureGitlabForkProject({ gitlab, upstreamProject: project.id });
+        return { ok: true, mode: finalMode, message: 'fork workflow check ok', robot: existing };
+      }
+
+      throw new BadRequestException({ error: `unsupported provider: ${repo.provider}` });
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      const message = err?.message ? String(err.message) : 'robot workflow test failed';
+      if (message.includes('repoWorkflowMode must be')) {
+        throw new BadRequestException({ error: message });
+      }
+      return { ok: false, mode: resolvedMode, message };
     }
   }
 

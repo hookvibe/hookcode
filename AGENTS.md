@@ -38,7 +38,8 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 5. After completing each phase or meaningful milestone, return to the session folder and update
    - `task_plan.md`: phase status (pending → in_progress → complete)
    - `progress.md`: actions, touched files, test results, error log
-6. Add or update test cases, run tests, and record results in `docs/en/developer/plans/<SESSION_HASH>/progress.md`
+<!-- Require a full test-suite run after adding tests during build. docs/en/developer/plans/testfix20260131/task_plan.md testfix20260131 -->
+6. Add or update test cases, run tests, and record results in `docs/en/developer/plans/<SESSION_HASH>/progress.md`; after writing tests during build, run the full test suite to verify the outcome
 7. Delivery checklist (NON-NEGOTIABLE)
    - Ensure all phases are complete (optional helper: `bash .codex/skills/planning-with-files/scripts/check-complete.sh <SESSION_HASH>`).
    - Update `docs/en/change-log/0.0.0.md` (Unreleased placeholder) with: `SESSION_HASH` + one-line summary + relative link to the plan.
@@ -107,6 +108,14 @@ Required content checklist (as applicable):
 - New features must include tests.
 - The system is still in active development with little/no data; backward compatibility for old data is not required. If the DB schema is wrong, it is acceptable to delete and recreate it; optimize for the best design.
 - Edited code comments, console output all need to be in English.
+
+## Build performance requirements
+
+<!-- Define build-time performance budgets and regression rules. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+- Target budgets (local dev machine): `pnpm --filter hookcode-backend build` ≤ 2 min, `pnpm --filter hookcode-frontend build` ≤ 2 min, `pnpm --filter hookcode-docs build` ≤ 3 min.
+- Any change that increases build time or output size by >10% must be documented in the session plan/progress with a mitigation or follow-up.
+- Avoid introducing build steps that perform network I/O at build time (except dependency installation); prefer cached or pre-fetched assets.
+- Frontend bundle growth must be justified; new large dependencies require a note on tree-shaking and bundle impact.
 
 ## Security requirements
 

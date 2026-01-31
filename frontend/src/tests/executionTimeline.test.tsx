@@ -1,14 +1,19 @@
-import { describe, expect, test } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, test } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import { ExecutionTimeline } from '../components/execution/ExecutionTimeline';
+import { setLocale } from '../i18n';
 import type { ExecutionItem } from '../utils/executionLog';
 
-// Verify the ThoughtChain-based structured execution log renderer. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
+// Verify the dialog-style execution log renderer without ThoughtChain. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
 
 describe('ExecutionTimeline', () => {
-  test('renders structured items via ThoughtChain + Think (default-collapsed details, caret toggles)', async () => {
-    const user = userEvent.setup();
+  beforeEach(() => {
+    // Force a stable locale so labels remain predictable in snapshots/assertions. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+    setLocale('en-US');
+  });
+
+  test('renders dialog rows with work areas for commands and file changes', () => {
+    // Validate work-area sections render inline without expand/collapse controls. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
     const items: ExecutionItem[] = [
       {
         kind: 'command_execution',
@@ -29,21 +34,17 @@ describe('ExecutionTimeline', () => {
 
     const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
 
-    expect(container.querySelector('.hc-exec-thought-chain')).toBeTruthy();
-    expect(container.querySelector('.hc-exec-item')).toBeNull();
-
-    // The command should not be duplicated in title/description/content. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
-    expect(screen.getAllByText('echo hi')).toHaveLength(1);
-
-    await user.click(screen.getByText('echo hi'));
-    expect(await screen.findByText('hi')).toBeInTheDocument();
-
-    await user.click(screen.getByText('a.txt'));
-    expect(await screen.findByText('diff --git a/a.txt b/a.txt')).toBeInTheDocument();
+    expect(container.querySelector('.hc-exec-dialog')).toBeTruthy();
+    expect(screen.getAllByText(/echo hi/)).toHaveLength(1);
+    expect(screen.getByText('Command output')).toBeInTheDocument();
+    expect(screen.getByText('hi')).toBeInTheDocument();
+    expect(screen.getAllByText('Files').length).toBeGreaterThan(0);
+    expect(screen.getByText('Diffs')).toBeInTheDocument();
+    expect(screen.getByText('diff --git a/a.txt b/a.txt')).toBeInTheDocument();
   });
 
   test('does not crash when filtered items change from empty to non-empty', () => {
-    // Prevent hook-order crashes when streaming updates change the filtered list over time. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
+    // Prevent hook-order crashes when streaming updates change the filtered list over time. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
     const reasoningOnly: ExecutionItem[] = [
       {
         kind: 'reasoning',
@@ -71,6 +72,48 @@ describe('ExecutionTimeline', () => {
     expect(() =>
       rerender(<ExecutionTimeline items={withVisible} showReasoning={false} wrapDiffLines showLineNumbers />)
     ).not.toThrow();
-    expect(container.querySelector('.hc-exec-thought-chain')).toBeTruthy();
+    expect(container.querySelector('.hc-exec-dialog')).toBeTruthy();
+  });
+
+  test('renders todo_list items with completion markers', () => {
+    // Validate todo_list rendering to avoid "unknown event" fallbacks. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+    const items: ExecutionItem[] = [
+      {
+        kind: 'todo_list',
+        id: 'todo_1',
+        status: 'in_progress',
+        items: [
+          { text: 'First task', completed: false },
+          { text: 'Second task', completed: true }
+        ]
+      }
+    ];
+
+    const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    expect(screen.getByText('First task')).toBeInTheDocument();
+    expect(screen.getByText('Second task')).toBeInTheDocument();
+    expect(container.querySelector('.hc-exec-dialog__todo-item.is-complete')).toBeTruthy();
+  });
+
+  test('shows a running indicator when any item is in progress', () => {
+    // Surface the bottom running marker while execution is active. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+    const items: ExecutionItem[] = [
+      {
+        kind: 'command_execution',
+        id: 'cmd_running',
+        status: 'in_progress',
+        command: 'echo running',
+        output: ''
+      }
+    ];
+
+    const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    const running = container.querySelector('.hc-exec-running');
+    expect(running).toBeTruthy();
+    if (running) {
+      expect(within(running).getByText('Running')).toBeInTheDocument();
+    }
   });
 });

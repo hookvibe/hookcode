@@ -7,8 +7,10 @@ import {
   Form,
   Grid,
   Input,
+  InputNumber,
   Modal,
   Radio,
+  Switch,
   Select,
   Space,
   Tag,
@@ -25,18 +27,28 @@ import {
   ToolOutlined,
   UserOutlined,
   CloudServerOutlined,
+  ApiOutlined,
   CloseOutlined
 } from '@ant-design/icons';
 import type { AccentPreset } from '../theme/accent';
 import { ACCENT_PRESET_OPTIONS } from '../theme/accent';
 import {
   changeMyPassword,
+  createMyApiToken,
   fetchAdminToolsMeta,
+  fetchSystemRuntimes,
   fetchMe,
+  fetchMyApiTokens,
   fetchMyModelCredentials,
   listMyModelProviderModels,
+  revokeMyApiToken,
   updateMe,
+  updateMyApiToken,
   updateMyModelCredentials,
+  type ApiTokenScopeGroup,
+  type ApiTokenScopeLevel,
+  type UserApiTokenPublic,
+  type RuntimeInfo,
   type UserModelCredentialsPublic,
   type UserModelProviderCredentialProfilePublic,
   type UserRepoProviderCredentialProfilePublic
@@ -45,6 +57,7 @@ import { ModelProviderModelsButton } from './ModelProviderModelsButton';
 import { clearAuth, getStoredUser, getToken, setStoredUser, type AuthUser } from '../auth';
 import { setLocale, useLocale, useT } from '../i18n';
 import { getBooleanEnv } from '../utils/env';
+import { uuid as generateUuid } from './repoAutomation/utils';
 
 /**
  * UserPanelPopover:
@@ -68,11 +81,26 @@ import { getBooleanEnv } from '../utils/env';
 type ThemePreference = 'system' | 'light' | 'dark';
 type ProviderKey = 'gitlab' | 'github';
 type ModelProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
-type PanelTab = 'account' | 'credentials' | 'tools' | 'settings';
+type PanelTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings';
+// Track PAT form state for open API token creation/editing. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+type ApiTokenScopeChoice = 'none' | ApiTokenScopeLevel;
+type ApiTokenExpiryPreset = '1' | '7' | '30' | '90' | '180' | '365' | 'custom' | 'never';
+type ApiTokenFormValues = {
+  name: string;
+  scopeLevels: Record<ApiTokenScopeGroup, ApiTokenScopeChoice>;
+  expiryPreset: ApiTokenExpiryPreset;
+  expiryCustomDays?: number;
+};
 
 const DEFAULT_PORTS = { prisma: 7215, swagger: 7216 } as const;
 
 const providerLabel = (provider: ProviderKey) => (provider === 'github' ? 'GitHub' : 'GitLab');
+const modelProviderLabel = (provider: ModelProviderKey, t: ReturnType<typeof useT>) => {
+  // Map model providers to the user-facing labels used in the unified credential list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  if (provider === 'codex') return t('panel.credentials.codexTitle');
+  if (provider === 'claude_code') return t('panel.credentials.claudeCodeTitle');
+  return t('panel.credentials.geminiCliTitle');
+};
 
 const buildToolUrl = (params: { port: number; token: string }): string => {
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
@@ -120,13 +148,28 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   const [credentials, setCredentials] = useState<UserModelCredentialsPublic | null>(null);
   const [savingCred, setSavingCred] = useState(false);
 
+  // Manage PAT list + modal state inside the credentials panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const [apiTokens, setApiTokens] = useState<UserApiTokenPublic[]>([]);
+  const [apiTokensLoading, setApiTokensLoading] = useState(false);
+  const [apiTokenFormOpen, setApiTokenFormOpen] = useState(false);
+  const [apiTokenEditing, setApiTokenEditing] = useState<UserApiTokenPublic | null>(null);
+  const [apiTokenSubmitting, setApiTokenSubmitting] = useState(false);
+  const [apiTokenForm] = Form.useForm<ApiTokenFormValues>();
+  const [apiTokenRevealOpen, setApiTokenRevealOpen] = useState(false);
+  const [apiTokenRevealValue, setApiTokenRevealValue] = useState<string | null>(null);
+
   const [toolsPorts, setToolsPorts] = useState(DEFAULT_PORTS);
   const [toolsLoading, setToolsLoading] = useState(false);
+  // Track detected runtimes for the environment panel. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
+  const [runtimesLoading, setRuntimesLoading] = useState(false);
+  const [runtimesDetectedAt, setRuntimesDetectedAt] = useState<string | null>(null);
 
   const [repoProfileFormOpen, setRepoProfileFormOpen] = useState(false);
   const [repoProfileProvider, setRepoProfileProvider] = useState<ProviderKey>('gitlab');
   const [repoProfileEditing, setRepoProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
   const [repoProfileSubmitting, setRepoProfileSubmitting] = useState(false);
+  const [repoProfileSetDefault, setRepoProfileSetDefault] = useState(false);
   const [repoProfileForm] = Form.useForm<{ remark: string; token?: string; cloneUsername?: string }>();
   const [repoProfileTokenMode, setRepoProfileTokenMode] = useState<'keep' | 'set'>('keep');
 
@@ -134,6 +177,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   const [modelProfileProvider, setModelProfileProvider] = useState<ModelProviderKey>('codex');
   const [modelProfileEditing, setModelProfileEditing] = useState<UserModelProviderCredentialProfilePublic | null>(null);
   const [modelProfileSubmitting, setModelProfileSubmitting] = useState(false);
+  const [modelProfileSetDefault, setModelProfileSetDefault] = useState(false);
   const [modelProfileForm] = Form.useForm<{ remark: string; apiKey?: string; apiBaseUrl?: string }>();
   const [modelProfileApiKeyMode, setModelProfileApiKeyMode] = useState<'keep' | 'set'>('keep');
 
@@ -157,6 +201,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         account: 'panel.tabs.account',
         credentials: 'panel.tabs.credentials',
         tools: 'panel.tabs.tools',
+        environment: 'panel.tabs.environment',
         settings: 'panel.tabs.settings'
       }) as const,
     []
@@ -168,6 +213,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         account: 'panel.header.desc.account',
         credentials: 'panel.header.desc.credentials',
         tools: 'panel.header.desc.tools',
+        environment: 'panel.header.desc.environment',
         settings: 'panel.header.desc.settings'
       }) as const,
     []
@@ -179,9 +225,50 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         account: <UserOutlined />,
         credentials: <KeyOutlined />,
         tools: <CloudServerOutlined />,
+        environment: <GlobalOutlined />,
         settings: <SettingOutlined />
       }) as const,
     []
+  );
+
+  // Define PAT scope group labels and expiry presets for the credentials panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const apiTokenScopeGroups = useMemo(
+    () => [
+      { key: 'account' as ApiTokenScopeGroup, label: t('panel.apiTokens.scope.account'), desc: t('panel.apiTokens.scope.accountDesc') },
+      { key: 'repos' as ApiTokenScopeGroup, label: t('panel.apiTokens.scope.repos'), desc: t('panel.apiTokens.scope.reposDesc') },
+      { key: 'tasks' as ApiTokenScopeGroup, label: t('panel.apiTokens.scope.tasks'), desc: t('panel.apiTokens.scope.tasksDesc') },
+      { key: 'events' as ApiTokenScopeGroup, label: t('panel.apiTokens.scope.events'), desc: t('panel.apiTokens.scope.eventsDesc') },
+      { key: 'system' as ApiTokenScopeGroup, label: t('panel.apiTokens.scope.system'), desc: t('panel.apiTokens.scope.systemDesc') }
+    ],
+    [t]
+  );
+
+  const apiTokenScopeLabelMap = useMemo(() => {
+    const map = new Map<ApiTokenScopeGroup, string>();
+    apiTokenScopeGroups.forEach((group) => map.set(group.key, group.label));
+    return map;
+  }, [apiTokenScopeGroups]);
+
+  const apiTokenExpiryOptions = useMemo(
+    () => [
+      { value: '1', label: t('panel.apiTokens.expiry.days', { days: 1 }) },
+      { value: '7', label: t('panel.apiTokens.expiry.days', { days: 7 }) },
+      { value: '30', label: t('panel.apiTokens.expiry.days', { days: 30 }) },
+      { value: '90', label: t('panel.apiTokens.expiry.days', { days: 90 }) },
+      { value: '180', label: t('panel.apiTokens.expiry.days', { days: 180 }) },
+      { value: '365', label: t('panel.apiTokens.expiry.days', { days: 365 }) },
+      { value: 'custom', label: t('panel.apiTokens.expiry.custom') },
+      { value: 'never', label: t('panel.apiTokens.expiry.never') }
+    ],
+    [t]
+  );
+
+  const apiTokenLevelLabel = useMemo(
+    () => ({
+      read: t('panel.apiTokens.scopeLevel.read'),
+      write: t('panel.apiTokens.scopeLevel.write')
+    }),
+    [t]
   );
 
   const isTabDisabled = useCallback(
@@ -230,6 +317,22 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     }
   }, [canUseAccountApis, message, t, token]);
 
+  // Load PAT inventory when the credentials tab is active. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const refreshApiTokens = useCallback(async () => {
+    if (!canUseAccountApis) return;
+    setApiTokensLoading(true);
+    try {
+      const data = await fetchMyApiTokens();
+      setApiTokens(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.apiTokens.fetchFailed'));
+      setApiTokens([]);
+    } finally {
+      setApiTokensLoading(false);
+    }
+  }, [canUseAccountApis, message, t]);
+
   const refreshToolsMeta = useCallback(async () => {
     if (!canUseAccountApis) return;
     setToolsLoading(true);
@@ -250,12 +353,36 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     }
   }, [canUseAccountApis, token]);
 
+  const refreshRuntimes = useCallback(async () => {
+    // Load detected runtimes for the environment panel. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (!canUseAccountApis) return;
+    setRuntimesLoading(true);
+    try {
+      const data = await fetchSystemRuntimes();
+      setRuntimes(Array.isArray(data?.runtimes) ? data.runtimes : []);
+      setRuntimesDetectedAt(data?.detectedAt ?? null);
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.runtimes.fetchFailed'));
+      setRuntimes([]);
+      setRuntimesDetectedAt(null);
+    } finally {
+      setRuntimesLoading(false);
+    }
+  }, [canUseAccountApis, message, t]);
+
   useEffect(() => {
     if (!open) return;
     void refreshUser();
-    if (activeTab === 'credentials') void refreshCredentials();
+    if (activeTab === 'credentials') {
+      // Keep PAT list in sync when visiting credentials. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+      void refreshCredentials();
+      void refreshApiTokens();
+    }
     if (activeTab === 'tools') void refreshToolsMeta();
-  }, [activeTab, open, refreshCredentials, refreshToolsMeta, refreshUser]);
+    // Refresh runtime detection when switching to the environment tab. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (activeTab === 'environment') void refreshRuntimes();
+  }, [activeTab, open, refreshApiTokens, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   useEffect(() => {
     // UX guard: when not authenticated, keep the panel focused on local-only settings to avoid 401 redirects.
@@ -267,18 +394,24 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   const headerRefreshing = useMemo(() => {
     if (!canUseAccountApis) return false;
     if (activeTab === 'account') return userLoading;
-    if (activeTab === 'credentials') return credLoading;
+    if (activeTab === 'credentials') return credLoading || apiTokensLoading; // Include PAT loading state. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
     if (activeTab === 'tools') return toolsLoading;
+    if (activeTab === 'environment') return runtimesLoading;
     return false;
-  }, [activeTab, canUseAccountApis, credLoading, toolsLoading, userLoading]);
+  }, [activeTab, apiTokensLoading, canUseAccountApis, credLoading, runtimesLoading, toolsLoading, userLoading]);
 
   const refreshActiveTab = useCallback(async () => {
     if (!canUseAccountApis) return;
     // UX: keep refresh contextual so we avoid multiple concurrent API calls.
     if (activeTab === 'account') await refreshUser();
-    if (activeTab === 'credentials') await refreshCredentials();
+    if (activeTab === 'credentials') {
+      // Refresh PAT inventory alongside credential profiles. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+      await refreshCredentials();
+      await refreshApiTokens();
+    }
     if (activeTab === 'tools') await refreshToolsMeta();
-  }, [activeTab, canUseAccountApis, refreshCredentials, refreshToolsMeta, refreshUser]);
+    if (activeTab === 'environment') await refreshRuntimes();
+  }, [activeTab, canUseAccountApis, refreshApiTokens, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   const logout = useCallback(() => {
     Modal.confirm({
@@ -314,6 +447,34 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     [message, t]
   );
 
+  // Format timestamps for PAT list display using the active locale. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const formatDateTime = useCallback(
+    (value?: string | null): string => {
+      if (!value) return '-';
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return '-';
+      return parsed.toLocaleString(locale);
+    },
+    [locale]
+  );
+
+  // Build a safe PAT hint for list display (prefix + last4). docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const buildApiTokenHint = useCallback((tokenItem: UserApiTokenPublic): string => {
+    const suffix = tokenItem.tokenLast4 ? String(tokenItem.tokenLast4) : '';
+    return suffix ? `${tokenItem.tokenPrefix}…${suffix}` : tokenItem.tokenPrefix;
+  }, []);
+
+  // Infer expiry preset from stored expiry timestamps. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const resolveExpiryPreset = useCallback((expiresAt?: string | null): { preset: ApiTokenExpiryPreset; customDays?: number } => {
+    if (!expiresAt) return { preset: 'never' };
+    const ts = new Date(expiresAt).getTime();
+    if (!Number.isFinite(ts)) return { preset: 'custom', customDays: 1 };
+    const days = Math.max(1, Math.ceil((ts - Date.now()) / 86400000));
+    const preset = ['1', '7', '30', '90', '180', '365'].find((value) => Number(value) === days);
+    if (preset) return { preset: preset as ApiTokenExpiryPreset };
+    return { preset: 'custom', customDays: days };
+  }, []);
+
   const repoProviderProfiles = useMemo(() => {
     const gitlabProfiles = normalizeRepoProfiles(credentials?.gitlab?.profiles);
     const githubProfiles = normalizeRepoProfiles(credentials?.github?.profiles);
@@ -327,9 +488,33 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     return { codex: codexProfiles, claude_code: claudeProfiles, gemini_cli: geminiProfiles };
   }, [credentials?.claude_code?.profiles, credentials?.codex?.profiles, credentials?.gemini_cli?.profiles]);
 
+  // Build unified repo provider profile items for the single list view. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  const repoProviderProfileItems = useMemo(
+    () =>
+      (['gitlab', 'github'] as ProviderKey[]).flatMap((provider) => {
+        const profiles = repoProviderProfiles[provider];
+        const defaultId = String((credentials as any)?.[provider]?.defaultProfileId ?? '').trim();
+        return profiles.map((profile) => ({ provider, profile, defaultId }));
+      }),
+    [credentials, repoProviderProfiles]
+  );
+
+  // Build unified model provider profile items for the single list view. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  const modelProviderProfileItems = useMemo(
+    () =>
+      (['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).flatMap((provider) => {
+        const profiles = modelProviderProfiles[provider];
+        const defaultId = String((credentials as any)?.[provider]?.defaultProfileId ?? '').trim();
+        return profiles.map((profile) => ({ provider, profile, defaultId }));
+      }),
+    [credentials, modelProviderProfiles]
+  );
+
   const startEditRepoProfile = useCallback(
-    (provider: ProviderKey, profile?: UserRepoProviderCredentialProfilePublic | null) => {
-      setRepoProfileProvider(provider);
+    (provider?: ProviderKey, profile?: UserRepoProviderCredentialProfilePublic | null) => {
+      const nextProvider = provider ?? repoProfileProvider ?? 'gitlab';
+      // Keep the selected repo provider in sync with the unified list modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      setRepoProfileProvider(nextProvider);
       setRepoProfileEditing(profile ?? null);
       setRepoProfileFormOpen(true);
 
@@ -338,15 +523,19 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
       // UX: keep existing tokens by default (backend never returns raw tokens).
       setRepoProfileTokenMode(profile?.hasToken ? 'keep' : 'set');
+      // Default selection is now handled inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const defaultId = String((credentials as any)?.[nextProvider]?.defaultProfileId ?? '').trim();
+      setRepoProfileSetDefault(Boolean(profile?.id && profile.id === defaultId));
       repoProfileForm.setFieldsValue({ remark: initialRemark, cloneUsername: initialCloneUsername, token: '' });
-      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
     },
-    [repoProfileForm]
+    [credentials, repoProfileForm, repoProfileProvider]
   );
 
   const startEditModelProfile = useCallback(
-    (provider: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
-      setModelProfileProvider(provider);
+    (provider?: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
+      const nextProvider = provider ?? modelProfileProvider ?? 'codex';
+      // Keep the selected model provider in sync with the unified list modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      setModelProfileProvider(nextProvider);
       setModelProfileEditing(profile ?? null);
       setModelProfileFormOpen(true);
 
@@ -355,30 +544,12 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
       // UX: keep existing keys by default (backend never returns raw apiKey).
       setModelProfileApiKeyMode(profile?.hasApiKey ? 'keep' : 'set');
+      // Default selection is now handled inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const defaultId = String((credentials as any)?.[nextProvider]?.defaultProfileId ?? '').trim();
+      setModelProfileSetDefault(Boolean(profile?.id && profile.id === defaultId));
       modelProfileForm.setFieldsValue({ remark: initialRemark, apiBaseUrl: initialApiBaseUrl, apiKey: '' });
-      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
     },
-    [modelProfileForm]
-  );
-
-  const setProviderDefault = useCallback(
-    async (provider: ProviderKey | ModelProviderKey, nextDefaultId: string | null) => {
-      if (savingCred) return;
-      setSavingCred(true);
-      try {
-        const next = await updateMyModelCredentials({
-          [provider]: { defaultProfileId: nextDefaultId || null }
-        } as any);
-        setCredentials(next);
-        message.success(t('toast.credentials.saved'));
-      } catch (err: any) {
-        console.error(err);
-        message.error(err?.response?.data?.error || t('toast.credentials.saveFailed'));
-      } finally {
-        setSavingCred(false);
-      }
-    },
-    [message, savingCred, t]
+    [credentials, modelProfileForm, modelProfileProvider]
   );
 
   const removeProfile = useCallback(
@@ -420,19 +591,30 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       const tokenValue = String(values.token ?? '').trim();
       const shouldSendToken = repoProfileTokenMode === 'set';
 
+      const currentDefaultId = String((credentials as any)?.[repoProfileProvider]?.defaultProfileId ?? '').trim();
+      // Generate a stable profile id so new defaults can be applied immediately. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const profileId = repoProfileEditing?.id ?? generateUuid();
       const payload = {
-        id: repoProfileEditing?.id,
+        id: profileId,
         remark: remark || null,
         cloneUsername: cloneUsername || null,
         ...(shouldSendToken ? { token: tokenValue ? tokenValue : null } : {})
       };
 
-      const next = await updateMyModelCredentials({
-        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
+      const isEditingDefault = Boolean(repoProfileEditing?.id && repoProfileEditing.id === currentDefaultId);
+      const updatePayload: any = {
         [repoProfileProvider]: {
           profiles: [payload]
         }
-      } as any);
+      };
+      // Default selection now lives inside the manage modal instead of a separate dropdown. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      if (repoProfileSetDefault) {
+        updatePayload[repoProfileProvider].defaultProfileId = profileId;
+      } else if (isEditingDefault) {
+        updatePayload[repoProfileProvider].defaultProfileId = null;
+      }
+
+      const next = await updateMyModelCredentials(updatePayload as any);
 
       setCredentials(next);
       setRepoProfileFormOpen(false);
@@ -454,6 +636,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     repoProfileForm,
     repoProfileProvider,
     repoProfileSubmitting,
+    repoProfileSetDefault,
     repoProfileTokenMode,
     t
   ]);
@@ -468,19 +651,30 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       const apiKey = String(values.apiKey ?? '').trim();
       const shouldSendApiKey = modelProfileApiKeyMode === 'set';
 
+      const currentDefaultId = String((credentials as any)?.[modelProfileProvider]?.defaultProfileId ?? '').trim();
+      // Generate a stable profile id so new defaults can be applied immediately. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const profileId = modelProfileEditing?.id ?? generateUuid();
       const payload = {
-        id: modelProfileEditing?.id,
+        id: profileId,
         remark: remark || null,
         apiBaseUrl: apiBaseUrl || null,
         ...(shouldSendApiKey ? { apiKey: apiKey ? apiKey : null } : {})
       };
 
-      const next = await updateMyModelCredentials({
-        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
+      const isEditingDefault = Boolean(modelProfileEditing?.id && modelProfileEditing.id === currentDefaultId);
+      const updatePayload: any = {
         [modelProfileProvider]: {
           profiles: [payload]
         }
-      } as any);
+      };
+      // Default selection now lives inside the manage modal instead of a separate dropdown. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      if (modelProfileSetDefault) {
+        updatePayload[modelProfileProvider].defaultProfileId = profileId;
+      } else if (isEditingDefault) {
+        updatePayload[modelProfileProvider].defaultProfileId = null;
+      }
+
+      const next = await updateMyModelCredentials(updatePayload as any);
 
       setCredentials(next);
       setModelProfileFormOpen(false);
@@ -503,8 +697,157 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     modelProfileForm,
     modelProfileProvider,
     modelProfileSubmitting,
+    modelProfileSetDefault,
     t
   ]);
+
+  // Build per-group scope defaults for PAT forms. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const buildScopeLevelDefaults = useCallback(
+    (tokenItem?: UserApiTokenPublic | null): Record<ApiTokenScopeGroup, ApiTokenScopeChoice> => {
+      const defaults = {} as Record<ApiTokenScopeGroup, ApiTokenScopeChoice>;
+      apiTokenScopeGroups.forEach((group) => {
+        defaults[group.key] = 'none';
+      });
+      if (tokenItem) {
+        tokenItem.scopes.forEach((scope) => {
+          defaults[scope.group] = scope.level;
+        });
+      }
+      return defaults;
+    },
+    [apiTokenScopeGroups]
+  );
+
+  const openCreateApiToken = useCallback(() => {
+    // Reset PAT form state to defaults before issuing a new token. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+    setApiTokenEditing(null);
+    apiTokenForm.setFieldsValue({
+      name: '',
+      scopeLevels: buildScopeLevelDefaults(null),
+      expiryPreset: '90',
+      expiryCustomDays: 30
+    });
+    setApiTokenFormOpen(true);
+  }, [apiTokenForm, buildScopeLevelDefaults]);
+
+  const openEditApiToken = useCallback(
+    (tokenItem: UserApiTokenPublic) => {
+      const expiry = resolveExpiryPreset(tokenItem.expiresAt ?? null);
+      setApiTokenEditing(tokenItem);
+      apiTokenForm.setFieldsValue({
+        name: tokenItem.name,
+        scopeLevels: buildScopeLevelDefaults(tokenItem),
+        expiryPreset: expiry.preset,
+        expiryCustomDays: expiry.customDays
+      });
+      setApiTokenFormOpen(true);
+    },
+    [apiTokenForm, buildScopeLevelDefaults, resolveExpiryPreset]
+  );
+
+  // Submit PAT create/edit requests and refresh the list. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const submitApiTokenForm = useCallback(async () => {
+    if (apiTokenSubmitting) return;
+    const values = await apiTokenForm.validateFields();
+
+    const scopeLevels = values?.scopeLevels ?? {};
+    const scopes = apiTokenScopeGroups
+      .map((group) => {
+        const level = scopeLevels[group.key];
+        if (!level || level === 'none') return null;
+        return { group: group.key, level: level as ApiTokenScopeLevel };
+      })
+      .filter(Boolean) as { group: ApiTokenScopeGroup; level: ApiTokenScopeLevel }[];
+
+    if (!scopes.length) {
+      message.error(t('panel.apiTokens.validation.scopeRequired'));
+      return;
+    }
+
+    let expiresInDays: number | null | undefined = undefined;
+    if (values.expiryPreset === 'never') {
+      expiresInDays = 0;
+    } else if (values.expiryPreset === 'custom') {
+      const custom = Number(values.expiryCustomDays ?? 0);
+      expiresInDays = Number.isFinite(custom) ? Math.max(1, Math.floor(custom)) : 1;
+    } else {
+      expiresInDays = Number(values.expiryPreset);
+    }
+
+    setApiTokenSubmitting(true);
+    try {
+      if (apiTokenEditing) {
+        await updateMyApiToken(apiTokenEditing.id, {
+          name: String(values.name ?? '').trim(),
+          scopes,
+          expiresInDays
+        });
+        message.success(t('toast.apiTokens.saved'));
+      } else {
+        const created = await createMyApiToken({
+          name: String(values.name ?? '').trim(),
+          scopes,
+          expiresInDays
+        });
+        setApiTokenRevealValue(created.token);
+        setApiTokenRevealOpen(true);
+        message.success(t('toast.apiTokens.created'));
+      }
+      setApiTokenFormOpen(false);
+      setApiTokenEditing(null);
+      await refreshApiTokens();
+    } catch (err: any) {
+      console.error(err);
+      message.error(err?.response?.data?.error || t('toast.apiTokens.saveFailed'));
+    } finally {
+      setApiTokenSubmitting(false);
+    }
+  }, [
+    apiTokenEditing,
+    apiTokenForm,
+    apiTokenScopeGroups,
+    apiTokenSubmitting,
+    createMyApiToken,
+    message,
+    refreshApiTokens,
+    t,
+    updateMyApiToken
+  ]);
+
+  // Confirm and revoke PATs so they stop working immediately. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const revokeApiToken = useCallback(
+    (tokenItem: UserApiTokenPublic) => {
+      Modal.confirm({
+        title: t('panel.apiTokens.revokeTitle'),
+        content: t('panel.apiTokens.revokeDesc'),
+        okText: t('panel.apiTokens.revokeOk'),
+        okButtonProps: { danger: true },
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          try {
+            await revokeMyApiToken(tokenItem.id);
+            message.success(t('toast.apiTokens.revoked'));
+            await refreshApiTokens();
+          } catch (err: any) {
+            console.error(err);
+            message.error(err?.response?.data?.error || t('toast.apiTokens.saveFailed'));
+          }
+        }
+      });
+    },
+    [message, refreshApiTokens, t]
+  );
+
+  // Copy newly issued PAT values for one-time reveal. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  const copyApiToken = useCallback(async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      message.success(t('toast.apiTokens.copySuccess'));
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.apiTokens.copyFailed'));
+    }
+  }, [message, t]);
 
   const saveDisplayName = useCallback(async () => {
     if (accountEditDisabled) return;
@@ -698,166 +1041,198 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
                 {t('panel.credentials.modelProviderTip')}
               </Typography.Paragraph>
-
-              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-                {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
-                  const profiles = modelProviderProfiles[provider];
-                  const defaultId = (credentials as any)?.[provider]?.defaultProfileId ?? null;
-                  const sectionTitleKey =
-                    provider === 'codex'
-                      ? 'panel.credentials.codexTitle'
-                      : provider === 'claude_code'
-                        ? 'panel.credentials.claudeCodeTitle'
-                        : 'panel.credentials.geminiCliTitle';
-                  const sectionTipKey =
-                    provider === 'codex'
-                      ? 'panel.credentials.codexTip'
-                      : provider === 'claude_code'
-                        ? 'panel.credentials.claudeCodeTip'
-                        : 'panel.credentials.geminiCliTip';
-
-                  return (
-                    <Card
-                      key={provider}
-                      size="small"
-                      title={
-                        <Space size={8}>
-                          <KeyOutlined />
-                          <span>{t(sectionTitleKey)}</span>
-                        </Space>
-                      }
-                      extra={
-                        <Button size="small" onClick={() => startEditModelProfile(provider, null)} disabled={savingCred || !canUseAccountApis}>
-                          {t('panel.credentials.profile.add')}
-                        </Button>
-                      }
-                    >
-                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                        <Typography.Text type="secondary">{t(sectionTipKey)}</Typography.Text>
-
-                        <div>
-                          <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
-                          <div style={{ marginTop: 6 }}>
-                            <Select
-                              value={defaultId || undefined}
-                              style={{ width: '100%' }}
-                              placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                              onChange={(value) => void setProviderDefault(provider, value ? String(value) : null)}
-                              options={profiles.map((p) => ({ value: p.id, label: p.remark || p.id }))}
-                              allowClear
-                              disabled={savingCred || !canUseAccountApis}
-                            />
-                          </div>
-                        </div>
-
-                        {profiles.length ? (
-                          <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                            {profiles.map((p) => (
-                              <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                  <Space size={8} wrap>
-                                    <Typography.Text strong>{p.remark || p.id}</Typography.Text>
-                                    {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                                    <Tag color={p.hasApiKey ? 'green' : 'default'}>
-                                      {p.hasApiKey ? t('common.configured') : t('common.notConfigured')}
-                                    </Tag>
-                                  </Space>
-                                  <Typography.Text type="secondary">{p.apiBaseUrl || '-'}</Typography.Text>
-                                </Space>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                  <Button size="small" onClick={() => startEditModelProfile(provider, p)}>
-                                    {t('common.manage')}
-                                  </Button>
-                                  <Button size="small" danger onClick={() => void removeProfile(provider, p.id)} disabled={!canUseAccountApis}>
-                                    {t('panel.credentials.profile.remove')}
-                                  </Button>
-                                </div>
-                              </Card>
-                            ))}
+              <Card
+                size="small"
+                title={
+                  <Space size={8}>
+                    <KeyOutlined />
+                    <span>{t('panel.credentials.modelProviderTitle')}</span>
+                  </Space>
+                }
+                extra={
+                  <>
+                    {/* Use a single add entry point for the unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                    <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>
+                      {t('panel.credentials.profile.add')}
+                    </Button>
+                  </>
+                }
+              >
+                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                  {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                  {/* Render a single list of model provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                  {modelProviderProfileItems.length ? (
+                    <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                      {modelProviderProfileItems.map(({ provider, profile, defaultId }) => (
+                        <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                          <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                            <Space size={8} wrap>
+                              <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
+                              <Tag color="geekblue">{modelProviderLabel(provider, t)}</Tag>
+                              {defaultId === profile.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                              <Tag color={profile.hasApiKey ? 'green' : 'default'}>
+                                {profile.hasApiKey ? t('common.configured') : t('common.notConfigured')}
+                              </Tag>
+                            </Space>
+                            <Typography.Text type="secondary">{profile.apiBaseUrl || '-'}</Typography.Text>
                           </Space>
-                        ) : (
-                          <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
-                        )}
-                      </Space>
-                    </Card>
-                  );
-                })}
-              </Space>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                            <Button size="small" onClick={() => startEditModelProfile(provider, profile)}>
+                              {t('common.manage')}
+                            </Button>
+                            <Button size="small" danger onClick={() => void removeProfile(provider, profile.id)} disabled={!canUseAccountApis}>
+                              {t('panel.credentials.profile.remove')}
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </Space>
+                  ) : (
+                    <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
+                  )}
+                </Space>
+              </Card>
             </div>
 
             <Divider style={{ margin: '14px 0' }} />
 
             <div className="hc-settings-section">
               <div className="hc-settings-section-title">{t('panel.credentials.repoTitle')}</div>
-              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-                {(['gitlab', 'github'] as ProviderKey[]).map((provider) => {
-                  const profiles = repoProviderProfiles[provider];
-                  const defaultId = (credentials as any)?.[provider]?.defaultProfileId ?? null;
-                  return (
-                    <Card
-                      key={provider}
-                      size="small"
-                      title={
-                        <Space size={8}>
-                          <GlobalOutlined />
-                          <span>{providerLabel(provider)}</span>
-                        </Space>
-                      }
-                      extra={
-                        <Button size="small" onClick={() => startEditRepoProfile(provider, null)} disabled={savingCred || !canUseAccountApis}>
-                          {t('panel.credentials.profile.add')}
-                        </Button>
-                      }
-                    >
-                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                        <div>
-                          <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
-                          <div style={{ marginTop: 6 }}>
-                            <Select
-                              value={defaultId || undefined}
-                              style={{ width: '100%' }}
-                              placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                              onChange={(value) => void setProviderDefault(provider, value ? String(value) : null)}
-                              options={profiles.map((p) => ({ value: p.id, label: p.remark || p.id }))}
-                              allowClear
-                              disabled={savingCred || !canUseAccountApis}
-                            />
-                          </div>
-                        </div>
-
-                        {profiles.length ? (
-                          <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                            {profiles.map((p) => (
-                              <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                  <Space size={8} wrap>
-                                    <Typography.Text strong>{p.remark || p.id}</Typography.Text>
-                                    {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                                    <Tag color={p.hasToken ? 'green' : 'default'}>
-                                      {p.hasToken ? t('common.configured') : t('common.notConfigured')}
-                                    </Tag>
-                                  </Space>
-                                  <Typography.Text type="secondary">{p.cloneUsername || '-'}</Typography.Text>
-                                </Space>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                  <Button size="small" onClick={() => startEditRepoProfile(provider, p)}>
-                                    {t('common.manage')}
-                                  </Button>
-                                  <Button size="small" danger onClick={() => void removeProfile(provider, p.id)} disabled={!canUseAccountApis}>
-                                    {t('panel.credentials.profile.remove')}
-                                  </Button>
-                                </div>
-                              </Card>
-                            ))}
+              <Card
+                size="small"
+                title={
+                  <Space size={8}>
+                    <GlobalOutlined />
+                    <span>{t('panel.credentials.repoTitle')}</span>
+                  </Space>
+                }
+                extra={
+                  <>
+                    {/* Use a single add entry point for the unified repo list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                    <Button size="small" onClick={() => startEditRepoProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>
+                      {t('panel.credentials.profile.add')}
+                    </Button>
+                  </>
+                }
+              >
+                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                  {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                  {/* Render a single list of repo provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                  {repoProviderProfileItems.length ? (
+                    <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                      {repoProviderProfileItems.map(({ provider, profile, defaultId }) => (
+                        <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                          <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                            <Space size={8} wrap>
+                              <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
+                              <Tag color="geekblue">{providerLabel(provider)}</Tag>
+                              {defaultId === profile.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                              <Tag color={profile.hasToken ? 'green' : 'default'}>
+                                {profile.hasToken ? t('common.configured') : t('common.notConfigured')}
+                              </Tag>
+                            </Space>
+                            <Typography.Text type="secondary">{profile.cloneUsername || '-'}</Typography.Text>
                           </Space>
-                        ) : (
-                          <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
-                        )}
-                      </Space>
-                    </Card>
-                  );
-                })}
-              </Space>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                            <Button size="small" onClick={() => startEditRepoProfile(provider, profile)}>
+                              {t('common.manage')}
+                            </Button>
+                            <Button size="small" danger onClick={() => void removeProfile(provider, profile.id)} disabled={!canUseAccountApis}>
+                              {t('panel.credentials.profile.remove')}
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </Space>
+                  ) : (
+                    <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
+                  )}
+                </Space>
+              </Card>
+            </div>
+
+            <Divider style={{ margin: '14px 0' }} />
+
+            <div className="hc-settings-section">
+              <div className="hc-settings-section-title">{t('panel.apiTokens.title')}</div>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
+                {t('panel.apiTokens.tip')}
+              </Typography.Paragraph>
+              <Card
+                size="small"
+                title={
+                  <Space size={8}>
+                    <ApiOutlined />
+                    <span>{t('panel.apiTokens.title')}</span>
+                  </Space>
+                }
+                extra={
+                  <>
+                    {/* Add PAT issuance entry point inside credentials panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
+                    <Button size="small" onClick={openCreateApiToken} disabled={apiTokenSubmitting || !canUseAccountApis}>
+                      {t('panel.apiTokens.add')}
+                    </Button>
+                  </>
+                }
+                loading={apiTokensLoading}
+              >
+                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                  {apiTokens.length ? (
+                    <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                      {apiTokens.map((tokenItem) => {
+                        const now = Date.now();
+                        const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
+                        const isExpired = Boolean(expiresAt && expiresAt <= now);
+                        const isRevoked = Boolean(tokenItem.revokedAt);
+                        const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
+                        const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
+                        return (
+                          <Card key={tokenItem.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                            <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                              <Space size={8} wrap>
+                                <Typography.Text strong>{tokenItem.name}</Typography.Text>
+                                <Tag color={statusColor}>{t(`panel.apiTokens.status.${statusKey}`)}</Tag>
+                                <Typography.Text code>{buildApiTokenHint(tokenItem)}</Typography.Text>
+                              </Space>
+                              <Typography.Text type="secondary">
+                                {t('panel.apiTokens.field.expiresAt')}: {formatDateTime(tokenItem.expiresAt ?? null)}
+                              </Typography.Text>
+                            </Space>
+                            <Space size={6} wrap style={{ marginTop: 6 }}>
+                              {/* Render group-level scope chips for each PAT. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
+                              {tokenItem.scopes.map((scope) => (
+                                <Tag key={`${tokenItem.id}-${scope.group}`} color={scope.level === 'write' ? 'gold' : 'blue'}>
+                                  {apiTokenScopeLabelMap.get(scope.group) ?? scope.group} · {apiTokenLevelLabel[scope.level]}
+                                </Tag>
+                              ))}
+                            </Space>
+                            <Space size={16} wrap style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
+                              <Space size={12} wrap>
+                                <Typography.Text type="secondary">
+                                  {t('panel.apiTokens.field.createdAt')}: {formatDateTime(tokenItem.createdAt)}
+                                </Typography.Text>
+                                <Typography.Text type="secondary">
+                                  {t('panel.apiTokens.field.lastUsed')}: {formatDateTime(tokenItem.lastUsedAt ?? null)}
+                                </Typography.Text>
+                              </Space>
+                              <Space size={8} wrap>
+                                <Button size="small" onClick={() => openEditApiToken(tokenItem)} disabled={isRevoked}>
+                                  {t('common.manage')}
+                                </Button>
+                                <Button size="small" danger onClick={() => revokeApiToken(tokenItem)} disabled={isRevoked}>
+                                  {t('panel.apiTokens.revoke')}
+                                </Button>
+                              </Space>
+                            </Space>
+                          </Card>
+                        );
+                      })}
+                    </Space>
+                  ) : (
+                    <Typography.Text type="secondary">{t('panel.apiTokens.empty')}</Typography.Text>
+                  )}
+                </Space>
+              </Card>
             </div>
           </>
         );
@@ -894,6 +1269,45 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                 </Card>
               ))}
             </Space>
+          </div>
+        );
+
+      case 'environment':
+        // Render runtime availability for multi-language dependency installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        return (
+          <div className="hc-settings-section">
+            <div className="hc-settings-section-title">{t('panel.environment.availableTitle')}</div>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+              {t('panel.environment.tip')}
+            </Typography.Paragraph>
+            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+              {runtimesLoading ? (
+                <Card loading size="small" />
+              ) : runtimes.length ? (
+                runtimes.map((rt) => (
+                  <Card key={`${rt.language}-${rt.version}`} size="small" className="hc-panel-card">
+                    <Space size={8} wrap>
+                      <Tag color="green">{rt.language}</Tag>
+                      <Typography.Text>{rt.version}</Typography.Text>
+                      <Typography.Text type="secondary">{rt.packageManager || '-'}</Typography.Text>
+                    </Space>
+                    <div style={{ marginTop: 6 }}>
+                      <Typography.Text type="secondary">{rt.path}</Typography.Text>
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <Typography.Text type="secondary">{t('panel.environment.empty')}</Typography.Text>
+              )}
+            </Space>
+            <Divider style={{ margin: '16px 0' }} />
+            <Space size={8} wrap>
+              <Typography.Text type="secondary">{t('panel.environment.detectedAt')}</Typography.Text>
+              <Typography.Text type="secondary">{runtimesDetectedAt || '-'}</Typography.Text>
+            </Space>
+            <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
+              {t('panel.environment.customImageHint')}
+            </Typography.Paragraph>
           </div>
         );
 
@@ -1008,6 +1422,8 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
             <div className="hc-user-panel__nav-header">{t('panel.nav.group.integrations')}</div>
             {renderNavItem('credentials')}
             {renderNavItem('tools')}
+            {/* Add environment tab for runtime visibility. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+            {renderNavItem('environment')}
           </div>
 
           <div className="hc-user-panel__nav-group">
@@ -1074,9 +1490,21 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         destroyOnHidden
       >
         <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-            <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: providerLabel(repoProfileProvider) })}</Typography.Text>
+            {/* Allow choosing repo provider when creating profiles from the unified list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
             {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
             <Form form={repoProfileForm} layout="vertical" requiredMark={false} size="middle">
+            <Form.Item label={t('panel.credentials.profile.providerLabel')}>
+                <Select
+                value={repoProfileProvider}
+                placeholder={t('panel.credentials.profile.providerPlaceholder')}
+                options={[
+                    { value: 'gitlab', label: providerLabel('gitlab') },
+                    { value: 'github', label: providerLabel('github') }
+                ]}
+                onChange={(value) => setRepoProfileProvider(value as ProviderKey)}
+                disabled={Boolean(repoProfileEditing)}
+                />
+            </Form.Item>
             <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
                 <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
             </Form.Item>
@@ -1121,7 +1549,19 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                 </Space>
             </Form.Item>
 
-            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
+            <Form.Item label={t('panel.credentials.profile.setDefault')}>
+              <Space orientation="vertical" size={4} style={{ width: '100%' }}>
+                <Switch
+                  checked={repoProfileSetDefault}
+                  onChange={(checked) => setRepoProfileSetDefault(checked)}
+                  disabled={savingCred || !canUseAccountApis}
+                />
+                {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('panel.credentials.profile.setDefaultDesc')}
+                </Typography.Text>
+              </Space>
+            </Form.Item>
             </Form>
         </Space>
       </Modal>
@@ -1141,9 +1581,22 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         destroyOnHidden
       >
         <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: modelProfileProvider })}</Typography.Text>
+          {/* Allow choosing model provider when creating profiles from the unified list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
           {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
           <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="middle">
+            <Form.Item label={t('panel.credentials.profile.providerLabel')}>
+              <Select
+                value={modelProfileProvider}
+                placeholder={t('panel.credentials.profile.providerPlaceholder')}
+                options={[
+                  { value: 'codex', label: modelProviderLabel('codex', t) },
+                  { value: 'claude_code', label: modelProviderLabel('claude_code', t) },
+                  { value: 'gemini_cli', label: modelProviderLabel('gemini_cli', t) }
+                ]}
+                onChange={(value) => setModelProfileProvider(value as ModelProviderKey)}
+                disabled={Boolean(modelProfileEditing)}
+              />
+            </Form.Item>
             <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
               <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
             </Form.Item>
@@ -1216,8 +1669,119 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               />
             </Form.Item>
 
-            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
+            <Form.Item label={t('panel.credentials.profile.setDefault')}>
+              <Space orientation="vertical" size={4} style={{ width: '100%' }}>
+                <Switch
+                  checked={modelProfileSetDefault}
+                  onChange={(checked) => setModelProfileSetDefault(checked)}
+                  disabled={savingCred || !canUseAccountApis}
+                />
+                {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('panel.credentials.profile.setDefaultDesc')}
+                </Typography.Text>
+              </Space>
+            </Form.Item>
           </Form>
+        </Space>
+      </Modal>
+
+      <Modal
+        title={apiTokenEditing ? t('panel.apiTokens.editTitle') : t('panel.apiTokens.createTitle')}
+        open={apiTokenFormOpen}
+        className="hc-dialog--compact"
+        onCancel={() => {
+          setApiTokenFormOpen(false);
+          setApiTokenEditing(null);
+        }}
+        okText={t('common.save')}
+        cancelText={t('common.cancel')}
+        confirmLoading={apiTokenSubmitting}
+        onOk={() => void submitApiTokenForm()}
+        destroyOnHidden
+      >
+        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+          {/* Collect PAT name/scopes/expiry in a single modal. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
+          <Form form={apiTokenForm} layout="vertical" requiredMark={false} size="middle">
+            <Form.Item label={t('panel.apiTokens.nameLabel')} name="name" rules={[{ required: true, message: t('panel.validation.required') }]}>
+              <Input placeholder={t('panel.apiTokens.namePlaceholder')} />
+            </Form.Item>
+
+            <Form.Item label={t('panel.apiTokens.scopesLabel')}>
+              <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+                {apiTokenScopeGroups.map((group) => (
+                  <div key={group.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <Typography.Text strong>{group.label}</Typography.Text>
+                      <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+                        {group.desc}
+                      </Typography.Text>
+                    </div>
+                    <Form.Item name={['scopeLevels', group.key]} style={{ marginBottom: 0 }}>
+                      <Radio.Group
+                        options={[
+                          { value: 'none', label: t('panel.apiTokens.scope.none') },
+                          { value: 'read', label: apiTokenLevelLabel.read },
+                          { value: 'write', label: apiTokenLevelLabel.write }
+                        ]}
+                        optionType="button"
+                        buttonStyle="solid"
+                      />
+                    </Form.Item>
+                  </div>
+                ))}
+              </Space>
+            </Form.Item>
+
+            <Form.Item label={t('panel.apiTokens.expiryLabel')} name="expiryPreset" rules={[{ required: true, message: t('panel.validation.required') }]}>
+              <Select options={apiTokenExpiryOptions} />
+            </Form.Item>
+
+            <Form.Item noStyle shouldUpdate={(prev, next) => prev.expiryPreset !== next.expiryPreset}>
+              {({ getFieldValue }) =>
+                getFieldValue('expiryPreset') === 'custom' ? (
+                  <Form.Item
+                    label={t('panel.apiTokens.expiry.customLabel')}
+                    name="expiryCustomDays"
+                    rules={[{ required: true, message: t('panel.validation.required') }]}
+                  >
+                    <InputNumber min={1} max={3650} style={{ width: '100%' }} placeholder={t('panel.apiTokens.expiry.customPlaceholder')} />
+                  </Form.Item>
+                ) : null
+              }
+            </Form.Item>
+
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {t('panel.apiTokens.expiry.hint')}
+            </Typography.Text>
+          </Form>
+        </Space>
+      </Modal>
+
+      <Modal
+        title={t('panel.apiTokens.reveal.title')}
+        open={apiTokenRevealOpen}
+        onCancel={() => {
+          setApiTokenRevealOpen(false);
+          setApiTokenRevealValue(null);
+        }}
+        footer={[
+          <Button key="close" type="primary" onClick={() => {
+            setApiTokenRevealOpen(false);
+            setApiTokenRevealValue(null);
+          }}>
+            {t('common.close')}
+          </Button>
+        ]}
+        destroyOnHidden
+      >
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+          {/* One-time PAT reveal flow after creation. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
+          <Typography.Paragraph type="secondary">{t('panel.apiTokens.reveal.desc')}</Typography.Paragraph>
+          <Input.TextArea value={apiTokenRevealValue ?? ''} readOnly autoSize={{ minRows: 3, maxRows: 5 }} />
+          <Button type="primary" onClick={() => apiTokenRevealValue && void copyApiToken(apiTokenRevealValue)} disabled={!apiTokenRevealValue}>
+            {t('panel.apiTokens.reveal.copy')}
+          </Button>
         </Space>
       </Modal>
     </div>

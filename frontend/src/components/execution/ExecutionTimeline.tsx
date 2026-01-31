@@ -1,7 +1,6 @@
-import { FC, type ReactNode, useMemo, useState } from 'react';
-import { Space, Tag, Typography } from 'antd';
-import { CaretDownOutlined, CaretRightOutlined, CodeOutlined, FileTextOutlined, MessageOutlined, EditOutlined } from '@ant-design/icons';
-import { Think, ThoughtChain, type ThoughtChainItemType } from '@ant-design/x';
+import { FC, type ReactNode, useMemo } from 'react';
+import { Space, Typography } from 'antd';
+import { CheckSquareOutlined, CodeOutlined, FileTextOutlined, MessageOutlined, MoreOutlined } from '@ant-design/icons';
 import type { ExecutionFileDiff, ExecutionItem } from '../../utils/executionLog';
 import { useT } from '../../i18n';
 import { MarkdownViewer } from '../MarkdownViewer';
@@ -14,7 +13,7 @@ export interface ExecutionTimelineProps {
   showLineNumbers?: boolean;
 }
 
-// Render structured execution steps parsed from JSONL task logs (Codex + HookCode diff artifacts). yjlphd6rbkrq521ny796
+// Render structured execution steps parsed from JSONL task logs as dialog-style rows. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
 const formatPath = (raw: string): string => {
   const value = String(raw ?? '').trim();
   if (!value) return value;
@@ -27,7 +26,7 @@ const diffKey = (diff: ExecutionFileDiff): string => `${diff.path}::${diff.kind 
 const clampText = (raw: string, maxLen: number): string => {
   // **Finalizing project details** remove *
   const cleanedText = raw.replace(/^\*+|\*+$/g, '').trim();
-  const text = String(cleanedText ?? '').trim();  
+  const text = String(cleanedText ?? '').trim();
   if (!text) return '';
   if (text.length <= maxLen) return text;
   return `${text.slice(0, Math.max(0, maxLen - 1))}…`;
@@ -39,38 +38,23 @@ const firstLine = (raw: string): string => {
   return (line ?? '').trim();
 };
 
-type ExecutionThinkProps = {
-  title: ReactNode;
-  icon?: ReactNode;
-  hideIcon?: boolean;
-  loading?: boolean;
-  blink?: boolean;
-  defaultExpanded?: boolean;
-  children?: ReactNode;
+// Summarize execution detail text for richer headers and inline labels. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+const summarizePaths = (paths: string[], maxItems = 3, maxLen = 160): string => {
+  const usable = paths.map((entry) => String(entry ?? '').trim()).filter(Boolean);
+  if (!usable.length) return '';
+  const sample = usable
+    .slice(0, maxItems)
+    .map((entry) => formatPath(entry))
+    .filter(Boolean)
+    .join(', ');
+  return sample ? clampText(sample, maxLen) : '';
 };
 
-const ExecutionThink: FC<ExecutionThinkProps> = ({ title, icon, hideIcon = true, loading, blink, defaultExpanded = false, children }) => {
-  // Control Think expansion so we can use CaretRight/CaretDown icons and default-collapse details. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
-  const [expanded, setExpanded] = useState(defaultExpanded);
+type StatusTone = 'running' | 'failed' | 'completed' | 'neutral';
 
-  return (
-    <Think
-      className={hideIcon ? 'hc-exec-think hc-exec-think--no-icon' : 'hc-exec-think'}
-      icon={icon}
-      loading={loading}
-      blink={blink}
-      expanded={expanded}
-      onExpand={setExpanded}
-      title={
-        <span className="hc-exec-think-title">
-          <span className="hc-exec-think-title__caret">{expanded ? <CaretDownOutlined /> : <CaretRightOutlined />}</span>
-          <span className="hc-exec-think-title__text">{title}</span>
-        </span>
-      }
-    >
-      {children}
-    </Think>
-  );
+type StatusMeta = {
+  tone: StatusTone;
+  label: string;
 };
 
 export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReasoning = false, wrapDiffLines = true, showLineNumbers = true }) => {
@@ -78,214 +62,220 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
 
   const visibleItems = useMemo(() => (showReasoning ? items : items.filter((item) => item.kind !== 'reasoning')), [items, showReasoning]);
 
-  const toThoughtStatus = (item: ExecutionItem): ThoughtChainItemType['status'] | undefined => {
-    // Map HookCode/Codex execution statuses to Ant Design X thought chain status icons. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
+  const buildStatusMeta = (item: ExecutionItem): StatusMeta => {
+    // Normalize execution status text so dialog entries can share the same badge styling. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
     const status = String(item.status ?? '').trim().toLowerCase();
     const isRunning =
       status === 'in_progress' || status === 'started' || status === 'updated' || status === 'running' || status === 'processing';
     const isFailed = status === 'failed' || status === 'error';
     const isAbort = status === 'abort' || status === 'aborted' || status === 'cancelled' || status === 'canceled';
 
-    if (isAbort) return 'abort';
-    if (isRunning) return 'loading';
-
     if (item.kind === 'command_execution' && typeof item.exitCode === 'number') {
-      return item.exitCode === 0 ? 'success' : 'error';
+      return {
+        tone: item.exitCode === 0 ? 'completed' : 'failed',
+        label: t('execViewer.exitCode', { code: item.exitCode })
+      };
     }
 
-    if (isFailed) return 'error';
-    if (status === 'completed' || status === 'success' || status === 'done') return 'success';
-    return undefined;
+    if (isAbort) return { tone: 'failed', label: t('execViewer.status.failed') };
+    if (isRunning) return { tone: 'running', label: t('execViewer.status.running') };
+    if (isFailed) return { tone: 'failed', label: t('execViewer.status.failed') };
+    if (status === 'completed' || status === 'success' || status === 'done') return { tone: 'completed', label: t('execViewer.status.completed') };
+
+    return { tone: 'neutral', label: status || t('execViewer.status.completed') };
   };
 
-  // Simplify item headers (no "Completed" tag / exit code text); rely on ThoughtChain status icons instead. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
-  const buildTitle = (item: ExecutionItem): ReactNode => {
+  const buildRoleLabel = (item: ExecutionItem): string => {
+    // Assign a dialog "speaker" label so logs read like a structured conversation. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+    if (item.kind === 'command_execution') return t('execViewer.role.tool');
+    if (item.kind === 'file_change') return t('execViewer.role.files');
+    if (item.kind === 'todo_list') return t('execViewer.role.plan');
+    if (item.kind === 'reasoning') return t('execViewer.role.agent');
+    if (item.kind === 'agent_message') return t('execViewer.role.agent');
+    return t('execViewer.role.system');
+  };
+
+  const buildKindLabel = (item: ExecutionItem): string => {
+    if (item.kind === 'command_execution') return t('execViewer.item.command');
+    if (item.kind === 'file_change') return t('execViewer.item.files');
+    if (item.kind === 'agent_message') return t('execViewer.item.message');
+    if (item.kind === 'reasoning') return t('execViewer.item.reasoning');
+    if (item.kind === 'todo_list') return t('execViewer.item.todoList');
+    return t('execViewer.item.unknown');
+  };
+
+  const buildDialogSummary = (item: ExecutionItem): string => {
     if (item.kind === 'command_execution') {
-      return (
-        <Space size={8} wrap>
-          <CodeOutlined />
-          <Typography.Text strong>{t('execViewer.item.command')}</Typography.Text>
-        </Space>
-      );
+      const commandRaw = item.command?.trim();
+      const commandSummary = commandRaw ? clampText(commandRaw, 160) : '';
+      return commandSummary ? t('execViewer.item.commandDetail', { command: commandSummary }) : t('execViewer.item.command');
     }
 
     if (item.kind === 'file_change') {
-      return (
-        <Space size={8} wrap>
-          <FileTextOutlined />
-          <Typography.Text strong>{t('execViewer.item.files')}</Typography.Text>
-          <Typography.Text type="secondary">{t('execViewer.files.count', { count: item.changes.length })}</Typography.Text>
-        </Space>
+      const filePaths = (item.changes.length ? item.changes.map((entry) => entry.path) : (item.diffs ?? []).map((entry) => entry.path)).filter(
+        (entry) => entry
       );
+      const summary = summarizePaths(filePaths, 3, 160);
+      return summary ? t('execViewer.item.filesDetail', { summary }) : t('execViewer.item.files');
     }
 
     if (item.kind === 'agent_message') {
       const line = firstLine(item.text);
-      const text = line ? clampText(line, 140) : t('execViewer.item.message');
-      return (
-        <Space size={8} style={{ minWidth: 0 }}>
-          <MessageOutlined />
-          <Typography.Text strong ellipsis={{ tooltip: line || undefined }} style={{ minWidth: 0 }}>
-            {text}
-          </Typography.Text>
-        </Space>
-      );
+      return line ? clampText(line, 180) : t('execViewer.item.message');
     }
 
     if (item.kind === 'reasoning') {
       const line = firstLine(item.text);
-      const text = line ? clampText(line, 140) : t('execViewer.item.reasoning');
-      return (
-        <Space size={8} style={{ minWidth: 0 }}>
-          <EditOutlined />
-          <Typography.Text strong ellipsis={{ tooltip: line || undefined }} style={{ minWidth: 0 }}>
-            {text}
-          </Typography.Text>
-        </Space>
-      );
+      return line ? clampText(line, 180) : t('execViewer.item.reasoning');
     }
 
-    return (
-      <Space size={8} wrap>
-        <EditOutlined />
-        <Typography.Text strong>{t('execViewer.item.unknown')}</Typography.Text>
-      </Space>
-    );
+    if (item.kind === 'todo_list') {
+      const total = item.items.length;
+      const completed = item.items.filter((entry) => entry.completed).length;
+      return total ? t('execViewer.todo.progress', { done: completed, total }) : t('execViewer.item.todoList');
+    }
+
+    return t('execViewer.item.unknown');
   };
 
-  const buildDescription = (item: ExecutionItem): ReactNode => {
-    if (item.kind === 'command_execution') {
-      // Avoid repeating the same command in multiple places (title + description + content). docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
-      return null;
-    }
-
-    if (item.kind === 'file_change') {
-      const sample = item.changes
-        .slice(0, 3)
-        .map((c) => formatPath(c.path))
-        .filter(Boolean)
-        .join(', ');
-      if (!sample) return null;
-      return (
-        <Typography.Text type="secondary" className="hc-exec-thought__desc" ellipsis={{ tooltip: item.changes.map((c) => c.path).join('\n') }}>
-          {clampText(sample, 160)}
-        </Typography.Text>
-      );
-    }
-
+  const renderDialogLine = (item: ExecutionItem): ReactNode => {
     if (item.kind === 'agent_message') {
-      // Move message snippets into ThoughtChain titles to keep the node scan-friendly without duplicate lines. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
-      return null;
+      return item.text ? (
+        <MarkdownViewer markdown={item.text} className="markdown-result--expanded" />
+      ) : (
+        <Typography.Text type="secondary">-</Typography.Text>
+      );
     }
 
-    if (item.kind === 'reasoning') {
-      // Move reasoning snippets into ThoughtChain titles to keep the node scan-friendly without duplicate lines. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
-      return null;
-    }
-
-    return null;
+    const summary = buildDialogSummary(item);
+    return summary ? <Typography.Text className="hc-exec-dialog__line-text">{summary}</Typography.Text> : <Typography.Text type="secondary">-</Typography.Text>;
   };
 
-  const renderContent = (item: ExecutionItem): ReactNode => {
+  // Group detailed work artifacts under a dedicated work-area panel per dialog entry. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+  const renderWorkArea = (item: ExecutionItem): ReactNode => {
+    if (item.kind === 'agent_message') return null;
+
+    const workTitle = t('execViewer.section.workArea');
+
     if (item.kind === 'command_execution') {
-      const running = toThoughtStatus(item) === 'loading';
       return (
-        <ExecutionThink
-          title={<span className="hc-exec-think-title__mono">{clampText(item.command || '-', 180)}</span>}
-          icon={<CodeOutlined />}
-          hideIcon
-          loading={running}
-          blink={running}
-          defaultExpanded={false}
-        >
-          {item.output ? <pre className="hc-exec-output">{item.output}</pre> : <Typography.Text type="secondary">-</Typography.Text>}
-        </ExecutionThink>
+        <div className="hc-exec-dialog__work">
+          <div className="hc-exec-dialog__work-header">{workTitle}</div>
+          <div className="hc-exec-dialog__work-section">
+            <div className="hc-exec-dialog__work-title">{t('execViewer.section.commandOutput')}</div>
+            {item.output ? <pre className="hc-exec-dialog__mono">{item.output}</pre> : <Typography.Text type="secondary">-</Typography.Text>}
+          </div>
+        </div>
       );
     }
 
     if (item.kind === 'file_change') {
-      const running = toThoughtStatus(item) === 'loading';
       const diffs = item.diffs ?? [];
       return (
-        <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-          <ExecutionThink title={t('execViewer.item.files')} icon={<FileTextOutlined />} loading={running} blink={running} defaultExpanded={false}>
+        <div className="hc-exec-dialog__work">
+          <div className="hc-exec-dialog__work-header">{workTitle}</div>
+          <div className="hc-exec-dialog__work-section">
+            <div className="hc-exec-dialog__work-title">{t('execViewer.section.filesList')}</div>
             {item.changes.length ? (
-              <div className="hc-exec-files">
+              <div className="hc-exec-dialog__files">
                 {item.changes.map((change, idx) => (
-                  <div key={`${idx}-${change.path}`} className="hc-exec-file">
-                    <Typography.Text className="hc-exec-file__path" ellipsis={{ tooltip: change.path }}>
+                  <div key={`${idx}-${change.path}`} className="hc-exec-dialog__file">
+                    <Typography.Text className="hc-exec-dialog__file-path" ellipsis={{ tooltip: change.path }}>
                       {formatPath(change.path)}
                     </Typography.Text>
-                    {change.kind ? (
-                      <Tag color="default" style={{ marginInlineStart: 8 }}>
-                        {change.kind}
-                      </Tag>
-                    ) : null}
+                    {change.kind ? <span className="hc-exec-dialog__pill">{change.kind}</span> : null}
                   </div>
                 ))}
               </div>
             ) : (
               <Typography.Text type="secondary">{t('execViewer.files.empty')}</Typography.Text>
             )}
-          </ExecutionThink>
-
-          {diffs.length ? (
-            diffs.map((diff) => (
-              <ExecutionThink key={diffKey(diff)} title={<span className="hc-exec-think-title__mono">{diff.path}</span>} icon={<FileTextOutlined />} defaultExpanded={false}>
-                {diff.oldText !== undefined && diff.newText !== undefined ? (
-                  <DiffView oldText={diff.oldText} newText={diff.newText} showLineNumbers={showLineNumbers} showPlusMinusSymbols wrapLines={wrapDiffLines} />
-                ) : (
-                  <pre className="hc-exec-output hc-exec-output--mono">{diff.unifiedDiff}</pre>
-                )}
-              </ExecutionThink>
-            ))
-          ) : (
-            <Typography.Text type="secondary">{t('execViewer.diff.pending')}</Typography.Text>
-          )}
-        </Space>
-      );
-    }
-
-    if (item.kind === 'agent_message') {
-      const running = toThoughtStatus(item) === 'loading';
-      return (
-        <ExecutionThink title={t('execViewer.item.message')} hideIcon icon={<MessageOutlined />} loading={running} blink={running} defaultExpanded={false}>
-          {item.text ? <MarkdownViewer markdown={item.text} className="markdown-result--expanded" /> : <Typography.Text type="secondary">-</Typography.Text>}
-        </ExecutionThink>
+          </div>
+          <div className="hc-exec-dialog__work-section">
+            <div className="hc-exec-dialog__work-title">{t('execViewer.section.fileDiffs')}</div>
+            {diffs.length ? (
+              <div className="hc-exec-dialog__diff-list">
+                {diffs.map((diff) => (
+                  <div key={diffKey(diff)} className="hc-exec-dialog__diff">
+                    <Typography.Text className="hc-exec-dialog__diff-file" ellipsis={{ tooltip: diff.path }}>
+                      {formatPath(diff.path)}
+                    </Typography.Text>
+                    {diff.oldText !== undefined && diff.newText !== undefined ? (
+                      <DiffView
+                        oldText={diff.oldText}
+                        newText={diff.newText}
+                        showLineNumbers={showLineNumbers}
+                        showPlusMinusSymbols
+                        wrapLines={wrapDiffLines}
+                      />
+                    ) : (
+                      <pre className="hc-exec-dialog__mono">{diff.unifiedDiff}</pre>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Typography.Text type="secondary">{t('execViewer.diff.pending')}</Typography.Text>
+            )}
+          </div>
+        </div>
       );
     }
 
     if (item.kind === 'reasoning') {
-      const running = toThoughtStatus(item) === 'loading';
       return (
-        <ExecutionThink title={t('execViewer.item.reasoning')} icon={<EditOutlined />} loading={running} blink={running} defaultExpanded={false}>
-          <pre className="hc-exec-output hc-exec-output--mono">{item.text || '-'}</pre>
-        </ExecutionThink>
+        <div className="hc-exec-dialog__work">
+          <div className="hc-exec-dialog__work-header">{workTitle}</div>
+          <div className="hc-exec-dialog__work-section">
+            <div className="hc-exec-dialog__work-title">{t('execViewer.section.reasoningDetail')}</div>
+            {/* Render reasoning content as Markdown inside the work area for rich formatting. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
+            {item.text ? (
+              <MarkdownViewer markdown={item.text} className="markdown-result--expanded" />
+            ) : (
+              <Typography.Text type="secondary">-</Typography.Text>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (item.kind === 'todo_list') {
+      return (
+        <div className="hc-exec-dialog__work">
+          <div className="hc-exec-dialog__work-header">{workTitle}</div>
+          <div className="hc-exec-dialog__work-section">
+            <div className="hc-exec-dialog__work-title">{t('execViewer.section.todoItems')}</div>
+            {item.items.length ? (
+              <div className="hc-exec-dialog__todo">
+                {item.items.map((entry, index) => (
+                  <div key={`${entry.text}-${index}`} className={`hc-exec-dialog__todo-item${entry.completed ? ' is-complete' : ''}`}>
+                    <span className="hc-exec-dialog__todo-marker" />
+                    <Typography.Text delete={entry.completed}>{entry.text}</Typography.Text>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Typography.Text type="secondary">{t('execViewer.todo.empty')}</Typography.Text>
+            )}
+          </div>
+        </div>
       );
     }
 
     return (
-      <ExecutionThink title={t('execViewer.item.unknown')} icon={<EditOutlined />} defaultExpanded={false}>
-        <pre className="hc-exec-output hc-exec-output--mono">{JSON.stringify((item as any).raw ?? item, null, 2)}</pre>
-      </ExecutionThink>
+      <div className="hc-exec-dialog__work">
+        <div className="hc-exec-dialog__work-header">{workTitle}</div>
+        <div className="hc-exec-dialog__work-section">
+          <div className="hc-exec-dialog__work-title">{t('execViewer.item.unknown')}</div>
+          <pre className="hc-exec-dialog__mono">{JSON.stringify((item as any).raw ?? item, null, 2)}</pre>
+        </div>
+      </div>
     );
   };
 
-  const chainItems = useMemo<ThoughtChainItemType[]>(
-    () =>
-      visibleItems.map((item) => ({
-        key: item.id,
-        title: buildTitle(item),
-        description: buildDescription(item),
-        content: renderContent(item),
-        status: toThoughtStatus(item),
-        blink: toThoughtStatus(item) === 'loading'
-      })),
-    [visibleItems, showLineNumbers, t, wrapDiffLines]
-  );
+  const showRunningIndicator = visibleItems.some((item) => buildStatusMeta(item).tone === 'running');
 
-  if (!chainItems.length) {
-    // Avoid conditional hooks by rendering the empty state after all hooks have executed. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
+  if (!visibleItems.length) {
     return (
       <div className="hc-exec-empty">
         <Typography.Text type="secondary">{t('execViewer.empty.timeline')}</Typography.Text>
@@ -293,8 +283,55 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
     );
   }
 
+  // Render dialog-style execution entries with a separate work area instead of ThoughtChain. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
   return (
-    // Replace per-step Cards with Ant Design X ThoughtChain/Think to improve scanability of structured logs. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
-    <ThoughtChain items={chainItems} rootClassName="hc-exec-thought-chain" line="solid" />
+    <div className="hc-exec-dialog">
+      {visibleItems.map((item, index) => {
+        const status = buildStatusMeta(item);
+        const role = buildRoleLabel(item);
+        const kind = buildKindLabel(item);
+        const summary = buildDialogSummary(item);
+        const itemClass = `hc-exec-dialog__item is-${status.tone}`;
+        const statusClass = `hc-exec-dialog__status is-${status.tone}`;
+
+        return (
+          <div key={item.id} className={itemClass}>
+            <div className="hc-exec-dialog__rail" aria-hidden="true">
+              <span className="hc-exec-dialog__dot" />
+              {index < visibleItems.length - 1 ? <span className="hc-exec-dialog__line" /> : null}
+            </div>
+            <div className="hc-exec-dialog__content">
+              <div className="hc-exec-dialog__header">
+                <span className="hc-exec-dialog__role">{role}</span>
+                <Space size={6} wrap>
+                  {item.kind === 'command_execution' ? <CodeOutlined /> : null}
+                  {item.kind === 'file_change' ? <FileTextOutlined /> : null}
+                  {item.kind === 'agent_message' ? <MessageOutlined /> : null}
+                  {item.kind === 'reasoning' ? <MoreOutlined /> : null}
+                  {item.kind === 'todo_list' ? <CheckSquareOutlined /> : null}
+                  {item.kind === 'unknown' ? <MoreOutlined /> : null}
+                  <Typography.Text className="hc-exec-dialog__kind">{kind}</Typography.Text>
+                </Space>
+                <span className={statusClass}>{status.label}</span>
+              </div>
+              <div className="hc-exec-dialog__speech">
+                {item.kind === 'agent_message' ? renderDialogLine(item) : <Typography.Text className="hc-exec-dialog__line-text">{summary}</Typography.Text>}
+              </div>
+              {renderWorkArea(item)}
+            </div>
+          </div>
+        );
+      })}
+      {showRunningIndicator ? (
+        <div className="hc-exec-running" role="status" aria-live="polite">
+          <span className="hc-exec-running__dots" aria-hidden="true">
+            <span className="hc-exec-running__dot" />
+            <span className="hc-exec-running__dot" />
+            <span className="hc-exec-running__dot" />
+          </span>
+          <Typography.Text type="secondary">{t('execViewer.status.running')}</Typography.Text>
+        </div>
+      ) : null}
+    </div>
   );
 };

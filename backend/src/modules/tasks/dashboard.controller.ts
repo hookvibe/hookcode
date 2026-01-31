@@ -2,10 +2,12 @@ import { Controller, Get, HttpException, InternalServerErrorException, Query } f
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { normalizeString, parsePositiveInt } from '../../utils/parse';
+import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { DashboardSidebarResponseDto } from './dto/dashboard-swagger.dto';
 import { TaskService } from './task.service';
 
+@AuthScopeGroup('tasks') // Scope dashboard APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('dashboard')
 @ApiTags('Dashboard')
 @ApiBearerAuth('bearerAuth')
@@ -54,7 +56,9 @@ export class DashboardController {
           robotId,
           status: 'queued',
           eventType: eventType as any,
-          includeMeta: true
+          includeMeta: true,
+          // Skip queue diagnosis for sidebar summaries to reduce DB load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+          includeQueue: false
         }),
         this.taskService.listTasks({
           limit: tasksLimit,
@@ -62,7 +66,9 @@ export class DashboardController {
           robotId,
           status: 'processing',
           eventType: eventType as any,
-          includeMeta: true
+          includeMeta: true,
+          // Skip queue diagnosis for sidebar summaries to reduce DB load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+          includeQueue: false
         }),
         this.taskService.listTasks({
           limit: tasksLimit,
@@ -70,7 +76,9 @@ export class DashboardController {
           robotId,
           status: 'success',
           eventType: eventType as any,
-          includeMeta: true
+          includeMeta: true,
+          // Skip queue diagnosis for sidebar summaries to reduce DB load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+          includeQueue: false
         }),
         this.taskService.listTasks({
           limit: tasksLimit,
@@ -78,7 +86,9 @@ export class DashboardController {
           robotId,
           status: 'failed',
           eventType: eventType as any,
-          includeMeta: true
+          includeMeta: true,
+          // Skip queue diagnosis for sidebar summaries to reduce DB load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+          includeQueue: false
         }),
         this.taskService.listTaskGroups({
           limit: taskGroupsLimit,
@@ -116,4 +126,3 @@ export class DashboardController {
     }
   }
 }
-

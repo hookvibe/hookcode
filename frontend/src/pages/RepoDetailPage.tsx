@@ -31,7 +31,9 @@ import type {
   RepoAutomationConfig,
   RepoRobot,
   RepoScopedCredentialsPublic,
+  RepoPreviewConfigResponse,
   Repository,
+  TimeWindow,
   UserModelCredentialsPublic,
   UserModelProviderCredentialProfilePublic,
   UserRepoProviderCredentialProfilePublic
@@ -42,10 +44,12 @@ import {
   deleteRepoRobot,
   fetchMyModelCredentials,
   fetchRepo,
+  fetchRepoPreviewConfig,
   listMyModelProviderModels,
   listRepoModelProviderModels,
   unarchiveRepo,
   testRepoRobot,
+  testRepoRobotWorkflow, // Add workflow-mode test API to validate direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   updateRepo,
   updateRepoAutomation,
   updateRepoRobot
@@ -63,12 +67,16 @@ import { TemplateEditor } from '../components/TemplateEditor';
 import { ScrollableTable } from '../components/ScrollableTable';
 import { PageNav } from '../components/nav/PageNav';
 import { buildWebhookUrl } from '../utils/webhook';
+import { getRobotProviderLabel } from '../utils/robot';
 import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
 import { RepoDetailDashboardSummaryStrip, type RepoDetailSectionKey } from '../components/repos/RepoDetailDashboardSummaryStrip';
 import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
 import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
 import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
 import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailProviderActivityRow';
+import { TimeWindowPicker } from '../components/TimeWindowPicker';
+import { uuid as generateUuid } from '../components/repoAutomation/utils';
+import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
 
 /**
  * RepoDetailPage:
@@ -110,7 +118,18 @@ type RobotFormValues = {
   promptDefault?: string;
   language: string;
   defaultBranch?: string | null;
+  // Track the robot workflow mode selection in the edit form. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork';
+  // Track robot-level scheduling windows in the editor. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+  timeWindow?: TimeWindow | null;
   isDefault: boolean;
+  // Expose dependency overrides in the robot editor to control install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  dependencyOverride: boolean;
+  dependencyConfig: {
+    enabled: boolean;
+    failureMode: 'inherit' | 'soft' | 'hard';
+    allowCustomInstall: boolean;
+  };
   modelProvider: ModelProvider;
   modelProviderConfig: Partial<CodexRobotProviderConfigPublic | ClaudeCodeRobotProviderConfigPublic | GeminiCliRobotProviderConfigPublic> & {
     credentialSource?: 'user' | 'repo' | 'robot';
@@ -222,6 +241,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [webhookPathRaw, setWebhookPathRaw] = useState<string | null>(null);
   const [repoScopedCredentials, setRepoScopedCredentials] = useState<RepoScopedCredentialsPublic | null>(null);
+  // Track preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const [previewConfig, setPreviewConfig] = useState<RepoPreviewConfigResponse | null>(null);
+  const [previewConfigLoading, setPreviewConfigLoading] = useState(false);
+  // Share webhook delivery data across dashboard cards to avoid duplicate requests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+  const {
+    deliveries: webhookDeliveries,
+    loading: webhookDeliveriesLoading,
+    loadFailed: webhookDeliveriesFailed,
+    refresh: refreshWebhookDeliveries
+  } = useRepoWebhookDeliveries(repoId);
 
   const [webhookIntroOpen, setWebhookIntroOpen] = useState(false);
   const [showWebhookSecretInline, setShowWebhookSecretInline] = useState(false);
@@ -236,16 +265,24 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const repoArchived = Boolean(repo?.archivedAt); // Disable edits when repo is archived (archive area is read-only). qnp1mtxhzikhbi0xspbc
 
   const [repoProviderProfilesPage, setRepoProviderProfilesPage] = useState(1);
-  const [modelProviderProfilesPage, setModelProviderProfilesPage] = useState<Record<ModelProviderKey, number>>({
-    codex: 1,
-    claude_code: 1,
-    gemini_cli: 1
-  });
+  // Track unified model profile pagination state for the merged list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  const [modelProviderProfilesPage, setModelProviderProfilesPage] = useState(1);
+
+  const modelProviderProfileItems = useMemo(() => {
+    // Flatten repo-scoped model profiles for the unified list display. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    return (['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).flatMap((provider) => {
+      const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[provider] as any;
+      const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
+      const defaultId = String(providerCredentials?.defaultProfileId ?? '').trim();
+      return profiles.map((profile: UserModelProviderCredentialProfilePublic) => ({ provider, profile, defaultId }));
+    });
+  }, [repoScopedCredentials]);
 
   useEffect(() => {
     // Reset credentials pagination on repo switch to avoid blank pages when profile counts change. u55e45ffi8jng44erdzp
     setRepoProviderProfilesPage(1);
-    setModelProviderProfilesPage({ codex: 1, claude_code: 1, gemini_cli: 1 });
+    // Reset unified model profile pagination on repo switch. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    setModelProviderProfilesPage(1);
   }, [repoId]);
 
   useEffect(() => {
@@ -254,21 +291,18 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     const repoMaxPage = Math.max(1, Math.ceil(repoProfilesTotal / CREDENTIAL_PROFILE_PAGE_SIZE));
     setRepoProviderProfilesPage((p) => Math.min(p, repoMaxPage));
 
-    setModelProviderProfilesPage((prev) => {
-      const next = { ...prev };
-      for (const provider of ['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]) {
-        const profiles = ((repoScopedCredentials as any)?.modelProvider?.[provider]?.profiles ?? []) as any[];
-        const maxPage = Math.max(1, Math.ceil(profiles.length / CREDENTIAL_PROFILE_PAGE_SIZE));
-        next[provider] = Math.min(prev[provider] ?? 1, maxPage);
-      }
-      return next;
-    });
-  }, [repoScopedCredentials]);
+    // Clamp unified model profile pagination when the list size changes. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    const modelProfilesTotal = modelProviderProfileItems.length;
+    const modelMaxPage = Math.max(1, Math.ceil(modelProfilesTotal / CREDENTIAL_PROFILE_PAGE_SIZE));
+    setModelProviderProfilesPage((p) => Math.min(p, modelMaxPage));
+  }, [modelProviderProfileItems, repoScopedCredentials]);
 
   const [repoProviderProfileModalOpen, setRepoProviderProfileModalOpen] = useState(false);
   const [repoProviderProfileEditing, setRepoProviderProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
   const [repoProviderProfileSubmitting, setRepoProviderProfileSubmitting] = useState(false);
   const [repoProviderTokenMode, setRepoProviderTokenMode] = useState<'keep' | 'set'>('keep');
+  // Track default toggle inside the repo credential manage dialog. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  const [repoProviderSetDefault, setRepoProviderSetDefault] = useState(false);
   const [repoProviderProfileForm] = Form.useForm<{ remark: string; token?: string; cloneUsername?: string }>();
 
   const [modelProfileModalOpen, setModelProfileModalOpen] = useState(false);
@@ -276,6 +310,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [modelProfileEditing, setModelProfileEditing] = useState<UserModelProviderCredentialProfilePublic | null>(null);
   const [modelProfileSubmitting, setModelProfileSubmitting] = useState(false);
   const [modelProfileApiKeyMode, setModelProfileApiKeyMode] = useState<'keep' | 'set'>('keep');
+  // Track default toggle inside the model credential manage dialog. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+  const [modelProfileSetDefault, setModelProfileSetDefault] = useState(false);
   const [modelProfileForm] = Form.useForm<{ remark: string; apiKey?: string; apiBaseUrl?: string }>();
 
   const [robotModalOpen, setRobotModalOpen] = useState(false);
@@ -284,6 +320,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [robotChangingToken, setRobotChangingToken] = useState(false);
   const [robotChangingModelApiKey, setRobotChangingModelApiKey] = useState(false);
   const [robotTestingId, setRobotTestingId] = useState<string | null>(null);
+  // Track workflow check loading state per robot in the settings modal. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  const [robotWorkflowTestingId, setRobotWorkflowTestingId] = useState<string | null>(null);
   const [robotTogglingId, setRobotTogglingId] = useState<string | null>(null);
   const [robotDeletingId, setRobotDeletingId] = useState<string | null>(null);
 
@@ -320,6 +358,17 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 
   const webhookVerified = Boolean(repo?.webhookVerifiedAt);
 
+  // Map preview config reason codes to localized helper text. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const previewConfigReasonText = useMemo(() => {
+    const reason = previewConfig?.reason;
+    if (!reason) return '';
+    if (reason === 'no_workspace') return t('repos.preview.reason.noWorkspace');
+    if (reason === 'config_missing') return t('repos.preview.reason.configMissing');
+    if (reason === 'config_invalid') return t('repos.preview.reason.configInvalid');
+    if (reason === 'workspace_missing') return t('repos.preview.reason.workspaceMissing');
+    return '';
+  }, [previewConfig?.reason, t]);
+
   const title = useMemo(() => repo?.name || repoId || t('repos.detail.titleFallback'), [repo?.name, repoId, t]);
 
   const formatTime = useCallback(
@@ -332,6 +381,21 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     },
     [locale]
   );
+
+  const refreshPreviewConfig = useCallback(async () => {
+    // Load repo preview configuration metadata for the dashboard card. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!repoId) return;
+    setPreviewConfigLoading(true);
+    try {
+      const data = await fetchRepoPreviewConfig(repoId);
+      setPreviewConfig(data);
+    } catch (err) {
+      console.error(err);
+      setPreviewConfig(null);
+    } finally {
+      setPreviewConfigLoading(false);
+    }
+  }, [repoId]);
 
   const refresh = useCallback(async () => {
     if (!repoId) return;
@@ -368,6 +432,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void refreshPreviewConfig();
+  }, [refreshPreviewConfig]);
 
   useEffect(() => {
     // Keep onboarding visibility aligned with the current repo id (hash route may change without a full reload). 58w1q3n5nr58flmempxe
@@ -467,9 +535,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       // UX: keep existing tokens by default (backend never returns raw tokens).
       setRepoProviderTokenMode(profile?.hasToken ? 'keep' : 'set');
       repoProviderProfileForm.setFieldsValue({ remark: initialRemark, cloneUsername: initialCloneUsername, token: '' });
-      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
+      // Default selection now lives inside the manage modal for repo credentials. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const defaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
+      setRepoProviderSetDefault(Boolean(profile?.id && profile.id === defaultId));
     },
-    [repoProviderProfileForm]
+    [repoProviderProfileForm, repoScopedCredentials?.repoProvider?.defaultProfileId]
   );
 
   const submitRepoProviderProfile = useCallback(async () => {
@@ -483,17 +553,22 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       const tokenValue = String(values.token ?? '').trim();
       const shouldSendToken = repoProviderTokenMode === 'set';
 
+      const currentDefaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
+      // Generate a stable profile id so new defaults can be applied immediately. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const profileId = repoProviderProfileEditing?.id ?? generateUuid();
       const payload = {
-        id: repoProviderProfileEditing?.id ?? null,
+        id: profileId,
         remark: remark || null,
         cloneUsername: cloneUsername || null,
         ...(shouldSendToken ? { token: tokenValue ? tokenValue : null } : {})
       };
 
+      const isEditingDefault = Boolean(repoProviderProfileEditing?.id && repoProviderProfileEditing.id === currentDefaultId);
       const updated = await patchRepoScopedCredentials({
-        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
+        // Update default selection inside the manage modal alongside profile edits. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
         repoProviderCredential: {
-          profiles: [payload]
+          profiles: [payload],
+          ...(repoProviderSetDefault ? { defaultProfileId: profileId } : isEditingDefault ? { defaultProfileId: null } : {})
         }
       });
       if (!updated) return;
@@ -516,18 +591,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     repoProviderProfileEditing?.id,
     repoProviderProfileForm,
     repoProviderProfileSubmitting,
+    repoProviderSetDefault,
     repoProviderTokenMode,
+    repoScopedCredentials?.repoProvider?.defaultProfileId,
     t
   ]);
-
-  const setRepoProviderDefault = useCallback(
-    async (nextDefaultId: string | null) => {
-      await patchRepoScopedCredentials({
-        repoProviderCredential: { defaultProfileId: nextDefaultId || null }
-      });
-    },
-    [patchRepoScopedCredentials]
-  );
 
   const removeRepoProviderProfile = useCallback(
     (id: string) => {
@@ -548,8 +616,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   );
 
   const startEditModelProfile = useCallback(
-    (provider: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
-      setModelProfileProvider(provider);
+    (provider?: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
+      const nextProvider = provider ?? modelProfileProvider ?? 'codex';
+      // Keep the model provider selection aligned with the unified list modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      setModelProfileProvider(nextProvider);
       setModelProfileEditing(profile ?? null);
       setModelProfileModalOpen(true);
 
@@ -559,9 +629,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       // UX: keep existing keys by default (backend never returns raw apiKey).
       setModelProfileApiKeyMode(profile?.hasApiKey ? 'keep' : 'set');
       modelProfileForm.setFieldsValue({ remark: initialRemark, apiBaseUrl: initialApiBaseUrl, apiKey: '' });
-      // Change record (2026-01-15): default credential selection is managed in the list view, not inside the editor modal.
+      // Default selection now lives inside the manage modal for model credentials. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const defaultId = String((repoScopedCredentials as any)?.modelProvider?.[nextProvider]?.defaultProfileId ?? '').trim();
+      setModelProfileSetDefault(Boolean(profile?.id && profile.id === defaultId));
     },
-    [modelProfileForm]
+    [modelProfileForm, modelProfileProvider, repoScopedCredentials]
   );
 
   const submitModelProfile = useCallback(async () => {
@@ -575,18 +647,23 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       const apiKey = String(values.apiKey ?? '').trim();
       const shouldSendApiKey = modelProfileApiKeyMode === 'set';
 
+      const currentDefaultId = String((repoScopedCredentials as any)?.modelProvider?.[modelProfileProvider]?.defaultProfileId ?? '').trim();
+      // Generate a stable profile id so new defaults can be applied immediately. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+      const profileId = modelProfileEditing?.id ?? generateUuid();
       const payload = {
-        id: modelProfileEditing?.id ?? null,
+        id: profileId,
         remark: remark || null,
         apiBaseUrl: apiBaseUrl || null,
         ...(shouldSendApiKey ? { apiKey: apiKey ? apiKey : null } : {})
       };
 
+      const isEditingDefault = Boolean(modelProfileEditing?.id && modelProfileEditing.id === currentDefaultId);
       const updated = await patchRepoScopedCredentials({
-        // Change record (2026-01-15): profile edits no longer mutate defaultProfileId (handled in the list view selector).
+        // Update default selection inside the manage modal alongside profile edits. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
         modelProviderCredential: {
           [modelProfileProvider]: {
-            profiles: [payload]
+            profiles: [payload],
+            ...(modelProfileSetDefault ? { defaultProfileId: profileId } : isEditingDefault ? { defaultProfileId: null } : {})
           }
         } as any
       });
@@ -611,18 +688,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     modelProfileForm,
     modelProfileProvider,
     modelProfileSubmitting,
+    modelProfileSetDefault,
     patchRepoScopedCredentials,
+    repoScopedCredentials,
     t
   ]);
-
-  const setModelProviderDefault = useCallback(
-    async (provider: ModelProviderKey, nextDefaultId: string | null) => {
-      await patchRepoScopedCredentials({
-        modelProviderCredential: { [provider]: { defaultProfileId: nextDefaultId || null } } as any
-      });
-    },
-    [patchRepoScopedCredentials]
-  );
 
   const removeModelProviderProfile = useCallback(
     (provider: ModelProviderKey, id: string) => {
@@ -780,8 +850,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
           credentialProfileId: null,
           model: 'gpt-5.2',
           sandbox: 'read-only',
-          model_reasoning_effort: 'medium',
-          sandbox_workspace_write: { network_access: false }
+          // Codex defaults omit network access since it is always enabled now. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+          model_reasoning_effort: 'medium'
         } as any;
       };
 
@@ -795,7 +865,18 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         promptDefault: '',
         language: locale,
         defaultBranch: null,
+        // Default new robots to auto workflow (follow existing behavior). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        repoWorkflowMode: 'auto',
+        // Default to no scheduling window until explicitly configured. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        timeWindow: null,
         isDefault: false,
+        // Default dependency overrides to "inherit" so robots follow `.hookcode.yml` unless explicitly changed. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        dependencyOverride: false,
+        dependencyConfig: {
+          enabled: true,
+          failureMode: 'inherit',
+          allowCustomInstall: false
+        },
         modelProvider: 'codex',
         modelProviderConfig: buildDefaultModelProviderConfig('codex')
       };
@@ -814,6 +895,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       const credentialProfileId =
         credentialSource === 'robot' ? null : typeof cfg?.credentialProfileId === 'string' ? cfg.credentialProfileId.trim() || null : null;
 
+      // Normalize dependency override fields from the robot payload for the editor state. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      const dependencyOverride = Boolean(robot.dependencyConfig);
+      const dependencyConfig = (robot.dependencyConfig ?? {}) as any;
+      const dependencyFailureMode =
+        dependencyConfig.failureMode === 'soft' || dependencyConfig.failureMode === 'hard' ? dependencyConfig.failureMode : 'inherit';
+
       return {
         ...base,
         name: robot.name || robot.id,
@@ -825,7 +912,18 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         promptDefault: robot.promptDefault ?? '',
         language: typeof robot.language === 'string' && robot.language.trim() ? robot.language.trim() : locale,
         defaultBranch: robot.defaultBranch ?? null,
+        // Populate workflow mode from the robot record (fallback to auto). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        repoWorkflowMode: (robot.repoWorkflowMode ?? 'auto') as any,
+        // Hydrate robot-level time windows into the editor state. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+        timeWindow: robot.timeWindow ?? null,
         isDefault: Boolean(robot.isDefault),
+        // Hydrate dependency overrides from the robot record to keep the editor consistent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        dependencyOverride,
+        dependencyConfig: {
+          enabled: dependencyConfig.enabled === undefined ? true : Boolean(dependencyConfig.enabled),
+          failureMode: dependencyFailureMode,
+          allowCustomInstall: Boolean(dependencyConfig.allowCustomInstall)
+        },
         modelProvider: modelProvider as any,
         modelProviderConfig: {
           credentialSource,
@@ -841,12 +939,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               : undefined,
           model: cfg?.model ?? providerDefaults.model,
           sandbox: cfg?.sandbox ?? providerDefaults.sandbox,
+          // Only non-Codex providers keep network access in config; Codex is always enabled. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
           ...(modelProvider === 'codex'
             ? { model_reasoning_effort: cfg?.model_reasoning_effort ?? (providerDefaults as any).model_reasoning_effort }
-            : {}),
-          sandbox_workspace_write: {
-            network_access: Boolean(cfg?.sandbox_workspace_write?.network_access ?? providerDefaults?.sandbox_workspace_write?.network_access)
-          }
+            : {
+                sandbox_workspace_write: {
+                  network_access: Boolean(cfg?.sandbox_workspace_write?.network_access ?? providerDefaults?.sandbox_workspace_write?.network_access)
+                }
+              })
         }
       };
     },
@@ -998,6 +1098,18 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         const shouldSendModelApiKey =
           credentialSource === 'robot' && (!editingRobot || robotChangingModelApiKey || !editingRobotHasApiKey);
 
+        // Persist the selected repo workflow mode so the backend can enforce direct/fork. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+        const workflowMode = values.repoWorkflowMode ?? 'auto';
+        // Map dependency override UI fields into API payload for robot-level install control. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+        const dependencyOverride = Boolean(values.dependencyOverride);
+        const dependencyFailureMode = values.dependencyConfig?.failureMode;
+        const dependencyConfig = dependencyOverride
+          ? {
+              enabled: Boolean(values.dependencyConfig?.enabled),
+              allowCustomInstall: Boolean(values.dependencyConfig?.allowCustomInstall),
+              ...(dependencyFailureMode === 'soft' || dependencyFailureMode === 'hard' ? { failureMode: dependencyFailureMode } : {})
+            }
+          : null;
         const payload: any = {
           name: values.name,
           ...(shouldSendToken ? { token: repoCredentialSource === 'robot' ? tokenValue : null } : {}),
@@ -1024,8 +1136,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                     : undefined,
                 model: cfg.model,
                 sandbox: normalizeCodexSandbox(cfg.sandbox),
-                model_reasoning_effort: normalizeCodexReasoningEffort(cfg.model_reasoning_effort),
-                sandbox_workspace_write: { network_access: Boolean(cfg?.sandbox_workspace_write?.network_access) }
+                // Codex payload omits network access because it is always enabled. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+                model_reasoning_effort: normalizeCodexReasoningEffort(cfg.model_reasoning_effort)
               }
             : {
                 credentialSource,
@@ -1043,6 +1155,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                 sandbox_workspace_write: { network_access: Boolean(cfg?.sandbox_workspace_write?.network_access) }
               },
           defaultBranch: values.defaultBranch === undefined ? undefined : values.defaultBranch,
+          repoWorkflowMode: workflowMode,
+          // Persist robot-level time windows for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+          timeWindow: values.timeWindow ?? null,
+          dependencyConfig,
           isDefault: values.isDefault
         };
 
@@ -1097,6 +1213,35 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       }
     },
     [message, repo, repoArchived, t]
+  );
+
+  const handleTestRobotWorkflow = useCallback(
+    async () => {
+      // Validate the selected repo workflow mode using the saved robot credentials. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      if (!repo || repoArchived) return; // Block workflow checks for archived repos to keep view-only state. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      if (!editingRobot?.id) {
+        message.warning(t('repos.robotForm.workflowMode.saveRequired'));
+        return;
+      }
+      const modeRaw = robotForm.getFieldValue('repoWorkflowMode');
+      const mode = modeRaw === 'direct' || modeRaw === 'fork' || modeRaw === 'auto' ? modeRaw : 'auto';
+      setRobotWorkflowTestingId(editingRobot.id);
+      try {
+        const result = await testRepoRobotWorkflow(repo.id, editingRobot.id, { mode });
+        if (result.ok) {
+          message.success(t('repos.robotForm.workflowMode.checkOk'));
+        } else {
+          message.warning(t('repos.robotForm.workflowMode.checkFailed', { message: result.message || 'unknown' }));
+        }
+      } catch (err: any) {
+        console.error(err);
+        const detail = err?.response?.data?.error || err?.message || 'unknown';
+        message.error(t('repos.robotForm.workflowMode.checkFailed', { message: detail }));
+      } finally {
+        setRobotWorkflowTestingId(null);
+      }
+    },
+    [editingRobot, message, repo, repoArchived, robotForm, t]
   );
 
   const handleToggleRobotEnabled = useCallback(
@@ -1384,20 +1529,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                               <Space orientation="vertical" size={8} style={{ width: '100%' }}>
                                 <Typography.Text type="secondary">{t('repos.detail.credentials.repoProviderTip')}</Typography.Text>
 
-                                <div>
-                                  <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
-                                  <div style={{ marginTop: 6 }}>
-                                    <Select
-                                      value={(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '') || undefined}
-                                      style={{ width: '100%' }}
-                                      placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                                      onChange={(value) => void setRepoProviderDefault(value ? String(value) : null)}
-                                      options={(repoScopedCredentials?.repoProvider?.profiles ?? []).map((p) => ({ value: p.id, label: p.remark || p.id }))}
-                                      allowClear
-                                      disabled={credentialsSaving || repoArchived}
-                                    />
-                                  </div>
-                                </div>
+                                {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
 
                                 {(() => {
                                   const profiles = repoScopedCredentials?.repoProvider?.profiles ?? [];
@@ -1468,113 +1600,78 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                   <span>{t('repos.detail.credentials.modelProvider')}</span>
                                 </Space>
                               }
+                              extra={
+                                <>
+                                  {/* Use a single add entry point for the unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                                  {/* Disable model credential mutations for archived repos (archive is view-only). qnp1mtxhzikhbi0xspbc */}
+                                  <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={credentialsSaving || repoArchived}>
+                                    {t('panel.credentials.profile.add')}
+                                  </Button>
+                                </>
+                              }
                               className="hc-card"
                             >
                               <Space orientation="vertical" size={10} style={{ width: '100%' }}>
                                 <Typography.Text type="secondary">{t('repos.detail.credentials.modelProviderTip')}</Typography.Text>
+                                {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                                {(() => {
+                                  const total = modelProviderProfileItems.length;
+                                  const start = (modelProviderProfilesPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
+                                  const paged = modelProviderProfileItems.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
 
-                                {(['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => {
-                                  const providerCredentials = (repoScopedCredentials as any)?.modelProvider?.[provider] as any;
-                                  const profiles = Array.isArray(providerCredentials?.profiles) ? providerCredentials.profiles : [];
-                                  const defaultId = String(providerCredentials?.defaultProfileId ?? '').trim();
+                                  if (!total) {
+                                    return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
+                                  }
 
                                   return (
-                                    <Card
-                                      key={provider}
-                                      size="small"
-                                      className="hc-inner-card"
-                                      title={t(`repos.robotForm.modelProvider.${provider}` as any)}
-                                      extra={
-                                        // Disable model credential mutations for archived repos (archive is view-only). qnp1mtxhzikhbi0xspbc
-                                        <Button size="small" onClick={() => startEditModelProfile(provider, null)} disabled={credentialsSaving || repoArchived}>
-                                          {t('panel.credentials.profile.add')}
-                                        </Button>
-                                      }
-                                      styles={{ body: { padding: 12 } }}
-                                    >
-                                      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                                        <div>
-                                          <Typography.Text type="secondary">{t('panel.credentials.profile.default')}</Typography.Text>
-                                          <div style={{ marginTop: 6 }}>
-                                            <Select
-                                              value={defaultId || undefined}
-                                              style={{ width: '100%' }}
-                                              placeholder={t('panel.credentials.profile.defaultPlaceholder')}
-                                              onChange={(value) => void setModelProviderDefault(provider, value ? String(value) : null)}
-                                              options={profiles.map((p: any) => ({ value: p.id, label: p.remark || p.id }))}
-                                              allowClear
-                                              disabled={credentialsSaving || repoArchived}
-                                            />
-                                          </div>
-                                        </div>
-
-                                        {(() => {
-                                          const total = profiles.length;
-                                          const currentPage = modelProviderProfilesPage[provider] ?? 1;
-                                          const start = (currentPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
-                                          const paged = profiles.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
-
-                                          if (!total) {
-                                            return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
-                                          }
-
-                                          return (
-                                            <>
-                                              {/* Paginate model provider profiles to keep the credential panel height stable in the dashboard layout. u55e45ffi8jng44erdzp */}
-                                              <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                                                {paged.map((p: any) => (
-                                                  <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                                    <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                                      <Space size={8} wrap>
-                                                        <Typography.Text strong>{p.remark || p.id}</Typography.Text>
-                                                        {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                                                        <Tag color={p.hasApiKey ? 'green' : 'default'}>
-                                                          {p.hasApiKey ? t('common.configured') : t('common.notConfigured')}
-                                                        </Tag>
-                                                      </Space>
-                                                      <Typography.Text type="secondary">{p.apiBaseUrl || '-'}</Typography.Text>
-                                                    </Space>
-                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                                      <Button size="small" onClick={() => startEditModelProfile(provider, p)} disabled={credentialsSaving || repoArchived}>
-                                                        {t('common.manage')}
-                                                      </Button>
-                                                      <Button
-                                                        size="small"
-                                                        danger
-                                                        onClick={() => removeModelProviderProfile(provider, p.id)}
-                                                        disabled={credentialsSaving || repoArchived}
-                                                      >
-                                                        {t('panel.credentials.profile.remove')}
-                                                      </Button>
-                                                    </div>
-                                                  </Card>
-                                                ))}
+                                    <>
+                                      {/* Render a single list of model provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                                      <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                                        {paged.map(({ provider, profile, defaultId }) => (
+                                          <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                            <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                              <Space size={8} wrap>
+                                                <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
+                                                <Tag color="geekblue">{t(`repos.robotForm.modelProvider.${provider}` as any)}</Tag>
+                                                {defaultId === profile.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                                                <Tag color={profile.hasApiKey ? 'green' : 'default'}>
+                                                  {profile.hasApiKey ? t('common.configured') : t('common.notConfigured')}
+                                                </Tag>
                                               </Space>
-
-                                              {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
-                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                                                  <Pagination
-                                                    size="small"
-                                                    current={currentPage}
-                                                    pageSize={CREDENTIAL_PROFILE_PAGE_SIZE}
-                                                    total={total}
-                                                    showSizeChanger={false}
-                                                    onChange={(page) =>
-                                                      setModelProviderProfilesPage((prev) => ({
-                                                        ...prev,
-                                                        [provider]: page
-                                                      }))
-                                                    }
-                                                  />
-                                                </div>
-                                              ) : null}
-                                            </>
-                                          );
-                                        })()}
+                                              <Typography.Text type="secondary">{profile.apiBaseUrl || '-'}</Typography.Text>
+                                            </Space>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                                              <Button size="small" onClick={() => startEditModelProfile(provider, profile)} disabled={credentialsSaving || repoArchived}>
+                                                {t('common.manage')}
+                                              </Button>
+                                              <Button
+                                                size="small"
+                                                danger
+                                                onClick={() => removeModelProviderProfile(provider, profile.id)}
+                                                disabled={credentialsSaving || repoArchived}
+                                              >
+                                                {t('panel.credentials.profile.remove')}
+                                              </Button>
+                                            </div>
+                                          </Card>
+                                        ))}
                                       </Space>
-                                    </Card>
+
+                                      {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                          <Pagination
+                                            size="small"
+                                            current={modelProviderProfilesPage}
+                                            pageSize={CREDENTIAL_PROFILE_PAGE_SIZE}
+                                            total={total}
+                                            showSizeChanger={false}
+                                            onChange={(page) => setModelProviderProfilesPage(page)}
+                                          />
+                                        </div>
+                                      ) : null}
+                                    </>
                                   );
-                                })}
+                                })()}
                               </Space>
                             </Card>
                           </div>
@@ -1613,16 +1710,27 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                               {
                                 title: t('common.name'),
                                 dataIndex: 'name',
-                                render: (_: any, r: RepoRobot) => (
-                                  <Space direction="vertical" size={0} style={{ width: '100%' }}>
-                                    <Typography.Text strong className="table-cell-ellipsis" title={r.name}>
-                                      {r.name}
-                                    </Typography.Text>
-                                    <Typography.Text type="secondary" className="table-cell-ellipsis" style={{ fontSize: 12 }} title={r.id}>
-                                      {r.id}
-                                    </Typography.Text>
-                                  </Space>
-                                )
+                                render: (_: any, r: RepoRobot) => {
+                                  // Display bound AI provider for robot rows in the repo table. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+                                  const providerLabel = getRobotProviderLabel(r.modelProvider);
+                                  return (
+                                    <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                                      <Space size={6} wrap>
+                                        <Typography.Text strong className="table-cell-ellipsis" title={r.name}>
+                                          {r.name}
+                                        </Typography.Text>
+                                        {providerLabel ? (
+                                          <Tag color="geekblue" style={{ fontSize: 11, lineHeight: '18px', marginInlineEnd: 0 }}>
+                                            {providerLabel}
+                                          </Tag>
+                                        ) : null}
+                                      </Space>
+                                      <Typography.Text type="secondary" className="table-cell-ellipsis" style={{ fontSize: 12 }} title={r.id}>
+                                        {r.id}
+                                      </Typography.Text>
+                                    </Space>
+                                  );
+                                }
                               },
                               {
                                 title: t('common.status'),
@@ -1843,6 +1951,34 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                         </div>
                       </div>
 
+                      <div className="hc-repo-dashboard__region">
+                        {/* Region 2.75: preview configuration discovery for repo-level UX. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+                        <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+                          <Card size="small" title={t('repos.preview.title')} className="hc-card">
+                            {previewConfigLoading ? (
+                              <Typography.Text type="secondary">{t('repos.preview.loading')}</Typography.Text>
+                            ) : previewConfig?.available ? (
+                              <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                                <Typography.Text type="secondary">{t('repos.preview.available')}</Typography.Text>
+                                {previewConfig.instances.map((instance) => (
+                                  <Space key={instance.name} size={8} wrap>
+                                    <Tag color="blue">{instance.name}</Tag>
+                                    <Typography.Text code>{instance.workdir}</Typography.Text>
+                                  </Space>
+                                ))}
+                              </Space>
+                            ) : (
+                              <Space direction="vertical" size={4}>
+                                <Typography.Text type="secondary">{t('repos.preview.unavailable')}</Typography.Text>
+                                {previewConfigReasonText ? (
+                                  <Typography.Text type="secondary">{previewConfigReasonText}</Typography.Text>
+                                ) : null}
+                              </Space>
+                            )}
+                          </Card>
+                        </div>
+                      </div>
+
 	                      <div id={sectionDomId('credentials')} className="hc-repo-dashboard__region">
 	                        {section('credentials')}
 	                      </div>
@@ -1866,11 +2002,17 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 	                        <Row gutter={[12, 12]}>
 	                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
 	                            <Space orientation="vertical" size={12} style={{ width: '100%', flex: 1 }}>
-	                              <div id={sectionDomId('webhooks')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
-	                                {section('webhooks')}
+                              <div id={sectionDomId('webhooks')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
+                                {section('webhooks')}
                               </div>
                               <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
-                                <RepoWebhookActivityCard repoId={repo.id} />
+                                {/* Feed shared delivery data into both webhook cards to avoid duplicate API calls. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
+                                <RepoWebhookActivityCard
+                                  deliveries={webhookDeliveries}
+                                  loading={webhookDeliveriesLoading}
+                                  loadFailed={webhookDeliveriesFailed}
+                                  onRefresh={refreshWebhookDeliveries}
+                                />
                               </div>
                             </Space>
                           </Col>
@@ -1878,7 +2020,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                           <Col xs={24} lg={12} style={{ display: 'flex' }}>
                             <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
                               <Card size="small" title={t('repos.webhookDeliveries.title')} className="hc-card">
-                                <RepoWebhookDeliveriesPanel repoId={repo.id} />
+                                <RepoWebhookDeliveriesPanel
+                                  repoId={repo.id}
+                                  deliveries={webhookDeliveries}
+                                  loading={webhookDeliveriesLoading}
+                                  loadFailed={webhookDeliveriesFailed}
+                                  onRefresh={refreshWebhookDeliveries}
+                                />
                               </Card>
                             </div>
                           </Col>
@@ -1967,7 +2115,19 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               </Space>
             </Form.Item>
 
-            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
+            <Form.Item label={t('panel.credentials.profile.setDefault')}>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Switch
+                  checked={repoProviderSetDefault}
+                  onChange={(checked) => setRepoProviderSetDefault(checked)}
+                  disabled={credentialsSaving || repoArchived}
+                />
+                {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('panel.credentials.profile.setDefaultDesc')}
+                </Typography.Text>
+              </Space>
+            </Form.Item>
           </Form>
         </Space>
       </ResponsiveDialog>
@@ -1986,9 +2146,22 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
         className="hc-dialog--compact" /* UX (2026-01-15): tighter padding + unified surface in dark mode for profile editors. */
       >
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-	          <Typography.Text type="secondary">{t('panel.credentials.profile.providerHint', { provider: modelProfileProvider })}</Typography.Text>
+	          {/* Allow choosing model provider when creating profiles from the unified list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
 	          {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
 	          <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="middle">
+              <Form.Item label={t('panel.credentials.profile.providerLabel')}>
+                <Select
+                  value={modelProfileProvider}
+                  placeholder={t('panel.credentials.profile.providerPlaceholder')}
+                  options={[
+                    { value: 'codex', label: t('panel.credentials.codexTitle') },
+                    { value: 'claude_code', label: t('panel.credentials.claudeCodeTitle') },
+                    { value: 'gemini_cli', label: t('panel.credentials.geminiCliTitle') }
+                  ]}
+                  onChange={(value) => setModelProfileProvider(value as ModelProviderKey)}
+                  disabled={Boolean(modelProfileEditing)}
+                />
+              </Form.Item>
 	            <Form.Item label={t('panel.credentials.profile.name')} name="remark" rules={[{ required: true, message: t('panel.validation.required') }]}>
 	              <Input placeholder={t('panel.credentials.profile.namePlaceholder')} />
 	            </Form.Item>
@@ -2061,7 +2234,19 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               />
             </Form.Item>
 
-            {/* Default credential selection lives in the list view, not inside the profile editor. (Change record: 2026-01-15) */}
+            <Form.Item label={t('panel.credentials.profile.setDefault')}>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Switch
+                  checked={modelProfileSetDefault}
+                  onChange={(checked) => setModelProfileSetDefault(checked)}
+                  disabled={modelProfileSubmitting || repoArchived}
+                />
+                {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('panel.credentials.profile.setDefaultDesc')}
+                </Typography.Text>
+              </Space>
+            </Form.Item>
           </Form>
         </Space>
       </ResponsiveDialog>
@@ -2259,6 +2444,32 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
               }}
             </Form.Item>
 
+            {/* Provide explicit workflow selection and a validation action for repo pull behavior. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124 */}
+            <Form.Item label={t('repos.robotForm.workflowMode')}>
+              <Space wrap size={12}>
+                <Form.Item name="repoWorkflowMode" noStyle>
+                  <Radio.Group
+                    options={[
+                      { value: 'auto', label: t('repos.robotForm.workflowMode.auto') },
+                      { value: 'direct', label: t('repos.robotForm.workflowMode.direct') },
+                      { value: 'fork', label: t('repos.robotForm.workflowMode.fork') }
+                    ]}
+                  />
+                </Form.Item>
+                <Button
+                  onClick={() => void handleTestRobotWorkflow()}
+                  loading={robotWorkflowTestingId === editingRobot?.id}
+                >
+                  {t('repos.robotForm.workflowMode.check')}
+                </Button>
+              </Space>
+            </Form.Item>
+
+            {/* Provide robot-level scheduling controls for time-window execution. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
+            <Form.Item label={t('repos.robotForm.timeWindow')} name="timeWindow">
+              <TimeWindowPicker disabled={repoArchived} size="middle" />
+            </Form.Item>
+
             <Form.Item shouldUpdate noStyle>
               {({ getFieldValue }) => {
                 const providerRaw = String(getFieldValue('modelProvider') ?? '').trim();
@@ -2351,8 +2562,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                                       credentialProfileId: null,
                                       model: 'gpt-5.2',
                                       sandbox: 'read-only',
-                                      model_reasoning_effort: 'medium',
-                                      sandbox_workspace_write: { network_access: false }
+                                      // Codex defaults omit network access since it is always enabled now. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+                                      model_reasoning_effort: 'medium'
                                     };
                               // UX: switching model provider resets the provider-specific config to avoid invalid mixes.
                               setRobotChangingModelApiKey(false);
@@ -2555,11 +2766,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                           </Form.Item>
                         </Col>
                       ) : null}
-                      <Col xs={24} md={isCodex ? 12 : 24}>
-                        <Form.Item label={t('repos.robotForm.networkAccess')} name={['modelProviderConfig', 'sandbox_workspace_write', 'network_access']} valuePropName="checked">
-                          <Switch disabled={networkAccessDisabled} />
-                        </Form.Item>
-                      </Col>
+                      {/* Hide network access toggle for Codex because it is always enabled. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127 */}
+                      {!isCodex ? (
+                        <Col xs={24} md={24}>
+                          <Form.Item label={t('repos.robotForm.networkAccess')} name={['modelProviderConfig', 'sandbox_workspace_write', 'network_access']} valuePropName="checked">
+                            <Switch disabled={networkAccessDisabled} />
+                          </Form.Item>
+                        </Col>
+                      ) : null}
                     </Row>
                   </Card>
                 );
@@ -2584,6 +2798,59 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                 style={{ marginTop: 12 }}
               />
             ) : null}
+          </Card>
+
+          <div style={{ height: 12 }} />
+
+          {/* Add robot dependency override controls for per-robot install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+          <Card size="small" title={t('repos.robotForm.section.dependency')} className="hc-inner-card" styles={{ body: { padding: 12 } }}>
+            <Form.Item label={t('repos.robotForm.dependency.override')} name="dependencyOverride" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+
+            <Form.Item shouldUpdate noStyle>
+              {({ getFieldValue }) => {
+                const overrideEnabled = Boolean(getFieldValue('dependencyOverride'));
+                return (
+                  <>
+                    <Alert
+                      type="info"
+                      showIcon
+                      message={overrideEnabled ? t('repos.robotForm.dependency.overrideEnabledTip') : t('repos.robotForm.dependency.overrideDisabledTip')}
+                      style={{ marginBottom: 12 }}
+                    />
+
+                    <Row gutter={16}>
+                      <Col xs={24} md={12}>
+                        <Form.Item label={t('repos.robotForm.dependency.enabled')} name={['dependencyConfig', 'enabled']} valuePropName="checked">
+                          <Switch disabled={!overrideEnabled} />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={12}>
+                        <Form.Item label={t('repos.robotForm.dependency.failureMode')} name={['dependencyConfig', 'failureMode']}>
+                          <Select
+                            disabled={!overrideEnabled}
+                            options={[
+                              { value: 'inherit', label: t('repos.robotForm.dependency.failureMode.inherit') },
+                              { value: 'soft', label: t('repos.robotForm.dependency.failureMode.soft') },
+                              { value: 'hard', label: t('repos.robotForm.dependency.failureMode.hard') }
+                            ]}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Form.Item
+                      label={t('repos.robotForm.dependency.allowCustomInstall')}
+                      name={['dependencyConfig', 'allowCustomInstall']}
+                      valuePropName="checked"
+                    >
+                      <Switch disabled={!overrideEnabled} />
+                    </Form.Item>
+                  </>
+                );
+              }}
+            </Form.Item>
           </Card>
         </Form>
       </ResponsiveDialog>

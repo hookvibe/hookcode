@@ -1,20 +1,23 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, App, Avatar, Button, Card, Col, Descriptions, Empty, Popconfirm, Row, Space, Steps, Tag, Typography } from 'antd';
+import { Alert, App, Avatar, Button, Card, Col, Descriptions, Empty, Input, Popconfirm, Radio, Row, Select, Space, Switch, Tag, Typography } from 'antd';
 import {
   ClockCircleOutlined,
   CodeOutlined,
   DeleteOutlined,
   GitlabOutlined,
   InfoCircleOutlined,
+  LeftOutlined,
   LinkOutlined,
   PlayCircleOutlined,
+  RightOutlined,
   RobotOutlined,
   UserOutlined
 } from '@ant-design/icons';
-import type { Task, TaskRepoSummary, TaskRobotSummary } from '../api';
-import { deleteTask, fetchTask, retryTask } from '../api';
+import type { RepoRobot, Task, TaskRepoSummary, TaskRobotSummary } from '../api';
+import { deleteTask, executeTaskNow, fetchTask, listRepoRobots, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../router';
+import { JsonViewer } from '../components/JsonViewer';
 import { MarkdownViewer } from '../components/MarkdownViewer';
 import { TaskLogViewer } from '../components/TaskLogViewer';
 import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
@@ -34,6 +37,7 @@ import {
 import { buildTaskTemplateContext, renderTemplate } from '../utils/template';
 import { LogViewerSkeleton } from '../components/skeletons/LogViewerSkeleton';
 import { TaskDetailSkeleton } from '../components/skeletons/TaskDetailSkeleton';
+import { getRobotProviderLabel } from '../utils/robot';
 
 /**
  * TaskDetailPage:
@@ -68,6 +72,9 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   const [task, setTask] = useState<Task | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [repoRobots, setRepoRobots] = useState<RepoRobot[]>([]);
+  // Allow collapsing the task detail sidebar to focus on workflow panels. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!taskId) return;
@@ -88,6 +95,30 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const repoIdResolved = task?.repo?.id ?? task?.repoId;
+    const providerKnown = Boolean(task?.robot?.modelProvider);
+    if (!repoIdResolved || providerKnown) {
+      setRepoRobots([]);
+      return;
+    }
+    let active = true;
+    // Fetch repo robots to map task robot ids to bound AI providers. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+    listRepoRobots(repoIdResolved)
+      .then((data) => {
+        if (!active) return;
+        setRepoRobots(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.error(err);
+        setRepoRobots([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [task?.repo?.id, task?.repoId, task?.robot?.modelProvider]);
+
   const formatDateTime = useCallback(
     (iso: string) => {
       if (!iso) return '-';
@@ -101,6 +132,22 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     },
     [locale]
   );
+
+  const formatDuration = useCallback((durationMs?: number) => {
+    // Format dependency install durations for task diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) return '-';
+    if (durationMs < 1000) return `${Math.round(durationMs)}ms`;
+    const totalSeconds = Math.round(durationMs / 1000);
+    if (totalSeconds < 60) return `${totalSeconds}s`;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }, []);
+
+  const toggleSidebarCollapse = useCallback(() => {
+    // Toggle the task detail sidebar to declutter the workflow view. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
+    setIsSidebarCollapsed((prev) => !prev);
+  }, []);
 
   const canManageTask = Boolean(task?.permissions?.canManage);
   const canOpenRepo = Boolean(task?.repo?.id ?? task?.repoId);
@@ -124,6 +171,21 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     }
     return null;
   }, [task]);
+
+  const repoRobotsById = useMemo(() => {
+    // Map repo robots by id to resolve bound AI provider for task views. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+    return new Map(repoRobots.map((r) => [r.id, r]));
+  }, [repoRobots]);
+
+  const robotProviderLabel = useMemo(() => {
+    // Prefer task payload provider, fallback to repo robot lookup when missing. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+    const providerFromTask = task?.robot?.modelProvider ?? null;
+    if (providerFromTask) return getRobotProviderLabel(providerFromTask);
+    const robotIdResolved = task?.robot?.id ?? task?.robotId;
+    if (!robotIdResolved) return null;
+    const providerFromRepo = repoRobotsById.get(robotIdResolved)?.modelProvider ?? null;
+    return getRobotProviderLabel(providerFromRepo);
+  }, [repoRobotsById, task?.robot?.id, task?.robot?.modelProvider, task?.robotId]);
 
   const repoDetailHref = useMemo(() => {
     const repoIdResolved = task?.repo?.id ?? task?.repoId;
@@ -183,23 +245,195 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     };
   }, [task?.result]);
 
+  // Capture dependency install results for the task detail sidebar. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const dependencyResult = task?.dependencyResult ?? null;
+  const dependencySteps = useMemo(
+    () => (Array.isArray(dependencyResult?.steps) ? dependencyResult?.steps ?? [] : []),
+    [dependencyResult]
+  );
+
+  // Track dependency UI filters/expansion state to support richer diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  type DependencyFilter = 'all' | 'success' | 'failed' | 'skipped';
+  type DependencySortKey = 'default' | 'status' | 'duration' | 'language' | 'workdir';
+  const [dependencyFilter, setDependencyFilter] = useState<DependencyFilter>('all');
+  const [dependencyKeyword, setDependencyKeyword] = useState('');
+  const [dependencySortKey, setDependencySortKey] = useState<DependencySortKey>('default');
+  const [dependencySortDirection, setDependencySortDirection] = useState<'asc' | 'desc'>('asc');
+  const [dependencyGroupByWorkdir, setDependencyGroupByWorkdir] = useState(false);
+  const [dependencyExpandedKeys, setDependencyExpandedKeys] = useState<Set<string>>(new Set());
+
+  // Normalize dependency steps with stable keys for filter + collapse controls. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  const dependencyStepEntries = useMemo(
+    () =>
+      dependencySteps.map((step, index) => ({
+        step,
+        index,
+        key: `${step.language}-${index}`
+      })),
+    [dependencySteps]
+  );
+
+  const filteredDependencyEntries = useMemo(() => {
+    // Filter dependency steps so operators can focus on failures or skips. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    const keyword = dependencyKeyword.trim().toLowerCase();
+    return dependencyStepEntries.filter((entry) => {
+      const step = entry.step;
+      if (dependencyFilter !== 'all' && step.status !== dependencyFilter) return false;
+      if (!keyword) return true;
+      const haystack = [
+        step.language,
+        step.command,
+        step.error,
+        step.reason,
+        step.workdir,
+        step.status
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+      return haystack.some((value) => value.includes(keyword));
+    });
+  }, [dependencyFilter, dependencyKeyword, dependencyStepEntries]);
+
+  const sortedDependencyEntries = useMemo(() => {
+    // Sort dependency steps for consistent ordering and debugging focus. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (dependencySortKey === 'default') return filteredDependencyEntries;
+    const direction = dependencySortDirection === 'desc' ? -1 : 1;
+    const statusWeight = (status: string) => {
+      if (status === 'failed') return 3;
+      if (status === 'skipped') return 2;
+      return 1;
+    };
+    const compareString = (a: string, b: string) => a.localeCompare(b);
+    const compareNumber = (a?: number, b?: number) => {
+      const aNum = typeof a === 'number' ? a : Number.POSITIVE_INFINITY;
+      const bNum = typeof b === 'number' ? b : Number.POSITIVE_INFINITY;
+      return aNum - bNum;
+    };
+    return [...filteredDependencyEntries].sort((left, right) => {
+      const leftStep = left.step;
+      const rightStep = right.step;
+      let diff = 0;
+      switch (dependencySortKey) {
+        case 'status':
+          diff = statusWeight(leftStep.status) - statusWeight(rightStep.status);
+          break;
+        case 'duration':
+          diff = compareNumber(leftStep.duration, rightStep.duration);
+          break;
+        case 'language':
+          diff = compareString(leftStep.language, rightStep.language);
+          break;
+        case 'workdir':
+          diff = compareString(leftStep.workdir ?? '', rightStep.workdir ?? '');
+          break;
+        default:
+          diff = 0;
+      }
+      if (diff === 0) {
+        diff = left.index - right.index;
+      }
+      return diff * direction;
+    });
+  }, [dependencySortDirection, dependencySortKey, filteredDependencyEntries]);
+
+  const groupedDependencyEntries = useMemo(() => {
+    // Group dependency steps by workdir when requested for multi-project repos. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (!dependencyGroupByWorkdir) {
+      return [{ groupKey: 'all', label: '', entries: sortedDependencyEntries }];
+    }
+    const groups: Array<{ groupKey: string; entries: typeof sortedDependencyEntries }> = [];
+    const seen = new Map<string, { groupKey: string; entries: typeof sortedDependencyEntries }>();
+    sortedDependencyEntries.forEach((entry) => {
+      const raw = entry.step.workdir?.trim() || '.';
+      const existing = seen.get(raw);
+      if (existing) {
+        existing.entries.push(entry);
+        return;
+      }
+      const nextGroup = { groupKey: raw, entries: [entry] };
+      seen.set(raw, nextGroup);
+      groups.push(nextGroup);
+    });
+    return groups;
+  }, [dependencyGroupByWorkdir, sortedDependencyEntries]);
+
+  const dependencyCounts = useMemo(() => {
+    // Summarize dependency step counts for quick status scanning. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    return dependencySteps.reduce(
+      (acc, step) => {
+        if (step.status === 'success') acc.success += 1;
+        if (step.status === 'failed') acc.failed += 1;
+        if (step.status === 'skipped') acc.skipped += 1;
+        return acc;
+      },
+      { success: 0, failed: 0, skipped: 0 }
+    );
+  }, [dependencySteps]);
+
+  useEffect(() => {
+    // Auto-expand failed dependency steps to surface errors by default. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    if (!dependencyResult) {
+      setDependencyExpandedKeys(new Set());
+      return;
+    }
+    const next = new Set<string>();
+    dependencyStepEntries.forEach((entry) => {
+      if (entry.step.status === 'failed') next.add(entry.key);
+    });
+    setDependencyExpandedKeys(next);
+    setDependencyFilter('all');
+  }, [dependencyResult, dependencyStepEntries]);
+  const renderDependencyStatusTag = useCallback(
+    (status: 'success' | 'partial' | 'skipped' | 'failed') => {
+      // Render dependency status tags consistently across summary + steps. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+      const color = status === 'success' ? 'green' : status === 'partial' ? 'gold' : status === 'failed' ? 'red' : 'default';
+      const label =
+        status === 'success'
+          ? t('tasks.dependency.status.success')
+          : status === 'partial'
+            ? t('tasks.dependency.status.partial')
+            : status === 'failed'
+              ? t('tasks.dependency.status.failed')
+              : t('tasks.dependency.status.skipped');
+      return <Tag color={color}>{label}</Tag>;
+    },
+    [t]
+  );
+
+  const toggleDependencyStep = useCallback((key: string) => {
+    // Toggle dependency step details for focused debugging. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    setDependencyExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const expandAllDependencySteps = useCallback(() => {
+    // Expand visible dependency steps to reveal full command/error details. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    setDependencyExpandedKeys((prev) => {
+      const next = new Set(prev);
+      sortedDependencyEntries.forEach((entry) => next.add(entry.key));
+      return next;
+    });
+  }, [sortedDependencyEntries]);
+
+  const collapseAllDependencySteps = useCallback(() => {
+    // Collapse visible dependency steps to keep the panel compact. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+    setDependencyExpandedKeys((prev) => {
+      const next = new Set(prev);
+      sortedDependencyEntries.forEach((entry) => next.delete(entry.key));
+      return next;
+    });
+  }, [sortedDependencyEntries]);
+
   const resultText = useMemo(() => extractTaskResultText(task), [task]);
   const showResult = Boolean(task && isTerminalStatus(task.status));
   const queueHint = useMemo(() => queuedHintText(t, task), [t, task]); // Show a queued-state explanation instead of a silent detail page. f3a9c2d8e1b7f4a0c6d1
-
-  const payloadPretty = useMemo(() => {
-    // Format raw payload for display without assuming the payload is always JSON-serializable. tdlayout20260117k8p3
-    if (!task?.payload) return '';
-    try {
-      return JSON.stringify(task.payload ?? {}, null, 2);
-    } catch {
-      try {
-        return String(task.payload);
-      } catch {
-        return '';
-      }
-    }
-  }, [task?.payload]);
 
   const promptPatch = useMemo(() => {
     // Normalize prompt patch (repo config) so the workflow UI can always render a stable section. tdlayout20260117k8p3
@@ -231,39 +465,14 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     () =>
       [
         {
-          key: 'result' as const,
-          title: t('task.page.resultTitle'),
+          // Reorder workflow panels so raw payload leads and result concludes. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
+          key: 'payload' as const,
+          title: t('tasks.payloadRaw'),
           content: (
             <Card size="small" className="hc-card">
-              {showResult ? (
-                resultText ? (
-                  <MarkdownViewer markdown={resultText} className="markdown-result--expanded" />
-                ) : (
-                  <Typography.Text type="secondary">{t('chat.message.resultEmpty')}</Typography.Text>
-                )
-              ) : (
-                <Typography.Text type="secondary">{t('task.page.resultPending')}</Typography.Text>
-              )}
+              {/* Render an interactive JSON tree instead of a raw string payload. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128 */}
+              <JsonViewer value={task?.payload} />
             </Card>
-          )
-        },
-        {
-          key: 'logs' as const,
-          title: t('task.page.logsTitle'),
-          content: (
-            <>
-              {/* Render the logs viewer only when logs are enabled to prevent endless SSE reconnects. 0nazpc53wnvljv5yh7c6 */}
-              {effectiveTaskLogsEnabled === false ? (
-                <Alert type="info" showIcon message={t('logViewer.disabled')} />
-              ) : effectiveTaskLogsEnabled === null ? (
-                <>
-                  {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
-                  <LogViewerSkeleton lines={10} ariaLabel={t('common.loading')} />
-                </>
-              ) : task ? (
-                <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} tail={800} variant="flat" />
-              ) : null}
-            </>
           )
         },
         {
@@ -289,21 +498,58 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
           )
         },
         {
-          key: 'payload' as const,
-          title: t('tasks.payloadRaw'),
+          key: 'logs' as const,
+          title: t('task.page.logsTitle'),
           content: (
-            <Card size="small" className="hc-card">
-              {payloadPretty ? (
-                <pre className="hc-task-code-block hc-task-code-block--expanded">{payloadPretty}</pre>
-              ) : (
-                <Typography.Text type="secondary">-</Typography.Text>
-              )}
-            </Card>
+            <>
+              {/* Render the logs viewer only when logs are enabled to prevent endless SSE reconnects. 0nazpc53wnvljv5yh7c6 */}
+              {effectiveTaskLogsEnabled === false ? (
+                <Alert type="info" showIcon message={t('logViewer.disabled')} />
+              ) : effectiveTaskLogsEnabled === null ? (
+                <>
+                  {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
+                  <LogViewerSkeleton lines={10} ariaLabel={t('common.loading')} />
+                </>
+              ) : task ? (
+                <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} tail={800} variant="flat" />
+              ) : null}
+            </>
+          )
+        },
+        {
+          key: 'result' as const,
+          title: t('task.page.resultTitle'),
+          content: (
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Card size="small" className="hc-card">
+                {showResult ? (
+                  resultText ? (
+                    <MarkdownViewer markdown={resultText} className="markdown-result--expanded" />
+                  ) : (
+                    <Typography.Text type="secondary">{t('chat.message.resultEmpty')}</Typography.Text>
+                  )
+                ) : (
+                  <Typography.Text type="secondary">{t('task.page.resultPending')}</Typography.Text>
+                )}
+              </Card>
+              {task?.result?.gitStatus?.enabled ? (
+                <div className="hc-task-detail-result-gitstatus">
+                  {/* Move git status into the Result panel after the main output. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */}
+                  <TaskGitStatusPanel task={task} variant="full" />
+                </div>
+              ) : null}
+            </Space>
           )
         }
       ] as const,
-    [effectiveTaskLogsEnabled, payloadPretty, promptPatch, promptPatchRendered, resultText, showResult, t, task]
+    // Keep the payload viewer memoized alongside task data updates. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128
+    [effectiveTaskLogsEnabled, promptPatch, promptPatchRendered, resultText, showResult, t, task]
   );
+
+  const activePanelData = useMemo(() => {
+    // Keep active panel metadata in sync with the custom step tabs. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
+    return workflowPanels.find((panel) => panel.key === activePanel) ?? null;
+  }, [activePanel, workflowPanels]);
 
   const handleRetry = useCallback(
     async (options?: { force?: boolean }) => {
@@ -331,6 +577,26 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     },
     [message, refresh, t, task]
   );
+
+  const handleExecuteNow = useCallback(async () => {
+    // Allow manual execution when tasks are blocked by time windows. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    if (!task) return;
+    if (!task.permissions?.canManage) {
+      message.warning(t('tasks.empty.noPermission'));
+      return;
+    }
+    setRetrying(true);
+    try {
+      await executeTaskNow(task.id);
+      message.success(t('toast.task.executeNowSuccess'));
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.task.executeNowFailed'));
+    } finally {
+      setRetrying(false);
+    }
+  }, [message, refresh, t, task]);
 
   const handleDelete = useCallback(async () => {
     if (!task) return;
@@ -365,9 +631,15 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   const headerActions = task ? (
     <Space size={8}>
       {task.status === 'queued' && canManageTask ? (
-        <Button icon={<PlayCircleOutlined />} onClick={() => void handleRetry()} loading={retrying}>
-          {t('tasks.retry')}
-        </Button>
+        task.queue?.reasonCode === 'outside_time_window' ? (
+          <Button icon={<PlayCircleOutlined />} onClick={() => void handleExecuteNow()} loading={retrying}>
+            {t('tasks.executeNow')}
+          </Button>
+        ) : (
+          <Button icon={<PlayCircleOutlined />} onClick={() => void handleRetry()} loading={retrying}>
+            {t('tasks.retry')}
+          </Button>
+        )
       ) : null}
 
       {task.status === 'failed' && canManageTask ? (
@@ -490,6 +762,12 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                     {robotSummary ? (
                       <Space size={8} wrap>
                         <Tag color={robotSummary.permission === 'write' ? 'volcano' : 'blue'}>{robotSummary.permission}</Tag>
+                        {/* Show bound AI provider next to the robot summary in the header. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128 */}
+                        {robotProviderLabel ? (
+                          <Tag color="geekblue" style={{ fontSize: 11, lineHeight: '18px', marginInlineEnd: 0 }}>
+                            {robotProviderLabel}
+                          </Tag>
+                        ) : null}
                         {robotDetailHref ? (
                           <Typography.Link href={robotDetailHref}>{robotSummary.name || robotSummary.id}</Typography.Link>
                         ) : (
@@ -605,26 +883,77 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
         ) : null}
         {task ? (
           <div className="hc-task-detail-layout">
-            <div className="hc-task-detail-sidebar">
-              <Card size="small" title={t('tasks.detailTitle')} className="hc-card">
-                <Descriptions column={1} size="small" styles={{ label: { width: 132 } }}>
-                  <Descriptions.Item label={t('tasks.field.repo')}>
-                    {repoSummary ? (
-                      <Space size={8} wrap>
-                        <Tag color={repoSummary.provider === 'github' ? 'geekblue' : 'orange'}>{providerLabel(repoSummary.provider)}</Tag>
-                        <Typography.Link onClick={() => (window.location.hash = repoDetailHref || buildRepoHash(repoSummary.id))}>
-                          {repoSummary.name}
-                        </Typography.Link>
-                      </Space>
-                    ) : (
-                      <Typography.Text type="secondary">-</Typography.Text>
-                    )}
-                  </Descriptions.Item>
+            <div className={`hc-task-detail-sidebar${isSidebarCollapsed ? ' hc-task-detail-sidebar--collapsed' : ''}`}>
+              {/* Provide a collapsible control for the task detail sidebar. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */}
+              {isSidebarCollapsed ? (
+                <div className="hc-task-detail-sidebar__toggle">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<RightOutlined />}
+                    onClick={toggleSidebarCollapse}
+                    aria-label={t('common.expandSidebar')}
+                    aria-expanded={false}
+                    aria-controls="task-detail-sidebar-content"
+                    title={t('common.expandSidebar')}
+                    data-testid="task-detail-sidebar-toggle"
+                    className="hc-task-detail-sidebar__toggle-btn"
+                  />
+                </div>
+              ) : null}
+              <div
+                id="task-detail-sidebar-content"
+                className="hc-task-detail-sidebar__content"
+                aria-hidden={isSidebarCollapsed}
+              >
+                <Card
+                  size="small"
+                  title={t('tasks.detailTitle')}
+                  className="hc-card"
+                  extra={
+                    <>
+                      {/* Place the sidebar collapse control beside the Task Detail title. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */}
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<LeftOutlined />}
+                        onClick={toggleSidebarCollapse}
+                        aria-label={t('common.collapseSidebar')}
+                        aria-expanded={true}
+                        aria-controls="task-detail-sidebar-content"
+                        title={t('common.collapseSidebar')}
+                        data-testid="task-detail-sidebar-toggle"
+                        className="hc-task-detail-sidebar__toggle-btn"
+                      >
+                        {t('common.collapseSidebar')}
+                      </Button>
+                    </>
+                  }
+                >
+                  <Descriptions column={1} size="small" styles={{ label: { width: 132 } }}>
+                    <Descriptions.Item label={t('tasks.field.repo')}>
+                      {repoSummary ? (
+                        <Space size={8} wrap>
+                          <Tag color={repoSummary.provider === 'github' ? 'geekblue' : 'orange'}>{providerLabel(repoSummary.provider)}</Tag>
+                          <Typography.Link onClick={() => (window.location.hash = repoDetailHref || buildRepoHash(repoSummary.id))}>
+                            {repoSummary.name}
+                          </Typography.Link>
+                        </Space>
+                      ) : (
+                        <Typography.Text type="secondary">-</Typography.Text>
+                      )}
+                    </Descriptions.Item>
 
                   <Descriptions.Item label={t('tasks.field.robot')}>
                     {robotSummary ? (
                       <Space size={8} wrap>
                         <Tag color={robotSummary.permission === 'write' ? 'volcano' : 'blue'}>{robotSummary.permission}</Tag>
+                        {/* Show bound AI provider in task detail metadata. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128 */}
+                        {robotProviderLabel ? (
+                          <Tag color="geekblue" style={{ fontSize: 11, lineHeight: '18px', marginInlineEnd: 0 }}>
+                            {robotProviderLabel}
+                          </Tag>
+                        ) : null}
                         {robotDetailHref ? (
                           <Typography.Link href={robotDetailHref}>{robotSummary.name || robotSummary.id}</Typography.Link>
                         ) : (
@@ -740,38 +1069,256 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                   ) : null}
                 </Descriptions>
 
-                {!canOpenRepo ? (
-                  <Alert type="info" showIcon message={t('tasks.repoMissing')} style={{ marginTop: 12 }} />
-                ) : null}
-              </Card>
-              {task.result?.gitStatus?.enabled ? (
-                <div style={{ marginTop: 12 }}>
-                  {/* Render git status in task detail so write-enabled changes are visible. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
-                  <TaskGitStatusPanel task={task} variant="full" />
+                  {!canOpenRepo ? (
+                    <Alert type="info" showIcon message={t('tasks.repoMissing')} style={{ marginTop: 12 }} />
+                  ) : null}
+                </Card>
+                {dependencyResult ? (
+                  <div style={{ marginTop: 12 }}>
+                    {/* Show dependency install outcomes to help debug missing runtimes or install failures. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+                    <Card size="small" title={t('tasks.dependency.title')} className="hc-card">
+                      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                      <Space size={8} wrap>
+                        {renderDependencyStatusTag(dependencyResult.status)}
+                        <Typography.Text type="secondary">
+                          {t('tasks.dependency.totalDuration', { duration: formatDuration(dependencyResult.totalDuration) })}
+                        </Typography.Text>
+                      </Space>
+
+                      {dependencySteps.length ? (
+                        <>
+                          <Space size={12} wrap>
+                            {/* Filter dependency steps by status to focus troubleshooting. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+                            <Space size={6} wrap align="center">
+                              <Typography.Text type="secondary">{t('tasks.dependency.filter.label')}</Typography.Text>
+                              <Radio.Group
+                                optionType="button"
+                                buttonStyle="solid"
+                                value={dependencyFilter}
+                                onChange={(event) => setDependencyFilter(event.target.value)}
+                                aria-label={t('tasks.dependency.filter.label')}
+                                data-testid="dependency-filter"
+                                options={[
+                                  { label: t('tasks.dependency.filter.all'), value: 'all' },
+                                  { label: t('tasks.dependency.filter.failed'), value: 'failed' },
+                                  { label: t('tasks.dependency.filter.skipped'), value: 'skipped' },
+                                  { label: t('tasks.dependency.filter.success'), value: 'success' }
+                                ]}
+                              />
+                            </Space>
+                            <Input
+                              allowClear
+                              value={dependencyKeyword}
+                              onChange={(event) => setDependencyKeyword(event.target.value)}
+                              placeholder={t('tasks.dependency.filter.keyword')}
+                              style={{ minWidth: 220 }}
+                              aria-label={t('tasks.dependency.filter.keyword')}
+                              data-testid="dependency-keyword"
+                            />
+                            <Space size={6} wrap>
+                              <Button size="small" onClick={expandAllDependencySteps} disabled={!sortedDependencyEntries.length}>
+                                {t('tasks.dependency.expandAll')}
+                              </Button>
+                              <Button size="small" onClick={collapseAllDependencySteps} disabled={!sortedDependencyEntries.length}>
+                                {t('tasks.dependency.collapseAll')}
+                              </Button>
+                            </Space>
+                          </Space>
+
+                          {/* Provide sorting + grouping toggles for dependency diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+                          <Space size={12} wrap>
+                            <Space size={6} wrap align="center">
+                              <Typography.Text type="secondary">{t('tasks.dependency.sort.label')}</Typography.Text>
+                              <Select
+                                size="small"
+                                value={dependencySortKey}
+                                onChange={(value) => setDependencySortKey(value)}
+                                aria-label={t('tasks.dependency.sort.label')}
+                                style={{ minWidth: 160 }}
+                                options={[
+                                  { value: 'default', label: t('tasks.dependency.sort.default') },
+                                  { value: 'status', label: t('tasks.dependency.sort.status') },
+                                  { value: 'duration', label: t('tasks.dependency.sort.duration') },
+                                  { value: 'language', label: t('tasks.dependency.sort.language') },
+                                  { value: 'workdir', label: t('tasks.dependency.sort.workdir') }
+                                ]}
+                              />
+                            </Space>
+                            <Space size={6} wrap align="center">
+                              <Typography.Text type="secondary">{t('tasks.dependency.sort.direction')}</Typography.Text>
+                              <Select
+                                size="small"
+                                value={dependencySortDirection}
+                                onChange={(value) => setDependencySortDirection(value)}
+                                aria-label={t('tasks.dependency.sort.direction')}
+                                style={{ minWidth: 140 }}
+                                options={[
+                                  { value: 'asc', label: t('tasks.dependency.sort.asc') },
+                                  { value: 'desc', label: t('tasks.dependency.sort.desc') }
+                                ]}
+                              />
+                            </Space>
+                            <Space size={6} wrap align="center">
+                              <Typography.Text type="secondary">{t('tasks.dependency.group.label')}</Typography.Text>
+                              <Switch
+                                checked={dependencyGroupByWorkdir}
+                                onChange={(checked) => setDependencyGroupByWorkdir(checked)}
+                                aria-label={t('tasks.dependency.group.label')}
+                              />
+                            </Space>
+                          </Space>
+
+                          <Space size={6} wrap>
+                            <Tag color="green">
+                              {t('tasks.dependency.status.success')} {dependencyCounts.success}
+                            </Tag>
+                            <Tag color="red">
+                              {t('tasks.dependency.status.failed')} {dependencyCounts.failed}
+                            </Tag>
+                            <Tag color="default">
+                              {t('tasks.dependency.status.skipped')} {dependencyCounts.skipped}
+                            </Tag>
+                          </Space>
+
+                          {sortedDependencyEntries.length ? (
+                            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                              {groupedDependencyEntries.map((group) => {
+                                const groupLabel =
+                                  group.groupKey === '.'
+                                    ? t('tasks.dependency.group.root')
+                                    : group.groupKey;
+                                const groupCounts = group.entries.reduce(
+                                  (acc, entry) => {
+                                    if (entry.step.status === 'success') acc.success += 1;
+                                    if (entry.step.status === 'failed') acc.failed += 1;
+                                    if (entry.step.status === 'skipped') acc.skipped += 1;
+                                    return acc;
+                                  },
+                                  { success: 0, failed: 0, skipped: 0 }
+                                );
+                                return (
+                                  <Space key={group.groupKey} direction="vertical" size={8} style={{ width: '100%' }}>
+                                    {dependencyGroupByWorkdir ? (
+                                      <Space size={8} wrap>
+                                        <Tag>{t('tasks.dependency.group.workdir', { workdir: groupLabel })}</Tag>
+                                        <Typography.Text type="secondary">
+                                          {t('tasks.dependency.group.count', { count: group.entries.length })}
+                                        </Typography.Text>
+                                        <Tag color="green">
+                                          {t('tasks.dependency.status.success')} {groupCounts.success}
+                                        </Tag>
+                                        <Tag color="red">
+                                          {t('tasks.dependency.status.failed')} {groupCounts.failed}
+                                        </Tag>
+                                        <Tag color="default">
+                                          {t('tasks.dependency.status.skipped')} {groupCounts.skipped}
+                                        </Tag>
+                                      </Space>
+                                    ) : null}
+
+                                    {group.entries.map((entry) => {
+                                      const step = entry.step;
+                                      const isExpanded = dependencyExpandedKeys.has(entry.key);
+                                      return (
+                                        <Card
+                                          key={entry.key}
+                                          size="small"
+                                          className="hc-inner-card"
+                                          styles={{ body: { padding: 12 } }}
+                                          data-testid={`dependency-step-${entry.index}`}
+                                          title={
+                                            <Space size={8} wrap>
+                                              <Tag>{step.language}</Tag>
+                                              {renderDependencyStatusTag(step.status)}
+                                              {step.workdir && !dependencyGroupByWorkdir ? (
+                                                <Typography.Text type="secondary">
+                                                  {t('tasks.dependency.workdir', { workdir: step.workdir })}
+                                                </Typography.Text>
+                                              ) : null}
+                                              {typeof step.duration === 'number' ? (
+                                                <Typography.Text type="secondary">
+                                                  {t('tasks.dependency.stepDuration', { duration: formatDuration(step.duration) })}
+                                                </Typography.Text>
+                                              ) : null}
+                                            </Space>
+                                          }
+                                          extra={
+                                            <Button
+                                              type="link"
+                                              size="small"
+                                              onClick={() => toggleDependencyStep(entry.key)}
+                                              aria-expanded={isExpanded}
+                                            >
+                                              {isExpanded ? t('tasks.dependency.collapse') : t('tasks.dependency.expand')}
+                                            </Button>
+                                          }
+                                        >
+                                          {isExpanded ? (
+                                            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                                              {step.command ? (
+                                                <Typography.Text>{t('tasks.dependency.command', { command: step.command })}</Typography.Text>
+                                              ) : null}
+                                              {step.reason ? (
+                                                <Typography.Text type="secondary">{t('tasks.dependency.reason', { reason: step.reason })}</Typography.Text>
+                                              ) : null}
+                                              {step.error ? (
+                                                <Typography.Text type="danger">{t('tasks.dependency.error', { error: step.error })}</Typography.Text>
+                                              ) : null}
+                                            </Space>
+                                          ) : null}
+                                        </Card>
+                                      );
+                                    })}
+                                  </Space>
+                                );
+                              })}
+                            </Space>
+                          ) : (
+                            <Typography.Text type="secondary">{t('tasks.dependency.filter.empty')}</Typography.Text>
+                          )}
+                        </>
+                      ) : (
+                        <Typography.Text type="secondary">{t('tasks.dependency.empty')}</Typography.Text>
+                      )}
+                    </Space>
+                  </Card>
                 </div>
               ) : null}
+              </div>
             </div>
 
             <div className="hc-task-detail-workflow">
-              {/* Render a sticky step-bar switcher so only one panel is visible at a time. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121 */}
+              {/* Render a sticky step-tab switcher with corrected ordering and numbering. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */}
               <Card size="small" className="hc-card hc-task-detail-panel-switcher">
-                <Steps
-                  size="small"
-                  current={Math.max(
-                    0,
-                    workflowPanels.findIndex((panel) => panel.key === activePanel)
-                  )}
-                  responsive={false}
-                  onChange={(next) => {
-                    const panel = workflowPanels[next];
-                    if (!panel) return;
-                    setActivePanel(panel.key);
-                  }}
-                  items={workflowPanels.map((panel) => ({ title: panel.title }))}
-                />
+                <div className="hc-task-detail-step-tabs" role="tablist" aria-label={t('task.page.title')}>
+                  {workflowPanels.map((panel, index) => {
+                    const isActive = panel.key === activePanel;
+                    return (
+                      <button
+                        key={panel.key}
+                        type="button"
+                        className={`hc-task-detail-step-tab${isActive ? ' is-active' : ''}`}
+                        onClick={() => setActivePanel(panel.key)}
+                        role="tab"
+                        id={`task-detail-tab-${panel.key}`}
+                        aria-selected={isActive}
+                        aria-controls={`task-detail-panel-${panel.key}`}
+                        data-testid={`task-detail-step-${panel.key}`}
+                      >
+                        <span className="hc-task-detail-step-index">{index + 1}</span>
+                        <span className="hc-task-detail-step-label">{panel.title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </Card>
-              <div className="hc-task-detail-panel-content">
-                {workflowPanels.find((panel) => panel.key === activePanel)?.content ?? null}
+              <div
+                className="hc-task-detail-panel-content"
+                role="tabpanel"
+                id={activePanelData ? `task-detail-panel-${activePanelData.key}` : undefined}
+                aria-labelledby={activePanelData ? `task-detail-tab-${activePanelData.key}` : undefined}
+              >
+                {activePanelData?.content ?? null}
               </div>
             </div>
           </div>

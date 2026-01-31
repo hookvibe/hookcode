@@ -22,6 +22,11 @@ describe('router (hash routes)', () => {
     expect(parseRoute('#/task-groups/group_1')).toEqual({ page: 'taskGroup', taskGroupId: 'group_1' });
   });
 
+  test('parses task group list route', () => {
+    // Ensure the new taskgroup list page is routed separately from the chat view. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+    expect(parseRoute('#/task-groups')).toEqual({ page: 'taskGroups' });
+  });
+
   test('parses login route', () => {
     expect(parseRoute('#/login')).toEqual({ page: 'login' });
   });

@@ -13,6 +13,9 @@
  * - 2026-01-13: Unify input/control styling across the app (single-border, consistent surface, theme-aware placeholder/icons).
  * ========================================================================== */
 
+/* Load Fira Sans/Code for dialog-style execution logs. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
 :root {
   /* =============================================================================
    * Design system tokens
@@ -102,6 +105,13 @@
   --hc-code-bg: rgba(15, 23, 42, 0.06);
   --hc-top-right-safe: 120px;
 
+  /* Execution dialog accents: industrial gray + safety orange for task logs. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+  --hc-exec-accent: #f97316;
+  --hc-exec-accent-soft: color-mix(in srgb, #f97316 16%, #ffffff);
+  --hc-exec-rail: color-mix(in srgb, #64748b 32%, var(--hc-border));
+  --hc-exec-work-bg: color-mix(in srgb, #94a3b8 12%, #ffffff);
+  --hc-exec-role-bg: color-mix(in srgb, #94a3b8 18%, #ffffff);
+
   /* Accent color (overridden by App.tsx via CSS variables). */
   --accent: #2563eb;
   --accent-hover: #3b82f6;
@@ -178,6 +188,13 @@
   --hc-bubble-user-bg: var(--hc-accent-soft);
   --hc-bubble-assistant-bg: var(--hc-surface-elevated);
   --hc-code-bg: rgba(244, 244, 245, 0.08);
+
+  /* Execution dialog accents in dark mode. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+  --hc-exec-accent: #f97316;
+  --hc-exec-accent-soft: color-mix(in srgb, #f97316 24%, var(--bg));
+  --hc-exec-rail: color-mix(in srgb, #94a3b8 30%, var(--hc-border));
+  --hc-exec-work-bg: color-mix(in srgb, #334155 28%, var(--bg));
+  --hc-exec-role-bg: color-mix(in srgb, #334155 42%, var(--hc-surface));
 }
 
 @media (max-width: 768px) {
@@ -377,6 +394,18 @@ body {
   font-size: 12px;
 }
 
+/* Show persistent section dividers between repos, tasks, and task groups. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */
+.hc-sider__divider {
+  height: 1px;
+  margin: 8px 12px;
+  background: var(--hc-border);
+  opacity: 0.7;
+}
+
+.hc-sider.ant-layout-sider-collapsed .hc-sider__divider {
+  margin: 8px 16px;
+}
+
 .hc-sider-section {
   margin-bottom: 6px;
 }
@@ -405,6 +434,25 @@ body {
 
 .hc-sider-section__titleBtn.ant-btn:hover {
   background: var(--hc-hover) !important;
+}
+
+/* Emphasize the active task status section instead of the View All row. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */
+.hc-sider-section--active .hc-sider-section__titleBtn.ant-btn {
+  background: var(--hc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+  border-radius: 10px;
+}
+
+.hc-sider-section--active .hc-sider-section__titleBtn.ant-btn:hover {
+  background: var(--hc-accent-soft-hover) !important;
+}
+
+.hc-sider-section--active .hc-sider-section__label {
+  font-weight: 600;
+}
+
+.hc-sider-section--active .hc-sider-section__count {
+  color: var(--text);
 }
 
 .hc-sider-section__title {
@@ -501,6 +549,29 @@ body {
 
 .hc-sider-item--more.ant-btn:hover {
   color: var(--text);
+}
+
+/* Redesign the View All row as a CTA-style pill with a trailing arrow. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */
+.hc-sider-item--viewAll.ant-btn {
+  margin-top: 4px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--hc-border);
+  background: var(--hc-surface);
+  color: var(--text);
+  justify-content: space-between;
+}
+
+.hc-sider-item--viewAll.ant-btn:hover {
+  background: var(--hc-accent-soft-hover) !important;
+  border-color: var(--hc-accent-border);
+}
+
+.hc-sider-item__suffix {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
 }
 
 .hc-sider-item__icon {
@@ -914,18 +985,70 @@ button.hc-tasks-status-tile--active {
 .hc-card-list {
   max-width: var(--hc-page-max);
   margin: 0 auto;
+  /* Add a small inset to prevent glass highlights from clipping at the container edge. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+  padding: 2px;
 }
 
-.hc-task-card {
-  background: var(--hc-surface) !important;
-  border-color: var(--hc-border) !important;
-  border-radius: 12px;
+/* Use a responsive grid for modern card list layouts. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+.hc-card-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.hc-repo-card {
-  background: var(--hc-surface) !important;
-  border-color: var(--hc-border) !important;
-  border-radius: 12px;
+@media (min-width: 840px) {
+  .hc-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .hc-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+/* Modernize list cards with glassmorphism surfaces and deeper radius. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+.hc-task-card,
+.hc-repo-card,
+.hc-taskgroup-card {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--hc-surface) 88%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 78%, transparent) !important;
+  border-radius: 16px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.hc-task-card::before,
+.hc-repo-card::before,
+.hc-taskgroup-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    600px circle at 10% 0%,
+    color-mix(in srgb, var(--hc-accent-soft) 55%, transparent) 0%,
+    transparent 55%
+  );
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.hc-task-card::after,
+.hc-repo-card::after,
+.hc-taskgroup-card::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--hc-accent-border), transparent 70%);
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .hc-card {
@@ -937,16 +1060,62 @@ button.hc-tasks-status-tile--active {
 /* Elevation: apply consistent shadows to the cards we control via custom classes. */
 .hc-task-card.ant-card,
 .hc-repo-card.ant-card,
+.hc-taskgroup-card.ant-card,
 .hc-card.ant-card {
   box-shadow: var(--hc-shadow-sm);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 .hc-task-card.ant-card.ant-card-hoverable:hover,
 .hc-repo-card.ant-card.ant-card-hoverable:hover,
+.hc-taskgroup-card.ant-card.ant-card-hoverable:hover,
 .hc-card.ant-card.ant-card-hoverable:hover {
   box-shadow: var(--hc-shadow-md);
   border-color: var(--hc-accent-border) !important;
+  transform: translateY(-1px);
+}
+
+.hc-task-card .ant-tag,
+.hc-repo-card .ant-tag,
+.hc-taskgroup-card .ant-tag {
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 1px 8px;
+  line-height: 18px;
+}
+
+/* Segment card content into clear blocks for scanning. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+.hc-card-structure {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-card-divider {
+  height: 1px;
+  background: color-mix(in srgb, var(--hc-border) 70%, transparent);
+}
+
+.hc-card-note {
+  font-size: 12px;
+}
+
+/* Align shared card meta/actions rows for the list layouts. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+.hc-card-meta {
+  align-items: center;
+}
+
+.hc-card-actions {
+  margin-top: 2px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* =============================================================================
@@ -1477,6 +1646,40 @@ button.hc-tasks-status-tile--active {
   top: 0;
   align-self: flex-start;
   min-width: 0;
+  /* Animate sidebar width shifts when collapsing/expanding. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+  transition: flex-basis 200ms ease, width 200ms ease;
+}
+
+.hc-task-detail-sidebar__toggle {
+  /* Keep the collapse toggle visible even when the sidebar content is hidden. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.hc-task-detail-sidebar__toggle-btn.ant-btn {
+  min-width: 32px;
+  padding: 0 8px;
+}
+
+.hc-task-detail-sidebar__content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Collapse the task detail sidebar into a compact rail when toggled. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+.hc-task-detail-sidebar--collapsed {
+  flex: 0 0 44px;
+  width: 44px;
+}
+
+.hc-task-detail-sidebar--collapsed .hc-task-detail-sidebar__toggle {
+  justify-content: center;
+}
+
+.hc-task-detail-sidebar--collapsed .hc-task-detail-sidebar__content {
+  display: none;
 }
 
 .hc-task-detail-workflow {
@@ -1484,31 +1687,99 @@ button.hc-tasks-status-tile--active {
   min-width: 0;
 }
 
-/* Keep the task detail panel switcher visible while scrolling long logs/results. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121 */
+/* Keep the task detail panel switcher visible while scrolling long logs/results. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
 .hc-task-detail-panel-switcher {
   position: sticky;
   top: 0;
   z-index: 4;
+  overflow: visible;
+  padding-bottom: 10px;
 }
 
 .hc-task-detail-panel-content {
   margin-top: 12px;
 }
 
-.hc-task-workflow .ant-steps-item-content,
-.hc-task-workflow .ant-steps-item-description {
-  max-width: none;
-  min-width: 0;
+/* Redesign task detail step tabs with explicit numbering and a pointer highlight. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+.hc-task-detail-step-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
 }
 
-.hc-task-workflow .hc-step-index {
-  /* Display reversed step indices for bottom-up workflow numbering on task detail. tdstepsreverse20260117k1p6 */
+.hc-task-detail-step-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-surface);
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+}
+
+.hc-task-detail-step-tab:hover {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft-hover);
+}
+
+.hc-task-detail-step-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-task-detail-step-tab.is-active {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
+.hc-task-detail-step-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 9px solid var(--hc-accent-soft);
+  filter: drop-shadow(0 1px 0 var(--hc-accent-border));
+}
+
+.hc-task-detail-step-index {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  font-weight: 700;
   font-size: 12px;
   line-height: 1;
+  color: var(--text);
+  flex: 0 0 auto;
+}
+
+.hc-task-detail-step-tab.is-active .hc-task-detail-step-index {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft-hover);
+}
+
+.hc-task-detail-step-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hc-task-code-block {
@@ -1533,6 +1804,63 @@ button.hc-tasks-status-tile--active {
   overflow: visible;
 }
 
+/* Style the structured JSON viewer to replace raw payload <pre> blocks. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128 */
+.hc-json-viewer {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.hc-json-viewer .ant-tree,
+.hc-json-viewer .ant-tree-list-holder {
+  background: transparent;
+}
+
+.hc-json-viewer .ant-tree-node-content-wrapper {
+  padding: 2px 6px;
+}
+
+.hc-json-viewer__row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.hc-json-viewer__key {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.hc-json-viewer__separator {
+  color: var(--text);
+  opacity: 0.6;
+}
+
+.hc-json-viewer__summary {
+  color: var(--text);
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.hc-json-viewer__value--string,
+.hc-json-viewer__value--number,
+.hc-json-viewer__value--boolean,
+.hc-json-viewer__value--other {
+  color: var(--text);
+}
+
+.hc-json-viewer__value--null,
+.hc-json-viewer__value--undefined {
+  color: var(--text);
+  opacity: 0.6;
+}
+
 @media (max-width: 1200px) {
   .hc-task-summary-strip {
     padding: 0 14px 12px;
@@ -1546,6 +1874,12 @@ button.hc-tasks-status-tile--active {
     flex: 0 0 auto;
     position: static;
     width: 100%;
+  }
+
+  /* Keep collapsed sidebar full-width on stacked mobile layouts. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+  .hc-task-detail-sidebar--collapsed {
+    width: 100%;
+    flex: 0 0 auto;
   }
 }
 
@@ -1644,6 +1978,315 @@ button.hc-tasks-status-tile--active {
   overscroll-behavior: contain;
 }
 
+/* Add chat+preview split layout for TaskGroup dev previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-chat-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 0;
+  padding: 0 18px 18px;
+}
+
+/* Highlight draggable split interactions for the preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-chat-layout--dragging {
+  cursor: col-resize;
+}
+
+.hc-chat-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-chat-panel .hc-chat-body {
+  padding: 0;
+}
+
+.hc-preview-panel {
+  flex: 0 0 auto;
+  width: 38%;
+  min-width: 320px;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 14px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Add draggable divider and diagnostics styling for preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-preview-divider {
+  flex: 0 0 14px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  cursor: col-resize;
+}
+
+.hc-preview-divider-handle {
+  width: 2px;
+  margin: 10px 0;
+  border-radius: 999px;
+  background: var(--hc-border);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-preview-divider:hover .hc-preview-divider-handle,
+.hc-preview-divider--active .hc-preview-divider-handle {
+  background: var(--hc-accent-border);
+  box-shadow: 0 0 0 4px var(--hc-accent-soft);
+}
+
+.hc-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+/* Style preview tabs + log modal for Phase 2 UX. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-preview-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hc-preview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-preview-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  overflow-x: auto;
+}
+
+.hc-preview-tab {
+  appearance: none;
+  border: 1px solid var(--hc-border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.hc-preview-tab:hover {
+  background: var(--hc-accent-soft-hover);
+}
+
+.hc-preview-tab--active {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+}
+
+.hc-preview-tab-name {
+  font-weight: 600;
+}
+
+.hc-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.hc-preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+
+.hc-preview-placeholder {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-preview-message {
+  opacity: 0.8;
+}
+
+.hc-preview-diagnostics {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--hc-border);
+  background: color-mix(in srgb, var(--hc-hover) 60%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.hc-preview-diagnostics-title {
+  font-weight: 600;
+}
+
+.hc-preview-diagnostics-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hc-preview-diagnostics-logs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-preview-diagnostics-logs-label {
+  font-weight: 600;
+}
+
+.hc-preview-diagnostics-logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hc-preview-diagnostics-log-line {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  word-break: break-word;
+}
+
+.hc-preview-diagnostics-log-level {
+  font-weight: 600;
+}
+
+.hc-preview-diagnostics-log-message {
+  color: inherit;
+}
+
+.hc-preview-log-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.hc-preview-log-body {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--hc-surface-elevated) 92%, #f8fafc);
+}
+
+.hc-preview-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-preview-log-line {
+  display: grid;
+  grid-template-columns: 96px 64px 1fr;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--hc-code-bg);
+  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.hc-preview-log-line--stderr {
+  background: color-mix(in srgb, #dc2626 10%, var(--hc-code-bg));
+}
+
+.hc-preview-log-line--system {
+  background: color-mix(in srgb, var(--hc-accent-soft) 60%, var(--hc-code-bg));
+}
+
+.hc-preview-log-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.hc-preview-log-level {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.hc-preview-log-line--stderr .hc-preview-log-level {
+  color: #dc2626;
+}
+
+.hc-preview-log-line--system .hc-preview-log-level {
+  color: #2563eb;
+}
+
+.hc-preview-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--hc-border);
+}
+
+.hc-preview-status-dot--running {
+  background: #16a34a;
+}
+
+.hc-preview-status-dot--starting {
+  background: #f97316;
+}
+
+.hc-preview-status-dot--failed,
+.hc-preview-status-dot--timeout {
+  background: #dc2626;
+}
+
+.hc-preview-status-dot--stopped {
+  background: var(--hc-border);
+}
+
+@media (max-width: 1024px) {
+  .hc-chat-layout {
+    flex-direction: column;
+  }
+
+  .hc-preview-divider {
+    display: none;
+  }
+
+  .hc-preview-panel {
+    flex: 0 0 auto;
+    max-width: none;
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .hc-preview-log-line {
+    grid-template-columns: 1fr;
+  }
+}
+
 .hc-chat-welcome {
   height: 100%;
   display: flex;
@@ -1653,7 +2296,8 @@ button.hc-tasks-status-tile--active {
 }
 
 .hc-chat-welcome__card {
-  width: min(720px, 94vw);
+  /* Clamp TaskGroup chat widths to container size to avoid horizontal scroll. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(720px, 100%);
   background: var(--hc-surface);
   border-color: var(--hc-border);
   border-radius: 12px;
@@ -1685,6 +2329,28 @@ button.hc-tasks-status-tile--active {
   gap: 10px;
 }
 
+/* Animate newly sent chat items as they settle into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */
+@keyframes hc-chat-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hc-chat-item--enter {
+  animation: hc-chat-item-enter 360ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-chat-item--enter {
+    animation: none;
+  }
+}
+
 .hc-chat-item__user {
   display: flex;
   justify-content: flex-end;
@@ -1696,7 +2362,8 @@ button.hc-tasks-status-tile--active {
 }
 
 .hc-chat-bubble {
-  max-width: min(820px, 86vw);
+  /* Keep chat bubbles within the page container to prevent overflow on narrow layouts. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  max-width: min(820px, 100%);
   padding: 10px 14px;
   border-radius: 16px;
   border: 1px solid var(--hc-border);
@@ -1712,19 +2379,26 @@ button.hc-tasks-status-tile--active {
 }
 
 .hc-chat-task-card {
-  width: min(820px, 86vw);
+  /* Keep task cards within the chat container width (avoid horizontal scrollbars). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
   background: var(--hc-surface);
   border-color: var(--hc-border);
   border-radius: 12px;
 }
 
 .hc-chat-logs-card {
-  width: min(820px, 86vw);
+  /* Keep log cards within the chat container width (avoid horizontal scrollbars). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
   /* Remove the Card surface background for TaskGroup execution logs. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a */
   background: transparent;
   border-color: transparent;
   border-radius: 12px;
   box-shadow: none;
+}
+/* Stretch git status cards to match chat item width in the task group timeline. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */
+.hc-chat-git-status {
+  /* Keep git status panels within the chat container width. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
 }
 /* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */
 
@@ -1790,9 +2464,401 @@ html[data-theme='dark'] {
   text-align: center;
 }
 
+/* Dialog-style execution log layout (non-bubble, task-centric). docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+.hc-exec-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: "Fira Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.hc-exec-dialog__item {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  animation: hc-exec-item-enter 220ms ease-out;
+  will-change: opacity, transform;
+}
+
+.hc-exec-dialog__item.is-running {
+  border-color: color-mix(in srgb, var(--hc-exec-accent) 45%, var(--hc-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hc-exec-accent) 18%, transparent);
+}
+
+.hc-exec-dialog__item.is-failed {
+  border-color: color-mix(in srgb, #ef4444 40%, var(--hc-border));
+}
+
+.hc-exec-dialog__item.is-completed {
+  border-color: color-mix(in srgb, #22c55e 30%, var(--hc-border));
+}
+
+.hc-exec-dialog__item.is-failed .hc-exec-dialog__dot {
+  background: #ef4444;
+  border-color: color-mix(in srgb, #ef4444 30%, var(--hc-exec-accent-soft));
+}
+
+.hc-exec-dialog__item.is-completed .hc-exec-dialog__dot {
+  background: #22c55e;
+  border-color: color-mix(in srgb, #22c55e 30%, var(--hc-exec-accent-soft));
+}
+
+.hc-exec-dialog__rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-exec-dialog__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--hc-exec-accent);
+  border: 2px solid var(--hc-exec-accent-soft);
+}
+
+.hc-exec-dialog__line {
+  flex: 1;
+  width: 2px;
+  background: var(--hc-exec-rail);
+  border-radius: 999px;
+}
+
+.hc-exec-dialog__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-exec-dialog__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-exec-dialog__role {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--hc-exec-role-bg);
+  border: 1px solid var(--hc-border);
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.hc-exec-dialog__kind {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-exec-dialog__status {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--hc-border);
+  color: var(--muted);
+  background: var(--hc-surface);
+}
+
+.hc-exec-dialog__status.is-running {
+  color: var(--hc-exec-accent);
+  border-color: color-mix(in srgb, var(--hc-exec-accent) 40%, var(--hc-border));
+  background: var(--hc-exec-accent-soft);
+}
+
+.hc-exec-dialog__status.is-failed {
+  color: #ef4444;
+  border-color: color-mix(in srgb, #ef4444 40%, var(--hc-border));
+  background: color-mix(in srgb, #ef4444 12%, var(--hc-surface-elevated));
+}
+
+.hc-exec-dialog__status.is-completed {
+  color: #16a34a;
+  border-color: color-mix(in srgb, #22c55e 35%, var(--hc-border));
+  background: color-mix(in srgb, #22c55e 12%, var(--hc-surface-elevated));
+}
+
+.hc-exec-dialog__speech {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.hc-exec-dialog__line-text {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-exec-dialog__work {
+  border: 1px dashed color-mix(in srgb, var(--hc-exec-rail) 70%, var(--hc-border));
+  background: var(--hc-exec-work-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hc-exec-dialog__work-header {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hc-exec-dialog__work-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hc-exec-dialog__work-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-exec-dialog__mono {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--hc-surface);
+  font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hc-exec-dialog__files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-exec-dialog__file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hc-exec-dialog__file-path {
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.hc-exec-dialog__pill {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border: 1px solid var(--hc-border);
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--hc-surface);
+}
+
+.hc-exec-dialog__diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hc-exec-dialog__diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-exec-dialog__diff-file {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-exec-dialog__todo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-exec-dialog__todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-exec-dialog__todo-item.is-complete {
+  color: var(--muted);
+}
+
+.hc-exec-dialog__todo-marker {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--hc-exec-rail);
+}
+
+.hc-exec-dialog__todo-item.is-complete .hc-exec-dialog__todo-marker {
+  background: color-mix(in srgb, #22c55e 60%, var(--hc-exec-rail));
+}
+
+/* Add execution timeline spacing, entry transitions, and running indicator styling. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@keyframes hc-exec-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node'] {
+  animation: hc-exec-item-enter 220ms ease-out;
+  will-change: opacity, transform;
+}
+
+.hc-exec-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  color: var(--muted);
+}
+
+.hc-exec-running__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hc-exec-running__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  opacity: 0.3;
+  animation: hc-exec-running-dot 1.2s ease-in-out infinite;
+}
+
+.hc-exec-running__dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.hc-exec-running__dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes hc-exec-running-dot {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.3;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-exec-thought-chain [class$='thought-chain-node'] {
+    animation: none;
+  }
+
+  /* Disable dialog log entry motion for reduced-motion users. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+  .hc-exec-dialog__item {
+    animation: none;
+  }
+
+  .hc-exec-running__dot {
+    animation: none;
+  }
+}
+
 /* Style Ant Design X ThoughtChain snippets to match existing execution log typography. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
 .hc-exec-thought-chain {
   width: 100%;
+}
+
+/* Ensure ThoughtChain nodes wrap inside the chat container (avoid horizontal scroll). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-thought-chain [class$='thought-chain-node'],
+.hc-exec-thought-chain [class$='thought-chain-node-box'],
+.hc-exec-thought-chain [class$='thought-chain-node-header'] {
+  min-width: 0;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-box'] {
+  flex: 1;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-title'],
+.hc-exec-thought-chain [class$='thought-chain-node-description'] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-title'] {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+/* Constrain ThoughtChain content blocks and markdown/code so long text never overflows the card. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-thought-chain [class$='thought-chain-node-content'],
+.hc-exec-thought-chain [class$='thought-chain-node-content-box'] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.hc-exec-thought-chain [class$='thought-chain-node-title'] .ant-space {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.hc-exec-thought-chain .markdown-result,
+.hc-exec-thought-chain .markdown-result pre,
+.hc-exec-thought-chain .markdown-result pre code,
+.hc-exec-thought-chain .markdown-result code {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.hc-exec-thought-chain .markdown-result table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 /* Replace Think's default arrow with Caret icons rendered in the title. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
@@ -1805,11 +2871,13 @@ html[data-theme='dark'] {
   display: none;
 }
 
+/* Allow Execution Think titles to wrap in narrow chat containers. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
 .hc-exec-think-title {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .hc-exec-think-title__caret {
@@ -1819,6 +2887,22 @@ html[data-theme='dark'] {
 
 .hc-exec-think-title__mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+/* Ensure long command/file labels wrap instead of overflowing ThoughtChain cards. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-think-title__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Allow command/file titles in ThoughtChain headers to wrap instead of overflowing. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-title-text {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .hc-exec-thought__desc {
@@ -1849,8 +2933,11 @@ html[data-theme='dark'] {
   word-break: break-word;
 }
 
+/* Keep exec output lines within the chat width to prevent horizontal scroll. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
 .hc-exec-output {
   margin-top: 8px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .hc-exec-output--mono {
@@ -1858,10 +2945,53 @@ html[data-theme='dark'] {
   word-break: break-word;
 }
 
+/* Style todo_list entries in execution logs with clear completion markers. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */
+.hc-exec-todo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 12px;
+}
+
+.hc-exec-todo__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.hc-exec-todo__marker {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.hc-exec-todo__item.is-complete .hc-exec-todo__marker {
+  background: var(--primary);
+}
+
 .hc-exec-files {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* Render inline diff blocks inside the file-change collapse. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+.hc-exec-diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.hc-exec-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 12px;
 }
 
 .hc-exec-file {
@@ -1944,9 +3074,12 @@ html[data-theme='dark'] {
   user-select: none;
 }
 
+/* Keep diff lines wrapping inside the ThoughtChain content box. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
 .hc-diff__content {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .hc-diff__leading {
@@ -2675,8 +3808,41 @@ html[data-theme='dark'] {
 
 .hc-composer-footer {
   display: flex;
+  /* Arrange composer footer into left icon + selectors and right actions. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hc-composer-footer-left {
+  /* Keep the time-window icon aligned left for quick access. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-composer-footer-right {
+  /* Keep repo/robot selectors grouped with the send action on the right. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 8px;
+}
+
+.hc-timewindow-toggle {
+  /* Minimal icon affordance for the chat time-window popover. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  color: var(--text-secondary);
+}
+
+.hc-timewindow-toggle.is-active {
+  /* Highlight the icon when a time window is selected. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  color: var(--primary);
+}
+
+.hc-timewindow-label {
+  /* Keep the time window label compact and readable. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  font-size: 12px;
 }
 
 /* =============================================================================
