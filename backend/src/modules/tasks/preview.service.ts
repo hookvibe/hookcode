@@ -8,10 +8,10 @@ import path from 'path';
 import type { DependencyResult, HookcodeConfig, PreviewInstanceConfig } from '../../types/dependency';
 import { installDependencies, DependencyInstallerError } from '../../agent/dependencyInstaller';
 import {
+  buildTaskGroupRootDir,
   buildTaskGroupWorkspaceDir,
   getRepoSlug,
-  runCommandCapture,
-  TASK_GROUP_WORKSPACE_ROOT
+  runCommandCapture
 } from '../../agent/agent';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
 import { resolvePreviewEnv } from '../../utils/previewEnv';
@@ -801,22 +801,24 @@ export class PreviewService implements OnModuleDestroy {
       }
     }
 
-    const fallbackDir = await this.findWorkspaceByPrefix(taskGroupId, lastProvider ?? providerFallback ?? undefined);
+    // Fall back to the task-group root layout when payload data is incomplete. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const fallbackDir = await this.findWorkspaceByGroupRoot(taskGroupId);
     if (fallbackDir) return fallbackDir;
 
     throw new PreviewServiceError('task group workspace missing', 'workspace_missing');
   }
 
-  private async findWorkspaceByPrefix(taskGroupId: string, provider?: string): Promise<string | null> {
-    // Fallback to an existing workspace directory when task payloads lack repo metadata. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    const prefix = provider ? `${taskGroupId}__${provider}__` : `${taskGroupId}__`;
+  private async findWorkspaceByGroupRoot(taskGroupId: string): Promise<string | null> {
+    // Fallback to an existing repo directory under the task-group root when metadata is missing. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const groupRoot = buildTaskGroupRootDir({ taskGroupId, taskId: taskGroupId });
     try {
-      const entries = await readdir(TASK_GROUP_WORKSPACE_ROOT, { withFileTypes: true });
-      const candidates = entries.filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix));
+      const entries = await readdir(groupRoot, { withFileTypes: true });
+      // Ignore tooling directories like .codex when selecting repo roots. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+      const candidates = entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'));
       if (candidates.length === 0) return null;
       let selected: { dir: string; mtime: number } | null = null;
       for (const entry of candidates) {
-        const dir = path.join(TASK_GROUP_WORKSPACE_ROOT, entry.name);
+        const dir = path.join(groupRoot, entry.name);
         const stats = await stat(dir);
         const mtime = Number(stats.mtimeMs ?? stats.mtime.getTime());
         if (!selected || mtime > selected.mtime) {

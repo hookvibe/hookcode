@@ -54,6 +54,20 @@ The **Copy link** action produces a preview URL with a `token` query parameter. 
 - Preview sessions stop automatically after **30 minutes of inactivity** (preview traffic or log streams count as activity).
 - Editing `.hookcode.yml` restarts running previews automatically after a short debounce window.
 
+## Workspace layout
+
+<!-- Document the task-group workspace structure for preview troubleshooting. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+Task runs create a workspace under the build root (configurable via `HOOKCODE_BUILD_ROOT`). The default layout is:
+
+- `<build-root>/task-groups/<taskGroupId>/`
+  - `.codex/skills/` (placeholder)
+  - `<repo-name>/` (cloned repository)
+  - `codex-output.txt` / `claude-output.txt` / `gemini-output.txt`
+  - `codex-schema.json` (placeholder)
+  - `AGENTS.md` (placeholder)
+
+Model commands run from the task-group root, so repo-relative paths live under `<repo-name>/`.
+
 ## Status glossary
 
 - **Starting**: process launched, waiting for readiness.

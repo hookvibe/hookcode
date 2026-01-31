@@ -305,16 +305,19 @@ export const normalizeCodexApiBaseUrl = (raw: string): string | undefined => {
 
 export const buildCodexSdkThreadOptions = (params: {
   repoDir: string;
+  workspaceDir?: string;
   model: CodexModel;
   sandbox: 'read-only' | 'workspace-write';
   modelReasoningEffort: CodexReasoningEffort;
 }): CodexSdkThreadOptions => {
   const sandboxMode = params.sandbox || 'read-only';
+  const workingDir = params.workspaceDir ?? params.repoDir;
 
   return {
     model: params.model,
     sandboxMode,
-    workingDirectory: params.repoDir,
+    // Run Codex from the task-group root when provided; fall back to repo root. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    workingDirectory: workingDir,
     skipGitRepoCheck: true,
     approvalPolicy: 'never',
     modelReasoningEffort: params.modelReasoningEffort as CodexSdkModelReasoningEffort,
@@ -326,6 +329,7 @@ export const buildCodexSdkThreadOptions = (params: {
 
 export const runCodexExecWithSdk = async (params: {
   repoDir: string;
+  workspaceDir?: string;
   promptFile: string;
   model: CodexModel;
   sandbox: 'read-only' | 'workspace-write';
@@ -357,6 +361,7 @@ export const runCodexExecWithSdk = async (params: {
 
   const threadOptions = buildCodexSdkThreadOptions({
     repoDir: params.repoDir,
+    workspaceDir: params.workspaceDir,
     model: params.model,
     sandbox: params.sandbox,
     // Thread options now always enable network access for Codex runs. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127

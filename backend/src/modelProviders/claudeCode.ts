@@ -213,6 +213,7 @@ const isPathWithinRoot = (rootDir: string, filePath: string): boolean => {
 
 export const runClaudeCodeExecWithSdk = async (params: {
   repoDir: string;
+  workspaceDir?: string;
   promptFile: string;
   model: string;
   sandbox: 'read-only' | 'workspace-write';
@@ -267,12 +268,14 @@ export const runClaudeCodeExecWithSdk = async (params: {
     let threadId: string | null = null;
     let finalResponse = '';
     let resultError: string | null = null;
+    const workingDir = params.workspaceDir ?? params.repoDir;
 
     const q = query({
       prompt,
       options: {
         abortController,
-        cwd: params.repoDir,
+        // Run Claude Code from the task-group root when provided; fall back to repo root. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+        cwd: workingDir,
         env: mergedEnv,
         model: params.model ? params.model : undefined,
         tools: baseTools,
