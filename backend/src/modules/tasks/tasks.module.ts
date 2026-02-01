@@ -44,6 +44,8 @@ import { PreviewHighlightService } from './preview-highlight.service';
     TaskService,
     TaskLogStream,
     PreviewLogStream,
+    // Export preview highlight publisher for HTTP controllers. docs/en/developer/plans/taskgrouppreviewdi20260201/task_plan.md taskgrouppreviewdi20260201
+    PreviewHighlightService,
     AgentService,
     TaskRunner,
     TaskGitPushService,
