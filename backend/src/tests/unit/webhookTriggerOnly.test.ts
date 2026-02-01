@@ -23,6 +23,7 @@ describe('Webhook / Agent legacy guardrails', () => {
       repositoryService: {} as any,
       repoRobotService: {} as any,
       userService: {} as any,
+      userApiTokenService: { createToken: jest.fn(), verifyToken: jest.fn() } as any,
       runtimeService: { hasRuntime: jest.fn().mockReturnValue(true) } as any,
       hookcodeConfigService: { parseConfig: jest.fn().mockResolvedValue(null) } as any
     });

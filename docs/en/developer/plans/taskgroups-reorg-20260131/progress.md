@@ -37,12 +37,16 @@
 <!-- Track implementation progress for the task-group layout update. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
 - **Status:** complete
 - Actions taken:
-  - Updated workspace path builders and task-group layout initialization in agent runtime.
-  - Routed Codex/Claude/Gemini execution to the task-group root and moved output artifacts to that root.
-  - Adjusted preview workspace fallback logic (skip `.codex`) and updated tests for new layout.
-  - Updated user docs to describe the new workspace structure.
+  - Added task-group `.env` + AGENTS template generation with runtime API/PAT values.
+  - Extended task-group `.env` contents to include HOOKCODE_TASK_GROUP_ID.
+  - Adjusted task-group env generation to require a task group id.
+  - Updated task-group workspace tests to cover env + AGENTS content.
+  - Updated preview docs to include `.env` in workspace layout.
 - Files created/modified:
   - backend/src/agent/agent.ts
+  - backend/src/tests/unit/taskGroupWorkspace.test.ts
+  - docs/en/user-docs/preview.md
+  - docs/en/user-docs/preview.md
   - backend/src/modelProviders/codex.ts
   - backend/src/modelProviders/claudeCode.ts
   - backend/src/modelProviders/geminiCli.ts
@@ -52,19 +56,44 @@
   - docs/en/user-docs/preview.md
   - docs/en/user-docs/config/hookcode-yml.md
 
+### Phase 4: Testing & Verification
+<!-- Track test and verification updates for task-group env automation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- **Status:** in_progress
+- Actions taken:
+  - Normalized task-group API base URL resolution to host roots and added unit coverage for env base URL selection.
+  - Ran backend tests to validate new task-group env behavior (full suite rerun; previewPortPool/previewWsProxy failures persist).
+  - Added task-group .codex template seeding, per-skill .env syncing, and the Planning with Files AGENTS block.
+  - Clarified AGENTS repo folder guidance with <<repo-folder>> markers.
+  - Added unit coverage for per-skill .env syncing and AGENTS Planning block.
+  - Reran backend tests after AGENTS template update; previewPortPool/previewWsProxy failures persist.
+  - Updated task-group PAT issuance to require tasks:write and added tests for PAT reuse/rotation.
+- Files created/modified:
+  - backend/src/agent/agent.ts
+  - backend/src/tests/unit/taskGroupWorkspace.test.ts
+  - docs/en/user-docs/preview.md
+
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-| Backend build | `pnpm --filter hookcode-backend build` | Build succeeds | Build succeeded (rerun after preview change) | ✓ |
-| Backend tests | `pnpm --filter hookcode-backend test` | All tests pass | 83 suites passed (open handles warning, rerun) | ✓ |
+| Backend build | `pnpm --filter hookcode-backend build` | Build succeeds | Build succeeded (rerun after env + AGENTS changes) | ✓ |
+<!-- Update backend test failure details for task-group env automation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| Backend tests | `pnpm --filter hookcode-backend test` | All tests pass | Fails in previewPortPool (no_available_preview_ports) and previewWsProxy (EPERM + timeout); new PAT tests pass | ✗ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
 {/* Keep ALL errors - they help avoid repetition */}
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-|           |       | 1       |            |
+| 2026-02-01 | jest previewPortPool/previewWsProxy failures (EPERM + no_available_preview_ports) | 2 | Pending; likely environment port binding restrictions. |
+<!-- Record latest preview port pool failure after test rerun. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| 2026-02-01 | pnpm backend tests timed out with previewPortPool no_available_preview_ports | 3 | Pending; likely environment port binding restrictions. |
+<!-- Record full-suite rerun failures for preview port/ws proxy. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| 2026-02-01 | pnpm backend tests failed with previewPortPool no_available_preview_ports + previewWsProxy EPERM/timeout | 4 | Pending; likely environment port binding restrictions. |
+<!-- Record latest rerun failure after AGENTS template update. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| 2026-02-01 | pnpm backend tests failed again with previewPortPool no_available_preview_ports + previewWsProxy EPERM/timeout | 5 | Pending; likely environment port binding restrictions. |
+<!-- Record latest test rerun failure after PAT scope update. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| 2026-02-01 | pnpm backend tests failed with previewPortPool no_available_preview_ports + previewWsProxy EPERM/timeout after PAT scope update | 6 | Pending; likely environment port binding restrictions. |
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}
@@ -72,9 +101,9 @@
 <!-- Sync reboot answers with completed delivery status. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 5 (Delivery) complete |
-| Where am I going? | All phases complete |
-| What's the goal? | Restructure task-group workspaces to use a taskgroup-id root with repo + artifacts, update execution cwd, and document the layout. |
+| Where am I? | Phase 4 (Testing & Verification) |
+| Where am I going? | Phase 5 (Delivery) |
+| What's the goal? | Restructure task-group workspaces to use a taskgroup-id root with repo + artifacts, add task-group .env + AGENTS template, update execution cwd, and document the layout. |
 | What have I learned? | See findings.md |
 | What have I done? | Updated backend workspace layout, provider working dirs, tests, and user docs; ran backend build + tests. |
 

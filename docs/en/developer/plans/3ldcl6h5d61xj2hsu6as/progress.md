@@ -232,6 +232,31 @@
   - `pnpm --filter hookcode-frontend test -- taskGroupChatPage`
 
 <!-- Log Phase 24 highlight bridge implementation and test results. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+<!-- Log Phase 25 highlight skill packaging and script coverage. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 25: Preview Highlight Skill + Scripts
+- **Status:** complete
+- **Started:** 2026-02-01 21:40
+- **Completed:** 2026-02-01 22:15
+- Actions taken:
+  - Initialized the hookcode-preview-highlight skill skeleton with scripts + references.
+  - Added JS request scripts for preview status/start/install/highlight/stop with shared env loader.
+  - Documented highlight parameters, bridge requirements, and troubleshooting guidance.
+  - Narrowed skill env usage to base URL, PAT, task group, and instance defaults; highlight options are CLI-only.
+  - Added .env.example with Chinese comments for skill configuration.
+- Files created/modified:
+  - .codex/skills/hookcode-preview-highlight/SKILL.md
+  - .codex/skills/hookcode-preview-highlight/.env.example
+  - .codex/skills/hookcode-preview-highlight/scripts/_shared.mjs
+  - .codex/skills/hookcode-preview-highlight/scripts/preview_status.mjs
+  - .codex/skills/hookcode-preview-highlight/scripts/preview_start.mjs
+  - .codex/skills/hookcode-preview-highlight/scripts/preview_dependencies_install.mjs
+  - .codex/skills/hookcode-preview-highlight/scripts/preview_highlight.mjs
+  - .codex/skills/hookcode-preview-highlight/scripts/preview_stop.mjs
+  - .codex/skills/hookcode-preview-highlight/references/highlight-protocol.md
+- Tests:
+  - `HOOKCODE_API_BASE_URL=http://127.0.0.1:4000 HOOKCODE_PAT=redacted node .codex/skills/hookcode-preview-highlight/scripts/preview_highlight.mjs --task-group test-task --selector .page-kicker --dry-run` (passed)
+
+<!-- Log Phase 24 highlight bridge implementation and test results. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 ### Phase 24: Preview Highlight Bridge + API
 - **Status:** complete
 - **Started:** 2026-01-31 18:05

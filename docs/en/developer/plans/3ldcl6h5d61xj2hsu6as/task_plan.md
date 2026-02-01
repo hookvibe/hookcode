@@ -22,7 +22,8 @@ Diagnose and fix TaskGroup preview failures for repos that contain .hookcode.yml
 <!-- Mark Phase 12 as complete after preview availability refresh fix. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 <!-- Move active phase to Phase 23 for local port + subdomain routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 <!-- Move active phase to Phase 24 for preview highlight bridge + API. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
-Phase 24 (complete)
+<!-- Move active phase to Phase 25 for preview highlight skill delivery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+Phase 25 (complete)
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -258,6 +259,13 @@ Phase 24 (complete)
 - [x] Add frontend SSE listener + postMessage bridge handshake and forwarding
 - [x] Add shared bridge script in repo root for user integration
 - [x] Update user docs and API types/tests for highlight workflow
+- **Status:** complete
+
+### Phase 25: Preview Highlight Skill + Scripts
+<!-- Package preview highlight request scripts and detailed docs into a reusable skill. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- [x] Create the hookcode-preview-highlight skill skeleton and env template
+- [x] Add JS request scripts for preview status/start/install/highlight/stop
+- [x] Document API parameters, bridge requirements, and troubleshooting notes
 - **Status:** complete
 
 ## Key Questions

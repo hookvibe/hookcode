@@ -76,11 +76,13 @@ When the preview iframe loads, HookCode sends a handshake ping. If the bridge re
 Task runs create a workspace under the build root (configurable via `HOOKCODE_BUILD_ROOT`). The default layout is:
 
 - `<build-root>/task-groups/<taskGroupId>/`
-  - `.codex/skills/` (placeholder)
+  <!-- Mention that bundled skills include per-skill .env copies for API access. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+  - `.codex/skills/` (bundled skills with per-skill .env copies)
+  - `.env` (task-group API base URL + PAT + task group id)
   - `<repo-name>/` (cloned repository)
   - `codex-output.txt` / `claude-output.txt` / `gemini-output.txt`
   - `codex-schema.json` (placeholder)
-  - `AGENTS.md` (placeholder)
+  - `AGENTS.md` (task-group rules + embedded .env config)
 
 Model commands run from the task-group root, so repo-relative paths live under `<repo-name>/`.
 

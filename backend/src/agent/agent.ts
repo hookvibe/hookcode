@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
-import { mkdir, rm, writeFile, stat, readFile, chmod, rename, copyFile } from 'fs/promises';
+import { mkdir, rm, writeFile, stat, readFile, chmod, rename, copyFile, cp, readdir } from 'fs/promises';
 import path from 'path';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import type { Task, TaskGitStatusSnapshot, TaskGitStatusWorkingTree, TaskResult } from '../types/task';
@@ -36,6 +36,8 @@ import {
 import { isTaskLogsDbEnabled } from '../config/features';
 import { isTruthy } from '../utils/env';
 import type { UserModelCredentials } from '../modules/users/user.service';
+import type { UserApiTokenService } from '../modules/users/user-api-token.service';
+import { hasPatScope } from '../modules/auth/patScopes';
 import {
   getGitCloneAuth as resolveGitCloneAuth,
   inferRobotRepoProviderCredentialSource,
@@ -106,6 +108,7 @@ let taskLogStream: TaskLogStream;
 let repositoryService: RepositoryService;
 let repoRobotService: RepoRobotService;
 let userService: UserService;
+let userApiTokenService: UserApiTokenService;
 let runtimeService: RuntimeService;
 let hookcodeConfigService: HookcodeConfigService;
 
@@ -115,6 +118,7 @@ export const setAgentServices = (services: {
   repositoryService: RepositoryService;
   repoRobotService: RepoRobotService;
   userService: UserService;
+  userApiTokenService: UserApiTokenService;
   runtimeService: RuntimeService;
   hookcodeConfigService: HookcodeConfigService;
 }) => {
@@ -124,12 +128,22 @@ export const setAgentServices = (services: {
   repositoryService = services.repositoryService;
   repoRobotService = services.repoRobotService;
   userService = services.userService;
+  userApiTokenService = services.userApiTokenService;
   runtimeService = services.runtimeService;
   hookcodeConfigService = services.hookcodeConfigService;
 };
 
 const assertAgentServicesReady = () => {
-  if (!taskService || !taskLogStream || !repositoryService || !repoRobotService || !userService || !runtimeService || !hookcodeConfigService) {
+  if (
+    !taskService ||
+    !taskLogStream ||
+    !repositoryService ||
+    !repoRobotService ||
+    !userService ||
+    !userApiTokenService ||
+    !runtimeService ||
+    !hookcodeConfigService
+  ) {
     throw new Error('[agent] services are not initialized (missing setAgentServices call)');
   }
 };
@@ -221,12 +235,233 @@ const ensurePlaceholderFile = async (filePath: string, contents: string): Promis
   }
 };
 
-const ensureTaskGroupLayout = async (params: { taskGroupDir: string }): Promise<void> => {
-  // Initialize the task-group root with Codex placeholders before any model execution. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+const resolveAgentExampleCodexDir = (): string | null => {
+  // Locate the bundled .codex template from the agent example workspace. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const cwd = process.cwd();
+  const candidates = [
+    path.join(cwd, 'backend', 'src', 'agent', 'example', '.codex'),
+    path.join(cwd, 'src', 'agent', 'example', '.codex'),
+    path.join(__dirname, 'example', '.codex')
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+};
+
+const ensureTaskGroupCodexDir = async (taskGroupDir: string): Promise<void> => {
+  // Seed task-group .codex folders from the example template when available. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const destination = path.join(taskGroupDir, '.codex');
+  if (!existsSync(destination)) {
+    const template = resolveAgentExampleCodexDir();
+    if (template) {
+      await cp(template, destination, { recursive: true });
+    } else {
+      await mkdir(destination, { recursive: true });
+    }
+  }
+  await mkdir(path.join(destination, 'skills'), { recursive: true });
+};
+
+const writeFileIfChanged = async (filePath: string, contents: string): Promise<void> => {
+  // Keep generated task-group files in sync without clobbering identical content. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  try {
+    const existing = await readFile(filePath, 'utf8');
+    if (existing === contents) return;
+  } catch (err: any) {
+    if (err?.code !== 'ENOENT') throw err;
+  }
+  await writeFile(filePath, contents, 'utf8');
+};
+
+const normalizeHostBaseUrl = (raw: string): string => {
+  // Normalize API base URLs to host roots for task-group env generation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+  try {
+    const url = new URL(candidate);
+    return url.origin;
+  } catch {
+    return trimmed.replace(/\/+$/, '').replace(/\/api$/i, '');
+  }
+};
+
+const resolveTaskGroupApiBaseUrl = (): string => {
+  // Derive the backend host root from runtime server config. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const explicit = normalizeHostBaseUrl(
+    safeTrim(process.env.HOOKCODE_API_BASE_URL) ||
+      safeTrim(process.env.OPENAPI_BASE_URL) ||
+      safeTrim(process.env.ADMIN_TOOLS_API_BASE_URL)
+  );
+  if (explicit) return explicit;
+  const host = safeTrim(process.env.HOST) || '127.0.0.1';
+  const port = Number(process.env.PORT) || 4000;
+  return `http://${host}:${port}`;
+};
+
+// Expose API base URL resolution for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+export const __test__resolveTaskGroupApiBaseUrl = resolveTaskGroupApiBaseUrl;
+
+const parseEnvContent = (content: string): Record<string, string> => {
+  // Parse simple KEY=VALUE env content to reuse PATs when present. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const values: Record<string, string> = {};
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const raw = trimmed.startsWith('export ') ? trimmed.slice(7) : trimmed;
+    const idx = raw.indexOf('=');
+    if (idx === -1) continue;
+    const key = raw.slice(0, idx).trim();
+    let value = raw.slice(idx + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (key) values[key] = value;
+  }
+  return values;
+};
+
+const readEnvFileValues = async (filePath: string): Promise<Record<string, string>> => {
+  try {
+    const content = await readFile(filePath, 'utf8');
+    return parseEnvContent(content);
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return {};
+    throw err;
+  }
+};
+
+const listSkillDirectories = async (skillsRoot: string): Promise<string[]> => {
+  // Collect top-level skill directories for env sync under task-group .codex. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  try {
+    const entries = await readdir(skillsRoot, { withFileTypes: true });
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => path.join(skillsRoot, entry.name));
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return [];
+    throw err;
+  }
+};
+
+const syncTaskGroupSkillEnvFiles = async (params: { taskGroupDir: string; envContents: string }): Promise<void> => {
+  // Duplicate the task-group .env into each skill folder for consistent API access. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const skillsRoot = path.join(params.taskGroupDir, '.codex', 'skills');
+  const skillDirs = await listSkillDirectories(skillsRoot);
+  for (const skillDir of skillDirs) {
+    await writeFileIfChanged(path.join(skillDir, '.env'), params.envContents);
+  }
+};
+
+// Expose skill env syncing for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+export const __test__syncTaskGroupSkillEnvFiles = syncTaskGroupSkillEnvFiles;
+
+const resolvePatOwnerUserId = async (): Promise<string> => {
+  // Select a user account to own the auto-issued PAT (default to first user). docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const existing = await userService.getDefaultUserCredentialsRaw();
+  if (existing?.userId) return existing.userId;
+  await userService.ensureBootstrapUser();
+  const fallback = await userService.getDefaultUserCredentialsRaw();
+  if (fallback?.userId) return fallback.userId;
+  throw new Error('No users available to issue a PAT');
+};
+
+const ensureTaskGroupPat = async (params: { taskGroupId: string; existingPat?: string }): Promise<string> => {
+  // Reuse a valid PAT from the task-group .env or issue a new one via UserApiTokenService. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const existing = safeTrim(params.existingPat);
+  if (existing) {
+    const verified = await userApiTokenService.verifyToken(existing);
+    if (verified && hasPatScope(verified.auth.scopes, 'tasks', 'write')) return existing;
+  }
+  const ownerId = await resolvePatOwnerUserId();
+  const name = `task-group-${params.taskGroupId}`;
+  const result = await userApiTokenService.createToken(ownerId, {
+    name,
+    // Require tasks:write so task-group PATs can call preview highlight APIs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    scopes: [{ group: 'tasks', level: 'write' }],
+    expiresInDays: 0
+  });
+  return result.token;
+};
+
+// Expose PAT reuse/rotation logic for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+export const __test__ensureTaskGroupPat = ensureTaskGroupPat;
+
+const resolveTaskGroupEnvValues = async (params: { taskGroupId: string; existingPat?: string }) => {
+  // Build task-group env values from runtime API base + auto-issued PAT. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const taskGroupId = safeTrim(params.taskGroupId);
+  if (!taskGroupId) throw new Error('taskGroupId is required to build task-group .env');
+  const apiBaseUrl = resolveTaskGroupApiBaseUrl();
+  const pat = await ensureTaskGroupPat({ taskGroupId, existingPat: params.existingPat });
+  return { apiBaseUrl, pat, taskGroupId };
+};
+
+export const buildTaskGroupEnvFileContents = (params: { apiBaseUrl: string; pat: string; taskGroupId: string }): string => {
+  // Emit the task-group .env contents with explicit API + PAT settings. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  return [
+    '# Provide base URL and PAT values for task-group API access.',
+    '# Backend API base URL (e.g. https://hookcode.example.com)',
+    `HOOKCODE_API_BASE_URL=${params.apiBaseUrl}`,
+    '# Personal access token (PAT) for Authorization: Bearer <PAT>',
+    `HOOKCODE_PAT=${params.pat}`,
+    '# Task group id for scoping API requests.',
+    `HOOKCODE_TASK_GROUP_ID=${params.taskGroupId}`,
+    ''
+  ].join('\n');
+};
+
+export const buildTaskGroupAgentsContent = (params: { envFileContents: string; repoFolderName: string }): string => {
+  // Provide a fixed task-group AGENTS template and embed the .env content verbatim. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const repoFolder = safeTrim(params.repoFolderName) || 'repo';
+  const repoLabel = `<<${repoFolder}>>`;
+  return [
+    '# Task Group Workspace Rules',
+    '',
+    `Your working directory is the git-cloned repository folder named ${repoLabel} for this task group.`,
+    `Operate only inside the git-cloned repository folder ${repoLabel} for this task group.`,
+    `Do not modify files outside ${repoLabel} up to the task-group root.`,
+    '',
+    'If a skill requires HookCode API access, use the following .env configuration:',
+    'Use a long-lived PAT (no expiry preferred) for this workspace.',
+    '',
+    '## Planning with Files',
+    '',
+    '<IMPORTANT>',
+    'For complex tasks (3+ steps, research, projects):',
+    '1. Read skill: `.codex/skills/planning-with-files/SKILL.md`',
+    '2. Create task_plan.md, findings.md, progress.md in your project directory',
+    '3. Follow 3-file pattern throughout the task',
+    '</IMPORTANT>',
+    '',
+    '```env',
+    params.envFileContents,
+    '```',
+    ''
+  ].join('\n');
+};
+
+const ensureTaskGroupLayout = async (params: {
+  taskGroupDir: string;
+  taskGroupId: string;
+  repoFolderName: string;
+}): Promise<void> => {
+  // Initialize the task-group root with required placeholders and env/agent templates. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
   await mkdir(params.taskGroupDir, { recursive: true });
-  await mkdir(path.join(params.taskGroupDir, '.codex', 'skills'), { recursive: true });
+  await ensureTaskGroupCodexDir(params.taskGroupDir);
   await ensurePlaceholderFile(path.join(params.taskGroupDir, 'codex-schema.json'), '{}\n');
-  await ensurePlaceholderFile(path.join(params.taskGroupDir, 'AGENTS.md'), '');
+  const existingEnv = await readEnvFileValues(path.join(params.taskGroupDir, '.env'));
+  const envValues = await resolveTaskGroupEnvValues({
+    taskGroupId: params.taskGroupId,
+    existingPat: existingEnv.HOOKCODE_PAT
+  });
+  const envContents = buildTaskGroupEnvFileContents(envValues);
+  await writeFileIfChanged(path.join(params.taskGroupDir, '.env'), envContents);
+  const agentsContents = buildTaskGroupAgentsContent({
+    envFileContents: envContents,
+    repoFolderName: params.repoFolderName
+  });
+  await writeFileIfChanged(path.join(params.taskGroupDir, 'AGENTS.md'), agentsContents);
+  await syncTaskGroupSkillEnvFiles({ taskGroupDir: params.taskGroupDir, envContents });
 };
 
 const moveTaskOutputToGroupRoot = async (params: {
@@ -792,6 +1027,8 @@ async function callAgent(
     // Bind task-group artifacts to a stable root directory for shared execution context. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
     const taskGroupDir = buildTaskGroupRootDir({ taskGroupId, taskId: task.id });
     // Bind the workspace to task group ids so each group has a dedicated repo checkout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    // Capture the repo folder name for AGENTS guidance output. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const repoFolderName = deriveRepoFolderName(repoSlug);
     repoDir = buildTaskGroupWorkspaceDir({ taskGroupId, taskId: task.id, provider: execution.provider, repoSlug });
 
     if (!repoUrl) {
@@ -800,7 +1037,11 @@ async function callAgent(
     }
 
     // Ensure the task-group root layout exists before clone/pull operations. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-    await ensureTaskGroupLayout({ taskGroupDir });
+    await ensureTaskGroupLayout({
+      taskGroupDir,
+      taskGroupId: safeTrim(taskGroupId) || task.id,
+      repoFolderName
+    });
 
     await appendLog(`Preparing work directory ${repoDir}`);
     if (checkoutRef) {

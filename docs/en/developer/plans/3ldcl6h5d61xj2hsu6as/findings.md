@@ -16,6 +16,8 @@
 {/* Captured from user request */}
 <!-- Capture preview highlight bridge requirements. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 - Provide a backend API to send highlight commands and a shared bridge script (stored in repo root `shared/`) that users can import manually to enable cross-origin DOM highlighting.
+<!-- Capture request to package highlight operations into a reusable skill. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+- Create a dedicated skill that documents preview highlight operations and ships JS request scripts with env loading.
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}

@@ -368,6 +368,7 @@ export const runCodexExecWithSdk = async (params: {
     modelReasoningEffort: params.modelReasoningEffort
   });
   const resumeThreadId = (params.resumeThreadId ?? '').trim();
+  console.log('codex threadOptions', threadOptions);
   const thread = resumeThreadId
     ? (() => {
       try {

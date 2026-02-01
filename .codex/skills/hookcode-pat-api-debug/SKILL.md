@@ -5,7 +5,6 @@ description: Send PAT-authenticated requests to HookCode backend APIs for debugg
 
 # Hookcode PAT API Debug
 
-<!-- Provide a PAT-authenticated request workflow for HookCode API debugging. docs/en/developer/plans/open-api-pat-skill-20260130/task_plan.md open-api-pat-skill-20260130 -->
 
 ## Overview
 
@@ -45,6 +44,7 @@ node .codex/skills/hookcode-pat-api-debug/scripts/pat_request.mjs \
 
 - The script reads `.env` from the skill root, then falls back to process env.
 - Required vars: `HOOKCODE_API_BASE_URL`, `HOOKCODE_PAT`.
+- If a local request fails with `fetch failed`, ensure the backend is reachable and that your execution environment allows local network access (e.g., `localhost` or `127.0.0.1`).
 - Avoid copying PATs into chat or logs; rotate tokens after debugging.
 
 ## Resources
