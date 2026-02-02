@@ -982,6 +982,11 @@ export const enUS: Record<MessageKey, string> = {
   'preview.deps.reinstallFailed': 'Dependency install failed.',
   'preview.action.openWindow': 'Open in new window',
   'preview.action.copyLink': 'Copy link',
+  // Add preview browser toolbar labels. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+  'preview.browser.back': 'Back',
+  'preview.browser.forward': 'Forward',
+  'preview.browser.refresh': 'Refresh',
+  'preview.browser.placeholder': 'Enter a URL',
   'preview.logs.open': 'View logs',
   'preview.logs.title': 'Preview logs',
   'preview.logs.loading': 'Loading logs…',

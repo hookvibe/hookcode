@@ -2145,13 +2145,41 @@ button.hc-tasks-status-tile--active {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  flex-direction: column;
+}
+
+.hc-preview-browser {
+  /* Add an embedded browser toolbar for preview iframes. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+}
+
+.hc-preview-browser-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-preview-browser-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-preview-browser-input input {
+  font-size: 12px;
 }
 
 .hc-preview-iframe {
+  flex: 1 1 auto;
   width: 100%;
-  height: 100%;
+  height: auto;
   border: 0;
   background: #ffffff;
+  min-height: 0;
 }
 
 .hc-preview-placeholder {

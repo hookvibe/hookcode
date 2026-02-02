@@ -1,6 +1,8 @@
 import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Input, Modal, Popover, Select, Space, Tooltip, Typography } from 'antd';
 import {
+  ArrowLeftOutlined,
+  ArrowRightOutlined,
   ClockCircleOutlined,
   CopyOutlined,
   ExportOutlined,
@@ -114,6 +116,11 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const previewBridgeReadyRef = useRef(false);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewHighlightStreamRef = useRef<EventSource | null>(null);
+  // Track preview iframe navigation + address bar state for the embedded browser UI. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+  const [previewIframeOverrideSrc, setPreviewIframeOverrideSrc] = useState<string | null>(null);
+  const [previewAddress, setPreviewAddress] = useState('');
+  const [previewAddressInput, setPreviewAddressInput] = useState('');
+  const [previewAddressEditing, setPreviewAddressEditing] = useState(false);
   // Maintain draggable preview panel sizing state for Phase 3 layout updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewPanelWidth, setPreviewPanelWidth] = useState<number | null>(null);
   const [previewDragActive, setPreviewDragActive] = useState(false);
@@ -435,14 +442,33 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     return `${baseUrl}${sep}token=${encodeURIComponent(token)}`;
   }, [activePreviewInstance, activePreviewStatus]);
 
+  // Prefer the user-navigated iframe URL when available. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+  const currentPreviewIframeSrc = useMemo(
+    () => previewIframeOverrideSrc ?? previewIframeSrc,
+    [previewIframeOverrideSrc, previewIframeSrc]
+  );
+
   const previewIframeOrigin = useMemo(() => {
-    if (!previewIframeSrc) return '';
+    if (!currentPreviewIframeSrc) return '';
     try {
-      return new URL(previewIframeSrc).origin;
+      return new URL(currentPreviewIframeSrc).origin;
     } catch {
       return '';
     }
-  }, [previewIframeSrc]);
+  }, [currentPreviewIframeSrc]);
+
+  useEffect(() => {
+    // Reset iframe navigation overrides when the active preview URL changes. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    if (!previewIframeSrc) {
+      setPreviewIframeOverrideSrc(null);
+      setPreviewAddress('');
+      if (!previewAddressEditing) setPreviewAddressInput('');
+      return;
+    }
+    setPreviewIframeOverrideSrc(null);
+    setPreviewAddress(previewIframeSrc);
+    if (!previewAddressEditing) setPreviewAddressInput(previewIframeSrc);
+  }, [previewAddressEditing, previewIframeSrc]);
 
   const postPreviewBridgeMessage = useCallback(
     (payload: Record<string, unknown>) => {
@@ -454,11 +480,114 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     [previewIframeOrigin]
   );
 
+  const normalizePreviewUrl = useCallback(
+    (raw: string) => {
+      // Normalize address bar inputs into absolute iframe URLs. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+      const trimmed = raw.trim();
+      if (!trimmed) return '';
+      if (/^[a-zA-Z][a-zA-Z\\d+.-]*:/.test(trimmed)) {
+        try {
+          return new URL(trimmed).toString();
+        } catch {
+          return '';
+        }
+      }
+      const base = currentPreviewIframeSrc || (typeof window === 'undefined' ? '' : window.location.origin);
+      if (trimmed.startsWith('/') && base) {
+        try {
+          return new URL(trimmed, base).toString();
+        } catch {
+          return '';
+        }
+      }
+      const looksLocal = /^(localhost|127\\.0\\.0\\.1|::1)(:|$)/.test(trimmed);
+      const withScheme = looksLocal || trimmed.includes(':') ? `http://${trimmed}` : `https://${trimmed}`;
+      try {
+        return new URL(withScheme).toString();
+      } catch {
+        return '';
+      }
+    },
+    [currentPreviewIframeSrc]
+  );
+
+  const syncPreviewAddress = useCallback(() => {
+    // Sync address bar state after iframe navigation events. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    const frame = previewIframeRef.current;
+    if (!frame) return;
+    let nextAddress = '';
+    try {
+      nextAddress = frame.contentWindow?.location?.href ?? '';
+    } catch {
+      nextAddress = '';
+    }
+    if (!nextAddress) {
+      nextAddress = frame.getAttribute('src') || frame.src || currentPreviewIframeSrc || '';
+    }
+    if (!nextAddress) return;
+    setPreviewAddress(nextAddress);
+    if (!previewAddressEditing) setPreviewAddressInput(nextAddress);
+    if (nextAddress !== currentPreviewIframeSrc) {
+      setPreviewIframeOverrideSrc(nextAddress);
+    }
+  }, [currentPreviewIframeSrc, previewAddressEditing]);
+
+  const handlePreviewNavigate = useCallback(
+    (value?: string) => {
+      // Navigate the iframe to a user-entered address. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+      const nextUrl = normalizePreviewUrl(value ?? previewAddressInput);
+      if (!nextUrl) return;
+      setPreviewIframeOverrideSrc(nextUrl);
+      setPreviewAddress(nextUrl);
+      setPreviewAddressInput(nextUrl);
+      setPreviewAddressEditing(false);
+    },
+    [normalizePreviewUrl, previewAddressInput]
+  );
+
+  const handlePreviewBack = useCallback(() => {
+    // Drive iframe history navigation from the toolbar. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    const target = previewIframeRef.current?.contentWindow;
+    if (!target) return;
+    try {
+      target.history.back();
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handlePreviewForward = useCallback(() => {
+    // Drive iframe forward navigation from the toolbar. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    const target = previewIframeRef.current?.contentWindow;
+    if (!target) return;
+    try {
+      target.history.forward();
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handlePreviewReload = useCallback(() => {
+    // Refresh the iframe document without leaving the preview panel. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    const frame = previewIframeRef.current;
+    if (!frame) return;
+    try {
+      frame.contentWindow?.location.reload();
+      return;
+    } catch {
+      // ignore
+    }
+    if (currentPreviewIframeSrc) {
+      frame.src = currentPreviewIframeSrc;
+    }
+  }, [currentPreviewIframeSrc]);
+
   const handlePreviewIframeLoad = useCallback(() => {
     // Trigger a bridge handshake when the preview iframe finishes loading. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    syncPreviewAddress(); // Keep address bar in sync with iframe navigations. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
     if (!previewIframeOrigin) return;
     postPreviewBridgeMessage({ type: 'hookcode:preview:ping' });
-  }, [postPreviewBridgeMessage, previewIframeOrigin]);
+  }, [postPreviewBridgeMessage, previewIframeOrigin, syncPreviewAddress]);
 
   useEffect(() => {
     // Keep bridge readiness ref in sync for SSE highlight forwarding. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -736,20 +865,22 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
 
   // Provide share/open controls for preview URLs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const handleOpenPreviewWindow = useCallback(() => {
-    if (!previewIframeSrc) return;
-    window.open(previewIframeSrc, '_blank', 'noopener,noreferrer');
-  }, [previewIframeSrc]);
+    // Use the current iframe URL for preview share actions. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    if (!currentPreviewIframeSrc) return;
+    window.open(currentPreviewIframeSrc, '_blank', 'noopener,noreferrer');
+  }, [currentPreviewIframeSrc]);
 
   const handleCopyPreviewLink = useCallback(async () => {
-    if (!previewIframeSrc) return;
+    // Copy the current iframe URL (including manual navigation). docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    if (!currentPreviewIframeSrc) return;
     try {
-      await navigator.clipboard.writeText(previewIframeSrc);
+      await navigator.clipboard.writeText(currentPreviewIframeSrc);
       message.success(t('preview.copyLinkSuccess'));
     } catch (err) {
       console.error(err);
       message.error(t('preview.copyLinkFailed'));
     }
-  }, [message, previewIframeSrc, t]);
+  }, [currentPreviewIframeSrc, message, t]);
 
   useEffect(() => {
     // Maintain a live SSE connection when the preview logs modal is open. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -1369,10 +1500,15 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                     />
                   </Tooltip>
                   <Tooltip title={t('preview.action.openWindow')}>
-                    <Button size="small" icon={<ExportOutlined />} disabled={!previewIframeSrc} onClick={handleOpenPreviewWindow} />
+                    <Button
+                      size="small"
+                      icon={<ExportOutlined />}
+                      disabled={!currentPreviewIframeSrc}
+                      onClick={handleOpenPreviewWindow}
+                    />
                   </Tooltip>
                   <Tooltip title={t('preview.action.copyLink')}>
-                    <Button size="small" icon={<CopyOutlined />} disabled={!previewIframeSrc} onClick={handleCopyPreviewLink} />
+                    <Button size="small" icon={<CopyOutlined />} disabled={!currentPreviewIframeSrc} onClick={handleCopyPreviewLink} />
                   </Tooltip>
                 </div>
               </div>
@@ -1396,14 +1532,64 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               )}
               <div className="hc-preview-body">
                 {activePreviewStatus === 'running' && previewIframeSrc ? (
-                  <iframe
-                    className="hc-preview-iframe"
-                    title={activePreviewInstance?.name ?? 'preview'}
-                    src={previewIframeSrc}
-                    loading="lazy"
-                    ref={previewIframeRef}
-                    onLoad={handlePreviewIframeLoad}
-                  />
+                  <>
+                    {/* Render an embedded browser toolbar for iframe navigation. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
+                    <div className="hc-preview-browser">
+                      <div className="hc-preview-browser-actions">
+                        <Tooltip title={t('preview.browser.back')}>
+                          <Button
+                            size="small"
+                            icon={<ArrowLeftOutlined />}
+                            aria-label={t('preview.browser.back')}
+                            disabled={!currentPreviewIframeSrc}
+                            onClick={handlePreviewBack}
+                          />
+                        </Tooltip>
+                        <Tooltip title={t('preview.browser.forward')}>
+                          <Button
+                            size="small"
+                            icon={<ArrowRightOutlined />}
+                            aria-label={t('preview.browser.forward')}
+                            disabled={!currentPreviewIframeSrc}
+                            onClick={handlePreviewForward}
+                          />
+                        </Tooltip>
+                        <Tooltip title={t('preview.browser.refresh')}>
+                          <Button
+                            size="small"
+                            icon={<ReloadOutlined />}
+                            aria-label={t('preview.browser.refresh')}
+                            disabled={!currentPreviewIframeSrc}
+                            onClick={handlePreviewReload}
+                          />
+                        </Tooltip>
+                      </div>
+                      <Input
+                        size="small"
+                        className="hc-preview-browser-input"
+                        value={previewAddressInput}
+                        placeholder={t('preview.browser.placeholder')}
+                        aria-label={t('preview.browser.placeholder')}
+                        onChange={(event) => setPreviewAddressInput(event.target.value)}
+                        onFocus={() => setPreviewAddressEditing(true)}
+                        onBlur={() => {
+                          setPreviewAddressEditing(false);
+                          setPreviewAddressInput(previewAddress || currentPreviewIframeSrc);
+                        }}
+                        onPressEnter={() => handlePreviewNavigate()}
+                      />
+                    </div>
+                    {/* Sandbox the iframe so navigation stays inside the preview panel. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
+                    <iframe
+                      className="hc-preview-iframe"
+                      title={activePreviewInstance?.name ?? 'preview'}
+                      src={currentPreviewIframeSrc}
+                      sandbox="allow-scripts allow-same-origin allow-forms"
+                      loading="lazy"
+                      ref={previewIframeRef}
+                      onLoad={handlePreviewIframeLoad}
+                    />
+                  </>
                 ) : (
                   <div className="hc-preview-placeholder">
                     <Typography.Text type="secondary">{previewPlaceholderText}</Typography.Text>

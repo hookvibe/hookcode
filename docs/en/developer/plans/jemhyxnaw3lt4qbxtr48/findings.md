@@ -35,6 +35,9 @@
 - Backend DTOs use `@ValidateNested` with `class-transformer` `@Type` for nested objects (see `backend/src/modules/tasks/dto/chat-swagger.dto.ts`), which can be reused for a bubble payload object.
 - Backend highlight command types are defined in `backend/src/modules/tasks/preview.types.ts` and must be extended alongside DTOs to carry bubble payloads.
 - The CLI helper utilities (`_shared.mjs`) already support parsing booleans/numbers, so bubble-related flags can reuse them in `preview_highlight.mjs`.
+- UI/UX guidance from ui-ux-pro-max: use glassmorphism for overlays (blur 10-20px, subtle border), limit continuous animations, honor `prefers-reduced-motion`, and keep micro-animations within 150-300ms.
+- The preview iframe in `frontend/src/pages/TaskGroupChatPage.tsx` has no `sandbox` attribute; link clicks will navigate inside the iframe unless the link uses `target=_blank` or top-level navigation is triggered.
+- The parent computes `previewIframeOrigin` from the initial `previewIframeSrc`; if the iframe navigates to a different origin, the preview bridge handshake/highlight messaging can stop working.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}

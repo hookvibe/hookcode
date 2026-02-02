@@ -1,16 +1,16 @@
-# Task Plan: enhance preview highlight with bubble
+# Task Plan: preview iframe sandbox and toolbar
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
-{/* Track code changes with this session hash for traceability. jemhyxnaw3lt4qbxtr48 */}
+{/* Track code changes with this session hash for traceability. 2se7kgnqyp427d5nvoej */}
 
 ## Session Metadata
 {/* WHAT: Stable identifiers for traceability (code comments ↔ plan folder). WHY: Makes it easy to find the plan that explains a change. */}
-- **Session Hash:** jemhyxnaw3lt4qbxtr48
+- **Session Hash:** 2se7kgnqyp427d5nvoej
 - **Created:** 2026-02-02
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Enhance preview highlight visuals, add a bubble tooltip capability via the highlight API, update the preview bridge to render it, and expand hookcode-preview-highlight parameter documentation.
+Add an in-panel browser toolbar for the preview iframe (back/forward/refresh/address bar) and enforce iframe-only navigation via sandboxing while supporting external domains.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
@@ -29,22 +29,22 @@ Phase 5
 
 ### Phase 2: Planning & Structure
 {/* WHAT: Decide how you'll approach the problem and what structure you'll use. WHY: Good planning prevents rework. Document decisions so you remember why you chose them. */}
-- [x] Define API/bridge changes and data model
-- [x] Locate impacted files (backend/bridge/skill docs/tests)
+- [x] Define toolbar behavior and iframe sandbox config
+- [x] Locate impacted files
 - [x] Document decisions with rationale
 - **Status:** complete
 
 ### Phase 3: Implementation
 {/* WHAT: Actually build/create/write the solution. WHY: This is where the work happens. Break into smaller sub-tasks if needed. */}
-- [x] Extend DTOs + API highlight command payload
-- [x] Update preview bridge rendering (highlight + bubble)
-- [x] Update hookcode-preview-highlight docs/scripts
+- [x] Add toolbar UI + state management
+- [x] Add iframe sandbox + navigation actions
+- [x] Update styles
 - [x] Add/update tests
 - **Status:** complete
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Verify everything works and meets requirements. WHY: Catching issues early saves time. Document test results in progress.md. */}
-- [x] Verify highlight + bubble behaviors
+- [x] Verify toolbar actions and navigation behavior
 - [x] Document test results in progress.md
 - **Status:** complete
 
@@ -57,20 +57,21 @@ Phase 5
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
-1. Which API payload shape best supports both highlight and bubble with backward compatibility?
-2. What visual upgrades are acceptable without breaking existing integrations?
+1. How to handle cross-origin iframe navigation while keeping the address bar usable?
+2. Which iframe sandbox flags preserve preview functionality while preventing top-level navigation?
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
 | Decision | Rationale |
 |----------|-----------|
-|          |           |
+| Sandbox iframe with `allow-scripts allow-same-origin allow-forms` | Keeps all navigation inside the iframe while preserving preview scripts and same-origin bridge support. |
+| Maintain an address-bar override state separate from preview instance URL | Allows manual navigation without breaking the base preview URL logic. |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-| Jest worker failed to exit gracefully (warning) | 1 | Noted warning; tests still passed |
+|       | 1       |            |
 
 ## Notes
 {/* REMINDERS: - Update phase status as you progress: pending → in_progress → complete - Re-read this plan before major decisions (attention manipulation) - Log ALL errors - they help avoid repetition - Never repeat a failed action - mutate your approach instead */}

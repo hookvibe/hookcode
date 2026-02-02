@@ -13,6 +13,10 @@
   const DEFAULT_BUBBLE_OFFSET = 10;
   const DEFAULT_BUBBLE_RADIUS = 12;
   const DEFAULT_BUBBLE_THEME = 'dark';
+  // Limit highlight pulse loops and set glass blur defaults. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+  const HIGHLIGHT_PULSE_ITERATIONS = 2;
+  const HIGHLIGHT_PULSE_DURATION_MS = 1200;
+  const BUBBLE_GLASS_BLUR = 'blur(12px) saturate(160%)';
   // Define default bubble theme colors for tooltip rendering. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
   const DEFAULT_BUBBLE = {
     dark: {
@@ -30,6 +34,12 @@
   let allowedOrigin = null;
   let trackedElement = null;
   let cleanupFn = null;
+
+  const prefersReducedMotion = () => {
+    // Respect reduced motion preferences for highlight/tooltip animations. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+    if (!window.matchMedia) return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  };
 
   const ensureStyles = () => {
     // Inject highlight/bubble keyframes once for smooth visuals. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
@@ -81,9 +91,10 @@
     return mask;
   };
 
-  const ensureBubble = () => {
+  const ensureBubble = (reducedMotion) => {
     // Build the tooltip bubble DOM used by highlight commands. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
     let bubble = document.getElementById(BUBBLE_ID);
+    const isNew = !bubble;
     if (!bubble) {
       bubble = document.createElement('div');
       bubble.id = BUBBLE_ID;
@@ -96,9 +107,12 @@
       bubble.style.fontFamily = 'system-ui, -apple-system, Segoe UI, sans-serif';
       bubble.style.fontSize = '12px';
       bubble.style.lineHeight = '1.4';
-      bubble.style.opacity = '0';
-      bubble.style.transform = 'translateY(6px)';
-      bubble.style.animation = 'hookcode-bubble-pop 160ms ease-out forwards';
+      bubble.style.opacity = reducedMotion ? '1' : '0';
+      bubble.style.transform = reducedMotion ? 'translateY(0)' : 'translateY(6px)';
+      bubble.style.animation = reducedMotion ? 'none' : 'hookcode-bubble-pop 160ms ease-out forwards';
+      bubble.style.transition = reducedMotion ? 'none' : 'opacity 160ms ease-out, transform 160ms ease-out';
+      bubble.style.backdropFilter = BUBBLE_GLASS_BLUR;
+      bubble.style.webkitBackdropFilter = BUBBLE_GLASS_BLUR;
 
       const text = document.createElement('div');
       text.id = BUBBLE_TEXT_ID;
@@ -115,6 +129,16 @@
       bubble.appendChild(arrow);
 
       document.body.appendChild(bubble);
+    }
+    if (!isNew) {
+      bubble.style.transition = reducedMotion ? 'none' : 'opacity 160ms ease-out, transform 160ms ease-out';
+      bubble.style.backdropFilter = BUBBLE_GLASS_BLUR;
+      bubble.style.webkitBackdropFilter = BUBBLE_GLASS_BLUR;
+      if (reducedMotion) {
+        bubble.style.animation = 'none';
+        bubble.style.opacity = '1';
+        bubble.style.transform = 'translateY(0)';
+      }
     }
     const arrow = bubble.querySelector(`#${BUBBLE_ARROW_ID}`);
     const text = bubble.querySelector(`#${BUBBLE_TEXT_ID}`);
@@ -187,9 +211,14 @@
     const color = typeof payload.color === 'string' && payload.color.trim() ? payload.color.trim() : DEFAULT_COLOR;
     const mode = payload.mode === 'mask' ? 'mask' : 'outline';
 
+    const reducedMotion = prefersReducedMotion();
     if (payload.scrollIntoView) {
       try {
-        target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+        if (reducedMotion) {
+          target.scrollIntoView({ block: 'center', inline: 'center' });
+        } else {
+          target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+        }
       } catch {
         target.scrollIntoView();
       }
@@ -198,22 +227,30 @@
     clearHighlight();
     ensureStyles();
     const overlay = ensureOverlay();
+    overlay.style.transition = reducedMotion ? 'none' : 'all 140ms ease-out';
     // Apply richer highlight styling and glow animation. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
     const highlightBorder = `2px solid ${color}`;
     overlay.style.border = highlightBorder;
     overlay.style.setProperty('--hookcode-highlight-glow', `${color}66`);
     overlay.style.setProperty('--hookcode-highlight-pulse', `${color}44`);
     overlay.style.background = `linear-gradient(135deg, ${color}20, transparent 60%)`;
-    overlay.style.animation = 'hookcode-highlight-pulse 1600ms ease-out infinite';
+    overlay.style.boxShadow = `0 0 0 2px ${color}55, 0 10px 24px ${color}33`;
+    overlay.style.animation = reducedMotion
+      ? 'none'
+      : `hookcode-highlight-pulse ${HIGHLIGHT_PULSE_DURATION_MS}ms ease-out ${HIGHLIGHT_PULSE_ITERATIONS}`;
+    overlay.style.animationFillMode = 'none';
 
     if (mode === 'mask') {
       const mask = ensureMask();
       mask.style.opacity = '1';
+      mask.style.transition = reducedMotion ? 'none' : 'opacity 160ms ease-out';
       mask.style.background = 'rgba(10, 12, 20, 0.5)';
     } else {
       const mask = document.getElementById(MASK_ID);
       if (mask) mask.remove();
     }
+
+    const bubbleNodes = bubble ? ensureBubble(reducedMotion) : null;
 
     const update = () => {
       const rect = target.getBoundingClientRect();
@@ -231,11 +268,10 @@
       overlay.style.width = `${highlightRect.width}px`;
       overlay.style.height = `${highlightRect.height}px`;
 
-      if (bubble) {
-        const bubbleElements = ensureBubble();
-        const bubbleNode = bubbleElements.bubble;
-        const bubbleText = bubbleElements.text;
-        const bubbleArrow = bubbleElements.arrow;
+      if (bubble && bubbleNodes) {
+        const bubbleNode = bubbleNodes.bubble;
+        const bubbleText = bubbleNodes.text;
+        const bubbleArrow = bubbleNodes.arrow;
         if (!bubbleText || !bubbleArrow) return;
 
         const themeColors = DEFAULT_BUBBLE[bubble.theme];

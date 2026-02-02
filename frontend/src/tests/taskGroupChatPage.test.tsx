@@ -277,6 +277,23 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
     expect(iframe).toHaveAttribute('src', 'http://127.0.0.1:12345/');
   });
 
+  test('renders preview browser toolbar with sandboxed iframe', async () => {
+    // Ensure the preview iframe toolbar and sandbox are enabled. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+    });
+
+    renderPage({ taskGroupId: 'g1' });
+
+    const iframe = await screen.findByTitle('frontend');
+    expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
+    expect(screen.getByLabelText('Back')).toBeInTheDocument();
+    expect(screen.getByLabelText('Forward')).toBeInTheDocument();
+    expect(screen.getByLabelText('Refresh')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter a URL')).toBeInTheDocument();
+  });
+
   test('forwards highlight commands to the preview iframe bridge', async () => {
     // Ensure preview highlight SSE events postMessage into the iframe bridge. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({

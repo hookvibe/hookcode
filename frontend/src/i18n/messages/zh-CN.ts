@@ -988,6 +988,11 @@ export const zhCN = {
   'preview.deps.reinstallFailed': '依赖安装失败。',
   'preview.action.openWindow': '新窗口打开',
   'preview.action.copyLink': '复制链接',
+  // Add preview browser toolbar labels. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+  'preview.browser.back': '后退',
+  'preview.browser.forward': '前进',
+  'preview.browser.refresh': '刷新',
+  'preview.browser.placeholder': '输入网址',
   'preview.logs.open': '查看日志',
   'preview.logs.title': '预览日志',
   'preview.logs.loading': '正在加载日志…',
