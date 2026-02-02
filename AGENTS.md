@@ -101,6 +101,8 @@ Required content checklist (as applicable):
 
 - Avoid overthinking; prioritize high-quality, practical code changes.
 - Avoid copy-pasting utilities across files. Before adding a helper (env parsing, query parsing, etc.), search the repo and reuse an existing implementation; otherwise, extract it into a shared module (e.g. `backend/src/utils/*`, `frontend/src/utils/*`) and add unit tests.
+<!-- Require splitting long files into responsibility-focused modules. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202 -->
+- When a file grows large (roughly 400+ lines) or mixes multiple responsibilities, split it into smaller modules by functional purpose; keep stable barrel re-exports when needed and update any doc links if paths change.
 - Do not revert or delete changes you did not make in this conversation. It is normal to have unrelated changes in the working tree; do not touch or destroy them. If they affect your changes, make your changes compatible on top of them.
 - When changing backend code, check whether frontend code also needs updates.
 - The project is usually run via `dev` scripts; you do not need to run them unless requested.
