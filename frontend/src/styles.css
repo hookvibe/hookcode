@@ -2436,6 +2436,19 @@ button.hc-tasks-status-tile--active {
   border-radius: 12px;
   box-shadow: none;
 }
+/* Style chat suggestions to match the task timeline width and chip-like affordance. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */
+.hc-chat-suggestions {
+  width: min(820px, 100%);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hc-chat-suggestion {
+  border-radius: 999px;
+  border-color: var(--hc-border);
+  background: var(--hc-surface);
+}
 /* Stretch git status cards to match chat item width in the task group timeline. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */
 .hc-chat-git-status {
   /* Keep git status panels within the chat container width. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */

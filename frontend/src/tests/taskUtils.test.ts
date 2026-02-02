@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { extractTaskResultText, extractTaskUserText, isTerminalStatus } from '../utils/task';
+import { extractTaskResultSuggestions, extractTaskResultText, extractTaskUserText, isTerminalStatus } from '../utils/task';
 
 describe('task utils', () => {
   test('isTerminalStatus covers terminal task states', () => {
@@ -73,5 +73,15 @@ describe('task utils', () => {
     expect(extractTaskResultText({ result: { logs: ['a', 'b'] } } as any)).toBe('a\nb');
     expect(extractTaskResultText({ result: {} } as any)).toBe('');
   });
-});
 
+  test('extractTaskResultText pulls structured output and suggestions from JSON outputText', () => {
+    // Validate structured Codex outputs for result rendering + suggestion buttons. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const outputText = JSON.stringify({
+      output: 'Hello world',
+      next_actions: ['Action 1', 'Action 2', 'Action 3', 'Action 4']
+    });
+
+    expect(extractTaskResultText({ result: { outputText } } as any)).toBe('Hello world');
+    expect(extractTaskResultSuggestions({ result: { outputText } } as any)).toEqual(['Action 1', 'Action 2', 'Action 3']);
+  });
+});

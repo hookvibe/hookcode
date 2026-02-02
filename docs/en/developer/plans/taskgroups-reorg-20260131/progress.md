@@ -35,6 +35,7 @@
 
 ### Phase 3: Implementation
 <!-- Track implementation progress for the task-group layout update. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+<!-- Reopen Phase 3 to capture codex-schema + suggestions implementation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
 - **Status:** complete
 - Actions taken:
   - Added task-group `.env` + AGENTS template generation with runtime API/PAT values.
@@ -42,6 +43,10 @@
   - Adjusted task-group env generation to require a task group id.
   - Updated task-group workspace tests to cover env + AGENTS content.
   - Updated preview docs to include `.env` in workspace layout.
+  <!-- Log codex-schema + suggestions implementation steps. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+  - Seeded codex-schema.json with a default output + next_actions schema and added schema parsing for Codex turns.
+  - Added structured output parsing + next-action suggestions in the chat UI with click-to-append behavior.
+  - Extended backend/frontend unit tests for outputSchema forwarding, schema parsing, and suggestion clicks.
 - Files created/modified:
   - backend/src/agent/agent.ts
   - backend/src/tests/unit/taskGroupWorkspace.test.ts
@@ -55,6 +60,18 @@
   - backend/src/tests/unit/taskGitPush.test.ts
   - docs/en/user-docs/preview.md
   - docs/en/user-docs/config/hookcode-yml.md
+  <!-- Track codex-schema + suggestions files touched. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+  - backend/src/agent/agent.ts
+  - backend/src/modelProviders/codex.ts
+  - backend/src/tests/unit/codexExec.test.ts
+  - backend/src/tests/unit/taskGroupWorkspace.test.ts
+  - frontend/src/utils/task.tsx
+  - frontend/src/components/chat/TaskConversationItem.tsx
+  - frontend/src/pages/TaskGroupChatPage.tsx
+  - frontend/src/styles.css
+  - frontend/src/tests/taskUtils.test.ts
+  - frontend/src/tests/taskGroupChatPage.test.tsx
+  - docs/en/user-docs/preview.md
 
 ### Phase 4: Testing & Verification
 <!-- Track test and verification updates for task-group env automation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
@@ -67,6 +84,9 @@
   - Added unit coverage for per-skill .env syncing and AGENTS Planning block.
   - Reran backend tests after AGENTS template update; previewPortPool/previewWsProxy failures persist.
   - Updated task-group PAT issuance to require tasks:write and added tests for PAT reuse/rotation.
+  <!-- Log targeted verification for codex-schema + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+  - Ran targeted backend jest tests for codex-schema + codex exec coverage (passed with open-handles warning).
+  - Ran targeted frontend vitest suite for structured output parsing + suggestion click behavior (passed).
 - Files created/modified:
   - backend/src/agent/agent.ts
   - backend/src/tests/unit/taskGroupWorkspace.test.ts
@@ -79,6 +99,9 @@
 | Backend build | `pnpm --filter hookcode-backend build` | Build succeeds | Build succeeded (rerun after env + AGENTS changes) | ✓ |
 <!-- Update backend test failure details for task-group env automation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
 | Backend tests | `pnpm --filter hookcode-backend test` | All tests pass | Fails in previewPortPool (no_available_preview_ports) and previewWsProxy (EPERM + timeout); new PAT tests pass | ✗ |
+<!-- Record targeted codex-schema + suggestions test runs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| Backend tests (targeted) | `pnpm --filter hookcode-backend test -- taskGroupWorkspace.test.ts codexExec.test.ts` | Tests pass | Passed; jest warns about open handles | ✓ |
+| Frontend tests (targeted) | `pnpm --filter hookcode-frontend test -- taskUtils.test.ts taskGroupChatPage.test.tsx` | Tests pass | Passed | ✓ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
@@ -94,6 +117,10 @@
 | 2026-02-01 | pnpm backend tests failed again with previewPortPool no_available_preview_ports + previewWsProxy EPERM/timeout | 5 | Pending; likely environment port binding restrictions. |
 <!-- Record latest test rerun failure after PAT scope update. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
 | 2026-02-01 | pnpm backend tests failed with previewPortPool no_available_preview_ports + previewWsProxy EPERM/timeout after PAT scope update | 6 | Pending; likely environment port binding restrictions. |
+<!-- Log codex-schema test compile issue resolved. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| 2026-02-02 | taskGroupWorkspace.test.ts appendLog type mismatch (Promise<number> vs Promise<void>) | 1 | Fixed appendLog stub to return void. |
+<!-- Log targeted backend test timeout before rerun. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| 2026-02-02 | pnpm backend targeted tests timed out at 10s | 1 | Reran with longer timeout; tests passed. |
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}
@@ -103,9 +130,11 @@
 |----------|--------|
 | Where am I? | Phase 4 (Testing & Verification) |
 | Where am I going? | Phase 5 (Delivery) |
-| What's the goal? | Restructure task-group workspaces to use a taskgroup-id root with repo + artifacts, add task-group .env + AGENTS template, update execution cwd, and document the layout. |
+<!-- Update goal statement to include codex-schema output + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| What's the goal? | Restructure task-group workspaces to use a taskgroup-id root with repo + artifacts, add task-group .env + AGENTS template, update execution cwd, and wire codex-schema outputSchema + frontend suggestions. |
 | What have I learned? | See findings.md |
-| What have I done? | Updated backend workspace layout, provider working dirs, tests, and user docs; ran backend build + tests. |
+<!-- Refresh reboot summary for codex-schema + suggestions work. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| What have I done? | Updated backend workspace layout plus codex-schema outputSchema wiring, added frontend structured output + suggestions, and ran targeted backend/frontend tests. |
 
 ---
 {/* REMINDER: - Update after completing each phase or encountering errors - Be detailed - this is your "what happened" log - Include timestamps for errors to track when issues occurred */}

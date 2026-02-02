@@ -90,6 +90,61 @@ describe('codex exec', () => {
     }
   });
 
+  test('runCodexExecWithSdk forwards outputSchema into turn options', async () => {
+    // Ensure Codex structured output schemas are passed through to runStreamed. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const repoDir = await makeTempDir();
+    try {
+      const promptFile = path.join(repoDir, 'prompt.txt');
+      await fs.writeFile(promptFile, 'hello', 'utf8');
+
+      async function* events() {
+        yield { type: 'thread.started', thread_id: 't_123' } as any;
+        yield { type: 'item.completed', item: { type: 'agent_message', text: 'hi' } } as any;
+        yield { type: 'turn.completed', usage: { input_tokens: 1, output_tokens: 2 } } as any;
+      }
+
+      const thread = {
+        id: 't_fallback',
+        runStreamed: jest.fn(async () => ({ events: events() }))
+      };
+
+      class FakeCodex {
+        constructor(_options: any) {}
+        startThread() {
+          return thread as any;
+        }
+        resumeThread() {
+          return thread as any;
+        }
+      }
+
+      const outputSchema = {
+        type: 'object',
+        properties: { output: { type: 'string' } },
+        required: ['output'],
+        additionalProperties: false
+      };
+
+      await runCodexExecWithSdk({
+        repoDir,
+        promptFile,
+        model: 'gpt-5.2',
+        sandbox: 'read-only',
+        modelReasoningEffort: 'medium',
+        apiKey: 'test-key',
+        outputSchema,
+        outputLastMessageFile: 'codex-output.txt',
+        __internal: {
+          importCodexSdk: async () => ({ Codex: FakeCodex } as any)
+        }
+      });
+
+      expect(thread.runStreamed).toHaveBeenCalledWith('hello', expect.objectContaining({ outputSchema }));
+    } finally {
+      await fs.rm(repoDir, { recursive: true, force: true });
+    }
+  });
+
   test('runCodexExecWithSdk 在 logLine 卡住时也不会卡住执行流程', async () => {
     const repoDir = await makeTempDir();
     try {

@@ -8,14 +8,23 @@ describe('PreviewHighlightService', () => {
     const eventStream = { publish, getTopicSubscriberCount } as any;
     const service = new PreviewHighlightService(eventStream);
 
-    const result = service.publishHighlight('group-1', 'frontend', { selector: '.btn' });
+    // Ensure optional bubble payloads are forwarded with highlight commands. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+    const result = service.publishHighlight('group-1', 'frontend', {
+      selector: '.btn',
+      bubble: { text: 'Click me', placement: 'top' }
+    });
 
     expect(result.subscribers).toBe(2);
     expect(result.requestId).toBeTruthy();
     expect(publish).toHaveBeenCalledWith(
       expect.objectContaining({
         topic: 'preview-highlight:group-1',
-        event: 'preview.highlight'
+        event: 'preview.highlight',
+        data: expect.objectContaining({
+          command: expect.objectContaining({
+            bubble: expect.objectContaining({ text: 'Click me' })
+          })
+        })
       })
     );
   });

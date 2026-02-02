@@ -24,6 +24,8 @@
 - Update user-facing docs to describe the new workspace layout.
 - Add `.env` under the task-group root with `HOOKCODE_API_BASE_URL` and a real `HOOKCODE_PAT`.
 - Inject a fixed AGENTS.md template that forbids edits outside the cloned repo folder and includes the `.env` content verbatim, plus guidance to use it in skills.
+<!-- Capture new codex-schema outputSchema + frontend suggestion requirements. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Implement codex-schema.json usage for Codex TurnOptions outputSchema, ensure JSON output matches current frontend log rendering, and add a next-action suggestions array of 3 items that the frontend can click to append into the input box.
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
@@ -76,11 +78,59 @@
 - `buildTaskGroupWorkspaceDir` in `backend/src/agent/agent.ts` currently returns `task-groups/<taskgroupId>__<provider>__<slug>`.
 - Agent uses `repoDir = buildTaskGroupWorkspaceDir(...)` for git clone/pull and checkout inside `backend/src/agent/agent.ts` (task runner).
 - Codex/Claude/Gemini execution paths in `backend/src/agent/agent.ts` pass `repoDir` into provider runners today (current working directory assumed to be repo root).
+<!-- Capture that agent currently writes codex-schema placeholder and output file paths. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `backend/src/agent/agent.ts` already seeds a `codex-schema.json` placeholder in the task-group root and routes provider output files via `buildTaskOutputFilePath` + `outputLastMessageFile`.
 - `backend/src/modelProviders/codex.ts` sets Codex SDK `workingDirectory` to `repoDir` and adds `${repoDir}/.git` for workspace-write runs.
+<!-- Note frontend log viewer components to update for schema compatibility. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Frontend task log rendering lives in `frontend/src/components/TaskLogViewer.tsx` and `frontend/src/components/execution/ExecutionTimeline.tsx`, which will need to accommodate any new structured output.
+<!-- Log that execution log parsing is centralized for JSONL logs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Structured log parsing is centralized in `frontend/src/utils/executionLog.ts`, which drives the JSONL-based timeline renderer.
+<!-- Capture execution log parser expectations for JSON log compatibility. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `parseExecutionLogLine` expects JSON objects with `type` fields (`item.started/updated/completed`, `hookcode.file.diff`, `assistant/user/system/result`) and maps them into execution timeline items.
+<!-- Capture how task output text is sourced for frontend result panels. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Backend task results surface `outputText` in `task.result`, which the frontend displays via `extractTaskResultText` when rendering task outputs.
+<!-- Note result panel rendering path for JSON output compatibility. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Task Detail renders `outputText` as Markdown (`MarkdownViewer`) in the Result panel, so JSON output currently appears as raw text unless new UI handling is added.
+<!-- Capture chat composer draft state for suggestion injection. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- TaskGroup chat input uses `draft` state bound to `Input.TextArea` in `frontend/src/pages/TaskGroupChatPage.tsx`, so suggestion clicks can append by updating this state.
+<!-- Note where the draft state is defined for suggestion injection. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `TaskGroupChatPage` defines `draft`/`setDraft` near the top-level state, making it the right hook for inserting suggestion text and focusing the composer.
+<!-- Note chat timeline component entry point for suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Chat timeline renders each task via `TaskConversationItem`, which is the natural place to attach next-action suggestion UI for completed outputs.
+<!-- Note chat CSS location for suggestion styling. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Chat UI styles for timeline items live in `frontend/src/styles.css` near `.hc-chat-item`, which is where suggestion styling can be added.
+<!-- Record Codex execution entry point for outputSchema wiring. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `runCodexExecWithSdk` is invoked from `backend/src/agent/agent.ts` with `taskGroupDir`, so outputSchema can be injected there after reading `codex-schema.json`.
+<!-- Record that codex-sdk package path needs locating for outputSchema typing. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Initial `rg` lookup didn't find `outputSchema` under `node_modules/@openai/codex-sdk` or `node_modules/.pnpm`, so the exact SDK type definition location still needs confirming.
+<!-- Log pnpm store location for codex-sdk versions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `node_modules/.pnpm` includes `@openai+codex-sdk@0.79.0` and `@openai+codex-sdk@0.93.0`, but there is no top-level `node_modules/@openai` symlink.
+<!-- Record codex-sdk README guidance for outputSchema usage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `backend/node_modules/@openai/codex-sdk/README.md` documents `outputSchema` usage on `thread.run(...)`, implying schema might be per-turn rather than part of thread options.
+<!-- Capture README details that outputSchema is a turn option. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Codex SDK README shows `thread.run("...", { outputSchema })`, so we likely need to pass the schema into `runStreamed` turn options instead of `startThread` options.
+<!-- Capture codex-sdk d.ts TurnOptions shape for outputSchema wiring. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `backend/node_modules/@openai/codex-sdk/dist/index.d.ts` defines `TurnOptions` with `outputSchema` + `signal`, and `Thread.runStreamed` accepts those turn options.
+<!-- Record targeted test outcomes for codex-schema + suggestions changes. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Targeted backend jest tests (taskGroupWorkspace + codexExec) passed but emit the usual open-handles warning; targeted frontend vitest tests for suggestions passed.
 - `backend/src/modelProviders/claudeCode.ts` sets Claude SDK `cwd` to `repoDir` and uses `additionalDirectories` with `${repoDir}/.git` for workspace-write runs.
 - `backend/src/modelProviders/geminiCli.ts` spawns the CLI with `cwd: repoDir`.
 - `backend/src/utils/taskOutputPath.ts` places provider output files under `~/.hookcode/task-outputs/<taskId>` (or env override) and guards against repo-local output roots.
 - No current backend code references `codex-schema.json` or `AGENTS.md` for task-group workspaces (only examples/docs mention them).
+<!-- Log that codex provider currently lacks outputSchema wiring. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `backend/src/modelProviders/codex.ts` currently has no TurnOptions/outputSchema wiring or codex-schema.json reads.
+<!-- Capture where Codex ThreadOptions are built for adding outputSchema. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `buildCodexSdkThreadOptions` in `backend/src/modelProviders/codex.ts` constructs the Codex ThreadOptions (model/sandbox/workingDirectory) and is the likely place to inject outputSchema.
+<!-- Note placeholder file helper behavior for codex-schema defaults. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `ensurePlaceholderFile` in `backend/src/agent/agent.ts` only writes contents when the file is missing, so codex-schema defaults can be seeded without clobbering user edits.
+<!-- Note existing unit test file for task-group workspace helpers. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `backend/src/tests/unit/taskGroupWorkspace.test.ts` already covers task-group workspace helpers and is a good place to add codex-schema default/outputSchema tests.
+<!-- Note test exports in agent for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `backend/src/agent/agent.ts` already exposes `__test__*` helpers (resolveTaskGroupApiBaseUrl/syncTaskGroupSkillEnvFiles/ensureTaskGroupPat) that can be extended for codex-schema parsing tests.
+<!-- Note TaskGroupChatPage tests for suggestion click coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- `frontend/src/tests/taskGroupChatPage.test.tsx` is the main integration test suite for chat UI and can cover suggestion click-to-append behavior.
+<!-- Record backend/frontend test scripts for targeted runs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+- Backend tests run via `pnpm --filter hookcode-backend test` (jest), frontend via `pnpm --filter hookcode-frontend test` (vitest).
 - `backend/src/modules/tasks/preview.service.ts` resolves workspace paths via `buildTaskGroupWorkspaceDir` and falls back by prefix `${taskGroupId}__${provider}__`.
 - `backend/src/modules/tasks/task-git-push.service.ts` uses `buildTaskGroupWorkspaceDir` as the repo directory for git push commands.
 - `HookcodeConfigService.parseConfig` reads `.hookcode.yml` from the provided workspace dir (expected to be repo root).

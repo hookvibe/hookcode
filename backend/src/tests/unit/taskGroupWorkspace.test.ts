@@ -10,7 +10,9 @@ import {
   buildTaskGroupEnvFileContents,
   buildTaskGroupRootDir,
   buildTaskGroupWorkspaceDir,
+  __test__buildCodexSchemaContents,
   __test__ensureTaskGroupPat,
+  __test__readCodexOutputSchema,
   __test__resolveTaskGroupApiBaseUrl,
   __test__syncTaskGroupSkillEnvFiles,
   setAgentServices,
@@ -75,6 +77,46 @@ describe('buildTaskGroupWorkspaceDir', () => {
 
     // Maintain deterministic fallback paths when task group ids are unavailable. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
     expect(result).toBe(path.join(TASK_GROUP_WORKSPACE_ROOT, 'task-789', 'repo'));
+  });
+});
+
+describe('codex schema helpers', () => {
+  test('builds default codex-schema contents with output and next_actions', () => {
+    // Validate the default Codex output schema payload for task-group initialization. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const contents = __test__buildCodexSchemaContents();
+    const parsed = JSON.parse(contents);
+    expect(parsed).toMatchObject({
+      type: 'object',
+      properties: {
+        output: { type: 'string' },
+        next_actions: { type: 'array' }
+      },
+      additionalProperties: false
+    });
+    expect(parsed.required).toEqual(expect.arrayContaining(['output', 'next_actions']));
+  });
+
+  test('reads codex-schema.json when valid and skips invalid JSON', async () => {
+    // Ensure codex-schema parsing is resilient and logs invalid payloads without throwing. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'hookcode-taskgroup-schema-'));
+    const schemaPath = path.join(tempDir, 'codex-schema.json');
+    const logs: string[] = [];
+    const appendLog = async (line: string) => {
+      // Capture codex-schema parse logs for assertion without returning a value. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+      logs.push(line);
+    };
+
+    try {
+      const schema = { type: 'object', properties: { output: { type: 'string' } }, required: ['output'], additionalProperties: false };
+      await writeFile(schemaPath, JSON.stringify(schema), 'utf8');
+      await expect(__test__readCodexOutputSchema({ taskGroupDir: tempDir, appendLog })).resolves.toEqual(schema);
+
+      await writeFile(schemaPath, '{ invalid json', 'utf8');
+      await expect(__test__readCodexOutputSchema({ taskGroupDir: tempDir, appendLog })).resolves.toBeUndefined();
+      expect(logs.some((line) => line.includes('codex-schema.json'))).toBe(true);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 });
 

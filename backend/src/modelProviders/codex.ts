@@ -337,6 +337,7 @@ export const runCodexExecWithSdk = async (params: {
   resumeThreadId?: string;
   apiKey: string;
   apiBaseUrl?: string;
+  outputSchema?: unknown;
   outputLastMessageFile: string;
   env?: Record<string, string | undefined>;
   signal?: AbortSignal;
@@ -388,7 +389,11 @@ export const runCodexExecWithSdk = async (params: {
 
   // Change record: use shared async logger to avoid blocking provider execution on DB/log persistence.
   const logger = createAsyncLineLogger({ logLine: params.logLine, redact: params.redact, maxQueueSize: 500 });
-  const { events } = await thread.runStreamed(prompt, { signal: params.signal });
+  // Pass optional outputSchema through turn options so Codex can return structured JSON outputs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const turnOptions: { signal?: AbortSignal; outputSchema?: unknown } = {};
+  if (params.signal) turnOptions.signal = params.signal;
+  if (params.outputSchema) turnOptions.outputSchema = params.outputSchema;
+  const { events } = await thread.runStreamed(prompt, turnOptions);
 
   try {
     for await (const event of events) {

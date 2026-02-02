@@ -200,6 +200,44 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
     });
   });
 
+  test('appends next-action suggestions into the chat composer', async () => {
+    // Verify suggestion buttons feed the chat composer draft for follow-up prompts. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const ui = userEvent.setup();
+    const now = '2026-01-11T00:00:00.000Z';
+    const outputText = JSON.stringify({
+      output: 'Result text',
+      next_actions: ['Action 1', 'Action 2', 'Action 3']
+    });
+
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([
+      {
+        id: 't_done',
+        eventType: 'chat',
+        status: 'succeeded',
+        retries: 0,
+        createdAt: now,
+        updatedAt: now
+      } as any
+    ]);
+    vi.mocked(api.fetchTask).mockResolvedValue({
+      id: 't_done',
+      eventType: 'chat',
+      status: 'succeeded',
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+      result: { outputText }
+    } as any);
+
+    renderPage({ taskGroupId: 'g1' });
+
+    const suggestion = await screen.findByRole('button', { name: 'Action 1' });
+    const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
+
+    await ui.click(suggestion);
+    expect(textarea).toHaveValue('Action 1');
+  });
+
   // Ensure the time-window control renders as a compact icon button. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
   test('renders time window icon button in the composer', async () => {
     renderPage();
@@ -269,14 +307,23 @@ describe('TaskGroupChatPage (frontend-chat migration)', () => {
       data: JSON.stringify({
         taskGroupId: 'g1',
         instanceName: 'frontend',
-        command: { selector: '.btn', color: '#ff4d4f' },
+        // Forward bubble payloads alongside highlight commands. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+        command: {
+          selector: '.btn',
+          color: '#ff4d4f',
+          bubble: { text: 'Primary CTA', placement: 'right' }
+        },
         issuedAt: '2026-01-31T00:00:00.000Z'
       })
     });
 
     await waitFor(() =>
       expect(postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'hookcode:preview:highlight', selector: '.btn' }),
+        expect.objectContaining({
+          type: 'hookcode:preview:highlight',
+          selector: '.btn',
+          bubble: expect.objectContaining({ text: 'Primary CTA' })
+        }),
         'http://127.0.0.1:12345'
       )
     );

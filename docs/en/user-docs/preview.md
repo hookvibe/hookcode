@@ -81,7 +81,8 @@ Task runs create a workspace under the build root (configurable via `HOOKCODE_BU
   - `.env` (task-group API base URL + PAT + task group id)
   - `<repo-name>/` (cloned repository)
   - `codex-output.txt` / `claude-output.txt` / `gemini-output.txt`
-  - `codex-schema.json` (placeholder)
+  <!-- Note codex-schema.json now drives structured output + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+  - `codex-schema.json` (Codex TurnOptions output schema for structured output + next-action suggestions)
   - `AGENTS.md` (task-group rules + embedded .env config)
 
 Model commands run from the task-group root, so repo-relative paths live under `<repo-name>/`.

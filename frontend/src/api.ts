@@ -355,12 +355,33 @@ export interface PreviewStatusResponse {
 // Describe highlight commands sent to preview bridge scripts. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export type PreviewHighlightMode = 'outline' | 'mask';
 
+// Define bubble tooltip payloads for preview highlight commands. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+export type PreviewHighlightBubblePlacement = 'top' | 'right' | 'bottom' | 'left' | 'auto';
+export type PreviewHighlightBubbleAlign = 'start' | 'center' | 'end';
+export type PreviewHighlightBubbleTheme = 'dark' | 'light';
+
+export interface PreviewHighlightBubble {
+  text: string;
+  placement?: PreviewHighlightBubblePlacement;
+  align?: PreviewHighlightBubbleAlign;
+  offset?: number;
+  maxWidth?: number;
+  theme?: PreviewHighlightBubbleTheme;
+  background?: string;
+  textColor?: string;
+  borderColor?: string;
+  radius?: number;
+  arrow?: boolean;
+}
+
 export interface PreviewHighlightCommand {
   selector: string;
   padding?: number;
   color?: string;
   mode?: PreviewHighlightMode;
   scrollIntoView?: boolean;
+  // Carry optional bubble tooltip data alongside highlight commands. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+  bubble?: PreviewHighlightBubble;
   requestId?: string;
 }
 

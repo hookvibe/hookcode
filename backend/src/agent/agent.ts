@@ -225,6 +225,31 @@ export const buildTaskGroupWorkspaceDir = (params: {
   return path.join(rootDir, repoFolder);
 };
 
+// Define the default Codex output schema with result text + next actions for frontend suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+const DEFAULT_CODEX_OUTPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    output: { type: 'string', description: 'Primary assistant output (markdown).' },
+    next_actions: {
+      type: 'array',
+      items: { type: 'string' },
+      minItems: 3,
+      maxItems: 3,
+      description: 'Three suggested next actions for the user to run next.'
+    }
+  },
+  required: ['output', 'next_actions'],
+  additionalProperties: false
+} as const;
+
+// Persist the default Codex schema as JSON so task-group workspaces always have a usable baseline. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+const DEFAULT_CODEX_SCHEMA_CONTENTS = `${JSON.stringify(DEFAULT_CODEX_OUTPUT_SCHEMA, null, 2)}\n`;
+
+const buildCodexSchemaContents = (): string => {
+  // Provide a stable default codex-schema.json payload for task-group initialization. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  return DEFAULT_CODEX_SCHEMA_CONTENTS;
+};
+
 const ensurePlaceholderFile = async (filePath: string, contents: string): Promise<void> => {
   // Create task-group placeholder files only when missing to preserve user edits. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
   try {
@@ -232,6 +257,29 @@ const ensurePlaceholderFile = async (filePath: string, contents: string): Promis
   } catch (err: any) {
     if (err?.code !== 'ENOENT') throw err;
     await writeFile(filePath, contents, 'utf8');
+  }
+};
+
+const readCodexOutputSchema = async (params: {
+  taskGroupDir: string;
+  appendLog: (line: string) => Promise<void>;
+}): Promise<unknown | undefined> => {
+  // Load codex-schema.json for TurnOptions.outputSchema without breaking runs on invalid JSON. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const schemaPath = path.join(params.taskGroupDir, 'codex-schema.json');
+  try {
+    const raw = await readFile(schemaPath, 'utf8');
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      await params.appendLog('codex-schema.json must be a JSON object; skipping outputSchema.');
+      return undefined;
+    }
+    return parsed;
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return undefined;
+    await params.appendLog(`Failed to parse codex-schema.json; skipping outputSchema: ${err?.message || err}`);
+    return undefined;
   }
 };
 
@@ -302,6 +350,9 @@ const resolveTaskGroupApiBaseUrl = (): string => {
 
 // Expose API base URL resolution for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
 export const __test__resolveTaskGroupApiBaseUrl = resolveTaskGroupApiBaseUrl;
+// Expose codex-schema defaults/parsing for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+export const __test__buildCodexSchemaContents = buildCodexSchemaContents;
+export const __test__readCodexOutputSchema = readCodexOutputSchema;
 
 const parseEnvContent = (content: string): Record<string, string> => {
   // Parse simple KEY=VALUE env content to reuse PATs when present. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
@@ -448,7 +499,8 @@ const ensureTaskGroupLayout = async (params: {
   // Initialize the task-group root with required placeholders and env/agent templates. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
   await mkdir(params.taskGroupDir, { recursive: true });
   await ensureTaskGroupCodexDir(params.taskGroupDir);
-  await ensurePlaceholderFile(path.join(params.taskGroupDir, 'codex-schema.json'), '{}\n');
+  // Seed codex-schema.json with the default structured output schema used by Codex runs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  await ensurePlaceholderFile(path.join(params.taskGroupDir, 'codex-schema.json'), buildCodexSchemaContents());
   const existingEnv = await readEnvFileValues(path.join(params.taskGroupDir, '.env'));
   const envValues = await resolveTaskGroupEnvValues({
     taskGroupId: params.taskGroupId,
@@ -1624,6 +1676,9 @@ exit 0
         throw new Error(credentialBack);
       }
 
+      // Load the task-group Codex schema so turns can emit structured output + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+      const outputSchema = await readCodexOutputSchema({ taskGroupDir, appendLog });
+
       // Execute providers from the task-group root to match the new workspace layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
       // Change record: avoid noisy debug `console.error` logs; rely on structured logs + per-task appendLog instead.
       const res = await runCodexExecWithSdk({
@@ -1637,6 +1692,7 @@ exit 0
         resumeThreadId: resumeThreadId || undefined,
         apiKey,
         apiBaseUrl: apiBaseUrl || undefined,
+        outputSchema,
         outputLastMessageFile,
         env: {
           ...(sandboxMode === 'workspace-write'

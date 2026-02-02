@@ -127,6 +127,8 @@ export class TaskGroupPreviewController {
       color: body.color,
       mode: body.mode,
       scrollIntoView: body.scrollIntoView,
+      // Forward optional bubble payload to the preview bridge. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+      bubble: body.bubble,
       requestId: body.requestId
     });
     return { success: true, requestId: result.requestId, subscribers: result.subscribers };

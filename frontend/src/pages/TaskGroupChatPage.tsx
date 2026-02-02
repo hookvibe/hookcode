@@ -121,6 +121,15 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const previewDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
 
+  const handleSuggestionClick = useCallback((suggestion: string) => {
+    // Append suggested next actions into the chat composer draft for quick follow-up. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    setDraft((prev) => {
+      if (!prev.trim()) return suggestion;
+      if (prev.endsWith('\n')) return `${prev}${suggestion}`;
+      return `${prev}\n${suggestion}`;
+    });
+  }, []);
+
   const pollTimerRef = useRef<number | null>(null);
   const chatBodyRef = useRef<HTMLDivElement | null>(null);
   const chatAutoScrollEnabledRef = useRef(true);
@@ -1309,6 +1318,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                     taskDetail={taskDetailsById[task.id] ?? null}
                     onOpenTask={openTask}
                     taskLogsEnabled={effectiveTaskLogsEnabled}
+                    onSuggestionClick={handleSuggestionClick}
                   />
                 ))}
               </div>

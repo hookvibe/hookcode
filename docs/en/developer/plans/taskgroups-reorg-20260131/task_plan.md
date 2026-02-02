@@ -11,7 +11,7 @@
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
 <!-- Define the workspace layout change target for this task. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
-Restructure task-group workspaces to use a taskgroup-id directory containing the repo clone and Codex artifacts, add a task-group .env + AGENTS template with PAT config, update command execution to run inside that folder, and document the new layout.
+Restructure task-group workspaces to use a taskgroup-id directory containing the repo clone and Codex artifacts, add a task-group .env + AGENTS template with PAT config, update command execution to run inside that folder, and document the new layout while wiring codex-schema outputSchema handling + frontend next-action suggestions. <!-- Extend goal for codex-schema output schema + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
@@ -41,7 +41,8 @@ Phase 4
 {/* WHAT: Actually build/create/write the solution. WHY: This is where the work happens. Break into smaller sub-tasks if needed. */}
 - [x] Execute the plan step by step
 - [x] Write code to files before executing
-- [x] Test incrementally
+- [x] Wire codex-schema.json into Codex TurnOptions outputSchema + frontend structured output/suggestions
+- [x] Update tests for structured output + suggestion click behavior
 <!-- Implementation done for .env + AGENTS template updates. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
 - **Status:** complete
 
@@ -67,6 +68,7 @@ Phase 4
 3. Which command executors (codex/claude/gemini) set a working directory, and how should it change?
 4. What tests already cover workspace paths, and what new tests are needed?
 5. Where should HOOKCODE_API_BASE_URL and HOOKCODE_PAT values be sourced for task-group `.env` generation?
+6. How should structured Codex output be parsed to keep existing result rendering while adding next-action suggestions?
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
@@ -84,6 +86,8 @@ Phase 4
 | Seed task-group `.codex` from backend/src/agent/example/.codex and copy task-group .env into each `.codex/skills/*/.env`. | Keeps bundled skills available in every task group and ensures skill scripts inherit the same API/PAT configuration. |
 <!-- Record PAT scope change required for highlight POST endpoints. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
 | Require task-group PATs to include tasks:write and rotate existing tasks:read tokens. | Enables preview highlight POST APIs that need write-level task scope. |
+<!-- Record codex-schema structured output decision. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+| Use codex-schema.json to define structured output (output + next_actions) and parse it in the frontend for suggestions. | Keeps Codex outputs structured while preserving existing result rendering. |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
