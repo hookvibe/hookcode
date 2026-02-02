@@ -188,7 +188,8 @@ const buildGithubTaskTitle = (eventType: TaskEventType, payload: any): string | 
       }
       const ref = payload?.ref;
       const commits = Array.isArray(payload?.commits) ? payload.commits : [];
-      const headCommit = commits.length ? commits[commits.length - 1] : undefined;
+      // Prefer head_commit for GitHub push titles to align with webhook payload fields. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
+      const headCommit = payload?.head_commit ?? (commits.length ? commits[commits.length - 1] : undefined);
       const commitSha: string | undefined = typeof headCommit?.id === 'string' ? headCommit.id : undefined;
       const commitShort = commitSha ? commitSha.slice(0, 8) : '';
       const commitTitle = extractCommitTitle(headCommit);

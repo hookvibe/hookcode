@@ -12,7 +12,7 @@
 Reduce maintenance burden and merge conflicts by splitting oversized files into smaller, responsibility-focused modules, and update documentation/AGENTS.md to codify the splitting rules.
 
 ## Current Phase
-Complete
+Phase 3
 
 ## Phases
 
@@ -30,21 +30,22 @@ Complete
 
 ### Phase 3: Implementation
 - [x] Split selected files into smaller modules
-- [x] Update imports/exports and any docs references
+- [ ] Split remaining long files identified in the inventory
+- [ ] Update imports/exports and any docs references
 - [x] Update AGENTS.md with long-file splitting guidance
-- **Status:** complete
+- **Status:** in_progress
 
 ### Phase 4: Testing & Verification
-- [x] Run relevant tests or checks (skipped; not requested)
-- [x] Document test results in progress.md
-- [x] Fix any issues found (none found)
-- **Status:** complete
+- [ ] Run relevant tests or checks
+- [ ] Document test results in progress.md
+- [ ] Fix any issues found
+- **Status:** pending
 
 ### Phase 5: Delivery
 - [x] Review updated files and docs
 - [x] Update changelog entry
-- [x] Deliver to user
-- **Status:** complete
+- [ ] Deliver to user
+- **Status:** pending
 
 ## Key Questions
 1. Which files are the longest and can be split without changing public behavior?
