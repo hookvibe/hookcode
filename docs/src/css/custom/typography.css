@@ -1,5 +1,5 @@
 /* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
-/* Constrain docs typography for clean scan lines. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Constrain docs typography for clean scan lines. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .theme-doc-markdown {
   max-width: 72ch;
 }
@@ -15,4 +15,3 @@
 .theme-doc-markdown h3 {
   text-wrap: balance;
 }
-

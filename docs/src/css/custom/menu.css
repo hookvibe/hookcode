@@ -1,5 +1,5 @@
 /* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
-/* Align menu link states with glass highlights for clear navigation. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Align menu link states with neutral highlights for clear navigation. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .menu__link {
   color: var(--ifm-menu-color);
   border-radius: 10px;
@@ -7,8 +7,13 @@
 
 .menu__link:hover,
 .menu__link:focus-visible {
-  background-color: rgba(37, 99, 235, 0.12);
+  background-color: rgba(15, 23, 42, 0.06);
   color: var(--ifm-menu-color-active);
+}
+
+html[data-theme='dark'] .menu__link:hover,
+html[data-theme='dark'] .menu__link:focus-visible {
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
 .menu__link--active,
@@ -16,4 +21,3 @@
   background-color: var(--ifm-menu-color-background-active);
   color: var(--ifm-menu-color-active);
 }
-

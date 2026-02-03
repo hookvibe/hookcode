@@ -10,7 +10,8 @@
   max-width: none;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, var(--hc-surface-elevated) 0%, var(--hc-surface) 28%, var(--hc-surface) 100%);
+  /* Flatten preview panel chrome to a solid surface. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+  background: var(--hc-surface);
   border: 1px solid var(--hc-border);
   border-radius: 16px;
   box-shadow: var(--hc-shadow-md);
@@ -50,8 +51,8 @@
   padding: 12px 14px;
   border-bottom: 1px solid var(--hc-border);
   flex-wrap: wrap;
-  /* Align the preview header layout and chrome gradient for the browser look. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
-  background: linear-gradient(180deg, var(--hc-surface-elevated) 0%, var(--hc-surface) 100%);
+  /* Align the preview header layout with the flat neutral chrome. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+  background: var(--hc-surface-elevated);
 }
 
 /* Stack the window controls and status text for the browser-style header. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
@@ -149,7 +150,7 @@
 }
 
 .hc-preview-header-browser {
-  /* Place the preview browser toolbar alongside the header status row. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+  /* Place the preview browser toolbar alongside the header status row. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
   flex: 1 1 320px;
   display: flex;
   align-items: center;
@@ -157,11 +158,9 @@
   min-width: 260px;
   padding: 4px 6px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--hc-border) 70%, transparent);
-  background: color-mix(in srgb, var(--hc-surface-elevated) 85%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), var(--hc-shadow-sm);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  box-shadow: var(--hc-shadow-sm);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -301,4 +300,3 @@
 .hc-preview-message {
   opacity: 0.8;
 }
-

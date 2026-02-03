@@ -13,14 +13,9 @@
 .hc-page__header {
   /* Layout note: keep the header as a single-row nav bar (title/meta shrink + clip instead of wrapping). */
   padding: 14px 18px;
-  /* Visual refresh (2026-01-12):
-   * - Remove the solid header surface so the header blends with the app background.
-   * - Keep a softened divider + blur so content remains readable over the accent-tinted gradient.
-   */
-  /* border-bottom: 1px solid color-mix(in srgb, var(--hc-border) 82%, var(--hc-accent-soft)); */
-  background: transparent;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* Keep the header on a flat surface with a subtle divider. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+  border-bottom: 1px solid var(--hc-border);
+  background: var(--hc-surface);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -38,4 +33,3 @@
   white-space: nowrap;
   color: var(--text);
 }
-

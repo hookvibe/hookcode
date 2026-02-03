@@ -10,9 +10,7 @@
 .hc-sider {
   background: var(--hc-sider-bg) !important;
   border-right: 1px solid var(--hc-border);
-  /* Visual polish: keep the sidebar readable over the app gradient background. */
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* Keep the sidebar flat and solid against the neutral background. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 }
 
 .hc-sider .ant-layout-sider-children {

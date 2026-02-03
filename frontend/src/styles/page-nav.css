@@ -45,11 +45,11 @@
 }
 
 /* =============================================================================
- * PageNav buttons (transparent header)
+ * PageNav buttons (flat header)
  *
  * Business context:
  * - Module: Frontend Chat / Navigation / PageNav.
- * - Purpose: make header actions blend with the app gradient once the header background is removed.
+ * - Purpose: keep header actions aligned with the flat neutral header surface. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203
  *
  * Change record:
  * - 2026-01-12: Remove the header surface background; redesign action/user trigger buttons as "soft pills".
@@ -82,32 +82,20 @@
   box-shadow: var(--hc-focus-ring);
 }
 
-/* Primary action: keep it "accent first" but add subtle elevation so it reads on a transparent header. */
+/* Primary action: use a solid neutral accent to match the flat header. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .hc-nav__actions .ant-btn-primary {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent-hover) 26%, var(--accent)) 0%,
-    var(--accent) 100%
-  );
+  background: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 62%, var(--hc-border));
   box-shadow: var(--hc-shadow-sm);
 }
 
 .hc-nav__actions .ant-btn-primary:hover {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 24%, var(--accent-hover)) 0%,
-    var(--accent-hover) 100%
-  );
+  background: var(--accent-hover);
   border-color: color-mix(in srgb, var(--accent-hover) 68%, var(--hc-border));
 }
 
 .hc-nav__actions .ant-btn-primary:active {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 20%, var(--accent-active)) 0%,
-    var(--accent-active) 100%
-  );
+  background: var(--accent-active);
   border-color: color-mix(in srgb, var(--accent-active) 70%, var(--hc-border));
 }
 
@@ -177,4 +165,3 @@
 .hc-toolbar {
   margin-bottom: 12px;
 }
-

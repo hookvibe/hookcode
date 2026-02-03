@@ -7,16 +7,17 @@ import { setLocale } from '../i18n';
 import { TaskGroupChatPage } from '../pages/TaskGroupChatPage';
 import * as api from '../api';
 
-const NOW = '2026-01-11T00:00:00.000Z';
+const NOW = '2026-01-11T00:00:00.000Z'; // Keep a shared test timestamp for setup helpers while mocks inline their own copy to avoid hoisted TDZ issues. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
 vi.mock('../api', () => {
+  const mockNow = '2026-01-11T00:00:00.000Z'; // Inline the timestamp so the hoisted mock factory does not touch module-level bindings. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
   const repo = {
     id: 'r1',
     provider: 'gitlab',
     name: 'Repo 1',
     enabled: true,
-    createdAt: NOW,
-    updatedAt: NOW
+    createdAt: mockNow,
+    updatedAt: mockNow
   };
 
   const robot = {
@@ -28,8 +29,8 @@ vi.mock('../api', () => {
     modelProvider: 'codex',
     enabled: true,
     isDefault: true,
-    createdAt: NOW,
-    updatedAt: NOW
+    createdAt: mockNow,
+    updatedAt: mockNow
   };
 
   const makeTask = (id: string) => ({
@@ -37,8 +38,8 @@ vi.mock('../api', () => {
     eventType: 'chat',
     status: 'queued',
     retries: 0,
-    createdAt: NOW,
-    updatedAt: NOW
+    createdAt: mockNow,
+    updatedAt: mockNow
   });
 
   return {
@@ -52,8 +53,8 @@ vi.mock('../api', () => {
         title: 'Group new',
         repoId: repo.id,
         robotId: robot.id,
-        createdAt: NOW,
-        updatedAt: NOW
+        createdAt: mockNow,
+        updatedAt: mockNow
       },
       task: makeTask('t_new')
     })),
@@ -65,8 +66,8 @@ vi.mock('../api', () => {
       title: `Group ${id}`,
       repoId: repo.id,
       robotId: robot.id,
-      createdAt: NOW,
-      updatedAt: NOW
+      createdAt: mockNow,
+      updatedAt: mockNow
     })),
     fetchTaskGroupTasks: vi.fn(async () => []),
     // Mock preview endpoints so TaskGroupChatPage can render preview UI state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -83,12 +84,14 @@ vi.mock('../api', () => {
   };
 });
 
+export const buildTaskGroupChatPageElement = (props?: { taskGroupId?: string; taskLogsEnabled?: boolean | null }) => (
+  <AntdApp>
+    <TaskGroupChatPage taskGroupId={props?.taskGroupId} taskLogsEnabled={props?.taskLogsEnabled} />
+  </AntdApp>
+); // Share a reusable element factory so rerenders keep the mocked api wiring. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+
 export const renderTaskGroupChatPage = (props?: { taskGroupId?: string; taskLogsEnabled?: boolean | null }) =>
-  render(
-    <AntdApp>
-      <TaskGroupChatPage taskGroupId={props?.taskGroupId} taskLogsEnabled={props?.taskLogsEnabled} />
-    </AntdApp>
-  );
+  render(buildTaskGroupChatPageElement(props));
 
 export const setupTaskGroupChatMocks = () => {
   vi.clearAllMocks();

@@ -8,7 +8,7 @@
 body {
   margin: 0;
   background: var(--bg);
-  /* Fallback first, then the accent-tinted gradient background. */
+  /* Keep the body background in sync with the flat neutral theme. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
   background: var(--hc-app-bg);
   color: var(--text);
   transition: background-color 0.25s ease, color 0.25s ease;

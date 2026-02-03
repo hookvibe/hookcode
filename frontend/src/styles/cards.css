@@ -27,45 +27,16 @@
   }
 }
 
-/* Modernize list cards with glassmorphism surfaces and deeper radius. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
+/* Modernize list cards with flat neutral surfaces and deeper radius. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .hc-task-card,
 .hc-repo-card,
 .hc-taskgroup-card {
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  background: color-mix(in srgb, var(--hc-surface) 88%, transparent) !important;
-  border: 1px solid color-mix(in srgb, var(--hc-border) 78%, transparent) !important;
+  background: var(--hc-surface) !important;
+  border: 1px solid var(--hc-border) !important;
   border-radius: 16px;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.hc-task-card::before,
-.hc-repo-card::before,
-.hc-taskgroup-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    600px circle at 10% 0%,
-    color-mix(in srgb, var(--hc-accent-soft) 55%, transparent) 0%,
-    transparent 55%
-  );
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.hc-task-card::after,
-.hc-repo-card::after,
-.hc-taskgroup-card::after {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--hc-accent-border), transparent 70%);
-  opacity: 0.6;
-  pointer-events: none;
 }
 
 .hc-card {
@@ -134,4 +105,3 @@
   justify-content: flex-end;
   gap: 8px;
 }
-

@@ -20,10 +20,9 @@
 }
 
 .hc-chat-footer-composer {
-  /* border-top: 1px solid var(--hc-border); */
-  /* background: var(--hc-surface); */
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* Keep the composer footer on a flat surface for the neutral theme. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+  border-top: 1px solid var(--hc-border);
+  background: var(--hc-surface);
   padding: 16px 24px 24px;
   flex: 0 0 auto;
 }
@@ -185,4 +184,3 @@
   /* Keep the time window label compact and readable. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
   font-size: 12px;
 }
-

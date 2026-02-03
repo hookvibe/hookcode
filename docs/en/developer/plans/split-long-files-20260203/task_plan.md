@@ -8,7 +8,8 @@
 Refactor long or multi-responsibility files into smaller, purpose-focused modules, update doc references, and run the full automated test suite.
 
 ## Current Phase
-Phase 1
+<!-- Move the current phase marker to implementation after completing planning tasks. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 -->
+Phase 3
 
 ## Phases
 
@@ -19,17 +20,17 @@ Phase 1
 - **Status:** complete
 
 ### Phase 2: Planning & Structure
-- [ ] Identify long files and responsibilities to split
-- [ ] Map doc references that must be updated
-- [ ] Define target module boundaries and naming
-- **Status:** in_progress
+- [x] Identify long files and responsibilities to split
+- [x] Map doc references that must be updated
+- [x] Define target module boundaries and naming
+- **Status:** complete
 
 ### Phase 3: Implementation
 - [ ] Split long files by functional responsibility
 - [ ] Update imports/exports and internal references
 - [ ] Update docs links that reference moved content
 - [ ] Add inline traceability comments per change
-- **Status:** pending
+- **Status:** in_progress
 
 ### Phase 4: Testing & Verification
 - [ ] Run full automated test suite

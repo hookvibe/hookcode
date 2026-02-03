@@ -31,7 +31,8 @@ export const enUSUi = {
   'panel.header.desc.credentials': 'Provider secrets, repo tokens, and API access tokens',
   'panel.header.desc.tools': 'Admin tools (local ports)',
   'panel.header.desc.environment': 'Detected runtimes for dependency installs',
-  'panel.header.desc.settings': 'Language, theme, and accent',
+  // Update settings header copy after removing accent controls. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203
+  'panel.header.desc.settings': 'Language and theme',
   'panel.header.userHint.signedOut': 'Local settings only',
   'panel.nav.group.account': 'Account',
   'panel.nav.group.integrations': 'Integrations',
@@ -157,14 +158,5 @@ export const enUSUi = {
   'panel.settings.lang.zhCN': '简体中文',
   'panel.settings.lang.enUS': 'English',
   'panel.settings.themeTitle': 'Theme',
-  'panel.settings.accentTitle': 'Accent',
-
-  // --- Accent labels ---
-  'settings.accent.blue': 'Blue',
-  'settings.accent.emerald': 'Emerald',
-  'settings.accent.violet': 'Violet',
-  'settings.accent.amber': 'Amber',
-  'settings.accent.rose': 'Rose',
-  'settings.accent.slate': 'Slate',
 
 } as const;

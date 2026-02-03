@@ -23,8 +23,7 @@
    *
    * Business context:
    * - Module: Frontend Chat / Styles / Theme.
-   * - Purpose: keep the UI modern, neutral, and consistent across pages while still
-   *   allowing a user-configurable accent color (see `--accent*` in App.tsx).
+   * - Purpose: keep the UI modern, neutral, and consistent across pages with a fixed neutral accent.
    *
    * Usage:
    * - Prefer `--hc-*` variables for component surfaces/borders/shadows.
@@ -43,24 +42,14 @@
   --page-padding: 24px;
   --hc-page-max: 1040px;
 
-  /* Layout/background: keep the page background subtle + "alive" via accent-tinted gradients. */
+  /* Layout/background: keep a flat, solid base for the neutral theme. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
   --hc-content-bg: transparent;
-  --hc-app-bg: radial-gradient(
-      1200px circle at 20% -10%,
-      color-mix(in srgb, var(--accent) 14%, #ffffff) 0%,
-      transparent 60%
-    ),
-    radial-gradient(
-      900px circle at 110% 10%,
-      color-mix(in srgb, var(--accent) 8%, #ffffff) 0%,
-      transparent 60%
-    ),
-    var(--bg);
+  --hc-app-bg: var(--bg);
 
   /* Surfaces/borders: tuned to look good with both AntD and custom components. */
-  --hc-sider-bg: rgba(255, 255, 255, 0.72);
-  --hc-surface: rgba(255, 255, 255, 0.92);
-  --hc-surface-elevated: #ffffff;
+  --hc-sider-bg: #ffffff;
+  --hc-surface: #ffffff;
+  --hc-surface-elevated: #f8fafc;
   --hc-hover: rgba(15, 23, 42, 0.04);
   --hc-border: #e2e8f0;
 
@@ -114,9 +103,10 @@
   --hc-exec-role-bg: color-mix(in srgb, #94a3b8 18%, #ffffff);
 
   /* Accent color (overridden by App.tsx via CSS variables). */
-  --accent: #2563eb;
-  --accent-hover: #3b82f6;
-  --accent-active: #1d4ed8;
+  /* Align fallback accent with the neutral palette. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+  --accent: #64748b;
+  --accent-hover: #475569;
+  --accent-active: #334155;
 
   /* Native controls: hint UA to render built-in UI (incl. scrollbars) for light mode. */
   color-scheme: light;
@@ -136,21 +126,11 @@
   --border: #232327;
 
   --hc-content-bg: transparent;
-  --hc-app-bg: radial-gradient(
-      1200px circle at 20% -10%,
-      color-mix(in srgb, var(--accent) 12%, var(--bg)) 0%,
-      transparent 60%
-    ),
-    radial-gradient(
-      900px circle at 110% 10%,
-      color-mix(in srgb, var(--accent) 6%, var(--bg)) 0%,
-      transparent 60%
-    ),
-    var(--bg);
+  --hc-app-bg: var(--bg);
 
-  --hc-sider-bg: rgba(17, 17, 19, 0.72);
-  --hc-surface: rgba(17, 17, 19, 0.92);
-  --hc-surface-elevated: #111113;
+  --hc-sider-bg: #111113;
+  --hc-surface: #111113;
+  --hc-surface-elevated: #18181b;
   --hc-hover: rgba(244, 244, 245, 0.06);
   --hc-border: #232327;
 

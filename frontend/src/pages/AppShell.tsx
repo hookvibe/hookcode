@@ -37,7 +37,6 @@ import {
 import { navigateFromSidebar } from '../navHistory';
 import { clampText, getTaskSidebarPrimaryText, getTaskSidebarSecondaryText, getTaskTitle } from '../utils/task';
 import { createAuthedEventSource } from '../utils/sse';
-import type { AccentPreset } from '../theme/accent';
 import { UserPanelPopover } from '../components/UserPanelPopover';
 import { LoginCardSkeleton } from '../components/skeletons/LoginCardSkeleton';
 import { LoginPage } from './LoginPage';
@@ -89,8 +88,6 @@ export interface AppShellProps {
   route: RouteState;
   themePreference: ThemePreference;
   onThemePreferenceChange: (next: ThemePreference) => void;
-  accentPreset: AccentPreset;
-  onAccentPresetChange: (next: AccentPreset) => void;
 }
 
 const defaultExpanded: Record<SidebarTaskSectionKey, boolean> = {
@@ -128,9 +125,7 @@ const getInitialSiderCollapsed = (): boolean => {
 export const AppShell: FC<AppShellProps> = ({
   route,
   themePreference,
-  onThemePreferenceChange,
-  accentPreset,
-  onAccentPresetChange
+  onThemePreferenceChange
 }) => {
   const t = useT();
   const taskSectionAutoInitRef = useRef(false);
@@ -667,13 +662,12 @@ export const AppShell: FC<AppShellProps> = ({
 
   // UX/layout note: render the "My panel" trigger inside the reusable PageNav component so it's always
   // vertically centered and aligned to the far right of the header bar.
+  // Wrap the user panel slot in a fragment so JSX comments remain valid. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
   const userPanel = (
-    <UserPanelPopover
-      themePreference={themePreference}
-      onThemePreferenceChange={onThemePreferenceChange}
-      accentPreset={accentPreset}
-      onAccentPresetChange={onAccentPresetChange}
-    />
+    <>
+      {/* Keep panel settings aligned with the fixed neutral accent. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */}
+      <UserPanelPopover themePreference={themePreference} onThemePreferenceChange={onThemePreferenceChange} />
+    </>
   );
 
   return (

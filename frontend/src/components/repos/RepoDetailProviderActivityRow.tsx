@@ -1,5 +1,6 @@
 import { FC, useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Col, Radio, Row, Select, Skeleton, Space } from 'antd';
+import { Alert, Button, Card, Col, Radio, Row, Select, Skeleton, Space, Tooltip, Typography } from 'antd';
+// Add Typography/Tooltip imports for activity labels and pagination tips after refactor. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 import { LeftOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons';
 import type {
   RepoProviderActivity,

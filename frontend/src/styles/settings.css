@@ -279,7 +279,31 @@
 }
 
 .hc-theme-card--system .hc-theme-card-preview {
-  background: linear-gradient(90deg, #f8fafc 50%, #09090b 50%);
+  /* Split light/dark halves without gradients to match the flat palette. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.hc-theme-card--system .hc-theme-card-preview::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  right: 0;
+  width: auto;
+  height: auto;
+  background: #09090b;
+  border-radius: 0 6px 6px 0;
+  opacity: 1;
+}
+
+.hc-theme-card--system .hc-theme-card-preview::after {
+  top: 30%;
+  left: 10%;
+  width: 25%;
+  bottom: 10%;
+  background: #cbd5e1;
+  border-radius: 4px;
+  opacity: 0.35;
 }
 
 .hc-theme-card-label {
@@ -287,4 +311,3 @@
   font-size: 13px;
   font-weight: 500;
 }
-

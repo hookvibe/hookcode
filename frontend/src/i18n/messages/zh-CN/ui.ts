@@ -31,7 +31,8 @@ export const zhCNUi = {
   'panel.header.desc.credentials': '模型密钥、仓库平台 Token 与 API 访问令牌',
   'panel.header.desc.tools': '管理工具（本地端口）',
   'panel.header.desc.environment': '依赖安装所需的运行时检测',
-  'panel.header.desc.settings': '语言、主题与强调色',
+  // Update settings header copy after removing accent controls. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203
+  'panel.header.desc.settings': '语言与主题',
   'panel.header.userHint.signedOut': '仅可修改本地设置',
   'panel.nav.group.account': '账号',
   'panel.nav.group.integrations': '集成',
@@ -157,14 +158,5 @@ export const zhCNUi = {
   'panel.settings.lang.zhCN': '简体中文',
   'panel.settings.lang.enUS': 'English',
   'panel.settings.themeTitle': '主题',
-  'panel.settings.accentTitle': '强调色',
-
-  // --- Accent labels ---
-  'settings.accent.blue': '蓝色',
-  'settings.accent.emerald': '绿色',
-  'settings.accent.violet': '紫色',
-  'settings.accent.amber': '琥珀',
-  'settings.accent.rose': '玫红',
-  'settings.accent.slate': '灰蓝',
 
 } as const;

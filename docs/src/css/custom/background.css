@@ -1,11 +1,11 @@
 /* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
-/* Ensure the background stays consistent across the full scroll length. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Ensure the background stays consistent across the full scroll length. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 html,
 body {
   min-height: 100%;
 }
 
-/* Paint a solid backdrop so every scroll position shares the same tone. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Paint a solid backdrop so every scroll position shares the same tone. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 body {
   position: relative;
   background-color: var(--ifm-background-color);
@@ -13,14 +13,13 @@ body {
   background-image: none;
 }
 
-/* Ensure the docs layout stays above the glass background overlays. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Ensure the docs layout stays above the base background layers. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 #__docusaurus {
   position: relative;
   z-index: 1;
 }
 
-/* Keep the main wrapper transparent so the gradient remains consistent. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Keep the main wrapper on a solid neutral surface. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .main-wrapper {
-  background: transparent;
+  background: var(--ifm-background-color);
 }
-

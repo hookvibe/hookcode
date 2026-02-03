@@ -5,8 +5,7 @@ import { App as AntdApp } from 'antd';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { setLocale } from '../i18n';
-import { TaskGroupChatPage } from '../pages/TaskGroupChatPage';
-import { renderTaskGroupChatPage, setupTaskGroupChatMocks } from './taskGroupChatPageTestUtils';
+import { buildTaskGroupChatPageElement, renderTaskGroupChatPage, setupTaskGroupChatMocks } from './taskGroupChatPageTestUtils'; // Use the shared element factory so rerenders keep mocked api wiring. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 import * as api from '../api';
 
 describe('TaskGroupChatPage timeline', () => {
@@ -60,11 +59,7 @@ describe('TaskGroupChatPage timeline', () => {
     await waitFor(() => expect(api.executeChat).toHaveBeenCalled());
 
     // Simulate the route change so the chat timeline is active for the new group. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-    view.rerender(
-      <AntdApp>
-        <TaskGroupChatPage taskGroupId="g_new" />
-      </AntdApp>
-    );
+    view.rerender(buildTaskGroupChatPageElement({ taskGroupId: 'g_new' }));
 
     expect(await screen.findByText('Hello from test')).toBeInTheDocument();
     expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
@@ -114,11 +109,7 @@ describe('TaskGroupChatPage timeline', () => {
     expect(await screen.findByTestId('hc-chat-group-skeleton')).toBeInTheDocument();
 
     // Simulate route switch to Home (no group selected).
-    view.rerender(
-      <AntdApp>
-        <TaskGroupChatPage />
-      </AntdApp>
-    );
+    view.rerender(buildTaskGroupChatPageElement());
 
     expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
     expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
@@ -272,8 +263,11 @@ describe('TaskGroupChatPage timeline', () => {
     expect(screen.queryByText('Message 0')).not.toBeInTheDocument();
     expect(screen.getAllByText(/Message/)).toHaveLength(3);
 
-    const loadMore = screen.getByRole('button', { name: 'Load older messages' });
-    await userEvent.click(loadMore);
+    const chatBody = document.querySelector('.hc-chat-body') as HTMLElement;
+    expect(chatBody).toBeTruthy();
+    // Trigger scroll-up paging via the chat body container to reveal older tasks. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+    chatBody.scrollTop = 0;
+    chatBody.dispatchEvent(new Event('scroll'));
 
     expect(await screen.findByText('Message 0')).toBeInTheDocument();
     expect(screen.getAllByText(/Message/)).toHaveLength(5);
@@ -297,14 +291,30 @@ describe('TaskGroupChatPage timeline', () => {
 
     await screen.findByText('Message 2');
 
-    const scroller = document.querySelector('.hc-chat-scroll') as HTMLElement;
-    const scrollSpy = vi.spyOn(scroller, 'scrollTo');
-    scroller.scrollTop = 100;
-    scroller.scrollHeight = 200;
-    scroller.clientHeight = 100;
+    const chatBody = document.querySelector('.hc-chat-body') as HTMLElement;
+    expect(chatBody).toBeTruthy();
 
-    window.dispatchEvent(new Event('resize'));
+    let scrollHeight = 200;
+    Object.defineProperty(chatBody, 'scrollHeight', {
+      get: () => scrollHeight,
+      configurable: true
+    });
+    Object.defineProperty(chatBody, 'clientHeight', {
+      get: () => 100,
+      configurable: true
+    });
+    chatBody.scrollTop = 100;
 
-    await waitFor(() => expect(scrollSpy).toHaveBeenCalled());
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+
+    // Simulate async log growth via DOM mutations so the observer-driven pin logic runs. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+    scrollHeight = 260;
+    chatBody.appendChild(document.createElement('div'));
+
+    await waitFor(() => expect(chatBody.scrollTop).toBe(260));
+    rafSpy.mockRestore();
   });
 });

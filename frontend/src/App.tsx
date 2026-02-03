@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ConfigProvider, theme as antdTheme } from 'antd';
 import { getAntdLocale, useLocale, useT } from './i18n';
-import { ACCENT_STORAGE_KEY, getInitialAccentPreset, resolveAccentPreset, type AccentPreset } from './theme/accent';
+import { NEUTRAL_ACCENT } from './theme/accent';
 import { consumeNextNavigationSource, setPrevHashForBack } from './navHistory';
 import { parseRoute } from './router';
 import { AppShell, type ThemePreference } from './pages/AppShell';
@@ -20,6 +20,8 @@ const THEME_STORAGE_KEY = 'hookcode-theme';
 const ACCENT_VAR_PRIMARY = '--accent';
 const ACCENT_VAR_HOVER = '--accent-hover';
 const ACCENT_VAR_ACTIVE = '--accent-active';
+// Keep a single neutral accent to match the flat palette. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203
+const ACCENT = NEUTRAL_ACCENT;
 
 const getSystemPrefersDark = (): boolean =>
   Boolean(typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
@@ -40,13 +42,12 @@ function App() {
   const lastHashRef = useRef<string>(initialHash);
   const [hash, setHash] = useState(() => initialHash);
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => getInitialThemePreference());
-  const [accentPreset, setAccentPreset] = useState<AccentPreset>(() => getInitialAccentPreset());
 
   const resolvedTheme: 'light' | 'dark' =
     themePreference === 'system' ? (getSystemPrefersDark() ? 'dark' : 'light') : themePreference;
 
   const route = useMemo(() => parseRoute(hash), [hash]);
-  const accent = useMemo(() => resolveAccentPreset(accentPreset), [accentPreset]);
+  const accent = ACCENT;
 
   useEffect(() => {
     const onHashChange = () => {
@@ -98,12 +99,6 @@ function App() {
     window.localStorage?.setItem(THEME_STORAGE_KEY, themePreference);
   }, [themePreference]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    // Persist accent preset so the UI stays consistent across refreshes.
-    window.localStorage?.setItem(ACCENT_STORAGE_KEY, accentPreset);
-  }, [accentPreset]);
-
   return (
     <ConfigProvider
       locale={getAntdLocale(locale)}
@@ -126,8 +121,6 @@ function App() {
         route={route}
         themePreference={themePreference}
         onThemePreferenceChange={setThemePreference}
-        accentPreset={accentPreset}
-        onAccentPresetChange={setAccentPreset}
       />
     </ConfigProvider>
   );

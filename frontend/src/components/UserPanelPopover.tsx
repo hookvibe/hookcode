@@ -30,8 +30,6 @@ import {
   ApiOutlined,
   CloseOutlined
 } from '@ant-design/icons';
-import type { AccentPreset } from '../theme/accent';
-import { ACCENT_PRESET_OPTIONS } from '../theme/accent';
 import {
   changeMyPassword,
   createMyApiToken,
@@ -119,18 +117,15 @@ const normalizeRepoProfiles = (value: unknown): UserRepoProviderCredentialProfil
 const normalizeModelProfiles = (value: unknown): UserModelProviderCredentialProfilePublic[] =>
   Array.isArray(value) ? (value.filter(Boolean) as any) : [];
 
+// Accent is fixed to a neutral palette so the panel props focus on theme + locale. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203
 export interface UserPanelPopoverProps {
   themePreference: ThemePreference;
   onThemePreferenceChange: (pref: ThemePreference) => void;
-  accentPreset: AccentPreset;
-  onAccentPresetChange: (preset: AccentPreset) => void;
 }
 
 export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
   themePreference,
-  onThemePreferenceChange,
-  accentPreset,
-  onAccentPresetChange
+  onThemePreferenceChange
 }) => {
   const t = useT();
   const locale = useLocale();
@@ -895,29 +890,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     }
   }, [accountEditDisabled, canUseAccountApis, message, passwordForm, savingPassword, t]);
 
-  const accentOptions = useMemo(
-    () =>
-      ACCENT_PRESET_OPTIONS.map((opt) => ({
-        value: opt.key,
-        label: (
-          <Space size={8}>
-            <span
-              aria-hidden="true"
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 999,
-                background: opt.primary,
-                boxShadow: 'inset 0 0 0 1px var(--hc-border)'
-              }}
-            />
-            <span>{t(`settings.accent.${opt.key}` as any)}</span>
-          </Space>
-        )
-      })),
-    [t]
-  );
-
   const closePanel = useCallback(() => {
     setOpen(false);
     setProfileFormOpen(false);
@@ -1334,35 +1306,25 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               </div>
             </div>
 
+            {/* Keep settings focused on language + theme now that accent is fixed. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */}
             <div className="hc-settings-section">
               <div className="hc-settings-section-title">{t('panel.settings.themeTitle')}</div>
               <div className="hc-theme-cards">
                 {[
-                    { key: 'light', label: t('common.theme.light') },
-                    { key: 'dark', label: t('common.theme.dark') },
-                    { key: 'system', label: t('common.theme.system') }
+                  { key: 'light', label: t('common.theme.light') },
+                  { key: 'dark', label: t('common.theme.dark') },
+                  { key: 'system', label: t('common.theme.system') }
                 ].map((th) => (
-                    <div
-                        key={th.key}
-                        className={`hc-theme-card hc-theme-card--${th.key} ${themePreference === th.key ? 'hc-theme-card--active' : ''}`}
-                        onClick={() => onThemePreferenceChange(th.key as any)}
-                    >
-                        <div className="hc-theme-card-preview" />
-                        <div className="hc-theme-card-label">{th.label}</div>
-                    </div>
+                  <div
+                    key={th.key}
+                    className={`hc-theme-card hc-theme-card--${th.key} ${themePreference === th.key ? 'hc-theme-card--active' : ''}`}
+                    onClick={() => onThemePreferenceChange(th.key as any)}
+                  >
+                    <div className="hc-theme-card-preview" />
+                    <div className="hc-theme-card-label">{th.label}</div>
+                  </div>
                 ))}
               </div>
-            </div>
-
-            <div className="hc-settings-section">
-                <div className="hc-settings-section-title">{t('panel.settings.accentTitle')}</div>
-                {/* UX (2026-01-15): Keep settings controls full-width to match other modal content (avoid narrow selects). */}
-                <Select
-                    value={accentPreset}
-                    style={{ width: '100%' }}
-                    onChange={(value) => onAccentPresetChange(value as any)}
-                    options={accentOptions as any}
-                />
             </div>
           </>
         );

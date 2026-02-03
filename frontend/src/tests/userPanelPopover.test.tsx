@@ -75,12 +75,8 @@ const renderPopover = (props?: { token?: string }) => {
   if (props?.token) window.localStorage.setItem('hookcode-token', props.token);
   return render(
     <AntdApp>
-      <UserPanelPopover
-        themePreference="dark"
-        onThemePreferenceChange={() => {}}
-        accentPreset="blue"
-        onAccentPresetChange={() => {}}
-      />
+      {/* Keep the test render aligned with fixed neutral accent settings. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */}
+      <UserPanelPopover themePreference="dark" onThemePreferenceChange={() => {}} />
     </AntdApp>
   );
 };

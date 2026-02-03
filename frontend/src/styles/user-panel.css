@@ -4,7 +4,7 @@
  *
  * Design goals:
  * - Keep the modal size consistent across tabs (scroll inside tab panes).
- * - Use a modern "soft glass" surface with clear borders and accent-aware active states.
+ * - Use a modern flat neutral surface with clear borders and accent-aware active states. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203
  *
  * Change record:
  * - 2026-01-12: Redesign modal layout to be fixed-size and tab-consistent.
@@ -223,5 +223,4 @@
   outline: none;
   box-shadow: var(--hc-focus-ring);
 }
-
 

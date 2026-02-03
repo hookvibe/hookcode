@@ -1,13 +1,11 @@
 /* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
-/* Keep blockquotes, tables, and alerts cohesive with the glass panels. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Keep blockquotes, tables, and alerts cohesive with flat neutral panels. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 blockquote,
 .alert,
 table {
   border: 1px solid var(--glass-border);
   background-color: var(--glass-surface);
   box-shadow: var(--glass-shadow-soft);
-  backdrop-filter: blur(calc(var(--glass-blur) * 0.8));
-  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.8));
 }
 
 blockquote {
@@ -16,7 +14,7 @@ blockquote {
   color: var(--ifm-color-content);
 }
 
-/* Unify table borders and spacing for readability. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Unify table borders and spacing for readability. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 table {
   border-collapse: collapse;
   width: 100%;
@@ -28,11 +26,11 @@ table td {
   padding: 0.65rem 0.75rem;
 }
 
+/* Keep table headers neutral in both themes. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 table thead th {
-  background-color: rgba(59, 130, 246, 0.12);
+  background-color: rgba(15, 23, 42, 0.06);
 }
 
 html[data-theme='dark'] table thead th {
-  background-color: rgba(59, 130, 246, 0.22);
+  background-color: rgba(255, 255, 255, 0.08);
 }
-
