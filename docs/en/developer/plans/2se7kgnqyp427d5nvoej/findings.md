@@ -18,12 +18,16 @@
 - Allow manual URL entry in the address bar.
 - Keep all navigation inside the iframe; avoid top-level navigation.
 - Allow external domains to load inside the iframe.
+- Refine the preview panel styling to feel like an embedded browser (chrome/header, address bar polish, iframe frame).
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
 {/* Key discoveries during exploration */}
 - The preview iframe is rendered in `frontend/src/pages/TaskGroupChatPage.tsx` without a `sandbox` attribute.
 - Existing preview header already has actions for logs/open window/copy link, so the browser toolbar should be inserted near the iframe region.
+- UI/UX guidance from ui-ux-pro-max: glassmorphism works well for toolbar chrome (blur 10-20px + subtle borders), keep focus rings visible, and ensure inputs look interactive with distinct styling.
+- ui-ux-pro-max design system output emphasizes avoiding flat layouts, using depth/shadows, and keeping motion subtle (200-300ms) with visible focus states.
+- Browser-style affordances (window control dots, address bar prefix, framed iframe) reinforce the embedded preview as a mini browser without changing functionality.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}
@@ -32,6 +36,8 @@
 |----------|-----------|
 | Apply iframe sandbox with `allow-scripts allow-same-origin allow-forms` | Enforces iframe-only navigation while keeping preview scripts/bridge functional. |
 | Add browser toolbar with address input + history controls | Provides explicit navigation controls while supporting external domains. |
+| Add browser-like chrome styling (window controls + frame depth) | Improves affordance that the preview panel is an embedded browser. |
+| Respect `prefers-reduced-motion` for preview chrome animations | Preserves accessibility for motion-sensitive users. |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}

@@ -11,6 +11,7 @@ import {
 
 // Send DOM highlight commands to the preview highlight API. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 // Keep help text aligned with CLI-only highlight flags. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+// Extend CLI help to document bubble payload options. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
 const HELP_TEXT = `Hookcode Preview Highlight
 
 Usage:
@@ -24,6 +25,17 @@ Options:
   --color <css>       Highlight color
   --padding <number>  Padding in px
   --scroll <bool>     Scroll into view
+  --bubble-text <txt> Bubble text to render near the highlight
+  --bubble-placement  Bubble placement: top|right|bottom|left|auto
+  --bubble-align      Bubble alignment: start|center|end
+  --bubble-offset     Bubble offset in px from highlight
+  --bubble-max-width  Bubble max width in px
+  --bubble-theme      Bubble theme: dark|light
+  --bubble-background Bubble background color (CSS)
+  --bubble-text-color Bubble text color (CSS)
+  --bubble-border     Bubble border color (CSS)
+  --bubble-radius     Bubble corner radius in px
+  --bubble-arrow      Bubble arrow enabled (true/false)
   --request-id <id>   Optional request id
   --base-url <url>    Override HOOKCODE_API_BASE_URL
   --pat <token>       Override HOOKCODE_PAT
@@ -49,6 +61,17 @@ async function main() {
   const color = args.color;
   const paddingRaw = args.padding;
   const scrollRaw = args.scroll;
+  const bubbleText = args['bubble-text'];
+  const bubblePlacement = args['bubble-placement'];
+  const bubbleAlign = args['bubble-align'];
+  const bubbleOffsetRaw = args['bubble-offset'];
+  const bubbleMaxWidthRaw = args['bubble-max-width'];
+  const bubbleTheme = args['bubble-theme'];
+  const bubbleBackground = args['bubble-background'];
+  const bubbleTextColor = args['bubble-text-color'];
+  const bubbleBorderColor = args['bubble-border'];
+  const bubbleRadiusRaw = args['bubble-radius'];
+  const bubbleArrowRaw = args['bubble-arrow'];
   const requestId = args['request-id'];
 
   if (!baseUrl) {
@@ -83,11 +106,83 @@ async function main() {
     throw new Error('scroll must be a boolean (true/false).');
   }
 
+  const bubbleFlags = [
+    bubbleText,
+    bubblePlacement,
+    bubbleAlign,
+    bubbleOffsetRaw,
+    bubbleMaxWidthRaw,
+    bubbleTheme,
+    bubbleBackground,
+    bubbleTextColor,
+    bubbleBorderColor,
+    bubbleRadiusRaw,
+    bubbleArrowRaw
+  ];
+  // Require bubble text when any bubble flag is provided. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+  if (!bubbleText && bubbleFlags.some((value) => value !== undefined)) {
+    throw new Error('bubble-text is required when using bubble options.');
+  }
+
+  let bubble;
+  if (bubbleText) {
+    bubble = { text: bubbleText };
+    if (bubblePlacement) {
+      const placement = String(bubblePlacement).trim();
+      if (!['top', 'right', 'bottom', 'left', 'auto'].includes(placement)) {
+        throw new Error('bubble-placement must be one of top|right|bottom|left|auto.');
+      }
+      bubble.placement = placement;
+    }
+    if (bubbleAlign) {
+      const align = String(bubbleAlign).trim();
+      if (!['start', 'center', 'end'].includes(align)) {
+        throw new Error('bubble-align must be one of start|center|end.');
+      }
+      bubble.align = align;
+    }
+    if (bubbleTheme) {
+      const theme = String(bubbleTheme).trim();
+      if (!['dark', 'light'].includes(theme)) {
+        throw new Error('bubble-theme must be dark or light.');
+      }
+      bubble.theme = theme;
+    }
+    const bubbleOffset = bubbleOffsetRaw !== undefined ? parseNumber(bubbleOffsetRaw) : undefined;
+    if (bubbleOffsetRaw !== undefined && bubbleOffset === undefined) {
+      throw new Error('bubble-offset must be a number.');
+    }
+    if (bubbleOffset !== undefined) bubble.offset = bubbleOffset;
+
+    const bubbleMaxWidth = bubbleMaxWidthRaw !== undefined ? parseNumber(bubbleMaxWidthRaw) : undefined;
+    if (bubbleMaxWidthRaw !== undefined && bubbleMaxWidth === undefined) {
+      throw new Error('bubble-max-width must be a number.');
+    }
+    if (bubbleMaxWidth !== undefined) bubble.maxWidth = bubbleMaxWidth;
+
+    const bubbleRadius = bubbleRadiusRaw !== undefined ? parseNumber(bubbleRadiusRaw) : undefined;
+    if (bubbleRadiusRaw !== undefined && bubbleRadius === undefined) {
+      throw new Error('bubble-radius must be a number.');
+    }
+    if (bubbleRadius !== undefined) bubble.radius = bubbleRadius;
+
+    const bubbleArrow = bubbleArrowRaw !== undefined ? parseBoolean(bubbleArrowRaw) : undefined;
+    if (bubbleArrowRaw !== undefined && bubbleArrow === undefined) {
+      throw new Error('bubble-arrow must be a boolean (true/false).');
+    }
+    if (bubbleArrow !== undefined) bubble.arrow = bubbleArrow;
+
+    if (bubbleBackground) bubble.background = bubbleBackground;
+    if (bubbleTextColor) bubble.textColor = bubbleTextColor;
+    if (bubbleBorderColor) bubble.borderColor = bubbleBorderColor;
+  }
+
   const payload = { selector };
   if (mode) payload.mode = mode;
   if (color) payload.color = color;
   if (padding !== undefined) payload.padding = padding;
   if (scrollIntoView !== undefined) payload.scrollIntoView = scrollIntoView;
+  if (bubble) payload.bubble = bubble;
   if (requestId) payload.requestId = requestId;
 
   const url = buildUrl(baseUrl, `/api/task-groups/${taskGroupId}/preview/${instanceName}/highlight`);

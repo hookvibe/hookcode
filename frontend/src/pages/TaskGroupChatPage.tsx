@@ -7,6 +7,8 @@ import {
   CopyOutlined,
   ExportOutlined,
   FileTextOutlined,
+  GlobalOutlined,
+  LockOutlined,
   ReloadOutlined,
   SendOutlined,
   UnorderedListOutlined
@@ -456,6 +458,18 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       return '';
     }
   }, [currentPreviewIframeSrc]);
+
+  const previewAddressMeta = useMemo(() => {
+    // Derive address-bar metadata for browser chrome cues. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    const value = (previewAddressEditing ? previewAddressInput : previewAddress).trim();
+    if (!value) return { protocol: '', host: '', isSecure: false };
+    try {
+      const url = new URL(value);
+      return { protocol: url.protocol, host: url.host, isSecure: url.protocol === 'https:' };
+    } catch {
+      return { protocol: '', host: '', isSecure: false };
+    }
+  }, [previewAddress, previewAddressEditing, previewAddressInput]);
 
   useEffect(() => {
     // Reset iframe navigation overrides when the active preview URL changes. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
@@ -1481,7 +1495,15 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               {/* Render multi-instance preview tabs with logs/share controls. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
               <div className="hc-preview-header">
                 <div className="hc-preview-header-main">
-                  <Typography.Text strong>{t('preview.panel.title')}</Typography.Text>
+                  {/* Add window controls to reinforce the embedded browser chrome. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
+                  <div className="hc-preview-header-title">
+                    <div className="hc-preview-window-controls" aria-hidden="true">
+                      <span className="hc-preview-window-dot hc-preview-window-dot--close" />
+                      <span className="hc-preview-window-dot hc-preview-window-dot--minimize" />
+                      <span className="hc-preview-window-dot hc-preview-window-dot--zoom" />
+                    </div>
+                    <Typography.Text strong>{t('preview.panel.title')}</Typography.Text>
+                  </div>
                   <Space size={6}>
                     <span
                       className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
@@ -1489,6 +1511,65 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                     />
                     <Typography.Text type="secondary">{previewAggregateStatusLabel}</Typography.Text>
                   </Space>
+                </div>
+                {/* Render the embedded browser toolbar alongside the preview status row. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
+                <div className="hc-preview-header-browser">
+                  <div className="hc-preview-header-browser-actions">
+                    <Tooltip title={t('preview.browser.back')}>
+                      <Button
+                        size="small"
+                        icon={<ArrowLeftOutlined />}
+                        aria-label={t('preview.browser.back')}
+                        disabled={!currentPreviewIframeSrc}
+                        onClick={handlePreviewBack}
+                      />
+                    </Tooltip>
+                    <Tooltip title={t('preview.browser.forward')}>
+                      <Button
+                        size="small"
+                        icon={<ArrowRightOutlined />}
+                        aria-label={t('preview.browser.forward')}
+                        disabled={!currentPreviewIframeSrc}
+                        onClick={handlePreviewForward}
+                      />
+                    </Tooltip>
+                    <Tooltip title={t('preview.browser.refresh')}>
+                      <Button
+                        size="small"
+                        icon={<ReloadOutlined />}
+                        aria-label={t('preview.browser.refresh')}
+                        disabled={!currentPreviewIframeSrc}
+                        onClick={handlePreviewReload}
+                      />
+                    </Tooltip>
+                  </div>
+                  {/* Add a security/globe prefix to the address bar for browser-like affordance. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
+                  <Input
+                    size="small"
+                    className="hc-preview-header-browser-input"
+                    value={previewAddressInput}
+                    placeholder={t('preview.browser.placeholder')}
+                    aria-label={t('preview.browser.placeholder')}
+                    prefix={
+                      <span
+                        className={`hc-preview-header-browser-prefix${
+                          previewAddressMeta.isSecure ? ' hc-preview-header-browser-prefix--secure' : ''
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {previewAddressMeta.isSecure ? <LockOutlined /> : <GlobalOutlined />}
+                      </span>
+                    }
+                    title={previewAddressInput || previewAddress}
+                    disabled={!currentPreviewIframeSrc}
+                    onChange={(event) => setPreviewAddressInput(event.target.value)}
+                    onFocus={() => setPreviewAddressEditing(true)}
+                    onBlur={() => {
+                      setPreviewAddressEditing(false);
+                      setPreviewAddressInput(previewAddress || currentPreviewIframeSrc);
+                    }}
+                    onPressEnter={() => handlePreviewNavigate()}
+                  />
                 </div>
                 <div className="hc-preview-header-actions">
                   <Tooltip title={t('preview.logs.open')}>
@@ -1533,62 +1614,19 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               <div className="hc-preview-body">
                 {activePreviewStatus === 'running' && previewIframeSrc ? (
                   <>
-                    {/* Render an embedded browser toolbar for iframe navigation. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
-                    <div className="hc-preview-browser">
-                      <div className="hc-preview-browser-actions">
-                        <Tooltip title={t('preview.browser.back')}>
-                          <Button
-                            size="small"
-                            icon={<ArrowLeftOutlined />}
-                            aria-label={t('preview.browser.back')}
-                            disabled={!currentPreviewIframeSrc}
-                            onClick={handlePreviewBack}
-                          />
-                        </Tooltip>
-                        <Tooltip title={t('preview.browser.forward')}>
-                          <Button
-                            size="small"
-                            icon={<ArrowRightOutlined />}
-                            aria-label={t('preview.browser.forward')}
-                            disabled={!currentPreviewIframeSrc}
-                            onClick={handlePreviewForward}
-                          />
-                        </Tooltip>
-                        <Tooltip title={t('preview.browser.refresh')}>
-                          <Button
-                            size="small"
-                            icon={<ReloadOutlined />}
-                            aria-label={t('preview.browser.refresh')}
-                            disabled={!currentPreviewIframeSrc}
-                            onClick={handlePreviewReload}
-                          />
-                        </Tooltip>
-                      </div>
-                      <Input
-                        size="small"
-                        className="hc-preview-browser-input"
-                        value={previewAddressInput}
-                        placeholder={t('preview.browser.placeholder')}
-                        aria-label={t('preview.browser.placeholder')}
-                        onChange={(event) => setPreviewAddressInput(event.target.value)}
-                        onFocus={() => setPreviewAddressEditing(true)}
-                        onBlur={() => {
-                          setPreviewAddressEditing(false);
-                          setPreviewAddressInput(previewAddress || currentPreviewIframeSrc);
-                        }}
-                        onPressEnter={() => handlePreviewNavigate()}
+                    {/* Sandbox the iframe so navigation stays inside the preview panel. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
+                    {/* Wrap the iframe in a browser-style frame for depth and rounded corners. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
+                    <div className="hc-preview-iframe-shell">
+                      <iframe
+                        className="hc-preview-iframe"
+                        title={activePreviewInstance?.name ?? 'preview'}
+                        src={currentPreviewIframeSrc}
+                        sandbox="allow-scripts allow-same-origin allow-forms"
+                        loading="lazy"
+                        ref={previewIframeRef}
+                        onLoad={handlePreviewIframeLoad}
                       />
                     </div>
-                    {/* Sandbox the iframe so navigation stays inside the preview panel. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
-                    <iframe
-                      className="hc-preview-iframe"
-                      title={activePreviewInstance?.name ?? 'preview'}
-                      src={currentPreviewIframeSrc}
-                      sandbox="allow-scripts allow-same-origin allow-forms"
-                      loading="lazy"
-                      ref={previewIframeRef}
-                      onLoad={handlePreviewIframeLoad}
-                    />
                   </>
                 ) : (
                   <div className="hc-preview-placeholder">

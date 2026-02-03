@@ -40,6 +40,10 @@
   - Added iframe navigation state, toolbar handlers, and sandbox attribute.
   - Updated preview header actions to use the current iframe address.
   - Added toolbar styles and i18n labels.
+  - Moved the address bar into the preview header row to align with status/actions.
+  - Ran ui-ux-pro-max design system search to guide browser-like polish.
+  - Polished the preview chrome with window controls, address bar prefix, framed iframe, and header alignment.
+  - Added browser-like depth, glassy toolbar styling, and entrance animation for the preview panel.
   - Added UI test coverage for sandbox + toolbar rendering.
 - Files created/modified:
   - `frontend/src/pages/TaskGroupChatPage.tsx`
@@ -50,17 +54,18 @@
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Test execution and results. */}
-- **Status:** complete
+- **Status:** pending
 - Actions taken:
-  - Ran full test suite via `pnpm test`.
+  - Prior run: full test suite via `pnpm test` (before browser chrome polish).
+  - No new tests run after preview styling updates.
 - Files created/modified:
   - `docs/en/developer/plans/2se7kgnqyp427d5nvoej/progress.md`
 
 ### Phase 5: Delivery
 {/* WHAT: Final handoff summary for the user. */}
-- **Status:** complete
+- **Status:** pending
 - Actions taken:
-  - Prepared delivery summary and updated changelog entry.
+  - Awaiting updated delivery summary after preview chrome polish.
 - Files created/modified:
   - `docs/en/change-log/0.0.0.md`
 
@@ -68,7 +73,8 @@
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-| Full test suite | `pnpm test` | All tests pass | All tests pass (backend + frontend) | ✓ |
+| Full test suite | `pnpm test` | All tests pass | All tests pass (backend + frontend) before chrome polish | ✓ |
+| Preview chrome polish | Not run | UI changes verified | Not run yet | - |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
@@ -82,9 +88,9 @@
 {/* If you can answer these, context is solid */}
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 5 complete |
-| Where am I going? | Task complete |
-| What's the goal? | Add iframe toolbar + sandboxed navigation for previews |
+| Where am I? | Phase 3 complete (Phase 4 pending) |
+| Where am I going? | Verify preview polish, update delivery summary |
+| What's the goal? | Add iframe toolbar + sandboxed navigation, plus browser-like preview chrome |
 | What have I learned? | See findings.md |
 | What have I done? | See above |
 

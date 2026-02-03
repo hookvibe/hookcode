@@ -275,6 +275,8 @@ const readCodexOutputSchema = async (params: {
       await params.appendLog('codex-schema.json must be a JSON object; skipping outputSchema.');
       return undefined;
     }
+    // Log successful codex-schema loads for structured-output troubleshooting. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    await params.appendLog('Loaded codex-schema.json for outputSchema from task-group root.');
     return parsed;
   } catch (err: any) {
     if (err?.code === 'ENOENT') return undefined;
@@ -478,10 +480,26 @@ export const buildTaskGroupAgentsContent = (params: { envFileContents: string; r
     '## Planning with Files',
     '',
     '<IMPORTANT>',
-    'For complex tasks (3+ steps, research, projects):',
-    '1. Read skill: `.codex/skills/planning-with-files/SKILL.md`',
-    '2. Create task_plan.md, findings.md, progress.md in your project directory',
-    '3. Follow 3-file pattern throughout the task',
+    'MANDATORY: Must use planning-with-files skill for all tasks:',
+    '1. First scan the session directory ( Current directory ) to check if planning files exist',
+    '2. If files exist: Continue working with existing task_plan.md, findings.md, progress.md',
+    '3. If files do not exist:',
+    '   a. Read skill: `.codex/skills/planning-with-files/SKILL.md`',
+    '   b. Create task_plan.md, findings.md, progress.md in the session directory',
+    '4. Follow 3-file pattern throughout the task',
+    '</IMPORTANT>',
+    '',
+    '## Web Project Modifications',
+    '',
+    '<IMPORTANT>',
+    'When modifying web project content (frontend or any preview-enabled project):',
+    '1. Use hookcode-preview-highlight skill to show users what was changed',
+    '2. Read skill: `.codex/skills/hookcode-preview-highlight/SKILL.md`',
+    '3. After making changes, highlight the modified DOM elements:',
+    '   - Send highlight commands with specific CSS selectors',
+    '   - Include bubble tooltips explaining what was changed',
+    '   - Use appropriate colors (e.g., blue for additions, yellow for modifications)',
+    '4. Inform users about the exact location of changes in the UI',
     '</IMPORTANT>',
     '',
     '```env',

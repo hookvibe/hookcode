@@ -139,3 +139,6 @@
 ---
 {/* REMINDER: - Update after completing each phase or encountering errors - Be detailed - this is your "what happened" log - Include timestamps for errors to track when issues occurred */}
 *Update after completing each phase or encountering errors*
+- 2026-02-02: Added a success log when codex-schema.json is parsed so task logs confirm outputSchema loading (backend/src/agent/agent.ts).
+- 2026-02-02: Re-added codex-schema success log in backend/src/agent/agent.ts to confirm outputSchema loading (user request).
+- 2026-02-02: Added Codex SDK demo files for JSON output testing: example/codex-exec-demo/demo.mjs and example/codex-exec-demo/README.md. No tests run.

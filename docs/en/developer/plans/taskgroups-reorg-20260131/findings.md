@@ -182,3 +182,24 @@
 {/* REMINDER: The 2-Action Rule After every 2 view/browser/search operations, you MUST update this file. This prevents visual information from being lost when context resets. */}
 *Update this file after every 2 view/browser/search operations*
 *This prevents visual information from being lost*
+- 2026-02-02: User reports the taskgroups-reorg-20260131 outputSchema (output + next_actions) is not yielding next_actions in Codex output; they suspect wiring/path in backend/src/agent/build/task-groups/2f937f17-26ca-4cfd-a084-619b11e276a9.
+- 2026-02-02: Located codex-schema/outputSchema wiring in backend/src/agent/agent.ts and backend/src/modelProviders/codex.ts; tests cover outputSchema forwarding and codex-schema parsing in backend/src/tests/unit/*.
+- 2026-02-02: readCodexOutputSchema loads codex-schema.json from taskGroupDir (task-group root) and runCodexExecWithSdk passes outputSchema into Codex turn options; defaults include output+next_actions schema seeded into taskGroupDir/codex-schema.json.
+- 2026-02-02: Codex provider sets finalResponse from agent_message text; frontend parses next_actions via extractTaskResultSuggestions in frontend/src/utils/task.tsx based on structured JSON in task result.
+- 2026-02-02: Task-group initialization seeds codex-schema.json in taskGroupDir; outputText is derived from Codex streamed agent_message text (outputLastMessageFile read is commented out).
+- 2026-02-02: taskGroupDir uses TASK_GROUP_WORKSPACE_ROOT, defined as path.join(BUILD_ROOT, 'task-groups'); ensureTaskGroupLayout always seeds codex-schema.json at taskGroupDir before clone.
+- 2026-02-02: Task group 2f937f17-26ca-4cfd-a084-619b11e276a9 contains codex-schema.json (valid object with output/next_actions) and codex-output.txt in task-group root; schema file location matches readCodexOutputSchema path.
+- 2026-02-02: codex-output.txt for task group is plain markdown (no JSON), so frontend parseStructuredTaskOutput returns null; rg in node_modules found no outputSchema references (SDK likely uses different option name).
+- 2026-02-02: No direct 'Codex' class or outputSchema references found under node_modules root; likely SDK package is nested under pnpm store (.pnpm) or uses different API names.
+- 2026-02-02: Found @openai/codex-sdk in pnpm store; README confirms outputSchema is a valid per-turn option (thread.run/ runStreamed) for JSON structured output.
+- 2026-02-02: backend depends on @openai/codex-sdk ^0.93.0; README documents outputSchema usage with thread.run, not explicitly with runStreamed.
+- 2026-02-02: Codex SDK types define TurnOptions.outputSchema for runStreamed; AgentMessageItem text is documented as JSON when structured output is requested.
+- 2026-02-02: Codex SDK runStreamed writes output schema to a temp file and passes --output-schema to codex exec; therefore structured output depends on the underlying codex executable honoring that flag.
+- 2026-02-02: Codex SDK vendor binaries are present under vendor/*; local arch is arm64 so SDK will use vendor/aarch64-apple-darwin/codex/codex.
+- 2026-02-02: buildPrompt is assembled in backend/src/agent/promptBuilder.ts; need to locate where to inject structured-output instruction if required.
+- 2026-02-02: Codex SDK runs vendor binary with 'exec --experimental-json' and includes --output-schema when outputSchema is provided.
+- 2026-02-02: codex features list shows no structured-output feature flag; nothing obvious to enable for outputSchema behavior.
+- 2026-02-02: taskGroupWorkspace.test.ts only asserts that logs include 'codex-schema.json' after invalid JSON; adding a success log should not break tests (no strict log count).
+- 2026-02-02: Re-added a success log in readCodexOutputSchema to confirm codex-schema.json load (message includes 'Loaded codex-schema.json ...').
+- 2026-02-02: example/codex-exec-demo exists but is empty; will add a minimal Codex SDK demo script there.
+- 2026-02-02: example/codex contains log artifacts only; no runnable demo script exists, so codex-exec-demo will be new.

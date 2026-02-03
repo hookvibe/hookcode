@@ -393,6 +393,7 @@ export const runCodexExecWithSdk = async (params: {
   const turnOptions: { signal?: AbortSignal; outputSchema?: unknown } = {};
   if (params.signal) turnOptions.signal = params.signal;
   if (params.outputSchema) turnOptions.outputSchema = params.outputSchema;
+  console.log('codex runStreamed turnOptions', turnOptions);
   const { events } = await thread.runStreamed(prompt, turnOptions);
 
   try {

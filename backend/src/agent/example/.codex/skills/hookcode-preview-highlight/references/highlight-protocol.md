@@ -8,11 +8,24 @@ Send a DOM highlight command to the preview iframe bridge for a specific task gr
 
 ### Request body
 - `selector` (string, required): CSS selector to highlight.
-- `padding` (number, optional): Padding in px around the element. Range is validated on the backend.
-- `color` (string, optional): CSS color value for the outline/mask.
-- `mode` (`outline` | `mask`, optional): Highlight style.
-- `scrollIntoView` (boolean, optional): Scroll element into view before highlighting.
+- `padding` (number, optional): Padding in px around the element (0-64, default 4).
+- `color` (string, optional): CSS color value for the outline/mask (max length 40).
+- `mode` (`outline` | `mask`, optional): Highlight style (default `outline`).
+- `scrollIntoView` (boolean, optional): Scroll element into view before highlighting (default `false`).
+- `bubble` (object, optional): Tooltip bubble payload rendered near the highlight.
+  - `text` (string, required when bubble is present): Bubble copy text (1-280 chars).
+  - `placement` (`top` | `right` | `bottom` | `left` | `auto`, optional): Preferred bubble placement (default `auto`).
+  - `align` (`start` | `center` | `end`, optional): Alignment along the target edge (default `center`).
+  - `offset` (number, optional): Gap in px between highlight and bubble (0-64, default 10).
+  - `maxWidth` (number, optional): Max bubble width in px (120-640, default 320).
+  - `theme` (`dark` | `light`, optional): Theme preset (default `dark`).
+  - `background` (string, optional): CSS background override.
+  - `textColor` (string, optional): CSS text color override.
+  - `borderColor` (string, optional): CSS border color override.
+  - `radius` (number, optional): Corner radius in px (0-24, default 12).
+  - `arrow` (boolean, optional): Show the bubble arrow pointer (default true).
 - `requestId` (string, optional): Client-supplied request id for tracking.
+<!-- Add bubble payload fields to highlight protocol docs. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48 -->
 
 ### Response body
 - `success` (boolean): Whether the command was published.
@@ -23,6 +36,8 @@ Send a DOM highlight command to the preview iframe bridge for a specific task gr
 - `404 Preview instance not found`: invalid task group or instance name.
 - `409 preview_not_running`: preview instance is not running or starting.
 - `400` validation errors: invalid selector, padding out of range, or mode not in `outline|mask`.
+- `bubble_text_required`: bubble payload present without valid `text`.
+<!-- Document bubble-specific error responses. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48 -->
 
 ## Bridge message types (postMessage)
 
@@ -35,7 +50,9 @@ These are handled by `shared/preview-bridge.js` inside the previewed app:
 ### Highlight payload fields
 - `selector` (string, required)
 - `padding`, `color`, `mode`, `scrollIntoView` (optional)
+- `bubble` (optional)
 - `requestId` (string, optional)
+<!-- Extend bridge payload docs for bubble option. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48 -->
 
 ### Response payload fields
 - `ok` (boolean)
