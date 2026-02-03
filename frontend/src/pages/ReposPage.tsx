@@ -5,7 +5,7 @@ import type { RepoAutomationConfig, RepoProvider, Repository } from '../api';
 import { createRepo, fetchRepo, listRepos } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildRepoHash } from '../router';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 import { parseRepoUrl } from '../utils/repoUrl';
 
@@ -47,9 +47,10 @@ const summarizeAutomation = (config?: RepoAutomationConfig | null) => {
 
 export interface ReposPageProps {
   userPanel?: ReactNode;
+  navToggle?: PageNavMenuAction;
 }
 
-export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
+export const ReposPage: FC<ReposPageProps> = ({ userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -164,6 +165,8 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
             {t('repos.page.create')}
           </Button>
         }
+        // Provide the mobile nav toggle so the header can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        navToggle={navToggle}
         userPanel={userPanel}
       />
 

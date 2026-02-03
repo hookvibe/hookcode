@@ -1,6 +1,6 @@
 import type { FC, ReactNode } from 'react';
 import { Button, Typography } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, MenuOutlined } from '@ant-design/icons';
 
 /**
  * PageNav:
@@ -28,6 +28,14 @@ export interface PageNavBackAction {
   onClick: () => void;
 }
 
+export interface PageNavMenuAction {
+  /**
+   * Accessible label for the navigation menu button.
+   */
+  ariaLabel: string;
+  onClick: () => void;
+}
+
 export interface PageNavProps {
   title: string;
   /**
@@ -47,15 +55,30 @@ export interface PageNavProps {
    */
   actions?: ReactNode;
   /**
+   * Optional navigation menu trigger (mobile sidebar drawer).
+   */
+  navToggle?: PageNavMenuAction;
+  /**
    * "My panel" trigger. Must be rendered as the rightmost element.
    */
   userPanel?: ReactNode;
 }
 
-export const PageNav: FC<PageNavProps> = ({ title, back, meta, actions, userPanel }) => {
+export const PageNav: FC<PageNavProps> = ({ title, back, meta, actions, navToggle, userPanel }) => {
+  const showNavToggle = Boolean(navToggle && !back); // Keep back navigation as the primary left action on detail pages. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
   return (
     <div className="hc-page__header hc-nav">
       <div className="hc-nav__left">
+        {showNavToggle ? (
+          <Button
+            type="text"
+            size="small"
+            className="hc-nav__menu"
+            icon={<MenuOutlined />}
+            aria-label={navToggle?.ariaLabel}
+            onClick={navToggle?.onClick}
+          />
+        ) : null}
         {back ? (
           <Button
             type="text"

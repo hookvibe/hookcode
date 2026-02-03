@@ -171,3 +171,17 @@
 .hc-sider-menu .ant-menu-item-icon {
   color: var(--muted);
 }
+
+/* Boost touch target sizes for sidebar controls on phones. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
+@media (max-width: 768px) {
+  .hc-sider-item.ant-btn,
+  .hc-sider-nav__item.ant-btn,
+  .hc-sider-bottom__item.ant-btn {
+    height: 40px;
+  }
+
+  .hc-sider-section__toggle.ant-btn {
+    width: 32px;
+    height: 32px;
+  }
+}

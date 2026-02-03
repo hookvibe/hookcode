@@ -5,7 +5,7 @@ import type { TaskGroup, TaskGroupKind } from '../api';
 import { fetchTaskGroups } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildTaskGroupHash } from '../router';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 
 /**
@@ -55,9 +55,10 @@ const getKindColor = (kind: TaskGroupKind): string | undefined => {
 
 export interface TaskGroupsPageProps {
   userPanel?: ReactNode;
+  navToggle?: PageNavMenuAction;
 }
 
-export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel }) => {
+export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -122,6 +123,8 @@ export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel }) => {
             {t('common.refresh')}
           </Button>
         }
+        // Provide the mobile nav toggle so Task Groups can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        navToggle={navToggle}
         userPanel={userPanel}
       />
 

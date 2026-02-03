@@ -21,7 +21,7 @@ import { JsonViewer } from '../components/JsonViewer';
 import { MarkdownViewer } from '../components/MarkdownViewer';
 import { TaskLogViewer } from '../components/TaskLogViewer';
 import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { getPrevHashForBack, isInAppHash } from '../navHistory';
 import {
   eventTag,
@@ -59,11 +59,12 @@ export interface TaskDetailPageProps {
   taskId: string;
   userPanel?: ReactNode;
   taskLogsEnabled?: boolean | null;
+  navToggle?: PageNavMenuAction;
 }
 
 const providerLabel = (provider: string) => (provider === 'github' ? 'GitHub' : 'GitLab');
 
-export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, taskLogsEnabled }) => {
+export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, taskLogsEnabled, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -718,6 +719,8 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
           ) : undefined
         }
         actions={headerActions}
+        // Pass the mobile nav toggle (hidden when back is shown) for consistent header behavior. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        navToggle={navToggle}
         userPanel={userPanel}
       />
 

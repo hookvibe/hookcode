@@ -6,7 +6,7 @@ import { executeTaskNow, fetchTaskStats, fetchTasks, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildTaskHash, buildTasksHash } from '../router';
 import { clampText, getTaskTitle, queuedHintText, statusTag } from '../utils/task';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 import { getStatusSummaryKey, normalizeStatusFilter, type StatusFilter, type StatusSummaryKey } from './tasks/taskFilters';
 import { formatTaskTimestamp } from './tasks/formatters';
@@ -26,9 +26,10 @@ export interface TasksPageProps {
   status?: string;
   repoId?: string;
   userPanel?: ReactNode;
+  navToggle?: PageNavMenuAction;
 }
 
-export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => {
+export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -230,6 +231,8 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
             {t('common.refresh')}
           </Button>
         }
+        // Provide the mobile nav toggle so Tasks can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        navToggle={navToggle}
         userPanel={userPanel}
       />
 

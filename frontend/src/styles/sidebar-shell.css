@@ -160,3 +160,41 @@
 }
 
 /* Place the task-group header label and CTA on one row for visibility. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131 */
+
+/* Reduce sidebar padding on smaller screens to preserve content width. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
+@media (max-width: 1024px) {
+  .hc-sider__top {
+    padding: 14px 10px 8px;
+  }
+
+  .hc-sider__scroll {
+    padding: 10px 6px 12px;
+  }
+
+  .hc-sider__bottom {
+    padding: 8px 6px 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Hide the sidebar rail entirely on phones to avoid a persistent 1-column gutter. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
+  .hc-sider--mobileHidden {
+    border-right: none !important;
+  }
+}
+
+/* Style the mobile navigation drawer so it matches the sidebar chrome. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
+.hc-sider-drawer .ant-drawer-content {
+  background: var(--hc-sider-bg);
+}
+
+.hc-sider-drawer .ant-drawer-body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hc-sider-drawer .hc-sider__inner {
+  height: 100%;
+}

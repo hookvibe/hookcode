@@ -65,7 +65,7 @@ import { RepoOnboardingWizard } from '../components/repos/RepoOnboardingWizard';
 import { ResponsiveDialog } from '../components/dialogs/ResponsiveDialog';
 import { TemplateEditor } from '../components/TemplateEditor';
 import { ScrollableTable } from '../components/ScrollableTable';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { buildWebhookUrl } from '../utils/webhook';
 import { getRobotProviderLabel } from '../utils/robot';
 import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
@@ -104,6 +104,7 @@ import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
 export interface RepoDetailPageProps {
   repoId: string;
   userPanel?: ReactNode;
+  navToggle?: PageNavMenuAction;
 }
 
 type ModelProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
@@ -219,7 +220,7 @@ const resolveRobotStatusTag = (t: ReturnType<typeof useT>, robot: RepoRobot) => 
   return <Tag color="gold">{t('repos.robots.status.pending')}</Tag>;
 };
 
-export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) => {
+export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -1387,6 +1388,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
             </Typography.Text>
           }
 	          actions={headerActions}
+	          // Pass the mobile nav toggle (hidden when back is shown) for consistent header behavior. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+	          navToggle={navToggle}
 	          userPanel={userPanel}
 	        />
 

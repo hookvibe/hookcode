@@ -12,5 +12,9 @@
   background: var(--hc-content-bg);
   min-width: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  /* Ensure inner pages can control scrolling inside the content column. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
 }
-

@@ -184,3 +184,14 @@
   /* Keep the time window label compact and readable. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
   font-size: 12px;
 }
+
+/* Reduce composer padding on phones to keep the input above the fold. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
+@media (max-width: 768px) {
+  .hc-chat-centered-view {
+    padding: 18px 14px;
+  }
+
+  .hc-chat-footer-composer {
+    padding: 12px 14px 16px;
+  }
+}

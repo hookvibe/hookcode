@@ -5,7 +5,7 @@ import type { Repository, Task } from '../api';
 import { fetchTasks, listRepos, unarchiveRepo } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildArchiveHash, buildRepoHash, buildTaskHash } from '../router';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 import { clampText, getTaskTitle, statusTag } from '../utils/task';
 
@@ -17,6 +17,7 @@ import { clampText, getTaskTitle, statusTag } from '../utils/task';
 export interface ArchivePageProps {
   tab?: string;
   userPanel?: ReactNode;
+  navToggle?: PageNavMenuAction;
 }
 
 type ArchiveTabKey = 'repos' | 'tasks';
@@ -27,7 +28,7 @@ const normalizeTab = (value: string | undefined): ArchiveTabKey => {
   return 'repos';
 };
 
-export const ArchivePage: FC<ArchivePageProps> = ({ tab, userPanel }) => {
+export const ArchivePage: FC<ArchivePageProps> = ({ tab, userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -149,6 +150,8 @@ export const ArchivePage: FC<ArchivePageProps> = ({ tab, userPanel }) => {
             {t('common.refresh')}
           </Button>
         }
+        // Provide the mobile nav toggle so Archive can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        navToggle={navToggle}
         userPanel={userPanel}
       />
 

@@ -1,5 +1,5 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Layout, Menu, Space, Tooltip, Typography } from 'antd';
+import { Button, Drawer, Layout, Menu, Space, Tooltip, Typography } from 'antd';
 import {
   BugOutlined,
   CheckCircleFilled,
@@ -111,15 +111,38 @@ const SIDEBAR_POLL_ERROR_MS = 2_000; // Retry faster while backend is starting t
 const SIDEBAR_SSE_RECONNECT_BASE_MS = 2_000;
 const SIDEBAR_SSE_RECONNECT_MAX_MS = 30_000; // Cap SSE reconnect backoff to reduce dev proxy spam when backend is down. 58w1q3n5nr58flmempxe
 
+const SIDEBAR_COMPACT_QUERY = '(max-width: 1024px)'; // Use this breakpoint to detect compact sidebar layouts. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+const SIDEBAR_MOBILE_QUERY = '(max-width: 768px)'; // Use this breakpoint to fully hide the sidebar on phones. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+
 const SIDER_COLLAPSED_STORAGE_KEY = 'hookcode-sider-collapsed';
 
-const getInitialSiderCollapsed = (): boolean => {
-  // Persist sidebar collapsed preference in localStorage across refresh. l7pvyrepxb0mx2ipdh2y
+const getStoredSiderCollapsed = (): boolean => {
+  // Read the desktop sidebar preference without forcing compact defaults. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
   if (typeof window === 'undefined') return false;
   const stored = window.localStorage?.getItem(SIDER_COLLAPSED_STORAGE_KEY) ?? '';
   if (stored === '1' || stored === 'true') return true;
   if (stored === '0' || stored === 'false') return false;
   return false;
+};
+
+const getInitialCompactLayout = (): boolean => {
+  // Default to the compact layout on smaller viewports to keep content readable. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+  if (typeof window === 'undefined') return false;
+  return Boolean(window.matchMedia?.(SIDEBAR_COMPACT_QUERY).matches);
+};
+
+const getInitialMobileLayout = (): boolean => {
+  // Detect phone layouts early so the sidebar can be fully hidden. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+  if (typeof window === 'undefined') return false;
+  return Boolean(window.matchMedia?.(SIDEBAR_MOBILE_QUERY).matches);
+};
+
+const getInitialSiderCollapsed = (): boolean => {
+  // Persist sidebar collapsed preference in localStorage across refresh. l7pvyrepxb0mx2ipdh2y
+  if (typeof window === 'undefined') return false;
+  // Force a collapsed rail on compact screens before applying desktop preferences. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+  if (getInitialCompactLayout()) return true;
+  return getStoredSiderCollapsed();
 };
 
 export const AppShell: FC<AppShellProps> = ({
@@ -140,6 +163,10 @@ export const AppShell: FC<AppShellProps> = ({
   const [taskLogsEnabled, setTaskLogsEnabled] = useState<boolean | null>(null); // Cache backend feature toggles from `/auth/me` for downstream UI guards. 0nazpc53wnvljv5yh7c6
   const [authChecking, setAuthChecking] = useState(true);
   const [siderCollapsed, setSiderCollapsed] = useState(() => getInitialSiderCollapsed()); // Initialize from localStorage to keep collapsed state across refresh. l7pvyrepxb0mx2ipdh2y
+  const [isCompactLayout, setIsCompactLayout] = useState(() => getInitialCompactLayout()); // Track compact viewports for responsive sidebar behavior. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+  const [isMobileLayout, setIsMobileLayout] = useState(() => getInitialMobileLayout()); // Track phone layouts so the sidebar can be fully hidden. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+  const [mobileNavOpen, setMobileNavOpen] = useState(false); // Control the mobile navigation drawer visibility. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+  const desktopCollapsedRef = useRef<boolean>(getStoredSiderCollapsed()); // Track desktop sidebar preference when auto-collapsing on small screens. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
   const [taskSectionExpanded, setTaskSectionExpanded] = useState<Record<SidebarTaskSectionKey, boolean>>(defaultExpanded);
 
   const [taskStats, setTaskStats] = useState<TaskStatusStats>({
@@ -160,6 +187,61 @@ export const AppShell: FC<AppShellProps> = ({
     // Persist siderCollapsed updates so refresh keeps the user's sidebar preference. l7pvyrepxb0mx2ipdh2y
     window.localStorage?.setItem(SIDER_COLLAPSED_STORAGE_KEY, siderCollapsed ? '1' : '0');
   }, [siderCollapsed]);
+
+  useEffect(() => {
+    // Keep the compact breakpoint in sync with viewport changes to auto-collapse the sidebar. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const media = window.matchMedia(SIDEBAR_COMPACT_QUERY);
+    const mobileMedia = window.matchMedia(SIDEBAR_MOBILE_QUERY);
+    const handleChange = (event: MediaQueryListEvent) => setIsCompactLayout(event.matches);
+    const handleMobileChange = (event: MediaQueryListEvent) => setIsMobileLayout(event.matches);
+    setIsCompactLayout(media.matches);
+    setIsMobileLayout(mobileMedia.matches);
+    if (media.addEventListener) {
+      media.addEventListener('change', handleChange);
+      mobileMedia.addEventListener('change', handleMobileChange);
+      return () => {
+        media.removeEventListener('change', handleChange);
+        mobileMedia.removeEventListener('change', handleMobileChange);
+      };
+    }
+    media.addListener(handleChange);
+    mobileMedia.addListener(handleMobileChange);
+    return () => {
+      media.removeListener(handleChange);
+      mobileMedia.removeListener(handleMobileChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isCompactLayout) {
+      desktopCollapsedRef.current = siderCollapsed;
+    }
+  }, [isCompactLayout, siderCollapsed]);
+
+  useEffect(() => {
+    // Auto-collapse on compact screens while restoring the last desktop choice when space returns. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+    if (isCompactLayout) {
+      desktopCollapsedRef.current = siderCollapsed;
+      setSiderCollapsed(true);
+      return;
+    }
+    setSiderCollapsed(desktopCollapsedRef.current);
+  }, [isCompactLayout]);
+
+  useEffect(() => {
+    // Close the mobile nav drawer when leaving phone layouts. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+    if (!isMobileLayout) {
+      setMobileNavOpen(false);
+    }
+  }, [isMobileLayout]);
+
+  useEffect(() => {
+    // Auto-close the mobile drawer after navigation so content remains visible. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+    if (isMobileLayout) {
+      setMobileNavOpen(false);
+    }
+  }, [isMobileLayout, route]);
 
   const refreshAuthState = useCallback(async () => {
     setAuthChecking(true);
@@ -449,11 +531,18 @@ export const AppShell: FC<AppShellProps> = ({
     navigateFromSidebar(buildTaskGroupsHash());
   }, []);
 
+  const openMobileNav = useCallback(() => {
+    // Open the mobile navigation drawer from the header menu button. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+    setMobileNavOpen(true);
+  }, []);
+
+  const closeMobileNav = useCallback(() => {
+    // Close the mobile navigation drawer after explicit dismiss actions. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+    setMobileNavOpen(false);
+  }, []);
+
   const groupMenuItems = useMemo<MenuProps['items']>(() => {
-    if (siderCollapsed) {
-      // Hide per-group entries in collapsed mode so only the view-all icon remains. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131
-      return [];
-    }
+    // Always compute task group menu items; collapsed layouts decide visibility at render time. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
     return taskGroups.map((g) => ({
       key: g.id,
       // Show per-group icons in expanded mode for quicker scanning. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131
@@ -471,7 +560,7 @@ export const AppShell: FC<AppShellProps> = ({
         ),
       label: clampText(String(g.title ?? g.bindingKey ?? g.id).trim() || g.id, 36)
     }));
-  }, [taskGroups, siderCollapsed]);
+  }, [taskGroups]);
 
   const activeGroupKey = route.page === 'taskGroup' ? route.taskGroupId : undefined;
   const taskGroupsListActive = route.page === 'taskGroups';
@@ -489,8 +578,9 @@ export const AppShell: FC<AppShellProps> = ({
         })()
       : undefined;
 
+  // Parameterize sidebar sections so the mobile drawer can render expanded content. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
   const renderSidebarTaskSection = useCallback(
-    (sectionKey: SidebarTaskSectionKey) => {
+    (sectionKey: SidebarTaskSectionKey, collapsed: boolean) => {
       const section = TASK_SECTIONS.find((s) => s.key === sectionKey);
       if (!section) return null;
 
@@ -509,7 +599,7 @@ export const AppShell: FC<AppShellProps> = ({
       // Highlight the active task status on the section header instead of the View All row. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128
       const sectionActive = Boolean(activeTasksStatus && activeTasksStatus === section.statusFilter);
       const headerIcon =
-        !siderCollapsed
+        !collapsed
           ? undefined
           : sectionKey === 'processing' && count === 0
             ? // Disable the Processing spinner when there are no processing tasks in collapsed sidebar mode. l7pvyrepxb0mx2ipdh2y
@@ -529,7 +619,7 @@ export const AppShell: FC<AppShellProps> = ({
                 // UX:
                 // - Clicking the section header toggles expand/collapse (so the header behaves like an accordion).
                 // - When the sidebar is collapsed, there is no room to render a preview list; use header click to open the full list.
-                if (siderCollapsed) {
+                if (collapsed) {
                   // Navigation rule: treat collapsed-sidebar status header clicks as a sidebar navigation.
                   navigateFromSidebar(buildTasksHash({ status: section.statusFilter }));
                   return;
@@ -542,14 +632,14 @@ export const AppShell: FC<AppShellProps> = ({
               // UX note: keep icons on section headers only in collapsed sidebar mode; expanded mode uses item-level icons.
               icon={headerIcon}
             >
-              {!siderCollapsed ? (
+              {!collapsed ? (
                 <span className="hc-sider-section__title">
                   <span className="hc-sider-section__label">{t(section.labelKey)}</span>
                 </span>
               ) : null}
             </Button>
 
-            {!siderCollapsed ? (
+            {!collapsed ? (
               <>
                 <span className="hc-sider-section__count">{count}</span>
                 <Button
@@ -568,7 +658,7 @@ export const AppShell: FC<AppShellProps> = ({
             ) : null}
           </div>
 
-          {!siderCollapsed && expanded ? (
+          {!collapsed && expanded ? (
             <div className="hc-sider-section__items">
               {items.length ? (
                 <>
@@ -631,7 +721,6 @@ export const AppShell: FC<AppShellProps> = ({
       activeTaskId,
       activeTasksStatus,
       openTask,
-      siderCollapsed,
       t,
       taskSectionExpanded,
       taskStats.failed,
@@ -670,134 +759,173 @@ export const AppShell: FC<AppShellProps> = ({
     </>
   );
 
+  const navToggle = isMobileLayout
+    ? {
+        // Expose a mobile menu toggle so pages can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        ariaLabel: t('common.openMenu'),
+        onClick: openMobileNav
+      }
+    : undefined;
+
+  // Render the sidebar content for both the fixed rail and the mobile drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+  const renderSidebarContent = (collapsed: boolean, showCollapseToggle: boolean) => (
+    <div className="hc-sider__inner">
+      <div className="hc-sider__top">
+        <div className={`hc-sider__brandRow${collapsed ? ' hc-sider__brandRow--collapsed' : ''}`}>
+          {/* Hide the collapsed brand label so only the sidebar toggle remains. l7pvyrepxb0mx2ipdh2y */}
+          {!collapsed ? <Typography.Text className="hc-sider__brand">{t('app.brand')}</Typography.Text> : null}
+          {showCollapseToggle ? (
+            <Button
+              type="text"
+              size="small"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              aria-label={collapsed ? t('common.expandSidebar') : t('common.collapseSidebar')}
+              onClick={() => setSiderCollapsed((v) => !v)}
+            />
+          ) : null}
+        </div>
+
+        <Button
+          block
+          // UX: do not disable the Home entry while the sidebar refreshes; show a subtle spinner instead.
+          icon={sidebarLoading ? <LoadingOutlined spin /> : <PlusOutlined />}
+          className="hc-sider__primary"
+          onClick={() => goHome()}
+        >
+          {!collapsed ? t('sidebar.newTaskGroup') : null}
+        </Button>
+      </div>
+
+      <div className="hc-sider__scroll">
+        {!collapsed ? (
+          <Typography.Text className="hc-sider__sectionLabel">{t('sidebar.section.repos')}</Typography.Text>
+        ) : null}
+        <div className="hc-sider-nav">
+          <Button
+            type="text"
+            icon={<ProjectOutlined />}
+            className={`hc-sider-nav__item${reposActive ? ' hc-sider-nav__item--active' : ''}`}
+            onClick={() => goRepos()}
+            aria-label={t('sidebar.nav.repos')}
+          >
+            {!collapsed ? t('sidebar.nav.repos') : null}
+          </Button>
+        </div>
+
+        {/* Separate repos from task statuses in both expanded/collapsed sidebar modes. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */}
+        <div className="hc-sider__divider" aria-hidden="true" />
+
+        {!collapsed ? (
+          <Typography.Text className="hc-sider__sectionLabel">{t('sidebar.section.tasks')}</Typography.Text>
+        ) : null}
+        {renderSidebarTaskSection('queued', collapsed)}
+        {renderSidebarTaskSection('processing', collapsed)}
+        {renderSidebarTaskSection('success', collapsed)}
+        {renderSidebarTaskSection('failed', collapsed)}
+
+        {/* Separate task statuses from task groups in both expanded/collapsed sidebar modes. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */}
+        <div className="hc-sider__divider" aria-hidden="true" />
+
+        {/* Keep the task-group view-all CTA visible in the section header. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131 */}
+        <div className={`hc-sider__sectionHeaderRow${collapsed ? ' hc-sider__sectionHeaderRow--collapsed' : ''}`}>
+          {!collapsed ? (
+            <Typography.Text className="hc-sider__sectionLabel">{t('sidebar.section.taskGroups')}</Typography.Text>
+          ) : null}
+          <Tooltip title={collapsed ? t('taskGroups.page.viewAll') : undefined}>
+            <Button
+              type="text"
+              size="small"
+              className={`hc-sider-item hc-sider-item--more hc-sider-item--viewAll hc-sider-item--viewAllHeader${taskGroupsListActive ? ' hc-sider-item--active' : ''}${collapsed ? ' hc-sider-item--iconOnly' : ''}`}
+              aria-current={taskGroupsListActive ? 'page' : undefined}
+              aria-label={t('taskGroups.page.viewAll')}
+              icon={collapsed ? <UnorderedListOutlined /> : undefined}
+              onClick={() => goTaskGroups()}
+            >
+              {!collapsed ? t('taskGroups.page.viewAll') : null}
+            </Button>
+          </Tooltip>
+        </div>
+
+        {!collapsed ? (
+          <Menu
+            className="hc-sider-menu"
+            mode="inline"
+            selectedKeys={activeGroupKey ? [activeGroupKey] : []}
+            items={groupMenuItems}
+            onClick={(info) => {
+              // UX: navigate by the menu key directly so a sidebar refresh cannot break clicks.
+              openTaskGroup(String(info.key));
+            }}
+          />
+        ) : null}
+      </div>
+
+      <div className="hc-sider__bottom">
+        <Tooltip title={t('sidebar.nav.archive')}>
+          <Button
+            type="text"
+            icon={<InboxOutlined />}
+            className={`hc-sider-bottom__item${archiveActive ? ' hc-sider-bottom__item--active' : ''}`}
+            onClick={() => goArchive()}
+            aria-label={t('sidebar.nav.archive')}
+          />
+        </Tooltip>
+      </div>
+    </div>
+  );
+
   return (
     <Layout className="hc-shell">
       <Sider
-        className="hc-sider"
-        width={280}
-        collapsedWidth={72}
+        // Adjust sidebar widths for compact layouts to preserve content space. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        className={`hc-sider${isMobileLayout ? ' hc-sider--mobileHidden' : ''}`}
+        width={isCompactLayout ? 260 : 280}
+        collapsedWidth={isMobileLayout ? 0 : isCompactLayout ? 64 : 72}
         collapsed={siderCollapsed}
         trigger={null}
       >
-        <div className="hc-sider__inner">
-          <div className="hc-sider__top">
-            <div className={`hc-sider__brandRow${siderCollapsed ? ' hc-sider__brandRow--collapsed' : ''}`}>
-              {/* Hide the collapsed brand label so only the sidebar toggle remains. l7pvyrepxb0mx2ipdh2y */}
-              {!siderCollapsed ? <Typography.Text className="hc-sider__brand">{t('app.brand')}</Typography.Text> : null}
-              <Button
-                type="text"
-                size="small"
-                icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                aria-label={siderCollapsed ? t('common.expandSidebar') : t('common.collapseSidebar')}
-                onClick={() => setSiderCollapsed((v) => !v)}
-              />
-            </div>
-
-            <Button
-              block
-              // UX: do not disable the Home entry while the sidebar refreshes; show a subtle spinner instead.
-              icon={sidebarLoading ? <LoadingOutlined spin /> : <PlusOutlined />}
-              className="hc-sider__primary"
-              onClick={() => goHome()}
-            >
-              {!siderCollapsed ? t('sidebar.newTaskGroup') : null}
-            </Button>
-          </div>
-
-          <div className="hc-sider__scroll">
-            {!siderCollapsed ? (
-              <Typography.Text className="hc-sider__sectionLabel">{t('sidebar.section.repos')}</Typography.Text>
-            ) : null}
-            <div className="hc-sider-nav">
-              <Button
-                type="text"
-                icon={<ProjectOutlined />}
-                className={`hc-sider-nav__item${reposActive ? ' hc-sider-nav__item--active' : ''}`}
-                onClick={() => goRepos()}
-                aria-label={t('sidebar.nav.repos')}
-              >
-                {!siderCollapsed ? t('sidebar.nav.repos') : null}
-              </Button>
-            </div>
-
-            {/* Separate repos from task statuses in both expanded/collapsed sidebar modes. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */}
-            <div className="hc-sider__divider" aria-hidden="true" />
-
-            {!siderCollapsed ? (
-              <Typography.Text className="hc-sider__sectionLabel">{t('sidebar.section.tasks')}</Typography.Text>
-            ) : null}
-            {renderSidebarTaskSection('queued')}
-            {renderSidebarTaskSection('processing')}
-            {renderSidebarTaskSection('success')}
-            {renderSidebarTaskSection('failed')}
-
-            {/* Separate task statuses from task groups in both expanded/collapsed sidebar modes. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */}
-            <div className="hc-sider__divider" aria-hidden="true" />
-
-            {/* Keep the task-group view-all CTA visible in the section header. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131 */}
-            <div
-              className={`hc-sider__sectionHeaderRow${siderCollapsed ? ' hc-sider__sectionHeaderRow--collapsed' : ''}`}
-            >
-              {!siderCollapsed ? (
-                <Typography.Text className="hc-sider__sectionLabel">{t('sidebar.section.taskGroups')}</Typography.Text>
-              ) : null}
-              <Tooltip title={siderCollapsed ? t('taskGroups.page.viewAll') : undefined}>
-                <Button
-                  type="text"
-                  size="small"
-                  className={`hc-sider-item hc-sider-item--more hc-sider-item--viewAll hc-sider-item--viewAllHeader${taskGroupsListActive ? ' hc-sider-item--active' : ''}${siderCollapsed ? ' hc-sider-item--iconOnly' : ''}`}
-                  aria-current={taskGroupsListActive ? 'page' : undefined}
-                  aria-label={t('taskGroups.page.viewAll')}
-                  icon={siderCollapsed ? <UnorderedListOutlined /> : undefined}
-                  onClick={() => goTaskGroups()}
-                >
-                  {!siderCollapsed ? t('taskGroups.page.viewAll') : null}
-                </Button>
-              </Tooltip>
-            </div>
-
-            {!siderCollapsed ? (
-              <Menu
-                className="hc-sider-menu"
-                mode="inline"
-                selectedKeys={activeGroupKey ? [activeGroupKey] : []}
-                items={groupMenuItems}
-                onClick={(info) => {
-                  // UX: navigate by the menu key directly so a sidebar refresh cannot break clicks.
-                  openTaskGroup(String(info.key));
-                }}
-              />
-            ) : null}
-          </div>
-
-          <div className="hc-sider__bottom">
-            <Tooltip title={t('sidebar.nav.archive')}>
-              <Button
-                type="text"
-                icon={<InboxOutlined />}
-                className={`hc-sider-bottom__item${archiveActive ? ' hc-sider-bottom__item--active' : ''}`}
-                onClick={() => goArchive()}
-                aria-label={t('sidebar.nav.archive')}
-              />
-            </Tooltip>
-          </div>
-        </div>
+        {renderSidebarContent(siderCollapsed, true)}
       </Sider>
 
+      {isMobileLayout ? (
+        <>
+          {/* Mobile drawer exposes the full sidebar when the rail is hidden. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */}
+          <Drawer
+            placement="left"
+            open={mobileNavOpen}
+            onClose={closeMobileNav}
+            width={280}
+            className="hc-sider-drawer"
+            title={t('app.brand')}
+          >
+            {renderSidebarContent(false, false)}
+          </Drawer>
+        </>
+      ) : null}
+
       <Content className="hc-content">
-        {route.page === 'repos' ? <ReposPage userPanel={userPanel} /> : null}
-        {route.page === 'repo' && route.repoId ? <RepoDetailPage repoId={route.repoId} userPanel={userPanel} /> : null}
-        {route.page === 'archive' ? <ArchivePage tab={route.archiveTab} userPanel={userPanel} /> : null}
+        {route.page === 'repos' ? <ReposPage userPanel={userPanel} navToggle={navToggle} /> : null}
+        {route.page === 'repo' && route.repoId ? (
+          <RepoDetailPage repoId={route.repoId} userPanel={userPanel} navToggle={navToggle} />
+        ) : null}
+        {route.page === 'archive' ? <ArchivePage tab={route.archiveTab} userPanel={userPanel} navToggle={navToggle} /> : null}
         {/* Pass repoId query to TasksPage so repo dashboards can deep-link into scoped task lists. aw85xyfsp5zfg6ihq3jr */}
-        {route.page === 'tasks' ? <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} /> : null}
+        {route.page === 'tasks' ? (
+          <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} navToggle={navToggle} />
+        ) : null}
         {/* Route the task group list to a card-first page for quick browsing. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
-        {route.page === 'taskGroups' ? <TaskGroupsPage userPanel={userPanel} /> : null}
+        {route.page === 'taskGroups' ? <TaskGroupsPage userPanel={userPanel} navToggle={navToggle} /> : null}
         {/* Pass backend feature toggles to pages that mount log streaming components. 0nazpc53wnvljv5yh7c6 */}
         {route.page === 'task' && route.taskId ? (
-          <TaskDetailPage taskId={route.taskId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} />
+          <TaskDetailPage taskId={route.taskId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} navToggle={navToggle} />
         ) : null}
         {showChatPage ? (
-          <TaskGroupChatPage taskGroupId={chatGroupId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} />
+          <TaskGroupChatPage
+            taskGroupId={chatGroupId}
+            userPanel={userPanel}
+            taskLogsEnabled={taskLogsEnabled}
+            navToggle={navToggle}
+          />
         ) : null}
       </Content>
     </Layout>

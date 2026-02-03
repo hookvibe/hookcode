@@ -41,7 +41,7 @@ import { getToken } from '../auth';
 import { useLocale, useT } from '../i18n';
 import { buildTaskGroupHash, buildTaskGroupsHash, buildTaskHash } from '../router';
 import { TaskConversationItem } from '../components/chat/TaskConversationItem';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { isTerminalStatus } from '../utils/task';
 import { ChatTimelineSkeleton } from '../components/skeletons/ChatTimelineSkeleton';
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
@@ -70,9 +70,10 @@ export interface TaskGroupChatPageProps {
   taskGroupId?: string;
   userPanel?: ReactNode;
   taskLogsEnabled?: boolean | null;
+  navToggle?: PageNavMenuAction;
 }
 
-export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, userPanel, taskLogsEnabled }) => {
+export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, userPanel, taskLogsEnabled, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -373,6 +374,14 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         return t('preview.status.stopped');
     }
   }, [previewAggregateStatus, previewAvailable, previewState, t]);
+
+  const previewToggleIcon = useMemo(
+    () => (
+      // Render the status dot via the icon slot so PageNav can hide labels on small screens. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+      <span className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`} aria-hidden="true" />
+    ),
+    [previewAggregateStatus]
+  );
 
   const activePreviewStatus = activePreviewInstance?.status ?? 'stopped';
   const activePreviewStatusLabel = useMemo(() => {
@@ -1406,19 +1415,16 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               <Popover content={previewAggregateStatusLabel}>
                 {/* Allow preview retries even when availability is stale. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
                 <Button
+                  // Keep the preview label visible on mobile headers so the action is discoverable. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+                  className="hc-nav-action--keepLabel"
+                  icon={previewToggleIcon}
                   onClick={handlePreviewToggle}
                   loading={previewActionLoading || previewAggregateStatus === 'starting'}
                   disabled={previewLoading || previewActionLoading}
                 >
-                  <span
-                    className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
-                    aria-hidden="true"
-                  />
-                  <span style={{ marginLeft: 8 }}>
-                    {previewAggregateStatus === 'running' || previewAggregateStatus === 'starting'
-                      ? t('preview.action.stop')
-                      : t('preview.action.start')}
-                  </span>
+                  {previewAggregateStatus === 'running' || previewAggregateStatus === 'starting'
+                    ? t('preview.action.stop')
+                    : t('preview.action.start')}
                 </Button>
               </Popover>
             )}
@@ -1427,6 +1433,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
             </Button>
           </Space>
         }
+        // Provide the mobile nav toggle so chat can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        navToggle={navToggle}
         userPanel={userPanel}
       />
 

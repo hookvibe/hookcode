@@ -9,6 +9,8 @@
   gap: 10px;
   min-width: 0;
   overflow: hidden;
+  flex: 1 1 auto;
+  /* Allow the title area to shrink so mobile actions stay visible. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
 }
 
 .hc-nav__meta {
@@ -118,19 +120,30 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, #ef4444 26%, transparent);
 }
 
+/* Align left-side nav buttons for consistent tap targets. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
+.hc-nav__menu.ant-btn,
+.hc-nav__back.ant-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (max-width: 768px) {
   /* Mobile UX: keep the nav strictly 1-row by hiding the optional meta. */
   .hc-nav__meta {
     display: none;
   }
 
-  /* Mobile UX: render nav action buttons as icon-only without losing a11y labels. */
+  /* Mobile UX: render nav action buttons as icon-only while keeping opt-out labels. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
   .hc-nav__actions .ant-btn {
     position: relative;
     padding-inline: 10px;
   }
 
-  .hc-nav__actions .ant-btn .ant-btn-icon + span {
+  .hc-nav__actions .ant-btn:not(.hc-nav-action--keepLabel) .ant-btn-icon + span {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -164,4 +177,44 @@
 
 .hc-toolbar {
   margin-bottom: 12px;
+}
+
+/* Compact header actions and page padding on smaller screens. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
+@media (max-width: 1024px) {
+  .hc-page__body {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hc-nav__right {
+    min-width: 0;
+    max-width: 55%;
+  }
+
+  .hc-nav__actions {
+    gap: 6px;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .hc-nav__actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hc-nav__actions .ant-btn,
+  .hc-user-trigger .ant-btn {
+    padding-inline: 10px;
+  }
+
+  .hc-nav__menu.ant-btn,
+  .hc-nav__back.ant-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .hc-page__body {
+    padding: 12px;
+  }
 }

@@ -127,3 +127,14 @@
 }
 /* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */
 
+/* Tighten timeline/composer padding on mobile to avoid wasted space. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
+@media (max-width: 768px) {
+  .hc-chat-timeline {
+    padding: 12px 0 16px;
+    gap: 14px;
+  }
+
+  .hc-chat-composer {
+    padding: 12px;
+  }
+}
