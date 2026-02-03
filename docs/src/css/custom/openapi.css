@@ -1,0 +1,176 @@
+/* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Style OpenAPI panels with consistent glass surfaces and inputs. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.openapi-settings,
+.openapi-operation {
+  border: 1px solid var(--glass-border);
+  background-color: var(--glass-surface);
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.openapi-settings__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.openapi-settings__title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.openapi-settings__desc {
+  margin: 0.35rem 0 0;
+  color: var(--ifm-color-content-secondary);
+}
+
+.openapi-settings__grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.openapi-field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.openapi-label {
+  font-size: 0.9rem;
+  color: var(--ifm-color-content);
+}
+
+.openapi-input,
+.openapi-textarea {
+  border: 1px solid var(--glass-border-strong);
+  background-color: rgba(255, 255, 255, 0.5);
+  color: var(--ifm-color-content);
+  padding: 0.55rem 0.75rem;
+  font-family: var(--ifm-font-family-base);
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.6));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6));
+  width: 100%;
+}
+
+html[data-theme='dark'] .openapi-input,
+html[data-theme='dark'] .openapi-textarea {
+  background-color: rgba(15, 23, 42, 0.55);
+}
+
+.openapi-textarea {
+  min-height: 140px;
+}
+
+.openapi-help,
+.openapi-status {
+  color: var(--ifm-color-content-secondary);
+  font-size: 0.85rem;
+}
+
+.openapi-status {
+  margin-top: 0.85rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.openapi-error {
+  color: #ef4444;
+}
+
+.openapi-operation__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.openapi-method {
+  border: 1px solid var(--glass-border);
+  padding: 0.2rem 0.6rem;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
+}
+
+.openapi-method--get {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #1d4ed8;
+}
+
+.openapi-method--post {
+  background-color: rgba(34, 197, 94, 0.2);
+  color: #15803d;
+}
+
+.openapi-method--patch {
+  background-color: rgba(234, 179, 8, 0.2);
+  color: #a16207;
+}
+
+.openapi-method--delete {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #b91c1c;
+}
+
+html[data-theme='dark'] .openapi-method {
+  color: #e2e8f0;
+}
+
+.openapi-path {
+  font-size: 0.9rem;
+}
+
+.openapi-summary {
+  margin-top: 0.75rem;
+}
+
+.openapi-params__list,
+.openapi-responses__list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.openapi-param,
+.openapi-response,
+.openapi-response-box {
+  border: 1px solid var(--glass-border);
+  background-color: var(--glass-surface-muted);
+  padding: 0.75rem;
+  border-radius: 14px;
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.7));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.7));
+}
+
+.openapi-param__name {
+  font-weight: 600;
+}
+
+.openapi-param__meta {
+  color: var(--ifm-color-content-secondary);
+  font-size: 0.8rem;
+}
+
+.openapi-try {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.openapi-try__params {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+

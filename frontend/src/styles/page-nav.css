@@ -1,0 +1,180 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Shared PageNav (1-row header bar)
+ * ========================================================================== */
+
+.hc-nav__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.hc-nav__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.hc-nav__meta .ant-typography {
+  white-space: nowrap;
+}
+
+.hc-nav__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.hc-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.hc-nav__user {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* =============================================================================
+ * PageNav buttons (transparent header)
+ *
+ * Business context:
+ * - Module: Frontend Chat / Navigation / PageNav.
+ * - Purpose: make header actions blend with the app gradient once the header background is removed.
+ *
+ * Change record:
+ * - 2026-01-12: Remove the header surface background; redesign action/user trigger buttons as "soft pills".
+ * ========================================================================== */
+
+.hc-nav__actions .ant-btn,
+.hc-user-trigger .ant-btn {
+  border-radius: 999px;
+  height: 32px;
+  padding-inline: 12px;
+}
+
+.hc-nav__actions .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous),
+.hc-user-trigger .ant-btn {
+  background: color-mix(in srgb, var(--hc-hover) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hc-border) 72%, transparent);
+  color: var(--text);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-nav__actions .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):hover,
+.hc-user-trigger .ant-btn:hover {
+  background: color-mix(in srgb, var(--hc-hover) 55%, var(--hc-accent-soft));
+  border-color: var(--hc-accent-border);
+}
+
+.hc-nav__actions .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):focus-visible,
+.hc-user-trigger .ant-btn:focus-visible {
+  box-shadow: var(--hc-focus-ring);
+}
+
+/* Primary action: keep it "accent first" but add subtle elevation so it reads on a transparent header. */
+.hc-nav__actions .ant-btn-primary {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-hover) 26%, var(--accent)) 0%,
+    var(--accent) 100%
+  );
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--hc-border));
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-nav__actions .ant-btn-primary:hover {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 24%, var(--accent-hover)) 0%,
+    var(--accent-hover) 100%
+  );
+  border-color: color-mix(in srgb, var(--accent-hover) 68%, var(--hc-border));
+}
+
+.hc-nav__actions .ant-btn-primary:active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 20%, var(--accent-active)) 0%,
+    var(--accent-active) 100%
+  );
+  border-color: color-mix(in srgb, var(--accent-active) 70%, var(--hc-border));
+}
+
+/* Danger action: use a soft red surface (instead of a harsh solid fill) to match the glassy layout. */
+.hc-nav__actions .ant-btn-dangerous {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 38%, var(--hc-border));
+  color: color-mix(in srgb, #ef4444 86%, var(--text));
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-nav__actions .ant-btn-dangerous:hover {
+  background: color-mix(in srgb, #ef4444 16%, transparent);
+  border-color: color-mix(in srgb, #ef4444 54%, var(--hc-border));
+  color: color-mix(in srgb, #ef4444 92%, var(--text));
+}
+
+.hc-nav__actions .ant-btn-dangerous:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in srgb, #ef4444 26%, transparent);
+}
+
+@media (max-width: 768px) {
+  /* Mobile UX: keep the nav strictly 1-row by hiding the optional meta. */
+  .hc-nav__meta {
+    display: none;
+  }
+
+  /* Mobile UX: render nav action buttons as icon-only without losing a11y labels. */
+  .hc-nav__actions .ant-btn {
+    position: relative;
+    padding-inline: 10px;
+  }
+
+  .hc-nav__actions .ant-btn .ant-btn-icon + span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+.hc-page__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px;
+}
+
+.hc-page__body > * {
+  /* Layout intent: keep page content comfortably readable on wide screens without changing page markup. */
+  width: 100%;
+  max-width: var(--hc-page-max);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hc-toolbar {
+  margin-bottom: 12px;
+}
+

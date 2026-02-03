@@ -1,0 +1,164 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Sidebar Shell (App Shell)
+ * ========================================================================== */
+
+/* =============================================================================
+ * Sidebar (App Shell)
+ * ========================================================================== */
+
+.hc-sider {
+  background: var(--hc-sider-bg) !important;
+  border-right: 1px solid var(--hc-border);
+  /* Visual polish: keep the sidebar readable over the app gradient background. */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.hc-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hc-sider__inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hc-sider__top {
+  padding: 16px 12px 10px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-sider__brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.hc-sider__brandRow--collapsed {
+  /* Center the sidebar toggle when collapsed so the top row only shows the trigger. l7pvyrepxb0mx2ipdh2y */
+  justify-content: center;
+}
+
+.hc-sider__brand {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.hc-sider__primary.ant-btn {
+  justify-content: flex-start;
+  border-radius: 10px;
+  height: 40px;
+  /* background: var(--hc-accent-soft); */
+  /* border: 1px solid var(--hc-accent-border); */
+  color: var(--text);
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.hc-sider__primary.ant-btn:hover {
+  background: var(--hc-accent-soft-hover) !important;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--hc-border)) !important;
+}
+
+.hc-sider__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px 8px 14px;
+}
+
+/* Hide scrollbars in expanded sidebar until hover to reduce visual noise. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131 */
+.hc-sider:not(.ant-layout-sider-collapsed) .hc-sider__scroll {
+  overflow-y: hidden;
+}
+
+.hc-sider:not(.ant-layout-sider-collapsed) .hc-sider__scroll:hover {
+  overflow-y: auto;
+}
+
+.hc-sider__bottom {
+  border-top: 1px solid var(--hc-border);
+  padding: 10px 8px 14px;
+}
+
+.hc-sider-bottom__item.ant-btn {
+  width: 100%;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text);
+  justify-content: center;
+}
+
+.hc-sider-bottom__item.ant-btn:hover {
+  background: var(--hc-hover) !important;
+}
+
+.hc-sider-bottom__item--active.ant-btn {
+  /* UX: active nav should be visible even with custom accent presets. qnp1mtxhzikhbi0xspbc */
+  background: var(--hc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
+.hc-sider-nav {
+  padding: 0 6px 10px;
+}
+
+.hc-sider-nav__item.ant-btn {
+  width: 100%;
+  justify-content: flex-start;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text);
+}
+
+.hc-sider-nav__item.ant-btn:hover {
+  background: var(--hc-hover) !important;
+}
+
+.hc-sider-nav__item--active.ant-btn {
+  /* UX: active nav should be visible even with custom accent presets. */
+  background: var(--hc-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
+/* Collapsed sidebar alignment:
+ * - AntD adds `ant-layout-sider-collapsed` on the `<aside>` element.
+ * - Our buttons are full-width blocks; keep icon-only buttons centered when labels are hidden.
+ */
+.hc-sider.ant-layout-sider-collapsed .hc-sider__primary.ant-btn,
+.hc-sider.ant-layout-sider-collapsed .hc-sider-nav__item.ant-btn,
+.hc-sider.ant-layout-sider-collapsed .hc-sider-section__titleBtn.ant-btn {
+  justify-content: center;
+}
+
+.hc-sider.ant-layout-sider-collapsed .hc-sider-section__header {
+  justify-content: center;
+  padding: 0;
+}
+
+/* Stop the Processing spinner when there are no processing tasks in collapsed sidebar mode. l7pvyrepxb0mx2ipdh2y */
+.hc-sider-processingIcon--idle.anticon-spin,
+.hc-sider-processingIcon--idle.anticon-spin svg {
+  animation: none !important;
+}
+
+.hc-sider__sectionLabel {
+  display: block;
+  padding: 8px 10px 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Place the task-group header label and CTA on one row for visibility. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131 */

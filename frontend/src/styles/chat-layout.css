@@ -1,0 +1,40 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Chat view (task group)
+ * ========================================================================== */
+
+.hc-chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 18px;
+  /* Prevent scroll chaining / rubber-band bounce in the TaskGroup chat scroller. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a */
+  overscroll-behavior: contain;
+}
+
+/* Add chat+preview split layout for TaskGroup dev previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-chat-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 0;
+  padding: 0 18px 18px;
+}
+
+/* Highlight draggable split interactions for the preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-chat-layout--dragging {
+  cursor: col-resize;
+}
+
+.hc-chat-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-chat-panel .hc-chat-body {
+  padding: 0;
+}
+
+/* Polish preview panel depth to mimic an embedded browser frame. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */

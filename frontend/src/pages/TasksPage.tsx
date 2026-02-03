@@ -1,13 +1,15 @@
 import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { App, Button, Card, Empty, Input, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import type { Task, TaskStatus, TaskStatusStats } from '../api';
+import type { Task, TaskStatusStats } from '../api';
 import { executeTaskNow, fetchTaskStats, fetchTasks, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildTaskHash, buildTasksHash } from '../router';
 import { clampText, getTaskTitle, queuedHintText, statusTag } from '../utils/task';
 import { PageNav } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
+import { getStatusSummaryKey, normalizeStatusFilter, type StatusFilter, type StatusSummaryKey } from './tasks/taskFilters';
+import { formatTaskTimestamp } from './tasks/formatters';
 
 /**
  * TasksPage:
@@ -25,20 +27,6 @@ export interface TasksPageProps {
   repoId?: string;
   userPanel?: ReactNode;
 }
-
-type StatusFilter = 'all' | TaskStatus | 'success';
-type StatusSummaryKey = 'all' | 'queued' | 'processing' | 'success' | 'failed';
-
-const normalizeStatusFilter = (value: string | undefined): StatusFilter => {
-  const raw = String(value ?? '').trim();
-  if (!raw || raw === 'all') return 'all';
-  if (raw === 'success') return 'success';
-  if (raw === 'queued' || raw === 'processing' || raw === 'succeeded' || raw === 'failed' || raw === 'commented')
-    return raw;
-  // Compatibility: allow Home sidebar status keys.
-  if (raw === 'completed') return 'success';
-  return 'all';
-};
 
 export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => {
   const locale = useLocale();
@@ -59,14 +47,10 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     return trimmed || undefined;
   }, [repoId]);
 
-  const statusSummaryKey = useMemo<StatusSummaryKey>(() => {
-    // Group terminal success-like statuses under `success` for summary/UI selection. 3iz4jx8bsy7q7d6b3jr3
-    if (statusFilter === 'queued') return 'queued';
-    if (statusFilter === 'processing') return 'processing';
-    if (statusFilter === 'failed') return 'failed';
-    if (statusFilter === 'all') return 'all';
-    return 'success';
-  }, [statusFilter]);
+  const statusSummaryKey = useMemo<StatusSummaryKey>(
+    () => getStatusSummaryKey(statusFilter),
+    [statusFilter]
+  ); // Use shared filter helpers to keep the page module smaller. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -191,16 +175,6 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     await Promise.all([refresh(), refreshStats()]);
   }, [refresh, refreshStats]);
 
-  const formatTime = useCallback(
-    (iso: string): string => {
-      try {
-        return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
-      } catch {
-        return iso;
-      }
-    },
-    [locale]
-  );
 
   const activeStatusText = useMemo(() => {
     // Provide a single user-visible status label for the active filter (including the virtual `success`). 3iz4jx8bsy7q7d6b3jr3
@@ -380,7 +354,10 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
                     {/* Group task meta details for shared card styling. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
                     <Space size={12} wrap className="hc-card-meta">
                       <Typography.Text type="secondary">{task.repo?.name ?? task.repoId ?? '-'}</Typography.Text>
-                      <Typography.Text type="secondary">{formatTime(task.updatedAt)}</Typography.Text>
+                      <Typography.Text type="secondary">
+                        {formatTaskTimestamp(locale, task.updatedAt)}
+                      </Typography.Text>
+                      {/* Format timestamps via shared helper to keep the page component smaller. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */}
                       <Typography.Text type="secondary">{task.id}</Typography.Text>
                     </Space>
 

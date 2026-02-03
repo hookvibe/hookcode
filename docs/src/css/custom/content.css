@@ -1,0 +1,38 @@
+/* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Keep blockquotes, tables, and alerts cohesive with the glass panels. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+blockquote,
+.alert,
+table {
+  border: 1px solid var(--glass-border);
+  background-color: var(--glass-surface);
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.8));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.8));
+}
+
+blockquote {
+  border-left: 4px solid var(--ifm-color-primary);
+  padding: 1rem 1.25rem;
+  color: var(--ifm-color-content);
+}
+
+/* Unify table borders and spacing for readability. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table th,
+table td {
+  border: 1px solid var(--glass-border);
+  padding: 0.65rem 0.75rem;
+}
+
+table thead th {
+  background-color: rgba(59, 130, 246, 0.12);
+}
+
+html[data-theme='dark'] table thead th {
+  background-color: rgba(59, 130, 246, 0.22);
+}
+

@@ -1,0 +1,33 @@
+/* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Convert buttons to rounded glass pills with clear hover states. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.button {
+  border: 1px solid var(--glass-border-strong);
+  background: var(--glass-surface-muted);
+  color: var(--ifm-color-content);
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.button--primary {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.9), rgba(59, 130, 246, 0.85));
+  color: #f8fafc;
+  border-color: rgba(37, 99, 235, 0.6);
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.25);
+}
+
+.button--secondary {
+  background: rgba(255, 255, 255, 0.45);
+  color: var(--ifm-color-content);
+}
+
+.button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--glass-shadow);
+}
+
+.button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--glass-ring);
+  outline-offset: 2px;
+}
+

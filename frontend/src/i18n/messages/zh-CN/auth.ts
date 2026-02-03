@@ -1,0 +1,61 @@
+// Split locale messages into modules for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+
+export const zhCNAuth = {
+  // --- Login ---
+  'login.title': '登录',
+  'login.subtitle': '使用你的 HookCode 账号登录',
+  'login.username': '用户名',
+  'login.password': '密码',
+  'login.submit': '登录',
+  'login.language': '语言',
+  'login.validation.usernameRequired': '请输入用户名',
+  'login.validation.passwordRequired': '请输入密码',
+
+  // --- Toasts ---
+  'toast.login.success': '登录成功',
+  'toast.login.failed': '登录失败，请检查账号或密码',
+  'toast.tasks.fetchFailed': '获取任务列表失败',
+  'toast.task.fetchFailed': '获取任务详情失败',
+  'toast.task.deleted': '已删除任务',
+  'toast.task.deleteFailed': '删除失败，请稍后再试',
+  'toast.task.forceRetrySuccess': '已强制重试：任务已重新入队',
+  'toast.task.retrySuccess': '已重试任务',
+  'toast.task.retryBlockedProcessing': '任务仍在处理中；若确认已卡死请使用“强制重试”或等待超时回收',
+  'toast.task.retryFailedTasksFailed': '重试失败，请稍后再试',
+  'toast.task.executeNowSuccess': '已安排立即执行',
+  'toast.task.executeNowFailed': '立即执行失败，请稍后再试',
+  // Add taskgroup list error toast for the new card page. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+  'toast.taskGroups.fetchFailed': '任务组加载失败',
+  'toast.chat.reposLoadFailed': '加载仓库失败',
+  'toast.chat.robotsLoadFailed': '加载机器人失败',
+  'toast.chat.groupLoadFailed': '加载任务组失败',
+  'toast.chat.executeSuccess': '已发送任务',
+  'toast.chat.executeFailed': '发送任务失败',
+  'toast.repos.fetchFailed': '获取仓库列表失败',
+  'toast.repos.detailFetchFailed': '获取仓库详情失败',
+  'toast.repos.saved': '仓库已保存',
+  'toast.repos.saveFailed': '保存仓库失败',
+  'toast.repos.archiveSuccess': '仓库已归档',
+  'toast.repos.archiveFailed': '归档仓库失败',
+  'toast.repos.unarchiveSuccess': '仓库已恢复',
+  'toast.repos.unarchiveFailed': '恢复仓库失败',
+  'toast.account.saved': '账号信息已保存',
+  'toast.account.saveFailed': '保存账号信息失败',
+  'toast.account.passwordSaved': '密码已更新',
+  'toast.account.passwordIncorrect': '当前密码不正确',
+  'toast.account.passwordSaveFailed': '更新密码失败',
+  'toast.credentials.fetchFailed': '加载账号凭据失败',
+  'toast.runtimes.fetchFailed': '加载运行时信息失败',
+  'toast.credentials.saved': '账号凭据已保存',
+  'toast.credentials.saveFailed': '保存账号凭据失败',
+  // Add PAT management toasts for credential panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  'toast.apiTokens.fetchFailed': '加载 API 令牌失败',
+  'toast.apiTokens.created': 'API 令牌已创建',
+  'toast.apiTokens.saved': 'API 令牌已更新',
+  'toast.apiTokens.revoked': 'API 令牌已撤销',
+  'toast.apiTokens.saveFailed': '保存 API 令牌失败',
+  'toast.apiTokens.copySuccess': '令牌已复制',
+  'toast.apiTokens.copyFailed': '复制失败',
+
+  // Add repo URL create fields + onboarding wizard copy. 58w1q3n5nr58flmempxe
+} as const;

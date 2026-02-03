@@ -1,0 +1,38 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  /* Fallback first, then the accent-tinted gradient background. */
+  background: var(--hc-app-bg);
+  color: var(--text);
+  transition: background-color 0.25s ease, color 0.25s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =============================================================================
+ * Scrollbars (light/dark)
+ *
+ * Business context:
+ * - Module: Frontend Chat / Styles / Theme.
+ * - Purpose: keep scrollbars readable in dark mode (avoid a white track) while staying subtle in light mode.
+ *
+ * Notes:
+ * - Firefox uses `scrollbar-color`; Chromium/WebKit rely on `color-scheme` + OS-native scrollbars.
+ * - `color-scheme` (set in `:root`) helps native UI match the active theme.
+ *
+ * Change record:
+ * - 2026-01-13: Add theme-aware scrollbar tokens and apply them globally.
+ * - Restore OS-native scrollbars by dropping global WebKit overrides to match Ant Design docs. docs/en/developer/plans/qh23ler2y5yeesg6hqel/task_plan.md qh23ler2y5yeesg6hqel
+ * ========================================================================== */
+
+:root {
+  scrollbar-color: var(--hc-scrollbar-thumb) var(--hc-scrollbar-track);
+  scrollbar-width: thin;
+}

@@ -1,0 +1,247 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Repo Detail Activity (Dashboard)
+ * ========================================================================== */
+
+.hc-repo-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hc-repo-activity__top {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.hc-repo-activity__gauge {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-repo-activity__metrics {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 10px;
+}
+
+.hc-repo-activity__metric {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.hc-repo-activity__metric-label {
+  font-size: 12px;
+}
+
+.hc-repo-activity__metric-value {
+  display: block;
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+/* Show the latest tasks inside the repo dashboard metric tiles without breaking the grid layout. aw85xyfsp5zfg6ihq3jr */
+.hc-repo-activity__metric-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hc-repo-activity__metric-tasks {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hc-repo-activity__metric-taskBtn.ant-btn {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.hc-repo-activity__metric-taskBtn.ant-btn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-repo-activity__block {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.hc-repo-activity__block-title {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.hc-repo-activity__dist-bar {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  background: var(--hc-surface);
+}
+
+.hc-repo-activity__dist-seg {
+  height: 100%;
+}
+
+.hc-repo-activity__legend {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.hc-repo-activity__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-repo-activity__legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc-border) 70%, transparent);
+}
+
+.hc-repo-activity__bars {
+  height: 140px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+
+.hc-repo-activity__bar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hc-repo-activity__bar-area {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-end;
+}
+
+.hc-repo-activity__bar-fill {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 72%, #ffffff) 0%, var(--accent) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc-accent-border) 70%, transparent);
+  transition: opacity 0.2s ease;
+}
+
+.hc-repo-activity__bar-fill:hover {
+  opacity: 0.92;
+}
+
+.hc-repo-activity__bar-label {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Add a lightweight SVG line chart style for the repo task volume trend. dashtrendline20260119m9v2 */
+
+.hc-repo-activity__trend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hc-repo-activity__trend-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-repo-activity__trend-range {
+  display: block;
+  font-size: 11px;
+}
+
+.hc-repo-activity__trend-chart {
+  /* Allow overlaying a Skeleton during the initial chart fetch without unmounting the chart container. nn62s3ci1xhpr7ublh51 */
+  position: relative;
+  height: 150px;
+  border-radius: 12px;
+  background: var(--hc-surface);
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  overflow: hidden;
+  padding: 10px;
+}
+
+.hc-repo-activity__trend-skeleton {
+  /* Keep loading states consistent with other pages while the ECharts canvas is initializing. nn62s3ci1xhpr7ublh51 */
+  position: absolute;
+  inset: 0;
+  padding: 12px 12px 6px;
+  pointer-events: none;
+}
+
+.hc-repo-activity__trend-svg {
+  display: block;
+  width: 100%;
+  height: 150px;
+}
+
+.hc-repo-activity__trend-area {
+  fill: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.hc-repo-activity__trend-line {
+  stroke: var(--accent);
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hc-repo-activity__trend-dot {
+  fill: var(--accent);
+  stroke: color-mix(in srgb, var(--hc-accent-border) 70%, transparent);
+  stroke-width: 1;
+}
+
+.hc-repo-activity__trend-axis {
+  stroke: color-mix(in srgb, var(--hc-border) 65%, transparent);
+  stroke-width: 1;
+}
+
+.hc-repo-activity__trend-tick {
+  fill: var(--muted);
+  font-size: 11px;
+}
+

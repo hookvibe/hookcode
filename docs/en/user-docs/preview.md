@@ -53,7 +53,7 @@ The **Copy link** action produces a preview URL with a `token` query parameter. 
 
 To enable DOM highlighting inside the preview iframe, import the bridge script from this repository:
 
-1. Copy `shared/preview-bridge.js` into your project (or serve it directly if you mount the repo).
+1. Copy `shared/preview-bridge.js` **and** the `shared/preview-bridge/` folder into your project (or serve them directly if you mount the repo). <!-- Update preview bridge docs for the split module layout. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 -->
 2. Import it in your app entry (for example `main.tsx`):
 
 ```ts

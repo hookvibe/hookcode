@@ -1,0 +1,61 @@
+// Split locale messages into modules for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+
+export const enUSAuth = {
+  // --- Login ---
+  'login.title': 'Sign in',
+  'login.subtitle': 'Sign in with your HookCode account',
+  'login.username': 'Username',
+  'login.password': 'Password',
+  'login.submit': 'Sign in',
+  'login.language': 'Language',
+  'login.validation.usernameRequired': 'Please enter username',
+  'login.validation.passwordRequired': 'Please enter password',
+
+  // --- Toasts ---
+  'toast.login.success': 'Signed in',
+  'toast.login.failed': 'Sign-in failed. Check your username/password.',
+  'toast.tasks.fetchFailed': 'Failed to fetch tasks',
+  'toast.task.fetchFailed': 'Failed to fetch task',
+  'toast.task.deleted': 'Task deleted',
+  'toast.task.deleteFailed': 'Failed to delete task',
+  'toast.task.forceRetrySuccess': 'Force retried: task re-queued',
+  'toast.task.retrySuccess': 'Task retried',
+  'toast.task.retryBlockedProcessing': 'Task is still processing; use "Force retry" if you believe it is stuck',
+  'toast.task.retryFailedTasksFailed': 'Retry failed. Please try again later.',
+  'toast.task.executeNowSuccess': 'Task scheduled to run now',
+  'toast.task.executeNowFailed': 'Execute now failed. Please try again later.',
+  // Add taskgroup list error toast for the new card page. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+  'toast.taskGroups.fetchFailed': 'Failed to fetch task groups',
+  'toast.chat.reposLoadFailed': 'Failed to load repositories',
+  'toast.chat.robotsLoadFailed': 'Failed to load robots',
+  'toast.chat.groupLoadFailed': 'Failed to load task group',
+  'toast.chat.executeSuccess': 'Task submitted',
+  'toast.chat.executeFailed': 'Failed to submit task',
+  'toast.repos.fetchFailed': 'Failed to fetch repositories',
+  'toast.repos.detailFetchFailed': 'Failed to fetch repository detail',
+  'toast.repos.saved': 'Repository saved',
+  'toast.repos.saveFailed': 'Failed to save repository',
+  'toast.repos.archiveSuccess': 'Repository archived',
+  'toast.repos.archiveFailed': 'Failed to archive repository',
+  'toast.repos.unarchiveSuccess': 'Repository restored',
+  'toast.repos.unarchiveFailed': 'Failed to restore repository',
+  'toast.account.saved': 'Account saved',
+  'toast.account.saveFailed': 'Failed to save account',
+  'toast.account.passwordSaved': 'Password updated',
+  'toast.account.passwordIncorrect': 'Current password is incorrect',
+  'toast.account.passwordSaveFailed': 'Failed to update password',
+  'toast.credentials.fetchFailed': 'Failed to load credentials',
+  'toast.runtimes.fetchFailed': 'Failed to load runtime information',
+  'toast.credentials.saved': 'Credentials saved',
+  'toast.credentials.saveFailed': 'Failed to save credentials',
+  // Add PAT management toasts for credential panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
+  'toast.apiTokens.fetchFailed': 'Failed to load API tokens',
+  'toast.apiTokens.created': 'API token created',
+  'toast.apiTokens.saved': 'API token updated',
+  'toast.apiTokens.revoked': 'API token revoked',
+  'toast.apiTokens.saveFailed': 'Failed to save API token',
+  'toast.apiTokens.copySuccess': 'Token copied',
+  'toast.apiTokens.copyFailed': 'Copy failed',
+
+  // Add repo URL create fields + onboarding wizard copy. 58w1q3n5nr58flmempxe
+} as const;

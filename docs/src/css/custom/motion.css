@@ -1,0 +1,9 @@
+/* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Respect reduced motion preferences by limiting transitions. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .pagination-nav__link,
+  .button {
+    transition: none;
+  }
+}

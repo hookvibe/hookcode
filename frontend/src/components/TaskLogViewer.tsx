@@ -1,11 +1,15 @@
 import { FC, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Alert, Button, Space, Switch, Tag, Tooltip, Typography, message } from 'antd';
-import { CopyOutlined, DeleteOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Alert, Space, Typography, message } from 'antd';
 import { clearTaskLogs } from '../api';
 import { useT } from '../i18n';
 import { createAuthedEventSource } from '../utils/sse';
 import { ExecutionTimeline } from './execution/ExecutionTimeline';
-import { applyExecutionLogLine, buildExecutionTimeline, createEmptyTimeline, type ExecutionTimelineState } from '../utils/executionLog';
+import { createEmptyTimeline, type ExecutionTimelineState } from '../utils/executionLog';
+import { TaskLogViewerFlat } from './taskLogViewer/TaskLogViewerFlat';
+import { TaskLogViewerHeader } from './taskLogViewer/TaskLogViewerHeader';
+import { MAX_LOG_LINES } from './taskLogViewer/constants';
+import { timelineReducer, type ViewerMode } from './taskLogViewer/timeline';
+import type { StreamInitPayload, StreamLogPayload } from './taskLogViewer/types';
 
 /**
  * Live task log viewer (SSE/EventSource).
@@ -26,14 +30,6 @@ import { applyExecutionLogLine, buildExecutionTimeline, createEmptyTimeline, typ
  * - 2026-01-11: Migrated from the legacy frontend to power the new chat-style views.
  */
 // Reuse the shared SSE helper to keep EventSource URL building consistent across pages. kxthpiu4eqrmu0c6bboa
-
-interface StreamInitPayload {
-  logs: string[];
-}
-
-interface StreamLogPayload {
-  line: string;
-}
 
 interface Props {
   taskId: string;
@@ -61,21 +57,7 @@ interface Props {
   focusKey?: number;
 }
 
-const MAX_LINES = 2000;
-
-type ViewerMode = 'timeline' | 'raw';
-
-type TimelineAction =
-  | { type: 'reset'; lines: string[] }
-  | { type: 'append'; line: string }
-  | { type: 'clear' };
-
-const timelineReducer = (state: ExecutionTimelineState, action: TimelineAction): ExecutionTimelineState => {
-  if (action.type === 'reset') return buildExecutionTimeline(action.lines);
-  if (action.type === 'append') return applyExecutionLogLine(state, action.line);
-  if (action.type === 'clear') return createEmptyTimeline();
-  return state;
-};
+// Delegate log timeline parsing to a shared reducer helper. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
 export const TaskLogViewer: FC<Props> = ({
   taskId,
@@ -312,7 +294,7 @@ export const TaskLogViewer: FC<Props> = ({
         try {
           const payload = JSON.parse((ev as MessageEvent).data) as StreamInitPayload;
           const next = Array.isArray(payload.logs) ? payload.logs.filter((v) => typeof v === 'string') : [];
-          const sliced = next.slice(-MAX_LINES);
+          const sliced = next.slice(-MAX_LOG_LINES); // Enforce shared log buffer cap after extracting constants. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
           setLogs(sliced);
           dispatchTimeline({ type: 'reset', lines: sliced });
         } catch (err) {
@@ -326,7 +308,7 @@ export const TaskLogViewer: FC<Props> = ({
         try {
           const payload = JSON.parse((ev as MessageEvent).data) as StreamLogPayload;
           if (!payload?.line) return;
-          setLogs((prev) => [...prev, payload.line].slice(-MAX_LINES));
+          setLogs((prev) => [...prev, payload.line].slice(-MAX_LOG_LINES));
           dispatchTimeline({ type: 'append', line: payload.line });
         } catch (err) {
           console.warn('[log] parse failed', err);
@@ -344,84 +326,47 @@ export const TaskLogViewer: FC<Props> = ({
   }, [taskId, tail, session, reconnectKey, t]);
 
   if (variant === 'flat') {
-    // Render realtime logs as a flat, structured timeline (no toolbar + no inner scroll). docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121
+    // Render the flat log view via a dedicated component to keep this module smaller. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
     return (
-      <div ref={rootRef}>
-        {messageContextHolder}
-        {error ? <Alert type="warning" showIcon message={error} style={{ marginBottom: 8 }} /> : null}
-        {timeline.items.length ? (
-          <>
-            {/* Show reasoning in flat dialog logs to surface Codex text by default. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
-            <ExecutionTimeline items={timeline.items} showReasoning={showReasoning} wrapDiffLines={true} showLineNumbers={true} />
-          </>
-        ) : logs.length ? (
-          <pre className="hc-task-code-block hc-task-code-block--expanded">{lines}</pre>
-        ) : (
-          <div className="hc-exec-empty">
-            <Typography.Text type="secondary">{t('logViewer.empty')}</Typography.Text>
-          </div>
-        )}
-        <div ref={endRef} />
-      </div>
+      <TaskLogViewerFlat
+        t={t}
+        error={error}
+        timeline={timeline}
+        logs={logs}
+        lines={lines}
+        showReasoning={showReasoning}
+        rootRef={rootRef}
+        endRef={endRef}
+        messageContextHolder={messageContextHolder}
+      />
     );
   }
 
   return (
     <div className="log-viewer" ref={rootRef}>
       {messageContextHolder}
-      <div className="log-viewer__header">
-        <Space size={8} wrap>
-          <Typography.Text className="log-viewer__title">{t('execViewer.title')}</Typography.Text>
-          <Tag color={connecting ? 'processing' : error ? 'red' : 'green'} style={{ marginRight: 0 }}>
-            {connecting ? t('logViewer.state.connecting') : error ? t('logViewer.state.error') : t('logViewer.state.live')}
-          </Tag>
-          <Typography.Text type="secondary">{t('logViewer.lines', { count: logs.length })}</Typography.Text>
-        </Space>
-        <Space size={8} wrap>
-          {showPauseButton ? (
-            <Button
-              size="small"
-              icon={paused ? <PlayCircleOutlined /> : <PauseOutlined />}
-              onClick={() => setPaused(!paused)}
-            >
-              {paused ? t('logViewer.actions.resume') : t('logViewer.actions.pause')}
-            </Button>
-          ) : null}
-          {showReconnectButton ? (
-            <Button size="small" icon={<ReloadOutlined />} onClick={() => setSession((v) => v + 1)}>
-              {t('logViewer.actions.reconnect')}
-            </Button>
-          ) : null}
-          <Button size="small" onClick={() => setMode((v) => (v === 'timeline' ? 'raw' : 'timeline'))}>
-            {mode === 'timeline' ? t('execViewer.actions.showRaw') : t('execViewer.actions.showTimeline')}
-          </Button>
-          {mode === 'timeline' ? (
-            <>
-              <Tooltip title={t('execViewer.toggles.reasoning')}>
-                <Switch size="small" checked={showReasoning} onChange={setShowReasoning} />
-              </Tooltip>
-              <Tooltip title={t('execViewer.toggles.wrapDiff')}>
-                <Switch size="small" checked={wrapDiffLines} onChange={setWrapDiffLines} />
-              </Tooltip>
-              <Tooltip title={t('execViewer.toggles.lineNumbers')}>
-                <Switch size="small" checked={showLineNumbers} onChange={setShowLineNumbers} />
-              </Tooltip>
-            </>
-          ) : null}
-          <Button size="small" icon={<CopyOutlined />} onClick={() => void copyAll()}>
-            {t('logViewer.actions.copy')}
-          </Button>
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => void clear()}
-            loading={clearing}
-          >
-            {t('logViewer.actions.clear')}
-          </Button>
-        </Space>
-      </div>
+      <TaskLogViewerHeader
+        t={t}
+        connecting={connecting}
+        error={error}
+        logsCount={logs.length}
+        showPauseButton={showPauseButton}
+        showReconnectButton={showReconnectButton}
+        paused={paused}
+        onTogglePaused={() => setPaused(!paused)}
+        onReconnect={() => setSession((v) => v + 1)}
+        mode={mode}
+        onToggleMode={() => setMode((v) => (v === 'timeline' ? 'raw' : 'timeline'))}
+        showReasoning={showReasoning}
+        onToggleShowReasoning={setShowReasoning}
+        wrapDiffLines={wrapDiffLines}
+        onToggleWrapDiffLines={setWrapDiffLines}
+        showLineNumbers={showLineNumbers}
+        onToggleShowLineNumbers={setShowLineNumbers}
+        onCopy={() => void copyAll()}
+        onClear={() => void clear()}
+        clearing={clearing}
+      />
 
       {error ? (
         <Alert type="warning" showIcon message={error} style={{ marginBottom: 8 }} />

@@ -1,0 +1,16 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * App Shell (Home/Tasks/Groups)
+ * ========================================================================== */
+
+.hc-shell {
+  height: 100vh;
+  background: var(--hc-content-bg);
+}
+
+.hc-content {
+  background: var(--hc-content-bg);
+  min-width: 0;
+  overflow: hidden;
+}
+

@@ -1,0 +1,129 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+.hc-chat-welcome {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+}
+
+.hc-chat-welcome__card {
+  /* Clamp TaskGroup chat widths to container size to avoid horizontal scroll. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(720px, 100%);
+  background: var(--hc-surface);
+  border-color: var(--hc-border);
+  border-radius: 12px;
+}
+
+.hc-chat-timeline {
+  padding: 18px 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: var(--hc-page-max);
+  margin: 0 auto;
+}
+
+.hc-chat-composer {
+  border-top: 1px solid var(--hc-border);
+  background: transparent;
+  padding: 14px 18px 18px;
+}
+
+.hc-chat-composer__inner {
+  max-width: var(--hc-page-max);
+  margin: 0 auto;
+}
+
+.hc-chat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Animate newly sent chat items as they settle into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */
+@keyframes hc-chat-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hc-chat-item--enter {
+  animation: hc-chat-item-enter 360ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-chat-item--enter {
+    animation: none;
+  }
+}
+
+.hc-chat-item__user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.hc-chat-item__assistant {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.hc-chat-bubble {
+  /* Keep chat bubbles within the page container to prevent overflow on narrow layouts. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  max-width: min(820px, 100%);
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-bubble-assistant-bg);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-chat-bubble--user {
+  background: var(--hc-bubble-user-bg);
+}
+
+.hc-chat-task-card {
+  /* Keep task cards within the chat container width (avoid horizontal scrollbars). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
+  background: var(--hc-surface);
+  border-color: var(--hc-border);
+  border-radius: 12px;
+}
+
+.hc-chat-logs-card {
+  /* Keep log cards within the chat container width (avoid horizontal scrollbars). docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
+  /* Remove the Card surface background for TaskGroup execution logs. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a */
+  background: transparent;
+  border-color: transparent;
+  border-radius: 12px;
+  box-shadow: none;
+}
+/* Style chat suggestions to match the task timeline width and chip-like affordance. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */
+.hc-chat-suggestions {
+  width: min(820px, 100%);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hc-chat-suggestion {
+  border-radius: 999px;
+  border-color: var(--hc-border);
+  background: var(--hc-surface);
+}
+/* Stretch git status cards to match chat item width in the task group timeline. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */
+.hc-chat-git-status {
+  /* Keep git status panels within the chat container width. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
+  width: min(820px, 100%);
+}
+/* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */
+

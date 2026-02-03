@@ -1,0 +1,201 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Repo Detail Layout (Dashboard)
+ * ========================================================================== */
+
+/* =============================================================================
+ * Repo detail full-width layout
+ * - Business context: Frontend Chat / Repos / Repo detail.
+ * - Purpose: remove the global max-width constraint so repo detail content can use the full screen width.
+ * - Change record: 2026-01-17 - Make repo detail page full-width. 58w1q3n5nr58flmempxe
+ * ========================================================================== */
+
+.hc-repo-detail-page .hc-page__body {
+  /* Layout intent: repo detail contains wide tables/editors and should use the full available width. */
+  align-items: stretch;
+}
+
+.hc-repo-detail-page .hc-page__body > * {
+  /* Override `.hc-page__body > * { max-width: var(--hc-page-max) }` for this page only. */
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* =============================================================================
+ * Repo detail dashboard
+ * - Business context: Frontend Chat / Repos / Repo detail.
+ * - Purpose: replace the tabbed repo detail with a board-style dashboard layout.
+ * - Change record: 2026-01-18 - Remove top-level tab switching and add KPI + charts. u55e45ffi8jng44erdzp
+ * ========================================================================== */
+
+.hc-repo-summary-strip {
+  padding: 0 0 14px; /* Keep KPI strip aligned with page body padding (strip now renders inside `.hc-page__body`). u55e45ffi8jng44erdzp */
+  border-bottom: 1px solid var(--hc-border);
+}
+
+/* Keep dashboard regions visually stable by reserving space for empty/minimal modules. u55e45ffi8jng44erdzp */
+.hc-repo-dashboard__region {
+  width: 100%;
+}
+
+.hc-repo-dashboard__slot {
+  width: 100%;
+  min-height: var(--hc-repo-dashboard-min-h, 320px);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+.hc-repo-dashboard__slot > .ant-card {
+  flex: 1 1 auto;
+}
+
+.hc-repo-dashboard__slot--sm {
+  --hc-repo-dashboard-min-h: 260px;
+}
+
+.hc-repo-dashboard__slot--md {
+  --hc-repo-dashboard-min-h: 320px;
+}
+
+.hc-repo-dashboard__slot--lg {
+  --hc-repo-dashboard-min-h: 360px;
+}
+
+.hc-repo-dashboard__slot--xl {
+  --hc-repo-dashboard-min-h: 420px;
+}
+
+@media (max-width: 768px) {
+  .hc-repo-dashboard__slot--lg {
+    --hc-repo-dashboard-min-h: 320px;
+  }
+
+  .hc-repo-dashboard__slot--xl {
+    --hc-repo-dashboard-min-h: 360px;
+  }
+}
+
+.hc-repo-summary-strip__scroller {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  align-items: stretch; /* Keep summary tiles equal-height per row. u55e45ffi8jng44erdzp */
+  gap: 12px;
+}
+
+.hc-repo-summary-strip__card {
+  height: 100%;
+  min-width: 0;
+}
+
+.hc-repo-summary-strip__card--interactive {
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Add column spacing/dividers and keep activity rows compact to prevent overflow in repo provider activity. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc */
+.hc-provider-activity-card.ant-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-provider-activity-card.ant-card > .ant-card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.hc-provider-activity-columns {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.hc-provider-activity-columns > .ant-col {
+  display: flex;
+  min-width: 0;
+}
+
+.hc-provider-activity-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-provider-activity-item:last-child {
+  border-bottom: none;
+}
+
+.hc-provider-activity-column {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .hc-provider-activity-column--divider {
+    border-left: 1px solid var(--hc-border);
+    padding-left: 16px;
+  }
+}
+
+.hc-provider-activity-list {
+  width: 100%;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__mainLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__titleWrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-provider-activity-item__side {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.hc-provider-activity-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.hc-repo-summary-strip__card--interactive:hover {
+  background: var(--hc-accent-soft-hover);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-repo-summary-strip__card--interactive:focus-visible {
+  outline: none;
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-focus-ring);
+}
+

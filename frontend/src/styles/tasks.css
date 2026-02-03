@@ -1,0 +1,79 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Tasks page: status summary strip + filter visibility
+ * - Purpose: show active deep-link filters (e.g. `#/tasks?status=success`) directly in the UI. 3iz4jx8bsy7q7d6b3jr3
+ * ========================================================================== */
+
+.hc-tasks-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* Layout: place status filters above a full-width search row. 3iz4jx8bsy7q7d6b3jr3 */
+.hc-tasks-search {
+  width: 100%;
+}
+
+.hc-tasks-status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+button.hc-tasks-status-tile {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-hover);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+button.hc-tasks-status-tile:hover {
+  background: var(--hc-accent-soft-hover);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+button.hc-tasks-status-tile:focus-visible {
+  outline: none;
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-focus-ring);
+}
+
+button.hc-tasks-status-tile--active {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-tasks-status-tile__label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-tasks-status-tile__value {
+  display: block;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.hc-tasks-status-tile--skeleton.ant-skeleton-button {
+  height: 58px;
+  border-radius: 12px;
+}
+
+.hc-tasks-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+

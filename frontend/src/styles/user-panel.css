@@ -1,0 +1,227 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Top-right user panel (modal)
+ *
+ * Design goals:
+ * - Keep the modal size consistent across tabs (scroll inside tab panes).
+ * - Use a modern "soft glass" surface with clear borders and accent-aware active states.
+ *
+ * Change record:
+ * - 2026-01-12: Redesign modal layout to be fixed-size and tab-consistent.
+ * - 2026-01-12: Add responsive layout + accessible nav button styling for mobile and keyboard users.
+ * - 2026-01-15: Tighten paddings and unify dark-mode surfaces (avoid "black/gray blocks") in the panel and its dialogs.
+ * ========================================================================== */
+
+.hc-user-trigger {
+  /* Layout note: the trigger is rendered inside PageNav (rightmost). */
+  display: flex;
+  align-items: center;
+}
+
+.hc-user-trigger .ant-btn {
+  /* Visual parity (2026-01-12): reuse the PageNav "soft pill" action styling on the transparent header. */
+  min-width: 44px;
+}
+
+.hc-user-trigger__label {
+  margin-left: 6px;
+}
+
+@media (max-width: 768px) {
+  .hc-user-trigger__label {
+    display: none;
+  }
+}
+
+.hc-user-modal .ant-modal-content {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  box-shadow: var(--hc-shadow-lg);
+}
+
+.hc-user-modal .ant-modal-header {
+  background: transparent;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-user-modal .ant-modal-title {
+  color: var(--text);
+}
+
+.hc-user-modal .ant-modal-close {
+  color: var(--text);
+}
+
+
+.hc-user-modal .ant-modal-content {
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  /* Visual polish (2026-01-13): keep the whole user panel on a neutral gray surface in dark mode. */
+  background: var(--hc-panel-bg);
+}
+
+.hc-user-modal .ant-modal-body {
+  padding: 0;
+  display: flex;
+  /* UX: keep a fixed-ish "window" size on desktop but avoid viewport overflow on smaller screens. */
+  height: min(680px, calc(100vh - 140px));
+}
+
+/* Surface unification (2026-01-15):
+ * - Business context: Frontend / User panel modal.
+ * - Purpose: keep embedded AntD cards on the same neutral panel surface in dark mode
+ *   so the modal doesn't look like alternating "black blocks" and "gray blocks".
+ * - Usage: applied to cards rendered inside `UserPanelPopover.tsx`.
+ */
+.hc-user-modal .ant-card {
+  background: var(--hc-panel-bg);
+  border-color: var(--hc-border);
+}
+
+.hc-user-panel {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+/* Density tweak (2026-01-13):
+ * - Business context: Frontend Chat / User panel modal.
+ * - Purpose: show more settings/credentials without excessive scrolling (especially on laptops).
+ * - Change record: reduce paddings/margins and tighten Ant Design component spacing in compact mode.
+ */
+.hc-user-panel[data-density='compact'] .ant-form-vertical .ant-form-item {
+  margin-bottom: 12px;
+}
+
+.hc-user-panel[data-density='compact'] .ant-tag {
+  margin-inline-end: 0;
+  padding: 0 6px;
+  line-height: 18px;
+  font-size: 11px;
+}
+
+/* Sidebar */
+.hc-user-panel__sidebar {
+  width: 240px;
+  /* UX: avoid a darker "black strip" on the left; keep it consistent with the panel surface. */
+  background: var(--hc-panel-bg);
+  border-right: 1px solid var(--hc-border);
+  display: flex;
+  flex-direction: column;
+  /* Layout (2026-01-15): reduce outer padding so the modal feels less "padded". */
+  padding: 12px 8px;
+  flex-shrink: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.hc-user-panel__sidebar-header {
+  padding: 0 6px 10px;
+}
+
+.hc-user-panel__user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-hover) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hc-border) 70%, transparent);
+}
+
+.hc-user-panel__user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Visual parity: keep the avatar chip on the same neutral surface (dark mode was too black). */
+  background: var(--hc-panel-bg);
+  box-shadow: inset 0 0 0 1px var(--hc-border);
+  flex: 0 0 auto;
+}
+
+.hc-user-panel__user-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.hc-user-panel__user-primary {
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-user-panel__user-secondary {
+  margin-top: 1px;
+  line-height: 1.2;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-user-panel__user-roles {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hc-user-panel__nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-top: 10px;
+}
+
+.hc-user-panel__sidebar-title {
+  padding: 0 12px;
+  margin-bottom: 24px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.hc-user-panel__nav-group {
+  margin-bottom: 16px;
+}
+
+.hc-user-panel__nav-header {
+  padding: 0 12px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hc-user-panel__close {
+  /* UX/a11y: close button lives in the panel header; keep it keyboard focusable and visually consistent. */
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.2s, background-color 0.2s;
+}
+.hc-user-panel__close:hover {
+  color: var(--text);
+  background: var(--hc-hover);
+}
+.hc-user-panel__close:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+

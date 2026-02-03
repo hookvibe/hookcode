@@ -1,0 +1,19 @@
+/* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Align menu link states with glass highlights for clear navigation. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.menu__link {
+  color: var(--ifm-menu-color);
+  border-radius: 10px;
+}
+
+.menu__link:hover,
+.menu__link:focus-visible {
+  background-color: rgba(37, 99, 235, 0.12);
+  color: var(--ifm-menu-color-active);
+}
+
+.menu__link--active,
+.menu__link--active:hover {
+  background-color: var(--ifm-menu-color-background-active);
+  color: var(--ifm-menu-color-active);
+}
+

@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
-describe('styles.css Ant Design input overrides', () => {
+describe('styles Ant Design input overrides', () => {
   test('removes nested input border inside affix wrappers', () => {
-    const cssText = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8');
+    // Read AntD override module directly after splitting global styles. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+    const cssText = readFileSync(resolve(process.cwd(), 'src/styles/antd-overrides.css'), 'utf8');
 
     // Style contract:
     // - The border + focus ring live on `.ant-input-affix-wrapper`.

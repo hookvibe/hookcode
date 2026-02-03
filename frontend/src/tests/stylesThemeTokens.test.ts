@@ -9,9 +9,10 @@ const extractDarkThemeBlock = (cssText: string): string => {
   return match[1] ?? '';
 };
 
-describe('styles.css theme tokens', () => {
+describe('styles tokens', () => {
   test('dark theme uses a neutral near-black background', () => {
-    const cssText = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8');
+    // Read tokens module directly after splitting global styles. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+    const cssText = readFileSync(resolve(process.cwd(), 'src/styles/tokens.css'), 'utf8');
     const darkBlock = extractDarkThemeBlock(cssText);
 
     expect(darkBlock).toContain('--bg: #09090b;');

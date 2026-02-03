@@ -1,0 +1,28 @@
+/* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Style inline code and blocks with soft glass contrast. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+:not(pre) > code {
+  border: 1px solid var(--glass-border);
+  color: var(--ifm-code-color);
+  background-color: var(--ifm-code-background);
+  padding: 0.1rem 0.35rem;
+  border-radius: 8px;
+}
+
+a code {
+  color: inherit;
+}
+
+pre {
+  border: 1px solid var(--glass-code-border);
+  background-color: var(--glass-code-bg);
+  color: #e2e8f0;
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.6));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6));
+}
+
+pre code {
+  color: inherit;
+  background-color: transparent;
+}
+

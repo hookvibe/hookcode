@@ -1,0 +1,290 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+.hc-settings-nav-item {
+  /* UX/a11y: render navigation entries as real buttons for keyboard access (2026-01-12). */
+  appearance: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin-bottom: 2px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.hc-settings-nav-item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-settings-nav-item:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-settings-nav-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hc-settings-nav-item__icon {
+  width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hc-settings-nav-item__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.hc-settings-nav-item--active {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.hc-user-panel__sidebar-footer {
+  padding: 10px 6px 0;
+  border-top: 1px solid var(--hc-border);
+  margin-top: 10px;
+}
+
+.hc-user-panel__sidebar-footer .ant-btn {
+  width: 100%;
+}
+
+/* Main Content */
+.hc-user-panel__content {
+  flex: 1;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-user-panel__content-header {
+  /* Layout (2026-01-15): reduce outer padding to match the tighter modal surface. */
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--hc-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  /* UX: keep the sticky header visually aligned with the rest of the modal surface. */
+  background: var(--hc-panel-bg); /* Ensure header covers scrolled content */
+}
+
+.hc-user-panel__content-titleArea {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hc-user-panel__content-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.hc-user-panel__content-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hc-user-panel__content-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-user-panel__header-action {
+  color: var(--muted);
+}
+
+.hc-user-panel__header-action:hover {
+  color: var(--text);
+}
+
+.hc-user-panel__content-body {
+  /* Layout (2026-01-15): reduce outer padding so content matches the main pages' density. */
+  padding: 14px 16px;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  /* Mobile UX: use a full-screen panel layout (single column) and make the nav horizontally scrollable. */
+  .hc-user-modal--mobile .ant-modal-content {
+    border-radius: 0 !important;
+  }
+
+  .hc-user-modal--mobile .ant-modal-body {
+    height: 100vh;
+  }
+
+  .hc-user-panel {
+    flex-direction: column;
+  }
+
+  .hc-user-panel__sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--hc-border);
+    padding: 10px;
+  }
+
+  .hc-user-panel__sidebar-header {
+    padding: 0;
+  }
+
+  .hc-user-panel__nav {
+    padding-top: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hc-user-panel__nav-group {
+    margin-bottom: 0;
+    display: flex;
+    gap: 6px;
+  }
+
+  .hc-user-panel__nav-header {
+    display: none;
+  }
+
+  .hc-settings-nav-item {
+    width: auto;
+    white-space: nowrap;
+    border-radius: 999px;
+    margin-bottom: 0;
+    padding: 5px 10px;
+  }
+
+  .hc-user-panel__sidebar-footer {
+    border-top: none;
+    padding: 10px 0 0;
+    margin-top: 0;
+  }
+
+  .hc-user-panel__content-header {
+    padding: 12px 14px;
+  }
+
+  .hc-user-panel__content-body {
+    padding: 14px;
+    max-width: none;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Sections */
+.hc-settings-section {
+  margin-bottom: 24px;
+}
+
+.hc-settings-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--muted);
+}
+
+/* Cards for Theme Selection */
+.hc-theme-cards {
+  display: flex;
+  gap: 12px;
+}
+
+.hc-theme-card {
+  flex: 1;
+  cursor: pointer;
+}
+
+.hc-theme-card-preview {
+  aspect-ratio: 16/10;
+  background: var(--bg);
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+/* Simplified representations of UI in preview */
+.hc-theme-card-preview::before {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: 10%;
+  right: 10%;
+  height: 12%;
+  background: var(--border);
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+.hc-theme-card-preview::after {
+  content: '';
+  position: absolute;
+  top: 30%;
+  left: 10%;
+  width: 25%;
+  bottom: 10%;
+  background: var(--border);
+  border-radius: 4px;
+  opacity: 0.3;
+}
+
+.hc-theme-card--active .hc-theme-card-preview {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--hc-accent-soft-hover);
+}
+
+.hc-theme-card--light .hc-theme-card-preview {
+  background: #f8fafc;
+}
+.hc-theme-card--light .hc-theme-card-preview::before,
+.hc-theme-card--light .hc-theme-card-preview::after {
+  background: #cbd5e1;
+}
+
+.hc-theme-card--dark .hc-theme-card-preview {
+  /* Visual parity: keep the preview in sync with the actual dark theme base background. */
+  background: #09090b;
+}
+.hc-theme-card--dark .hc-theme-card-preview::before,
+.hc-theme-card--dark .hc-theme-card-preview::after {
+  background: #27272a;
+}
+
+.hc-theme-card--system .hc-theme-card-preview {
+  background: linear-gradient(90deg, #f8fafc 50%, #09090b 50%);
+}
+
+.hc-theme-card-label {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+}
+

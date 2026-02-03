@@ -1,0 +1,121 @@
+/* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Apply glassmorphism theme foundations for the docs site. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Sora:wght@400;500;600;700&display=swap');
+
+/* Define glass tokens, typography, and Docusaurus overrides for light mode. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+:root {
+  --glass-blur: 18px;
+  --glass-surface: rgba(255, 255, 255, 0.68);
+  --glass-surface-strong: rgba(255, 255, 255, 0.82);
+  --glass-surface-muted: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(148, 163, 184, 0.35);
+  --glass-border-strong: rgba(148, 163, 184, 0.5);
+  --glass-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  --glass-shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --glass-ring: rgba(59, 130, 246, 0.45);
+  --glass-code-bg: rgba(15, 23, 42, 0.92);
+  --glass-code-border: rgba(148, 163, 184, 0.25);
+  /* Keep a solid page backdrop to ensure uniform color at all scroll depths. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+  --glass-page-gradient: none;
+  --glass-page-overlay: none;
+  --glass-page-overlay-opacity: 0;
+
+  --ifm-color-primary: #3b82f6;
+  --ifm-color-primary-dark: #2563eb;
+  --ifm-color-primary-darker: #1d4ed8;
+  --ifm-color-primary-light: #60a5fa;
+  --ifm-color-primary-lighter: #93c5fd;
+
+  --ifm-background-color: #eef4ff;
+  --ifm-background-surface-color: var(--glass-surface);
+  --ifm-navbar-background-color: var(--glass-surface-strong);
+  --ifm-footer-background-color: rgba(255, 255, 255, 0.7);
+
+  --ifm-color-content: #0f172a;
+  --ifm-color-content-secondary: #475569;
+  --ifm-font-color-base: #0f172a;
+  --ifm-heading-color: #0f172a;
+  --ifm-link-color: #2563eb;
+  --ifm-link-hover-color: #1d4ed8;
+  --ifm-toc-border-color: rgba(148, 163, 184, 0.4);
+  --ifm-toc-link-color: #334155;
+  --ifm-toc-link-color-active: #1d4ed8;
+  --ifm-navbar-link-color: #0f172a;
+  --ifm-navbar-link-hover-color: #1d4ed8;
+  --ifm-menu-color: #0f172a;
+  --ifm-menu-color-active: #1d4ed8;
+  --ifm-menu-color-background-active: rgba(37, 99, 235, 0.12);
+  --ifm-footer-link-color: #0f172a;
+  --ifm-footer-link-hover-color: #1d4ed8;
+  --ifm-breadcrumb-color-active: #0f172a;
+  --ifm-hr-border-color: rgba(148, 163, 184, 0.35);
+  --ifm-table-stripe-background: rgba(59, 130, 246, 0.08);
+  --ifm-container-width-xl: 1160px;
+
+  --ifm-font-family-base: 'Manrope', 'Sora', 'Helvetica Neue', sans-serif;
+  --ifm-heading-font-family: 'Sora', 'Manrope', 'Helvetica Neue', sans-serif;
+  --ifm-font-size-base: 16px;
+  --ifm-line-height-base: 1.7;
+  --ifm-heading-line-height: 1.3;
+  --ifm-heading-font-weight: 600;
+  --ifm-code-font-size: 0.95em;
+  --ifm-code-background: rgba(15, 23, 42, 0.08);
+  --ifm-code-color: #0f172a;
+
+  --ifm-global-radius: 18px;
+  --ifm-button-border-radius: 999px;
+  --ifm-card-border-radius: 20px;
+  --ifm-navbar-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* Tune glass tokens for dark mode contrast and clarity. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+html[data-theme='dark'] {
+  --glass-surface: rgba(15, 23, 42, 0.62);
+  --glass-surface-strong: rgba(15, 23, 42, 0.78);
+  --glass-surface-muted: rgba(15, 23, 42, 0.5);
+  --glass-border: rgba(148, 163, 184, 0.28);
+  --glass-border-strong: rgba(148, 163, 184, 0.4);
+  --glass-shadow: 0 18px 40px rgba(2, 6, 23, 0.55);
+  --glass-shadow-soft: 0 8px 24px rgba(2, 6, 23, 0.4);
+  --glass-ring: rgba(96, 165, 250, 0.45);
+  --glass-code-bg: rgba(15, 23, 42, 0.88);
+  --glass-code-border: rgba(148, 163, 184, 0.2);
+  /* Keep a solid dark page backdrop to ensure uniform color at all scroll depths. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+  --glass-page-gradient: none;
+  --glass-page-overlay: none;
+  --glass-page-overlay-opacity: 0;
+
+  --ifm-color-primary: #60a5fa;
+  --ifm-color-primary-dark: #3b82f6;
+  --ifm-color-primary-darker: #2563eb;
+  --ifm-color-primary-light: #93c5fd;
+  --ifm-color-primary-lighter: #bfdbfe;
+
+  --ifm-background-color: #0b1120;
+  --ifm-background-surface-color: var(--glass-surface);
+  --ifm-navbar-background-color: var(--glass-surface-strong);
+  --ifm-footer-background-color: rgba(15, 23, 42, 0.8);
+
+  --ifm-color-content: #e2e8f0;
+  --ifm-color-content-secondary: #cbd5f5;
+  --ifm-font-color-base: #e2e8f0;
+  --ifm-heading-color: #f8fafc;
+  --ifm-link-color: #93c5fd;
+  --ifm-link-hover-color: #bfdbfe;
+  --ifm-toc-border-color: rgba(148, 163, 184, 0.35);
+  --ifm-toc-link-color: #cbd5f5;
+  --ifm-toc-link-color-active: #93c5fd;
+  --ifm-navbar-link-color: #e2e8f0;
+  --ifm-navbar-link-hover-color: #bfdbfe;
+  --ifm-menu-color: #e2e8f0;
+  --ifm-menu-color-active: #93c5fd;
+  --ifm-menu-color-background-active: rgba(59, 130, 246, 0.22);
+  --ifm-footer-link-color: #e2e8f0;
+  --ifm-footer-link-hover-color: #bfdbfe;
+  --ifm-breadcrumb-color-active: #e2e8f0;
+  --ifm-hr-border-color: rgba(148, 163, 184, 0.35);
+  --ifm-table-stripe-background: rgba(59, 130, 246, 0.16);
+  --ifm-code-background: rgba(148, 163, 184, 0.12);
+  --ifm-code-color: #e2e8f0;
+}
+

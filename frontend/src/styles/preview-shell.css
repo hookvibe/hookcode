@@ -1,0 +1,304 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Preview Shell (Task Group)
+ * ========================================================================== */
+
+.hc-preview-panel {
+  flex: 0 0 auto;
+  width: 38%;
+  min-width: 320px;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, var(--hc-surface-elevated) 0%, var(--hc-surface) 28%, var(--hc-surface) 100%);
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  box-shadow: var(--hc-shadow-md);
+  overflow: hidden;
+  min-height: 0;
+  animation: hc-preview-panel-reveal 0.28s ease-out;
+}
+
+/* Add draggable divider and diagnostics styling for preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-preview-divider {
+  flex: 0 0 14px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  cursor: col-resize;
+}
+
+.hc-preview-divider-handle {
+  width: 2px;
+  margin: 10px 0;
+  border-radius: 999px;
+  background: var(--hc-border);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-preview-divider:hover .hc-preview-divider-handle,
+.hc-preview-divider--active .hc-preview-divider-handle {
+  background: var(--hc-accent-border);
+  box-shadow: 0 0 0 4px var(--hc-accent-soft);
+}
+
+.hc-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hc-border);
+  flex-wrap: wrap;
+  /* Align the preview header layout and chrome gradient for the browser look. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+  background: linear-gradient(180deg, var(--hc-surface-elevated) 0%, var(--hc-surface) 100%);
+}
+
+/* Stack the window controls and status text for the browser-style header. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+
+/* Align window controls with the preview title row. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Add browser-style window controls to reinforce the embedded chrome. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-window-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hc-border) 30%, transparent);
+  pointer-events: none;
+}
+
+/* Color the window control dots to mimic native browser chrome. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-window-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.25);
+  background: #94a3b8;
+}
+
+.hc-preview-window-dot--close {
+  background: #ef4444;
+}
+
+.hc-preview-window-dot--minimize {
+  background: #f59e0b;
+}
+
+.hc-preview-window-dot--zoom {
+  background: #22c55e;
+}
+
+/* Push preview header actions to the right edge of the chrome. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.hc-preview-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  overflow-x: auto;
+}
+
+.hc-preview-tab {
+  appearance: none;
+  border: 1px solid var(--hc-border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.hc-preview-tab:hover {
+  background: var(--hc-accent-soft-hover);
+}
+
+.hc-preview-tab--active {
+  background: var(--hc-accent-soft);
+  border-color: var(--hc-accent-border);
+}
+
+.hc-preview-tab-name {
+  font-weight: 600;
+}
+
+.hc-preview-header-browser {
+  /* Place the preview browser toolbar alongside the header status row. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+  flex: 1 1 320px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 260px;
+  padding: 4px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 70%, transparent);
+  background: color-mix(in srgb, var(--hc-surface-elevated) 85%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), var(--hc-shadow-sm);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-preview-header-browser:focus-within {
+  /* Keep the address bar focus ring visible for keyboard users. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-preview-header-browser-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hc-preview-header-browser-actions .ant-btn {
+  /* Style toolbar buttons to feel browser-native. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.05);
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-preview-header-browser-actions .ant-btn:hover {
+  background: var(--hc-accent-soft-hover);
+  border-color: var(--hc-accent-border);
+}
+
+.hc-preview-header-browser-actions .ant-btn:disabled,
+.hc-preview-header-browser-actions .ant-btn[disabled] {
+  background: var(--hc-control-bg-disabled);
+  border-color: var(--hc-border);
+  color: var(--muted);
+}
+
+.hc-preview-header-browser-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Align the address bar prefix icon spacing with browser inputs. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-header-browser-input .ant-input-prefix {
+  margin-right: 6px;
+}
+
+.hc-preview-header-browser-input input,
+.hc-preview-header-browser-input .ant-input {
+  font-size: 12px;
+}
+
+.hc-preview-header-browser-input .ant-input-affix-wrapper,
+.hc-preview-header-browser-input .ant-input {
+  /* Make the address bar look like a browser pill input. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--hc-surface-elevated);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-preview-header-browser-input .ant-input-affix-wrapper-focused,
+.hc-preview-header-browser-input .ant-input:focus {
+  border-color: var(--hc-accent-border);
+}
+
+/* Style the security/globe prefix inside the address bar. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-header-browser-prefix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--hc-control-bg);
+  color: var(--muted);
+  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.08);
+}
+
+.hc-preview-header-browser-prefix--secure {
+  background: color-mix(in srgb, #16a34a 12%, var(--hc-control-bg));
+  color: #16a34a;
+}
+
+.hc-preview-header-actions .ant-btn {
+  /* Align preview header actions with the browser toolbar styling. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+  border-radius: 10px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Add padding and background to frame the preview viewport. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--hc-surface) 92%, #f8fafc);
+}
+
+/* Wrap the iframe in a framed viewport to emulate browser chrome. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-iframe-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 16px;
+  border: 1px solid var(--hc-border);
+  background: #ffffff;
+  box-shadow: var(--hc-shadow-sm);
+  overflow: hidden;
+  display: flex;
+  animation: hc-preview-panel-reveal 0.32s ease-out 0.04s both;
+}
+
+/* Ensure the iframe fills the framed viewport without overflow. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+  min-height: 0;
+}
+
+.hc-preview-placeholder {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-preview-message {
+  opacity: 0.8;
+}
+

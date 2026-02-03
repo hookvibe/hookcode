@@ -1,0 +1,45 @@
+/* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Apply glass surfaces to primary layout containers. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.navbar,
+.theme-doc-sidebar-container,
+.theme-doc-toc-desktop,
+.theme-doc-toc-mobile,
+.menu,
+.dropdown__menu,
+.card,
+.pagination-nav__link,
+.alert,
+.table-wrapper,
+.table-of-contents {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-surface);
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+/* Keep the navbar crisp while preserving the floating glass look. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.navbar {
+  border-radius: 999px;
+  margin: 0.75rem 1rem 0;
+}
+
+/* Remove pixel rendering and add subtle polish to the logo mark. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.navbar__logo img {
+  image-rendering: auto;
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.2));
+}
+
+/* Keep section cards and pagination links interactive but stable. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+.card,
+.pagination-nav__link {
+  transition: box-shadow 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.card:hover,
+.pagination-nav__link:hover {
+  border-color: var(--glass-border-strong);
+  box-shadow: var(--glass-shadow);
+  transform: translateY(-2px);
+}
+

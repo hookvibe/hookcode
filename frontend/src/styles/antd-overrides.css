@@ -1,0 +1,231 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Ant Design integration (minimal overrides)
+ *
+ * Business context:
+ * - Module: Frontend Chat / Styles / AntD.
+ * - Purpose: keep AntD surfaces aligned with our CSS-variable theme (light/dark + accent).
+ *
+ * Change record:
+ * - 2026-01-12: Add subtle surface + focus styling for inputs/selects so the UI feels consistent.
+ * ========================================================================== */
+
+.hc-shell .ant-card,
+.hc-shell .ant-modal-content,
+.hc-shell .ant-popover-inner {
+  /* background: var(--hc-surface-elevated); */
+  /* border-color: var(--hc-border); */
+}
+
+.hc-shell .ant-popover-inner {
+  box-shadow: var(--hc-shadow-md);
+}
+
+/* Compact dialog skin (2026-01-15):
+ * - Business context: Frontend / Dialogs / Credential profile editors.
+ * - Purpose:
+ *   1) Reduce modal padding so dialogs feel closer to the main content density.
+ *   2) Keep header/body/footer on a single surface in dark mode (avoid mixed blacks/greys).
+ *
+ * Usage:
+ * - Add `className="hc-dialog--compact"` to AntD `Modal` / `ResponsiveDialog` (compact variant).
+ *
+ * Notes:
+ * - We intentionally keep the control surface (`--hc-control-bg`) the same across pages/modals; this class only
+ *   adjusts container padding + dialog surface to match the user panel's neutral background.
+ */
+.hc-shell .hc-dialog--compact .ant-modal-content {
+  background: var(--hc-panel-bg);
+  border: 1px solid var(--hc-border);
+  box-shadow: var(--hc-shadow-lg);
+}
+
+.hc-shell .hc-dialog--compact .ant-modal-header,
+.hc-shell .hc-dialog--compact .ant-modal-body,
+.hc-shell .hc-dialog--compact .ant-modal-footer {
+  background: transparent;
+}
+
+.hc-shell .hc-dialog--compact .ant-modal-header {
+  padding: 12px 16px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-shell .hc-dialog--compact .ant-modal-body {
+  padding: 14px 16px;
+}
+
+.hc-shell .hc-dialog--compact .ant-modal-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--hc-border);
+}
+
+/* Form controls: make inputs/selects feel consistent with the "soft surface" theme. */
+.hc-shell .ant-input:not(.ant-input-borderless),
+.hc-shell .ant-input-affix-wrapper:not(.ant-input-borderless),
+.hc-shell .ant-input-textarea-affix-wrapper:not(.ant-input-borderless),
+.hc-shell .ant-input-number,
+.hc-shell .ant-picker {
+  /* Visual goal: a single, consistent control surface for all input-like components across pages/modals. */
+  background: var(--hc-control-bg);
+  border-color: var(--hc-border);
+  border-radius: 12px;
+  /* Visual fix: avoid "double border" caused by default inset shadows on some AntD controls. */
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-shell .ant-input:not(.ant-input-borderless):hover,
+.hc-shell .ant-input-affix-wrapper:not(.ant-input-borderless):hover,
+.hc-shell .ant-input-textarea-affix-wrapper:not(.ant-input-borderless):hover,
+.hc-shell .ant-input-number:hover,
+.hc-shell .ant-picker:hover {
+  background: var(--hc-control-bg-hover);
+  border-color: var(--hc-accent-border);
+}
+
+.hc-shell .ant-input:not(.ant-input-borderless):focus,
+.hc-shell .ant-input-affix-wrapper-focused:not(.ant-input-borderless),
+.hc-shell .ant-input-number-focused,
+.hc-shell .ant-picker-focused {
+  border-color: var(--hc-accent-border) !important;
+  box-shadow: var(--hc-focus-ring) !important;
+}
+
+/* Inputs with prefix/suffix/allowClear (AntD affix wrapper):
+ * - Problem: AntD wraps inputs with an affix wrapper, and the nested `.ant-input` can still receive our global focus ring,
+ *   causing a visible "double ring/border" (wrapper ring + inner ring).
+ *
+ * Fix:
+ * - Keep border + focus ring on `.ant-input-affix-wrapper` only; force the nested input to stay fully borderless/no-shadow.
+ *
+ * Reference:
+ * - Same approach as the new task-group composer (`.hc-composer-box`) which draws the border on the container and keeps the inner input clean.
+ *
+ * Change record:
+ * - 2026-01-13: Ensure toolbar search inputs render as a single-border control (no inner ring) across themes.
+ */
+.hc-shell .ant-input-affix-wrapper:not(.ant-input-borderless) .ant-input {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+.hc-shell .ant-input-textarea-affix-wrapper:not(.ant-input-borderless) textarea.ant-input {
+  /* See the note above: textarea affix wrappers can also render a nested ring (double border) on focus. */
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+.hc-shell .ant-input::placeholder,
+.hc-shell textarea.ant-input::placeholder,
+.hc-shell .ant-input-number-input::placeholder,
+.hc-shell .ant-picker-input > input::placeholder {
+  /* UX: keep placeholder readable and consistent across light/dark themes. */
+  color: var(--hc-control-placeholder);
+  opacity: 1;
+}
+
+.hc-shell .ant-input-prefix,
+.hc-shell .ant-input-suffix,
+.hc-shell .ant-input-clear-icon,
+.hc-shell .ant-input-password-icon {
+  color: var(--hc-control-icon);
+}
+
+.hc-shell .ant-input-clear-icon:hover,
+.hc-shell .ant-input-password-icon:hover {
+  color: var(--text);
+}
+
+.hc-shell .ant-input-affix-wrapper-disabled,
+.hc-shell .ant-input-textarea-affix-wrapper-disabled,
+.hc-shell .ant-input[disabled],
+.hc-shell textarea.ant-input[disabled],
+.hc-shell .ant-input-disabled,
+.hc-shell .ant-input-number-disabled,
+.hc-shell .ant-picker-disabled {
+  /* UX: disabled controls should remain obviously non-interactive while keeping the theme surface. */
+  background: var(--hc-control-bg-disabled) !important;
+  border-color: var(--hc-border) !important;
+  box-shadow: none !important;
+}
+
+.hc-shell .ant-select:not(.ant-select-borderless) .ant-select-selector {
+  background: var(--hc-control-bg) !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 12px !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-shell .ant-select:not(.ant-select-borderless):hover .ant-select-selector {
+  background: var(--hc-control-bg-hover) !important;
+  border-color: var(--hc-accent-border) !important;
+}
+
+.hc-shell .ant-select:not(.ant-select-borderless).ant-select-focused .ant-select-selector {
+  border-color: var(--hc-accent-border) !important;
+  box-shadow: var(--hc-focus-ring) !important;
+}
+
+.hc-shell .ant-select .ant-select-selection-placeholder {
+  color: var(--hc-control-placeholder) !important;
+}
+
+.hc-shell .ant-select .ant-select-arrow,
+.hc-shell .ant-select .ant-select-clear {
+  color: var(--hc-control-icon) !important;
+}
+
+.hc-shell .ant-select .ant-select-arrow:hover,
+.hc-shell .ant-select .ant-select-clear:hover {
+  color: var(--text) !important;
+}
+
+.hc-shell .ant-select-disabled .ant-select-selector {
+  background: var(--hc-control-bg-disabled) !important;
+  border-color: var(--hc-border) !important;
+  box-shadow: none !important;
+}
+
+/* Subtle selects for the chat composer (repo/robot pickers). */
+.hc-select-subtle.ant-select .ant-select-selector {
+  background: var(--hc-hover) !important;
+  border: 1px solid var(--hc-border) !important;
+  border-radius: 999px !important;
+  padding-inline: 10px !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.hc-select-subtle.ant-select:hover .ant-select-selector {
+  background: color-mix(in srgb, var(--hc-hover) 70%, var(--hc-accent-soft)) !important;
+  border-color: var(--hc-accent-border) !important;
+}
+
+.hc-select-subtle.ant-select-focused .ant-select-selector,
+.hc-select-subtle.ant-select-open .ant-select-selector {
+  border-color: var(--hc-accent-border) !important;
+  box-shadow: var(--hc-focus-ring) !important;
+}
+
+/* Header back icon: match the modern "pill icon" style used across the app. */
+.hc-nav__back.ant-btn {
+  border-radius: 999px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.hc-nav__back.ant-btn:hover {
+  background: var(--hc-hover) !important;
+  color: var(--text) !important;
+}

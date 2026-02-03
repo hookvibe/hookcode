@@ -1,0 +1,188 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Modern Chat Composer (Refactored)
+ * ========================================================================== */
+
+.hc-chat-centered-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 24px;
+  width: 100%;
+}
+
+.hc-chat-hero {
+  text-align: center;
+  margin-bottom: 40px;
+  max-width: 600px;
+}
+
+.hc-chat-footer-composer {
+  /* border-top: 1px solid var(--hc-border); */
+  /* background: var(--hc-surface); */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 16px 24px 24px;
+  flex: 0 0 auto;
+}
+
+.hc-composer-container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.hc-composer-box {
+  /* Change record (2026-01-12): use the shared surface token; `--hc-card-bg` was never defined. */
+  background: var(--hc-surface-elevated);
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: var(--hc-shadow-sm);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hc-composer-box--inline {
+  /* UX (Chat / Task group): keep the footer composer compact like modern messengers. */
+  padding: 10px 12px;
+  gap: 8px;
+  /* Visual style: avoid a heavy "filled card" in the timeline footer; let the footer surface be the backdrop. */
+  background: transparent;
+  box-shadow: none;
+}
+
+.hc-composer-box:focus-within {
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-md), var(--hc-focus-ring);
+}
+
+.hc-composer-box--inline:focus-within {
+  /* Visual style: keep the inline composer focus ring light-weight to avoid overpowering the chat content. */
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-composer-box--focused {
+  /* UX note: `:focus-within` is not reliable on some mobile keyboards; keep a class hook for parity. */
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-md), var(--hc-focus-ring);
+}
+
+.hc-composer-box--inline.hc-composer-box--focused {
+  box-shadow: var(--hc-focus-ring);
+}
+
+/* Chat composer input (AntD):
+ * - Business context: Frontend Chat / Task groups / New group + Task group composer.
+ *
+ * Problem:
+ * - The composer container (`.hc-composer-box`) already draws the border + focus ring.
+ * - AntD Input/TextArea may also draw its own border/background/focus ring, creating a double-border look.
+ *
+ * Fix:
+ * - Keep the inner input borderless/transparent and let `.hc-composer-box:focus-within` be the only focus affordance.
+ *
+ * Change record:
+ * - 2026-01-12: Remove inner input borders/rings in the chat composer to avoid double borders.
+ */
+.hc-composer-box .hc-composer-input,
+.hc-composer-box .hc-composer-input:hover,
+.hc-composer-box .hc-composer-input:focus,
+.hc-composer-box textarea.ant-input,
+.hc-composer-box textarea.ant-input:hover,
+.hc-composer-box textarea.ant-input:focus,
+.hc-composer-box .ant-input-textarea-affix-wrapper.ant-input-affix-wrapper,
+.hc-composer-box .ant-input-textarea-affix-wrapper.ant-input-affix-wrapper:hover,
+.hc-composer-box .ant-input-textarea-affix-wrapper.ant-input-affix-wrapper-focused {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+}
+
+.hc-composer-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-composer-input-wrapper {
+  width: 100%;
+}
+
+.hc-composer-input.ant-input {
+  resize: none;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  /* UX: keep comfortable padding so the first character never hugs the container edge. */
+  padding: 6px 8px;
+  font-size: 15px; 
+  line-height: 1.5;
+}
+
+.hc-composer-box--inline .hc-composer-input.ant-input,
+.hc-composer-box--inline textarea.ant-input {
+  /* UX: tighter padding for the single-line default composer in task-group view. */
+  padding: 4px 6px;
+}
+
+/* Focus handling:
+ * - The composer container (`.hc-composer-box`) owns the focus ring via `:focus-within`.
+ * - Prevent AntD global input focus styles from adding an inner ring (double border).
+ *
+ * Change record:
+ * - 2026-01-12: Ensure only one focus ring is visible in the new task-group composer.
+ */
+.hc-shell .hc-composer-box .hc-composer-input.ant-input:focus {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.hc-composer-footer {
+  display: flex;
+  /* Arrange composer footer into left icon + selectors and right actions. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hc-composer-footer-left {
+  /* Keep the time-window icon aligned left for quick access. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-composer-footer-right {
+  /* Keep repo/robot selectors grouped with the send action on the right. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-timewindow-toggle {
+  /* Minimal icon affordance for the chat time-window popover. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  color: var(--text-secondary);
+}
+
+.hc-timewindow-toggle.is-active {
+  /* Highlight the icon when a time window is selected. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  color: var(--primary);
+}
+
+.hc-timewindow-label {
+  /* Keep the time window label compact and readable. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
+  font-size: 12px;
+}
+
