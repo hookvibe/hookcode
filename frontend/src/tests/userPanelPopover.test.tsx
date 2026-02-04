@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
 import { UserPanelPopover } from '../components/UserPanelPopover';
+import * as api from '../api';
 
 vi.mock('../api', () => {
   return {
@@ -222,5 +223,41 @@ describe('UserPanelPopover', () => {
 
     await ui.click(screen.getByRole('button', { name: 'Request PAT' }));
     expect(await screen.findByText('Request API token')).toBeInTheDocument();
+  });
+
+  test('filters task-group tokens from the panel PAT list', async () => {
+    // Ensure auto-generated task-group PATs stay out of the panel list. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchMyApiTokens).mockResolvedValueOnce([
+      {
+        id: 'pat-manual',
+        name: 'Manual token',
+        tokenPrefix: 'hcpat_abcd',
+        tokenLast4: 'wxyz',
+        scopes: [{ group: 'tasks', level: 'read' }],
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        revokedAt: null,
+        lastUsedAt: null
+      },
+      {
+        id: 'pat-auto',
+        name: 'task-group-123e4567-e89b-12d3-a456-426614174000',
+        tokenPrefix: 'hcpat_auto',
+        tokenLast4: '0000',
+        scopes: [{ group: 'tasks', level: 'write' }],
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        revokedAt: null,
+        lastUsedAt: null
+      }
+    ]);
+
+    renderPopover({ token: 't' });
+    await ui.click(screen.getByRole('button', { name: /Panel/i }));
+    await ui.click(screen.getByRole('button', { name: 'Credentials' }));
+
+    expect(await screen.findByText('Manual token')).toBeInTheDocument();
+    expect(screen.queryByText('task-group-123e4567-e89b-12d3-a456-426614174000')).not.toBeInTheDocument();
   });
 });

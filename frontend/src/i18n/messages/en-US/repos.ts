@@ -80,6 +80,10 @@ export const enUSRepos = {
   'repos.detail.credentials.repoProvider': 'Repo provider token',
   'repos.detail.credentials.modelProvider': 'Model provider',
   'repos.detail.credentials.tip': 'Only shows configuration status. Tokens/keys are never returned.',
+  // Add repo task-group PAT section copy for auto-issued tokens. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+  'repos.detail.autoTokens.title': 'Task-group API tokens',
+  'repos.detail.autoTokens.tip': 'Auto-generated tokens for task groups in this repo. Revoke to force regeneration.',
+  'repos.detail.autoTokens.empty': 'No task-group tokens yet.',
 
   // --- Repo detail dashboard (no tabs) ---
   // Add KPI strip + webhook activity charts to the repo detail page. u55e45ffi8jng44erdzp

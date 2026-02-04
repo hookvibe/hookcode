@@ -40,6 +40,20 @@ vi.mock('../api', () => {
     archiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksArchived: 0, taskGroupsArchived: 0 })),
     unarchiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksRestored: 0, taskGroupsRestored: 0 })),
     updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null })),
+    // Provide repo task-group PAT mocks for the credentials card. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    fetchMyApiTokens: vi.fn(async () => []),
+    fetchTaskGroups: vi.fn(async () => []),
+    revokeMyApiToken: vi.fn(async () => ({
+      id: 'pat-1',
+      name: 'task-group-123e4567-e89b-12d3-a456-426614174000',
+      tokenPrefix: 'hcpat_auto',
+      tokenLast4: '0000',
+      scopes: [{ group: 'tasks', level: 'write' }],
+      createdAt: new Date().toISOString(),
+      expiresAt: null,
+      revokedAt: new Date().toISOString(),
+      lastUsedAt: null
+    })),
     // Mock task stats fetch with paused counts for repo detail dashboard coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 })),
     fetchTasks: vi.fn(async () => []),
@@ -428,5 +442,38 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
 
     const failureModeSelectAfter = failureModeItem?.querySelector('.ant-select');
     expect(failureModeSelectAfter).not.toHaveClass('ant-select-disabled');
+  });
+
+  test('renders repo task-group PATs in credentials', async () => {
+    // Verify auto-generated task-group PATs appear in the repo credentials area. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    vi.mocked(api.fetchMyApiTokens).mockResolvedValueOnce([
+      {
+        id: 'pat-auto',
+        name: 'task-group-123e4567-e89b-12d3-a456-426614174000',
+        tokenPrefix: 'hcpat_auto',
+        tokenLast4: '0000',
+        scopes: [{ group: 'tasks', level: 'write' }],
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        revokedAt: null,
+        lastUsedAt: null
+      }
+    ]);
+    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce([
+      {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        kind: 'task',
+        bindingKey: 'task-group-1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      } as any
+    ]);
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchMyApiTokens).toHaveBeenCalled());
+    expect(await screen.findByText('Task-group API tokens')).toBeInTheDocument();
+    expect(await screen.findByText('task-group-123e4567-e89b-12d3-a456-426614174000')).toBeInTheDocument();
   });
 });

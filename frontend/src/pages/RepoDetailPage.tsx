@@ -21,7 +21,7 @@ import {
   Tag,
   Typography
 } from 'antd';
-import { GlobalOutlined, KeyOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { ApiOutlined, GlobalOutlined, KeyOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import type {
   CodexRobotProviderConfigPublic,
   ClaudeCodeRobotProviderConfigPublic,
@@ -33,7 +33,9 @@ import type {
   RepoScopedCredentialsPublic,
   RepoPreviewConfigResponse,
   Repository,
+  TaskGroup,
   TimeWindow,
+  UserApiTokenPublic,
   UserModelCredentialsPublic,
   UserModelProviderCredentialProfilePublic,
   UserRepoProviderCredentialProfilePublic
@@ -42,11 +44,14 @@ import {
   archiveRepo,
   createRepoRobot,
   deleteRepoRobot,
+  fetchMyApiTokens,
   fetchMyModelCredentials,
   fetchRepo,
   fetchRepoPreviewConfig,
+  fetchTaskGroups,
   listMyModelProviderModels,
   listRepoModelProviderModels,
+  revokeMyApiToken,
   unarchiveRepo,
   testRepoRobot,
   testRepoRobotWorkflow, // Add workflow-mode test API to validate direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
@@ -68,6 +73,7 @@ import { ScrollableTable } from '../components/ScrollableTable';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { buildWebhookUrl } from '../utils/webhook';
 import { getRobotProviderLabel } from '../utils/robot';
+import { extractTaskGroupIdFromTokenName } from '../utils/apiTokens';
 import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
 import { RepoDetailDashboardSummaryStrip, type RepoDetailSectionKey } from '../components/repos/RepoDetailDashboardSummaryStrip';
 import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
@@ -242,6 +248,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [webhookPathRaw, setWebhookPathRaw] = useState<string | null>(null);
   const [repoScopedCredentials, setRepoScopedCredentials] = useState<RepoScopedCredentialsPublic | null>(null);
+  // Track auto-generated task-group PATs for the repo credentials view. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+  const [repoTaskGroupTokens, setRepoTaskGroupTokens] = useState<UserApiTokenPublic[]>([]);
+  const [repoTaskGroupTokensLoading, setRepoTaskGroupTokensLoading] = useState(false);
+  const [repoTaskGroupTokenRevokingId, setRepoTaskGroupTokenRevokingId] = useState<string | null>(null);
   // Track preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewConfig, setPreviewConfig] = useState<RepoPreviewConfigResponse | null>(null);
   const [previewConfigLoading, setPreviewConfigLoading] = useState(false);
@@ -284,6 +294,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     setRepoProviderProfilesPage(1);
     // Reset unified model profile pagination on repo switch. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
     setModelProviderProfilesPage(1);
+    // Clear repo-scoped auto-generated PATs when switching repositories. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    setRepoTaskGroupTokens([]);
+    setRepoTaskGroupTokenRevokingId(null);
   }, [repoId]);
 
   useEffect(() => {
@@ -383,6 +396,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     [locale]
   );
 
+  // Format nullable API token timestamps for the repo task-group PAT list. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+  const formatTokenTime = useCallback((value?: string | null): string => {
+    if (!value) return '-';
+    return formatTime(value);
+  }, [formatTime]);
+
   const refreshPreviewConfig = useCallback(async () => {
     // Load repo preview configuration metadata for the dashboard card. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     if (!repoId) return;
@@ -395,6 +414,29 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
       setPreviewConfig(null);
     } finally {
       setPreviewConfigLoading(false);
+    }
+  }, [repoId]);
+
+  const refreshRepoTaskGroupTokens = useCallback(async () => {
+    // Load task-group PATs scoped to this repo by matching task-group ids. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    if (!repoId) return;
+    setRepoTaskGroupTokensLoading(true);
+    try {
+      const [tokens, taskGroups] = await Promise.all([
+        fetchMyApiTokens(),
+        fetchTaskGroups({ repoId, archived: 'all', limit: 200 })
+      ]);
+      const taskGroupIds = new Set((taskGroups ?? []).map((group: TaskGroup) => group.id));
+      const filtered = (Array.isArray(tokens) ? tokens : []).filter((token) => {
+        const groupId = extractTaskGroupIdFromTokenName(token.name);
+        return Boolean(groupId && taskGroupIds.has(groupId));
+      });
+      setRepoTaskGroupTokens(filtered);
+    } catch (err) {
+      console.error(err);
+      setRepoTaskGroupTokens([]);
+    } finally {
+      setRepoTaskGroupTokensLoading(false);
     }
   }, [repoId]);
 
@@ -430,6 +472,25 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     }
   }, [basicForm, message, repoId, t]);
 
+  const revokeRepoTaskGroupToken = useCallback(
+    async (token: UserApiTokenPublic) => {
+      // Allow revoking auto-generated task-group PATs from the repo credentials card. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+      if (!token?.id || repoTaskGroupTokenRevokingId) return;
+      setRepoTaskGroupTokenRevokingId(token.id);
+      try {
+        await revokeMyApiToken(token.id);
+        message.success(t('toast.apiTokens.revoked'));
+        await refreshRepoTaskGroupTokens();
+      } catch (err: any) {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.apiTokens.saveFailed'));
+      } finally {
+        setRepoTaskGroupTokenRevokingId(null);
+      }
+    },
+    [message, refreshRepoTaskGroupTokens, repoTaskGroupTokenRevokingId, t]
+  );
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -437,6 +498,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
   useEffect(() => {
     void refreshPreviewConfig();
   }, [refreshPreviewConfig]);
+
+  useEffect(() => {
+    // Keep repo task-group PATs in sync on repo changes. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    void refreshRepoTaskGroupTokens();
+  }, [refreshRepoTaskGroupTokens]);
 
   useEffect(() => {
     // Keep onboarding visibility aligned with the current repo id (hash route may change without a full reload). 58w1q3n5nr58flmempxe
@@ -1675,6 +1741,90 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                                     </>
                                   );
                                 })()}
+                              </Space>
+                            </Card>
+                          </div>
+                        </Col>
+
+                        <Col xs={24} style={{ display: 'flex' }}>
+                          <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+                            <Card
+                              size="small"
+                              title={
+                                <Space size={8}>
+                                  <ApiOutlined />
+                                  <span>{t('repos.detail.autoTokens.title')}</span>
+                                </Space>
+                              }
+                              extra={
+                                <Button
+                                  size="small"
+                                  icon={<ReloadOutlined />}
+                                  onClick={() => void refreshRepoTaskGroupTokens()}
+                                  disabled={repoTaskGroupTokensLoading}
+                                >
+                                  {t('common.refresh')}
+                                </Button>
+                              }
+                              className="hc-card"
+                              loading={repoTaskGroupTokensLoading}
+                            >
+                              <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                                {/* Render auto-generated task-group PATs under repo credentials. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 */}
+                                <Typography.Text type="secondary">{t('repos.detail.autoTokens.tip')}</Typography.Text>
+                                {repoTaskGroupTokens.length ? (
+                                  <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                                    {repoTaskGroupTokens.map((tokenItem) => {
+                                      const now = Date.now();
+                                      const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
+                                      const isExpired = Boolean(expiresAt && expiresAt <= now);
+                                      const isRevoked = Boolean(tokenItem.revokedAt);
+                                      const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
+                                      const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
+                                      return (
+                                        <Card key={tokenItem.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                          <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                            <Space size={8} wrap>
+                                              <Typography.Text strong>{tokenItem.name}</Typography.Text>
+                                              <Tag color={statusColor}>{t(`panel.apiTokens.status.${statusKey}`)}</Tag>
+                                            </Space>
+                                            <Typography.Text type="secondary">
+                                              {t('panel.apiTokens.field.expiresAt')}: {formatTokenTime(tokenItem.expiresAt ?? null)}
+                                            </Typography.Text>
+                                          </Space>
+                                          <Space size={16} wrap style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
+                                            <Space size={12} wrap>
+                                              <Typography.Text type="secondary">
+                                                {t('panel.apiTokens.field.createdAt')}: {formatTokenTime(tokenItem.createdAt)}
+                                              </Typography.Text>
+                                              <Typography.Text type="secondary">
+                                                {t('panel.apiTokens.field.lastUsed')}: {formatTokenTime(tokenItem.lastUsedAt ?? null)}
+                                              </Typography.Text>
+                                            </Space>
+                                            <Popconfirm
+                                              title={t('panel.apiTokens.revokeTitle')}
+                                              description={t('panel.apiTokens.revokeDesc')}
+                                              okText={t('panel.apiTokens.revokeOk')}
+                                              cancelText={t('common.cancel')}
+                                              onConfirm={() => void revokeRepoTaskGroupToken(tokenItem)}
+                                            >
+                                              <Button
+                                                size="small"
+                                                danger
+                                                loading={repoTaskGroupTokenRevokingId === tokenItem.id}
+                                                disabled={isRevoked || repoArchived}
+                                              >
+                                                {t('panel.apiTokens.revoke')}
+                                              </Button>
+                                            </Popconfirm>
+                                          </Space>
+                                        </Card>
+                                      );
+                                    })}
+                                  </Space>
+                                ) : (
+                                  <Typography.Text type="secondary">{t('repos.detail.autoTokens.empty')}</Typography.Text>
+                                )}
                               </Space>
                             </Card>
                           </div>

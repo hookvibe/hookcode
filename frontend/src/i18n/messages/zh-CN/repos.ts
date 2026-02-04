@@ -80,6 +80,10 @@ export const zhCNRepos = {
   'repos.detail.credentials.repoProvider': '仓库平台 Token',
   'repos.detail.credentials.modelProvider': '模型 Provider',
   'repos.detail.credentials.tip': '这里仅展示是否已配置，不会泄露 Token/Key。',
+  // Add repo task-group PAT section copy for auto-issued tokens. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+  'repos.detail.autoTokens.title': '任务组 API 令牌',
+  'repos.detail.autoTokens.tip': '本仓库任务组自动生成的令牌，可在此撤销以触发重新生成。',
+  'repos.detail.autoTokens.empty': '暂无任务组令牌。',
 
   // Repo detail dashboard strings (KPI + charts). u55e45ffi8jng44erdzp
   'repos.dashboard.kpi.rules': '规则',

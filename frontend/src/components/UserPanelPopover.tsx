@@ -55,6 +55,7 @@ import { ModelProviderModelsButton } from './ModelProviderModelsButton';
 import { clearAuth, getStoredUser, getToken, setStoredUser, type AuthUser } from '../auth';
 import { setLocale, useLocale, useT } from '../i18n';
 import { getBooleanEnv } from '../utils/env';
+import { isTaskGroupGeneratedTokenName } from '../utils/apiTokens';
 import { uuid as generateUuid } from './repoAutomation/utils';
 
 /**
@@ -318,7 +319,9 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     setApiTokensLoading(true);
     try {
       const data = await fetchMyApiTokens();
-      setApiTokens(Array.isArray(data) ? data : []);
+      // Filter out task-group auto-issued PATs so the panel shows only manual tokens. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+      const filtered = Array.isArray(data) ? data.filter((token) => !isTaskGroupGeneratedTokenName(token.name)) : [];
+      setApiTokens(filtered);
     } catch (err) {
       console.error(err);
       message.error(t('toast.apiTokens.fetchFailed'));
