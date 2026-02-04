@@ -45,6 +45,7 @@ import {
   GetTaskResponseDto,
   ListTasksResponseDto,
   RetryTaskResponseDto,
+  TaskControlResponseDto,
   TaskLogsResponseDto,
   TaskStatsResponseDto,
   TaskVolumeByDayResponseDto
@@ -66,7 +67,15 @@ export class TasksController {
     const raw = normalizeString(value);
     if (!raw) return undefined;
     if (raw === 'success') return 'success';
-    if (raw === 'queued' || raw === 'processing' || raw === 'succeeded' || raw === 'failed' || raw === 'commented') {
+    // Accept paused status filters for pause/resume workflows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    if (
+      raw === 'queued' ||
+      raw === 'processing' ||
+      raw === 'paused' ||
+      raw === 'succeeded' ||
+      raw === 'failed' ||
+      raw === 'commented'
+    ) {
       return raw;
     }
     return undefined;
@@ -486,6 +495,87 @@ export class TasksController {
       if (err instanceof HttpException) throw err;
       console.error('[tasks] retry failed', err);
       throw new InternalServerErrorException({ error: 'Failed to retry task' });
+    }
+  }
+
+  @Post(':id/pause')
+  @ApiOperation({
+    summary: 'Pause task',
+    description: 'Pause a queued or processing task without deleting it.',
+    operationId: 'tasks_pause'
+  })
+  @ApiOkResponse({ description: 'OK', type: TaskControlResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  async pause(@Param('id') id: string) {
+    try {
+      const existing = await this.taskService.getTask(id);
+      if (!existing) {
+        throw new NotFoundException({ error: 'Task not found' });
+      }
+      if (existing.archivedAt) {
+        throw new ConflictException({ error: 'Task is archived; pause is blocked' });
+      }
+      if (existing.status === 'paused') {
+        const [decorated] = this.attachTaskPermissions([existing] as any[]);
+        return { task: decorated };
+      }
+      if (existing.status !== 'processing' && existing.status !== 'queued') {
+        throw new ConflictException({ error: 'Task cannot be paused unless queued or processing' });
+      }
+
+      // Pause task execution while keeping task history intact. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      const task = await this.taskService.pauseTask(id);
+      if (!task) {
+        throw new NotFoundException({ error: 'Task not found' });
+      }
+      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      return { task: decorated };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[tasks] pause failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to pause task' });
+    }
+  }
+
+  @Post(':id/resume')
+  @ApiOperation({
+    summary: 'Resume task',
+    description: 'Resume a paused task by re-queueing it.',
+    operationId: 'tasks_resume'
+  })
+  @ApiOkResponse({ description: 'OK', type: TaskControlResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  async resume(@Param('id') id: string) {
+    try {
+      const existing = await this.taskService.getTask(id);
+      if (!existing) {
+        throw new NotFoundException({ error: 'Task not found' });
+      }
+      if (existing.archivedAt) {
+        throw new ConflictException({ error: 'Task is archived; resume is blocked' });
+      }
+      if (existing.status !== 'paused') {
+        throw new ConflictException({ error: 'Task is not paused' });
+      }
+
+      // Resume paused tasks by returning them to the queue. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      const task = await this.taskService.resumeTask(id);
+      if (!task) {
+        throw new NotFoundException({ error: 'Task not found' });
+      }
+      if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
+        this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
+      }
+      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      return { task: decorated };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[tasks] resume failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to resume task' });
     }
   }
 

@@ -134,6 +134,7 @@ export interface TaskStatusStats {
   total: number;
   queued: number;
   processing: number;
+  paused: number; // Surface paused task counts in UI summaries. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   success: number;
   failed: number;
 }

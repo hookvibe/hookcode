@@ -4,7 +4,8 @@ import { DashboardController } from '../../modules/tasks/dashboard.controller';
 
 describe('DashboardController.sidebar', () => {
   test('returns a sanitized sidebar snapshot with permissions', async () => {
-    const stats = { total: 3, queued: 1, processing: 1, success: 1, failed: 0 };
+    // Include paused in sidebar stats for pause/resume coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    const stats = { total: 3, queued: 1, processing: 1, paused: 0, success: 1, failed: 0 };
     const makeTask = (id: string, status: any) => ({
       id,
       eventType: 'chat',
@@ -48,7 +49,8 @@ describe('DashboardController.sidebar', () => {
 
   test('passes through query filters and custom limits', async () => {
     const taskService: any = {
-      getTaskStats: jest.fn().mockResolvedValue({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 }),
+      // Mirror paused counts in sidebar stats mocks for pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      getTaskStats: jest.fn().mockResolvedValue({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 }),
       listTasks: jest.fn().mockResolvedValue([]),
       listTaskGroups: jest.fn().mockResolvedValue([])
     };

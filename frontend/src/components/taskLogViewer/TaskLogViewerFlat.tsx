@@ -13,6 +13,8 @@ export type TaskLogViewerFlatProps = {
   logs: string[];
   lines: string;
   showReasoning: boolean;
+  emptyMessage: string;
+  emptyHint?: string;
   rootRef: RefObject<HTMLDivElement>;
   endRef: RefObject<HTMLDivElement>;
   messageContextHolder: ReactNode;
@@ -25,6 +27,8 @@ export const TaskLogViewerFlat = ({
   logs,
   lines,
   showReasoning,
+  emptyMessage,
+  emptyHint,
   rootRef,
   endRef,
   messageContextHolder
@@ -35,13 +39,21 @@ export const TaskLogViewerFlat = ({
     {timeline.items.length ? (
       <>
         {/* Show reasoning in flat dialog logs to surface Codex text by default. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
-        <ExecutionTimeline items={timeline.items} showReasoning={showReasoning} wrapDiffLines={true} showLineNumbers={true} />
+        <ExecutionTimeline
+          items={timeline.items}
+          showReasoning={showReasoning}
+          wrapDiffLines={true}
+          showLineNumbers={true}
+          emptyMessage={emptyMessage}
+          emptyHint={emptyHint}
+        />
       </>
     ) : logs.length ? (
       <pre className="hc-task-code-block hc-task-code-block--expanded">{lines}</pre>
     ) : (
       <div className="hc-exec-empty">
-        <Typography.Text type="secondary">{t('logViewer.empty')}</Typography.Text>
+        <Typography.Text type="secondary">{emptyMessage}</Typography.Text>
+        {emptyHint ? <Typography.Text type="secondary">{emptyHint}</Typography.Text> : null}
       </div>
     )}
     <div ref={endRef} />

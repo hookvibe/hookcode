@@ -58,6 +58,19 @@ export const TaskConversationItem: FC<Props> = ({
   // Derive next-action suggestions from structured task output for chat follow-ups. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
   const nextActions = useMemo(() => extractTaskResultSuggestions(mergedTask), [mergedTask]);
   const showResult = isTerminalStatus(task.status);
+  // Provide stage hints when logs have not started yet. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const emptyLogMessage = useMemo(() => {
+    if (mergedTask.status === 'queued') return t('logViewer.empty.queued.title');
+    if (mergedTask.status === 'processing') return t('logViewer.empty.processing.title');
+    if (mergedTask.status === 'paused') return t('logViewer.empty.paused.title');
+    return undefined;
+  }, [mergedTask.status, t]);
+  const emptyLogHint = useMemo(() => {
+    if (mergedTask.status === 'queued') return t('logViewer.empty.queued.hint');
+    if (mergedTask.status === 'processing') return t('logViewer.empty.processing.hint');
+    if (mergedTask.status === 'paused') return t('logViewer.empty.paused.hint');
+    return undefined;
+  }, [mergedTask.status, t]);
   // Attach an entry animation class when a new task should transition into view. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
   const rootClassName = `hc-chat-item${entering ? ' hc-chat-item--enter' : ''}`;
 
@@ -113,7 +126,14 @@ export const TaskConversationItem: FC<Props> = ({
               <LogViewerSkeleton lines={8} ariaLabel={t('common.loading')} />
             </>
           ) : (
-            <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} tail={400} variant="flat" />
+            <TaskLogViewer
+              taskId={task.id}
+              canManage={Boolean(task.permissions?.canManage)}
+              tail={400}
+              variant="flat"
+              emptyMessage={emptyLogMessage}
+              emptyHint={emptyLogHint}
+            />
           )}
         </Card>
       </div>

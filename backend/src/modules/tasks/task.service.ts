@@ -99,6 +99,7 @@ export interface TaskStatusStats {
   total: number;
   queued: number;
   processing: number;
+  paused: number; // Track paused tasks for pause/resume controls. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   success: number;
   failed: number;
 }
@@ -828,18 +829,57 @@ export class TaskService {
 
   async listTasksByGroup(
     groupId: string,
-    options?: { limit?: number; includeMeta?: boolean }
+    options?: { limit?: number; includeMeta?: boolean; archived?: 'active' | 'archived' | 'all' }
   ): Promise<TaskWithMeta[]> {
     const id = String(groupId ?? '').trim();
     if (!isUuidLike(id)) return [];
     const take = clampLimit(options?.limit, 50);
 
-    const rows = await db.task.findMany({ where: { groupId: id }, orderBy: { createdAt: 'desc' }, take });
+    // Default to active-only tasks in group views so deleted/archived items do not linger. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    const archiveScope = options?.archived ?? 'active';
+    const where: Record<string, any> = { groupId: id };
+    if (archiveScope === 'active') where.archivedAt = null;
+    if (archiveScope === 'archived') where.archivedAt = { not: null };
+
+    const rows = await db.task.findMany({ where, orderBy: { createdAt: 'desc' }, take });
     const tasks = rows.map(taskRecordToTask) as TaskWithMeta[];
     if (!options?.includeMeta) return tasks;
     const withMeta = await this.attachMeta(tasks);
     // Preserve queue diagnosis for task-group detail views. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
     return this.attachQueueDiagnosis(withMeta);
+  }
+
+  // Determine whether the task group already has another task so workers can reuse workspaces safely. docs/en/developer/plans/taskgroup-worker-env-20260203/task_plan.md taskgroup-worker-env-20260203
+  async hasPriorTaskGroupTask(groupId: string, taskId: string): Promise<boolean> {
+    const id = safeTrim(groupId);
+    const currentId = safeTrim(taskId);
+    if (!isUuidLike(id) || !isUuidLike(currentId)) return false;
+    // Ignore archived tasks when deciding whether to resume threads/workspaces. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    const row = await db.task.findFirst({
+      where: { groupId: id, NOT: { id: currentId }, archivedAt: null },
+      select: { id: true }
+    });
+    return Boolean(row);
+  }
+
+  // Detect stored task-group logs so the worker can warn when starting in a fresh environment. docs/en/developer/plans/taskgroup-worker-env-20260203/task_plan.md taskgroup-worker-env-20260203
+  async hasTaskGroupLogs(groupId: string): Promise<boolean> {
+    const id = safeTrim(groupId);
+    if (!isUuidLike(id)) return false;
+    const rows = await db.$queryRaw<{ id: string }[]>`
+      SELECT id
+      FROM tasks
+      WHERE group_id = ${id}
+        AND (
+          CASE
+            WHEN jsonb_typeof(result_json->'logs') = 'array' THEN jsonb_array_length(result_json->'logs')
+            ELSE 0
+          END > 0
+          OR COALESCE((result_json->>'logsSeq')::int, 0) > 0
+        )
+      LIMIT 1
+    `;
+    return rows.length > 0;
   }
 
   async listTasks(options?: TaskListOptions): Promise<TaskWithMeta[]> {
@@ -1065,10 +1105,12 @@ export class TaskService {
       _count: { _all: true }
     });
 
+    // Include paused counts so UI can report pause/resume state transitions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     const stats: TaskStatusStats = {
       total: 0,
       queued: 0,
       processing: 0,
+      paused: 0,
       success: 0,
       failed: 0
     };
@@ -1081,6 +1123,7 @@ export class TaskService {
       const status = String((row as any)?.status ?? '');
       if (status === 'queued') stats.queued += count;
       else if (status === 'processing') stats.processing += count;
+      else if (status === 'paused') stats.paused += count;
       else if (status === 'failed') stats.failed += count;
       else if (status === 'succeeded' || status === 'commented') stats.success += count;
     }
@@ -1250,6 +1293,48 @@ export class TaskService {
     }
   }
 
+  async pauseTask(id: string): Promise<Task | undefined> {
+    const now = new Date();
+    try {
+      // Update status to paused so workers can stop mid-run. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      const row = await db.task.update({
+        where: { id },
+        data: { status: 'paused', updatedAt: now }
+      });
+      return taskRecordToTask(row);
+    } catch (err) {
+      if (isNotFoundError(err)) return undefined;
+      throw err;
+    }
+  }
+
+  async resumeTask(id: string): Promise<Task | undefined> {
+    const now = new Date();
+    try {
+      // Resume paused tasks by re-queueing them. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      const row = await db.task.update({
+        where: { id },
+        data: { status: 'queued', updatedAt: now }
+      });
+      return taskRecordToTask(row);
+    } catch (err) {
+      if (isNotFoundError(err)) return undefined;
+      throw err;
+    }
+  }
+
+  async getTaskControlState(id: string): Promise<{ status: TaskStatus; archivedAt?: string } | null> {
+    const taskId = safeTrim(id);
+    if (!isUuidLike(taskId)) return null;
+    // Return minimal task control state for pause/resume polling and worker abort checks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    const row = await db.task.findUnique({ where: { id: taskId }, select: { status: true, archivedAt: true } });
+    if (!row) return null;
+    return {
+      status: row.status as TaskStatus,
+      archivedAt: row.archivedAt ? toIso(row.archivedAt) : undefined
+    };
+  }
+
   async hasQueuedTaskForRule(params: { repoId: string; robotId: string; ruleId: string }): Promise<boolean> {
     // Guard against duplicate trigger-level tasks while waiting for a time window. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
     const rows = await db.$queryRaw<any[]>`
@@ -1322,7 +1407,26 @@ export class TaskService {
   }
 
   async deleteTask(id: string): Promise<boolean> {
-    const result = await db.task.deleteMany({ where: { id } });
-    return result.count > 0;
+    const taskId = safeTrim(id);
+    if (!isUuidLike(taskId)) return false;
+    const existing = await db.task.findUnique({ where: { id: taskId }, select: { id: true, groupId: true } });
+    if (!existing) return false;
+    const result = await db.task.deleteMany({ where: { id: taskId } });
+    if (result.count === 0) return false;
+
+    const groupId = safeTrim(existing.groupId);
+    if (groupId && isUuidLike(groupId)) {
+      try {
+        const remaining = await db.task.count({ where: { groupId } });
+        if (remaining === 0) {
+          // Clear stale task-group thread ids after deleting the last task. docs/en/developer/plans/taskgroup-resume-thread-20260203/task_plan.md taskgroup-resume-thread-20260203
+          await db.taskGroup.updateMany({ where: { id: groupId }, data: { threadId: null, updatedAt: new Date() } });
+        }
+      } catch (err) {
+        console.warn('[tasks] clear task group threadId failed (ignored)', { groupId, error: err });
+      }
+    }
+
+    return true;
   }
 }

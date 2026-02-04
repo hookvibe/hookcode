@@ -24,6 +24,11 @@ export interface TaskRunnerHooks {
  */
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+type TaskAbortReason = 'paused' | 'deleted';
+
+// Poll task control state so workers can pause/stop running tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+const TASK_CONTROL_POLL_INTERVAL_MS = 2000;
+
 const getErrorMessage = (err: unknown): string => {
   if (err instanceof Error) return err.message;
   return String(err);
@@ -70,6 +75,33 @@ export class TaskRunner {
     }
   }
 
+  private startControlPolling(taskId: string, onAbort: (reason: TaskAbortReason) => void): () => void {
+    // Poll DB status so pause/delete requests can stop active executions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    let stopped = false;
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const state = await this.taskService.getTaskControlState(taskId);
+        if (!state) {
+          onAbort('deleted');
+          return;
+        }
+        if (state.status === 'paused') {
+          onAbort('paused');
+        }
+      } catch (err) {
+        console.warn('[taskRunner] control poll failed (ignored)', taskId, err);
+      }
+    };
+
+    const timer = setInterval(poll, TASK_CONTROL_POLL_INTERVAL_MS);
+    void poll();
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }
+
   private async runHookStart(task: Task): Promise<void> {
     const fn = this.hooks?.onTaskStart;
     if (!fn) return;
@@ -94,6 +126,16 @@ export class TaskRunner {
     const startedAt = Date.now();
     await this.runHookStart(task);
 
+    let abortReason: TaskAbortReason | null = null;
+    const abortController = new AbortController();
+    const requestAbort = (reason: TaskAbortReason) => {
+      if (abortController.signal.aborted) return;
+      abortReason = reason;
+      // Abort in-flight providers so pause/delete requests stop execution quickly. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      abortController.abort(new Error(`task_${reason}`));
+    };
+    const stopControlPolling = this.startControlPolling(task.id, requestAbort);
+
     try {
       try {
         await this.taskService.patchResult(task.id, {
@@ -107,7 +149,9 @@ export class TaskRunner {
       }
 
       // Persist git status alongside logs/output so the UI can display change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-      const { logs, logsSeq, providerCommentUrl, outputText, gitStatus } = await this.agentService.callAgent(task);
+      const { logs, logsSeq, providerCommentUrl, outputText, gitStatus } = await this.agentService.callAgent(task, {
+        signal: abortController.signal
+      });
       await this.finalizeWithRetry(task.id, 'succeeded', { logs, logsSeq, providerCommentUrl, outputText, gitStatus });
       await this.runHookFinish(task, {
         status: 'succeeded',
@@ -115,13 +159,48 @@ export class TaskRunner {
         durationMs: Date.now() - startedAt
       });
     } catch (err) {
-      console.error('[taskRunner] task failed', task.id, err);
       const logs = err instanceof AgentExecutionError ? err.logs : [];
       const logsSeq = err instanceof AgentExecutionError ? err.logsSeq : undefined;
       const providerCommentUrl = err instanceof AgentExecutionError ? err.providerCommentUrl : undefined;
       // Preserve git status on failed runs so the UI can show unpushed changes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
       const gitStatus = err instanceof AgentExecutionError ? err.gitStatus : undefined;
       const message = getErrorMessage(err);
+
+      if (!abortReason && err instanceof AgentExecutionError && err.aborted) {
+        // Treat provider aborts as pause requests when no explicit reason is tracked. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+        abortReason = 'paused';
+      }
+
+      if (abortReason === 'paused') {
+        const pauseMessage = 'Task paused by user.';
+        await this.finalizeWithRetry(task.id, 'paused', {
+          logs,
+          logsSeq,
+          message: pauseMessage,
+          providerCommentUrl,
+          gitStatus
+        });
+        await this.runHookFinish(task, {
+          status: 'paused',
+          message: pauseMessage,
+          providerCommentUrl,
+          durationMs: Date.now() - startedAt
+        });
+        return;
+      }
+
+      if (abortReason === 'deleted') {
+        console.warn('[taskRunner] task removed during execution; skip finalize', task.id);
+        await this.runHookFinish(task, {
+          status: 'failed',
+          message: 'Task deleted during execution.',
+          providerCommentUrl,
+          durationMs: Date.now() - startedAt
+        });
+        return;
+      }
+
+      console.error('[taskRunner] task failed', task.id, err);
       await this.finalizeWithRetry(task.id, 'failed', { logs, logsSeq, message, providerCommentUrl, gitStatus });
       await this.runHookFinish(task, {
         status: 'failed',
@@ -129,6 +208,8 @@ export class TaskRunner {
         providerCommentUrl,
         durationMs: Date.now() - startedAt
       });
+    } finally {
+      stopControlPolling();
     }
   }
 

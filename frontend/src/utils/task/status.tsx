@@ -12,6 +12,8 @@ export const statusTag = (t: TFunction, status: TaskStatus) => {
   const map: Record<TaskStatus, { color: string; text: string }> = {
     queued: { color: 'blue', text: t('task.status.queued') },
     processing: { color: 'gold', text: t('task.status.processing') },
+    // Add paused status tags for stop/resume workflows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    paused: { color: 'orange', text: t('task.status.paused') },
     succeeded: { color: 'green', text: t('task.status.succeeded') },
     failed: { color: 'red', text: t('task.status.failed') },
     commented: { color: 'purple', text: t('task.status.commented') }

@@ -9,7 +9,8 @@ import * as api from '../api';
 vi.mock('../api', () => {
   return {
     __esModule: true,
-    fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 })),
+    // Include paused in task stats mocks to match pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 })),
     fetchTasks: vi.fn(async () => []),
     retryTask: vi.fn(async () => ({ id: 't_alpha', status: 'queued', eventType: 'chat', retries: 1, createdAt: '', updatedAt: '' })),
     executeTaskNow: vi.fn(async () => ({ id: 't_alpha', status: 'queued', eventType: 'chat', retries: 1, createdAt: '', updatedAt: '' }))
@@ -38,7 +39,8 @@ describe('TasksPage (frontend-chat migration)', () => {
 
   test('updates hash when switching status from the summary strip', async () => {
     const ui = userEvent.setup();
-    vi.mocked(api.fetchTaskStats).mockResolvedValueOnce({ total: 10, queued: 1, processing: 2, success: 3, failed: 4 } as any);
+    // Keep paused in summary strip stats for pause/resume coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    vi.mocked(api.fetchTaskStats).mockResolvedValueOnce({ total: 10, queued: 1, processing: 2, paused: 0, success: 3, failed: 4 } as any);
 
     renderPage({ status: 'success', repoId: 'r1' });
 

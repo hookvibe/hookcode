@@ -45,7 +45,8 @@ vi.mock('../api', () => {
     })),
     // Mock the aggregated dashboard sidebar snapshot API used by AppShell polling. 7bqwou6abx4ste96ikhv
     fetchDashboardSidebar: vi.fn(async () => ({
-      stats: { total: 7, queued: 5, processing: 1, success: 1, failed: 0 },
+      // Include paused in mocked stats to match API shape. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      stats: { total: 7, queued: 5, processing: 1, paused: 0, success: 1, failed: 0 },
       tasksByStatus: {
         queued: [
           makeTask({ id: 't_q1', title: 'Queued task 1', status: 'queued', eventType: 'issue', issueId: 1 }),
@@ -68,7 +69,8 @@ vi.mock('../api', () => {
         { id: 'g1', kind: 'chat', bindingKey: 'b1', title: 'Group 1', createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' }
       ]
     })),
-    fetchTaskStats: vi.fn(async () => ({ total: 7, queued: 5, processing: 1, success: 1, failed: 0 })),
+    // Mirror paused counts in task stats mocks for sidebar updates. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    fetchTaskStats: vi.fn(async () => ({ total: 7, queued: 5, processing: 1, paused: 0, success: 1, failed: 0 })),
     // Mock the daily task volume series used by the repo dashboard line chart. dashtrendline20260119m9v2
     fetchTaskVolumeByDay: vi.fn(async () => []),
     fetchTasks: vi.fn(async (options?: any) => {
@@ -334,7 +336,8 @@ describe('AppShell (frontend-chat migration)', () => {
     const fetchDashboardSidebarMock = vi.mocked(api.fetchDashboardSidebar);
 
     fetchDashboardSidebarMock.mockResolvedValue({
-      stats: { total: 0, queued: 0, processing: 0, success: 0, failed: 0 },
+      // Include paused in mocked stats to match sidebar shape. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      stats: { total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 },
       tasksByStatus: { queued: [], processing: [], success: [], failed: [] },
       taskGroups: []
     } as any);
@@ -456,7 +459,8 @@ describe('AppShell (frontend-chat migration)', () => {
     // Test setup:
     // - processing has tasks, but they are older than 24 hours -> should remain collapsed by default.
     fetchDashboardSidebarMock.mockResolvedValueOnce({
-      stats: { total: 2, queued: 1, processing: 1, success: 0, failed: 0 },
+      // Include paused in sidebar stats mocks for stop/resume coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      stats: { total: 2, queued: 1, processing: 1, paused: 0, success: 0, failed: 0 },
       tasksByStatus: {
         queued: [makeTask('t_q1', 'queued', 1, recent)],
         processing: [makeTask('t_p1', 'processing', 2, old)],
@@ -486,7 +490,8 @@ describe('AppShell (frontend-chat migration)', () => {
     const recent = new Date(now - 60 * 60 * 1000).toISOString();
 
     fetchDashboardSidebarMock.mockResolvedValueOnce({
-      stats: { total: 1, queued: 1, processing: 0, success: 0, failed: 0 },
+      // Include paused to keep stats shape aligned. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      stats: { total: 1, queued: 1, processing: 0, paused: 0, success: 0, failed: 0 },
       tasksByStatus: {
         queued: [
           {
@@ -509,7 +514,8 @@ describe('AppShell (frontend-chat migration)', () => {
     } as any);
 
     fetchDashboardSidebarMock.mockResolvedValueOnce({
-      stats: { total: 1, queued: 1, processing: 0, success: 0, failed: 0 },
+      // Include paused to keep stats shape aligned. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      stats: { total: 1, queued: 1, processing: 0, paused: 0, success: 0, failed: 0 },
       tasksByStatus: {
         queued: [
           {
@@ -561,7 +567,8 @@ describe('AppShell (frontend-chat migration)', () => {
     // Reset call tracking so we only assert the SSE-triggered refresh behavior. kxthpiu4eqrmu0c6bboa
     fetchDashboardSidebarMock.mockClear();
     fetchDashboardSidebarMock.mockResolvedValueOnce({
-      stats: { total: 1, queued: 1, processing: 0, success: 0, failed: 0 },
+      // Include paused in SSE sidebar stats mocks for pause/resume coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      stats: { total: 1, queued: 1, processing: 0, paused: 0, success: 0, failed: 0 },
       tasksByStatus: {
         queued: [
           {

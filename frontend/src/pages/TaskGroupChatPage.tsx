@@ -9,6 +9,8 @@ import {
   FileTextOutlined,
   GlobalOutlined,
   LockOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
   ReloadOutlined,
   SendOutlined,
   UnorderedListOutlined
@@ -34,6 +36,8 @@ import {
   installTaskGroupPreviewDependencies,
   listRepoRobots,
   listRepos,
+  pauseTask,
+  resumeTask,
   startTaskGroupPreview,
   stopTaskGroupPreview
 } from '../api';
@@ -89,6 +93,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [robotId, setRobotId] = useState('');
 
   const [group, setGroup] = useState<TaskGroup | null>(null);
+  // Flag 404 task-group fetches to render a dedicated empty state. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const [groupMissing, setGroupMissing] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskDetailsById, setTaskDetailsById] = useState<Record<string, Task | null>>({});
   // Track the latest sent task so it can animate into its final chat position. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
@@ -96,6 +102,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
 
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  // Track pause/resume button loading state for active task groups. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const [controlLoading, setControlLoading] = useState(false);
   // Track optional chat-level time windows for manual scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
   const [chatTimeWindow, setChatTimeWindow] = useState<TimeWindow | null>(null);
   // Compute a concise label for the chat time window icon badge. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
@@ -204,6 +212,19 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     Math.min(taskPagingPinnedToLatest ? pinnedHiddenCount : taskHiddenCount, orderedTasks.length)
   );
   const visibleTasks = useMemo(() => orderedTasks.slice(effectiveHiddenCount), [effectiveHiddenCount, orderedTasks]);
+
+  // Prefer pausing active processing tasks, otherwise allow resuming the most recent paused task. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const processingTask = useMemo(
+    () => [...orderedTasks].reverse().find((task) => task.status === 'processing') ?? null,
+    [orderedTasks]
+  );
+  const pausedTask = useMemo(
+    () => [...orderedTasks].reverse().find((task) => task.status === 'paused') ?? null,
+    [orderedTasks]
+  );
+  const controlTask = processingTask ?? pausedTask;
+  const controlMode: 'pause' | 'resume' | null = processingTask ? 'pause' : pausedTask ? 'resume' : null;
+  const canControlTask = Boolean(controlTask?.permissions?.canManage);
 
   const previewInstances = previewState?.instances ?? [];
   const previewAvailable = previewState?.available ?? false;
@@ -748,6 +769,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         groupRequestInFlightRef.current = false;
         groupRef.current = null;
         setGroup(null);
+        setGroupMissing(false);
         setTasks([]);
         setTaskDetailsById({});
         return;
@@ -759,6 +781,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
 
       const requestSeq = (groupRequestSeqRef.current += 1);
       groupRequestInFlightRef.current = true;
+      setGroupMissing(false);
 
       try {
         const [g, taskList] = await Promise.all([fetchTaskGroup(targetGroupId), fetchTaskGroupTasks(targetGroupId, { limit: 50 })]);
@@ -766,6 +789,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         setGroup(g);
         // UX: keep `groupRef` in sync immediately so refresh-mode decisions are reliable even before effects run.
         groupRef.current = g;
+        setGroupMissing(false);
         setTasks(taskList);
         if (g?.repoId) setRepoId(g.repoId);
       } catch (err) {
@@ -774,6 +798,15 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         const error = err as any;
         const status = error?.response?.status as number | undefined;
         const isNetworkFailure = !error?.response;
+        if (status === 404) {
+          // Surface missing groups as empty states instead of blocking skeletons. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+          groupRef.current = null;
+          setGroup(null);
+          setGroupMissing(true);
+          setTasks([]);
+          setTaskDetailsById({});
+          return;
+        }
         // Preserve the last snapshot on transient refresh failures to prevent UI resets. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126
         const shouldPreserveSnapshot = Boolean(groupRef.current) && (isNetworkFailure || (status !== undefined && status >= 500));
         const shouldThrottleNotice = mode === 'refreshing';
@@ -1145,10 +1178,39 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     [chatTimeWindow, message, refreshGroupDetail, repoId, robotId, sending, t, taskGroupId]
   );
 
+  // Pause/resume active task-group executions from the composer control. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const handleControlTask = useCallback(async () => {
+    if (!controlTask || !controlMode) return;
+    if (!canControlTask) {
+      message.warning(t('tasks.empty.noPermission'));
+      return;
+    }
+    if (controlLoading) return;
+    setControlLoading(true);
+    try {
+      if (controlMode === 'pause') {
+        await pauseTask(controlTask.id);
+        message.success(t('toast.task.pauseSuccess'));
+      } else {
+        await resumeTask(controlTask.id);
+        message.success(t('toast.task.resumeSuccess'));
+      }
+      if (taskGroupId) {
+        await refreshGroupDetail(taskGroupId, { mode: 'refreshing' });
+      }
+    } catch (err) {
+      console.error(err);
+      message.error(controlMode === 'pause' ? t('toast.task.pauseFailed') : t('toast.task.resumeFailed'));
+    } finally {
+      setControlLoading(false);
+    }
+  }, [canControlTask, controlLoading, controlMode, controlTask, message, refreshGroupDetail, t, taskGroupId]);
+
   const canRunChatInGroup = Boolean(
     !taskGroupId || group?.kind === 'chat' || group?.kind === 'issue' || group?.kind === 'merge_request' || group?.kind === 'commit'
   );
-  const canSend = Boolean(repoId && robotId && draft.trim()) && canRunChatInGroup;
+  // Disable send while pause/resume controls are active. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const canSend = Boolean(repoId && robotId && draft.trim()) && canRunChatInGroup && !controlMode;
 
   const openTask = useCallback((task: Task) => {
     window.location.hash = buildTaskHash(task.id);
@@ -1174,7 +1236,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   }, [pinnedHiddenCount, taskHiddenCount, taskPagingPinnedToLatest]);
 
   // Use group-id readiness to gate blocking UI states so stale loading flags cannot mask loaded content. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
-  const isGroupReady = !taskGroupId || group?.id === taskGroupId;
+  // Treat missing groups as ready to show empty-state messaging. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const isGroupReady = !taskGroupId || group?.id === taskGroupId || groupMissing;
   const isGroupBlocking = Boolean(taskGroupId) && !isGroupReady;
 
   const handleChatScroll = useCallback(() => {
@@ -1271,7 +1334,11 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   }, [isGroupBlocking, taskGroupId]);
 
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const isCentered = !taskGroupId || (orderedTasks.length === 0 && !isGroupBlocking);
+  // Separate new-group vs empty-group states so existing groups show a proper empty timeline. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203
+  const isNewGroup = !taskGroupId;
+  // Consider missing groups as empty to avoid dialog-only views. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const isEmptyGroup = Boolean(taskGroupId) && !isGroupBlocking && (groupMissing || orderedTasks.length === 0);
+  const isCentered = isNewGroup;
   const composerMode: 'centered' | 'inline' = isCentered ? 'centered' : 'inline';
   const composerTextAreaAutoSize = useMemo(
     () =>
@@ -1282,6 +1349,20 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
           { minRows: 1, maxRows: 8 },
     [composerMode]
   );
+
+  // Derive pause/resume vs send button behavior based on active task status. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const composerActionLabel = controlMode === 'pause' ? t('chat.form.pause') : controlMode === 'resume' ? t('chat.form.resume') : t('chat.form.send');
+  const composerActionIcon =
+    controlMode === 'pause' ? <PauseCircleOutlined /> : controlMode === 'resume' ? <PlayCircleOutlined /> : <SendOutlined />;
+  const composerActionLoading = controlMode ? controlLoading : sending;
+  const composerActionDisabled = controlMode ? !canControlTask : !canSend;
+  const handleComposerAction = () => {
+    if (controlMode) {
+      void handleControlTask();
+      return;
+    }
+    void handleSend(draft);
+  };
 
   const composerNode = (
     <div className="hc-composer-container">
@@ -1302,6 +1383,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                // Prevent sending while pause/resume controls are active. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+                if (controlMode) return;
                 void handleSend(draft);
               }
             }}
@@ -1380,12 +1463,12 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
             <Button
               type="primary"
               shape="round"
-              icon={<SendOutlined />}
-              loading={sending}
-              disabled={!canSend}
-              onClick={() => void handleSend(draft)}
+              icon={composerActionIcon}
+              loading={composerActionLoading}
+              disabled={composerActionDisabled}
+              onClick={handleComposerAction}
             >
-              {t('chat.form.send')}
+              {composerActionLabel}
             </Button>
           </div>
         </div>
@@ -1462,18 +1545,36 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               </div>
             ) : (
               <div className="hc-chat-timeline">
-                {/* Animate the most recent message to create a smooth transition into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */}
-                {visibleTasks.map((task) => (
-                  <TaskConversationItem
-                    key={task.id}
-                    task={task}
-                    entering={task.id === recentTaskId}
-                    taskDetail={taskDetailsById[task.id] ?? null}
-                    onOpenTask={openTask}
-                    taskLogsEnabled={effectiveTaskLogsEnabled}
-                    onSuggestionClick={handleSuggestionClick}
-                  />
-                ))}
+                {isEmptyGroup ? (
+                  // Render a friendly empty state when a task group has no tasks. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203
+                  <div className="hc-chat-empty">
+                    {/* Expand empty/missing task-group messaging to avoid dialog-only views. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
+                    <Space direction="vertical" size={8} align="center">
+                      <Typography.Text type="secondary">
+                        {groupMissing ? t('chat.page.missingGroup') : t('chat.page.emptyGroup')}
+                      </Typography.Text>
+                      <Typography.Text type="secondary">
+                        {groupMissing ? t('chat.page.missingGroupHint') : t('chat.page.emptyGroupHint')}
+                      </Typography.Text>
+                      <Button size="small" onClick={() => openTaskGroupList()}>
+                        {t('taskGroups.page.viewAll')}
+                      </Button>
+                    </Space>
+                  </div>
+                ) : (
+                  // Animate the most recent message to create a smooth transition into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+                  visibleTasks.map((task) => (
+                    <TaskConversationItem
+                      key={task.id}
+                      task={task}
+                      entering={task.id === recentTaskId}
+                      taskDetail={taskDetailsById[task.id] ?? null}
+                      onOpenTask={openTask}
+                      taskLogsEnabled={effectiveTaskLogsEnabled}
+                      onSuggestionClick={handleSuggestionClick}
+                    />
+                  ))
+                )}
               </div>
             )}
           </div>

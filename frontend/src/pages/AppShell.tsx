@@ -173,6 +173,8 @@ export const AppShell: FC<AppShellProps> = ({
     total: 0,
     queued: 0,
     processing: 0,
+    // Track paused tasks in sidebar stats state. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    paused: 0,
     success: 0,
     failed: 0
   });
@@ -293,7 +295,8 @@ export const AppShell: FC<AppShellProps> = ({
       // Business intent: support "auth disabled" environments (no login required) while keeping login guards for normal deployments.
       const canQuery = authEnabled === false || Boolean(authToken);
       if (!canQuery) {
-        setTaskStats({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 });
+        // Include paused in the zeroed stats snapshot to keep shape consistent. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+        setTaskStats({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 });
         setTasksByStatus(defaultTasksByStatus);
         setTaskGroups([]);
         // UX: reset the auto-init state so the next successful refresh can apply the "empty sections collapsed" default again.

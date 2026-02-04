@@ -40,6 +40,9 @@ interface Props {
     pause?: boolean;
     reconnect?: boolean;
   };
+  // Allow task-aware empty-state copy so early logs show stage hints. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  emptyMessage?: string;
+  emptyHint?: string;
   /**
    * Controlled paused state (useful when moving the Pause/Resume button to an external UI).
    * - When provided, the component no longer manages its own paused state.
@@ -65,6 +68,8 @@ export const TaskLogViewer: FC<Props> = ({
   canManage = true,
   variant = 'panel',
   controls,
+  emptyMessage,
+  emptyHint,
   paused: pausedProp,
   onPausedChange,
   reconnectKey,
@@ -325,6 +330,8 @@ export const TaskLogViewer: FC<Props> = ({
     };
   }, [taskId, tail, session, reconnectKey, t]);
 
+  const resolvedEmptyMessage = emptyMessage ?? t('logViewer.empty');
+
   if (variant === 'flat') {
     // Render the flat log view via a dedicated component to keep this module smaller. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
     return (
@@ -335,6 +342,8 @@ export const TaskLogViewer: FC<Props> = ({
         logs={logs}
         lines={lines}
         showReasoning={showReasoning}
+        emptyMessage={resolvedEmptyMessage}
+        emptyHint={emptyHint}
         rootRef={rootRef}
         endRef={endRef}
         messageContextHolder={messageContextHolder}
@@ -385,11 +394,19 @@ export const TaskLogViewer: FC<Props> = ({
             </pre>
           ) : (
             <div className="log-viewer__empty">
-              <Typography.Text type="secondary">{t('logViewer.empty')}</Typography.Text>
+              <Typography.Text type="secondary">{resolvedEmptyMessage}</Typography.Text>
+              {emptyHint ? <Typography.Text type="secondary">{emptyHint}</Typography.Text> : null}
             </div>
           )
         ) : (
-          <ExecutionTimeline items={timeline.items} showReasoning={showReasoning} wrapDiffLines={wrapDiffLines} showLineNumbers={showLineNumbers} />
+          <ExecutionTimeline
+            items={timeline.items}
+            showReasoning={showReasoning}
+            wrapDiffLines={wrapDiffLines}
+            showLineNumbers={showLineNumbers}
+            emptyMessage={resolvedEmptyMessage}
+            emptyHint={emptyHint}
+          />
         )}
         <div ref={endRef} />
       </div>

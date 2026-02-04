@@ -111,6 +111,8 @@ export const zhCNRepos = {
   'repos.dashboard.activity.tasks.loadFailed': '加载任务活动失败',
   'repos.dashboard.activity.tasks.status.queued': '排队中',
   'repos.dashboard.activity.tasks.status.processing': '处理中',
+  // Add paused label for repo activity distribution legend. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'repos.dashboard.activity.tasks.status.paused': '已暂停',
   'repos.dashboard.activity.tasks.status.success': '成功',
   'repos.dashboard.activity.tasks.status.failed': '失败',
 

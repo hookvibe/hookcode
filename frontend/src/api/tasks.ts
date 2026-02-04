@@ -68,6 +68,20 @@ export const retryTask = async (taskId: string, options?: { force?: boolean }): 
   return data.task;
 };
 
+export const pauseTask = async (taskId: string): Promise<Task> => {
+  // Pause an in-flight or queued task without deleting it. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/pause`);
+  invalidateTaskCaches();
+  return data.task;
+};
+
+export const resumeTask = async (taskId: string): Promise<Task> => {
+  // Resume a paused task by re-queueing it. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/resume`);
+  invalidateTaskCaches();
+  return data.task;
+};
+
 export const executeTaskNow = async (taskId: string): Promise<Task> => {
   // Override time-window gating for queued tasks. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
   const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/execute-now`);

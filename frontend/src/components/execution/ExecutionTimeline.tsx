@@ -11,6 +11,9 @@ export interface ExecutionTimelineProps {
   showReasoning?: boolean;
   wrapDiffLines?: boolean;
   showLineNumbers?: boolean;
+  // Allow callers to override empty-state copy for task-stage hints. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  emptyMessage?: string;
+  emptyHint?: string;
 }
 
 // Render structured execution steps parsed from JSONL task logs as dialog-style rows. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
@@ -57,7 +60,14 @@ type StatusMeta = {
   label: string;
 };
 
-export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReasoning = false, wrapDiffLines = true, showLineNumbers = true }) => {
+export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({
+  items,
+  showReasoning = false,
+  wrapDiffLines = true,
+  showLineNumbers = true,
+  emptyMessage,
+  emptyHint
+}) => {
   const t = useT();
 
   const visibleItems = useMemo(() => (showReasoning ? items : items.filter((item) => item.kind !== 'reasoning')), [items, showReasoning]);
@@ -276,9 +286,11 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({ items, showReaso
   const showRunningIndicator = visibleItems.some((item) => buildStatusMeta(item).tone === 'running');
 
   if (!visibleItems.length) {
+    const fallbackMessage = emptyMessage ?? t('execViewer.empty.timeline');
     return (
       <div className="hc-exec-empty">
-        <Typography.Text type="secondary">{t('execViewer.empty.timeline')}</Typography.Text>
+        <Typography.Text type="secondary">{fallbackMessage}</Typography.Text>
+        {emptyHint ? <Typography.Text type="secondary">{emptyHint}</Typography.Text> : null}
       </div>
     );
   }

@@ -24,6 +24,13 @@
   margin: 0 auto;
 }
 
+/* Provide a centered empty state when task groups have no tasks. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203 */
+.hc-chat-empty {
+  padding: 48px 0;
+  text-align: center;
+  width: 100%;
+}
+
 .hc-chat-composer {
   border-top: 1px solid var(--hc-border);
   background: transparent;

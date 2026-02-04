@@ -183,6 +183,8 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navTo
     if (statusFilter === 'success') return t('tasks.filter.success');
     if (statusFilter === 'queued') return t('task.status.queued');
     if (statusFilter === 'processing') return t('task.status.processing');
+    // Surface paused filter labels for stop/resume workflows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    if (statusFilter === 'paused') return t('task.status.paused');
     if (statusFilter === 'succeeded') return t('task.status.succeeded');
     if (statusFilter === 'failed') return t('task.status.failed');
     if (statusFilter === 'commented') return t('task.status.commented');
@@ -193,6 +195,8 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navTo
     // Align filter tag colors with `statusTag()` so the UI stays consistent across task views. 3iz4jx8bsy7q7d6b3jr3
     if (statusFilter === 'queued') return 'blue';
     if (statusFilter === 'processing') return 'gold';
+    // Align paused tag color with statusTag mapping. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    if (statusFilter === 'paused') return 'orange';
     if (statusFilter === 'failed') return 'red';
     if (statusFilter === 'commented') return 'purple';
     if (statusFilter === 'succeeded' || statusFilter === 'success') return 'green';
@@ -204,6 +208,8 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navTo
       { key: 'all', label: t('tasks.filter.all'), count: stats?.total ?? undefined },
       { key: 'queued', label: t('task.status.queued'), count: stats?.queued ?? undefined },
       { key: 'processing', label: t('task.status.processing'), count: stats?.processing ?? undefined },
+      // Add paused counts to the summary strip for quick navigation. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      { key: 'paused', label: t('task.status.paused'), count: stats?.paused ?? undefined },
       { key: 'success', label: t('tasks.filter.success'), count: stats?.success ?? undefined },
       { key: 'failed', label: t('task.status.failed'), count: stats?.failed ?? undefined }
     ];

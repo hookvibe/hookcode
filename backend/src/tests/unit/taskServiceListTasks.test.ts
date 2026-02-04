@@ -197,6 +197,8 @@ describe('taskService.listTasks', () => {
     (db.task.groupBy as any).mockResolvedValue([
       { status: 'queued', _count: { _all: 2 } },
       { status: 'processing', _count: { _all: 3 } },
+      // Include paused in status aggregation coverage for pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      { status: 'paused', _count: { _all: 4 } },
       { status: 'succeeded', _count: { _all: 10 } },
       { status: 'commented', _count: { _all: 5 } },
       { status: 'failed', _count: { _all: 1 } }
@@ -211,10 +213,12 @@ describe('taskService.listTasks', () => {
         where: { archivedAt: null }
       })
     );
+    // Validate paused counts appear in aggregated stats for pause/resume UI. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     expect(stats).toEqual({
-      total: 21,
+      total: 25,
       queued: 2,
       processing: 3,
+      paused: 4,
       success: 15,
       failed: 1
     });

@@ -18,6 +18,11 @@ export const enUSAuth = {
   'toast.task.fetchFailed': 'Failed to fetch task',
   'toast.task.deleted': 'Task deleted',
   'toast.task.deleteFailed': 'Failed to delete task',
+  // Pause/resume toasts for task execution control. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'toast.task.pauseSuccess': 'Task paused',
+  'toast.task.pauseFailed': 'Failed to pause task',
+  'toast.task.resumeSuccess': 'Task resumed',
+  'toast.task.resumeFailed': 'Failed to resume task',
   'toast.task.forceRetrySuccess': 'Force retried: task re-queued',
   'toast.task.retrySuccess': 'Task retried',
   'toast.task.retryBlockedProcessing': 'Task is still processing; use "Force retry" if you believe it is stuck',

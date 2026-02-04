@@ -8,13 +8,14 @@ import {
   InfoCircleOutlined,
   LeftOutlined,
   LinkOutlined,
+  PauseCircleOutlined,
   PlayCircleOutlined,
   RightOutlined,
   RobotOutlined,
   UserOutlined
 } from '@ant-design/icons';
 import type { RepoRobot, Task, TaskRepoSummary, TaskRobotSummary } from '../api';
-import { deleteTask, executeTaskNow, fetchTask, listRepoRobots, retryTask } from '../api';
+import { deleteTask, executeTaskNow, fetchTask, listRepoRobots, pauseTask, resumeTask, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../router';
 import { JsonViewer } from '../components/JsonViewer';
@@ -72,6 +73,9 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   const [loading, setLoading] = useState(false);
   const [task, setTask] = useState<Task | null>(null);
   const [retrying, setRetrying] = useState(false);
+  // Track pause/resume button states for task control. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const [pausing, setPausing] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [repoRobots, setRepoRobots] = useState<RepoRobot[]>([]);
   // Allow collapsing the task detail sidebar to focus on workflow panels. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
@@ -435,6 +439,19 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   const resultText = useMemo(() => extractTaskResultText(task), [task]);
   const showResult = Boolean(task && isTerminalStatus(task.status));
   const queueHint = useMemo(() => queuedHintText(t, task), [t, task]); // Show a queued-state explanation instead of a silent detail page. f3a9c2d8e1b7f4a0c6d1
+  // Provide stage hints when logs have not started yet. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const emptyLogMessage = useMemo(() => {
+    if (task?.status === 'queued') return t('logViewer.empty.queued.title');
+    if (task?.status === 'processing') return t('logViewer.empty.processing.title');
+    if (task?.status === 'paused') return t('logViewer.empty.paused.title');
+    return undefined;
+  }, [t, task?.status]);
+  const emptyLogHint = useMemo(() => {
+    if (task?.status === 'queued') return t('logViewer.empty.queued.hint');
+    if (task?.status === 'processing') return t('logViewer.empty.processing.hint');
+    if (task?.status === 'paused') return t('logViewer.empty.paused.hint');
+    return undefined;
+  }, [t, task?.status]);
 
   const promptPatch = useMemo(() => {
     // Normalize prompt patch (repo config) so the workflow UI can always render a stable section. tdlayout20260117k8p3
@@ -512,7 +529,14 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                   <LogViewerSkeleton lines={10} ariaLabel={t('common.loading')} />
                 </>
               ) : task ? (
-                <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} tail={800} variant="flat" />
+                <TaskLogViewer
+                  taskId={task.id}
+                  canManage={Boolean(task.permissions?.canManage)}
+                  tail={800}
+                  variant="flat"
+                  emptyMessage={emptyLogMessage}
+                  emptyHint={emptyLogHint}
+                />
               ) : null}
             </>
           )
@@ -599,6 +623,45 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     }
   }, [message, refresh, t, task]);
 
+  // Wire pause/resume actions to task control APIs. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const handlePause = useCallback(async () => {
+    if (!task) return;
+    if (!task.permissions?.canManage) {
+      message.warning(t('tasks.empty.noPermission'));
+      return;
+    }
+    setPausing(true);
+    try {
+      await pauseTask(task.id);
+      message.success(t('toast.task.pauseSuccess'));
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.task.pauseFailed'));
+    } finally {
+      setPausing(false);
+    }
+  }, [message, refresh, t, task]);
+
+  const handleResume = useCallback(async () => {
+    if (!task) return;
+    if (!task.permissions?.canManage) {
+      message.warning(t('tasks.empty.noPermission'));
+      return;
+    }
+    setResuming(true);
+    try {
+      await resumeTask(task.id);
+      message.success(t('toast.task.resumeSuccess'));
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      message.error(t('toast.task.resumeFailed'));
+    } finally {
+      setResuming(false);
+    }
+  }, [message, refresh, t, task]);
+
   const handleDelete = useCallback(async () => {
     if (!task) return;
     if (!task.permissions?.canManage) {
@@ -646,6 +709,19 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
       {task.status === 'failed' && canManageTask ? (
         <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => void handleRetry()} loading={retrying}>
           {t('tasks.retry')}
+        </Button>
+      ) : null}
+
+      {/* Add pause/resume controls for in-flight tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
+      {task.status === 'processing' && canManageTask ? (
+        <Button icon={<PauseCircleOutlined />} onClick={() => void handlePause()} loading={pausing}>
+          {t('tasks.pause')}
+        </Button>
+      ) : null}
+
+      {task.status === 'paused' && canManageTask ? (
+        <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => void handleResume()} loading={resuming}>
+          {t('tasks.resume')}
         </Button>
       ) : null}
 

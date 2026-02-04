@@ -66,6 +66,16 @@ describe('TaskGroupChatPage timeline', () => {
     expect(document.querySelector('.hc-chat-item--enter')).toBeTruthy();
   });
 
+  // Validate empty-state messaging for task groups that have no tasks. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203
+  test('shows an empty-state message for existing task groups with no tasks', async () => {
+    renderTaskGroupChatPage({ taskGroupId: 'g_empty' });
+
+    expect(await screen.findByText('No tasks in this group')).toBeInTheDocument();
+    // Validate the expanded empty-group hint text for dialog-only fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    expect(screen.getByText('Start a new task below or return to the task group list.')).toBeInTheDocument();
+    expect(screen.queryByText('What can I do for you?')).not.toBeInTheDocument();
+  });
+
   test('clears loading when navigating away (no stuck loading after switching)', async () => {
     const now = '2026-01-11T00:00:00.000Z';
 

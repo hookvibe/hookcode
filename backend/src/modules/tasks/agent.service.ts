@@ -36,7 +36,8 @@ export class AgentService {
     });
   }
 
-  callAgent(task: Task) {
-    return callAgent(task);
+  callAgent(task: Task, options?: { signal?: AbortSignal }) {
+    // Forward abort signals so task runner can pause/stop executions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    return callAgent(task, options);
   }
 }

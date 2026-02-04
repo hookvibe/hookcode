@@ -84,6 +84,8 @@ export const enUSCore = {
   // --- Task status ---
   'task.status.queued': 'Queued',
   'task.status.processing': 'Processing',
+  // Include paused label for stop/resume status tags. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'task.status.paused': 'Paused',
   'task.status.succeeded': 'Succeeded',
   'task.status.failed': 'Failed',
   'task.status.commented': 'Commented',
@@ -141,6 +143,9 @@ export const enUSCore = {
   'tasks.detailTitle': 'Task detail',
   'tasks.empty.noPermission': 'No permission to access this page',
   'tasks.retry': 'Retry',
+  // Pause/resume controls for task execution. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'tasks.pause': 'Pause',
+  'tasks.resume': 'Resume',
   'tasks.executeNow': 'Run now',
   // Add queued task diagnosis hints for better "stuck in queue" UX. f3a9c2d8e1b7f4a0c6d1
   'tasks.queue.hintTitle': 'Queued',

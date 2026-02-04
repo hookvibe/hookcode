@@ -6,7 +6,11 @@ export const zhCNChat = {
   'chat.page.newGroupTitle': '新建任务组',
   'chat.page.updatedAt': '更新时间',
   'chat.page.newGroupHint': '选择仓库与机器人后开始对话',
+  // Expand empty/missing group copy to avoid dialog-only views. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   'chat.page.emptyGroup': '暂无任务',
+  'chat.page.emptyGroupHint': '可在下方创建新任务，或返回任务组列表。',
+  'chat.page.missingGroup': '任务组不存在',
+  'chat.page.missingGroupHint': '该任务组可能已被删除或归档。',
   'chat.welcome.title': '我能为你做什么？',
   'chat.welcome.desc': '选择仓库与机器人，然后输入你的问题来创建任务组。',
   'chat.repoPlaceholder': '选择仓库',
@@ -19,6 +23,9 @@ export const zhCNChat = {
   'chat.form.textPlaceholder': '输入你的问题…（Enter 发送，Shift+Enter 换行）',
   'chat.form.timeWindow': '执行时间段',
   'chat.form.send': '发送',
+  // Pause/resume controls for active task-group runs. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'chat.form.pause': '暂停',
+  'chat.form.resume': '继续',
   'chat.validation.repoRequired': '请先选择仓库',
   'chat.validation.robotRequired': '请先选择机器人',
   'chat.validation.textRequired': '请输入内容',
@@ -133,6 +140,13 @@ export const zhCNChat = {
   // Display a stable message when task logs are hidden by server configuration. nykx5svtlgh050cstyht
   'logViewer.disabled': '服务端已关闭任务日志展示。',
   'logViewer.empty': '暂无日志',
+  // Add stage hints so early log views explain task progress. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'logViewer.empty.queued.title': '排队中，等待 worker 接单',
+  'logViewer.empty.queued.hint': '任务被 worker 处理后会开始输出日志。',
+  'logViewer.empty.processing.title': '正在启动执行',
+  'logViewer.empty.processing.hint': '准备环境与依赖中，日志马上开始显示。',
+  'logViewer.empty.paused.title': '已暂停',
+  'logViewer.empty.paused.hint': '点击继续后将恢复执行。',
   'logViewer.copySuccess': '已复制',
   'logViewer.copyFailed': '复制失败',
   'logViewer.clearNotAllowed': '无权限清空日志',

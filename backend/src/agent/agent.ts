@@ -811,18 +811,27 @@ export class AgentExecutionError extends Error {
   readonly logs: string[];
   readonly logsSeq: number;
   readonly providerCommentUrl?: string;
+  readonly aborted?: boolean; // Flag abort-driven exits for pause/stop handling. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   // Attach git status snapshot for failed tasks to preserve change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   readonly gitStatus?: TaskResult['gitStatus'];
 
   constructor(
     message: string,
-    params: { logs: string[]; logsSeq: number; providerCommentUrl?: string; gitStatus?: TaskResult['gitStatus']; cause?: unknown }
+    params: {
+      logs: string[];
+      logsSeq: number;
+      providerCommentUrl?: string;
+      gitStatus?: TaskResult['gitStatus'];
+      cause?: unknown;
+      aborted?: boolean;
+    }
   ) {
     super(message);
     this.name = 'AgentExecutionError';
     this.logs = params.logs;
     this.logsSeq = params.logsSeq;
     this.providerCommentUrl = params.providerCommentUrl;
+    this.aborted = params.aborted;
     this.gitStatus = params.gitStatus;
     if (params.cause !== undefined) {
       (this as any).cause = params.cause;
@@ -916,7 +925,8 @@ export const resolveExecution = async (
 
 // Return git status alongside logs so downstream services can persist change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 async function callAgent(
-  task: Task
+  task: Task,
+  options?: { signal?: AbortSignal }
 ): Promise<{ logs: string[]; logsSeq: number; providerCommentUrl?: string; outputText?: string; gitStatus?: TaskResult['gitStatus'] }> {
   assertAgentServicesReady();
 
@@ -935,6 +945,8 @@ async function callAgent(
   let threadIdBound = false;
   // Track whether this run is allowed to mutate repos before collecting git status. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   let writeEnabled = false;
+  // Honor pause/stop signals from the task runner. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const abortSignal = options?.signal;
 
   let persistLogsDisabled = false;
   let lastPersistErrorAt = 0;
@@ -1079,7 +1091,19 @@ async function callAgent(
     if (!taskGroupId) {
       taskGroupId = await taskService.ensureTaskGroupId(task);
     }
-    const resumeThreadId = taskGroupId ? await taskService.getTaskGroupThreadId(taskGroupId) : null;
+    // Only resume model threads when the task group already has prior tasks. docs/en/developer/plans/taskgroup-resume-thread-20260203/task_plan.md taskgroup-resume-thread-20260203
+    let hasPriorTaskGroupTask = false;
+    let resumeThreadId: string | null = null;
+    if (taskGroupId) {
+      try {
+        hasPriorTaskGroupTask = await taskService.hasPriorTaskGroupTask(taskGroupId, task.id);
+      } catch (err: any) {
+        console.warn('[agent] failed to check task group history for resume (continuing)', err);
+      }
+      if (hasPriorTaskGroupTask) {
+        resumeThreadId = await taskService.getTaskGroupThreadId(taskGroupId);
+      }
+    }
     execution = await resolveExecution(task, payload, appendLog);
     // Flag write-enabled runs for git change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
     writeEnabled = execution.robot.permission === 'write';
@@ -1143,8 +1167,23 @@ async function callAgent(
       await appendLog('Workspace directory exists without git metadata; recreating workspace');
       await rm(repoDir, { recursive: true, force: true });
     }
-    // Only allow git network sync during the first task-group workspace initialization. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
-    const allowNetworkPull = !workspaceReady;
+    let hasTaskGroupLogs = false;
+    if (taskGroupId && !workspaceReady) {
+      try {
+        hasTaskGroupLogs = await taskService.hasTaskGroupLogs(taskGroupId);
+      } catch (err: any) {
+        console.warn('[agent] failed to check task group logs (continuing)', err);
+      }
+      if (hasTaskGroupLogs) {
+        await appendLog(
+          'Existing task-group logs were found, but this worker has no workspace for the group. A new environment will be used for execution due to the environment change.'
+        );
+      }
+    }
+    // Reuse the previously computed task-group history check for workspace decisions. docs/en/developer/plans/taskgroup-resume-thread-20260203/task_plan.md taskgroup-resume-thread-20260203
+    const reuseWorkspace = workspaceReady && hasPriorTaskGroupTask;
+    // Only allow git network sync when the task-group workspace is initialized on this worker. docs/en/developer/plans/taskgroup-worker-env-20260203/task_plan.md taskgroup-worker-env-20260203
+    const allowNetworkPull = !reuseWorkspace;
 
     // Build git proxy flags from GIT_HTTP_PROXY env var for network operations. gitproxyfix20260127
     const gitProxyFlags = buildGitProxyFlags();
@@ -1212,10 +1251,14 @@ async function callAgent(
         throw err;
       }
     } else {
+      // Keep workspace reuse logs aligned with whether network pulls are skipped on this worker. docs/en/developer/plans/taskgroup-worker-env-20260203/task_plan.md taskgroup-worker-env-20260203
+      const reuseCommand = reuseWorkspace
+        ? `Reuse task group workspace (skip git pull): ${repoDir} (${workspaceLabel})`
+        : `Reuse task group workspace: ${repoDir} (${workspaceLabel})`;
       await appendThoughtChainCommand({
         id: workspaceItemId,
         status: 'completed',
-        command: `Reuse task group workspace (skip git pull): ${repoDir} (${workspaceLabel})`
+        command: reuseCommand
       });
     }
 
@@ -1522,7 +1565,12 @@ exit 0
     }
 
     // Apply robot overrides and run dependency installs before model execution. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
-    if (hookcodeConfig?.dependency && robotDependencyConfig?.enabled === false) {
+    if (hookcodeConfig?.dependency && reuseWorkspace) {
+      // Skip dependency installs when reusing the same worker's task-group workspace. docs/en/developer/plans/taskgroup-worker-env-20260203/task_plan.md taskgroup-worker-env-20260203
+      await appendLog('Skipping dependency installation because this task group already has a prepared workspace on this worker.');
+      dependencyResult = { status: 'skipped', steps: [], totalDuration: 0 };
+      await taskService.updateDependencyResult(task.id, dependencyResult);
+    } else if (hookcodeConfig?.dependency && robotDependencyConfig?.enabled === false) {
       await appendLog('Dependency installation disabled by robot configuration');
       dependencyResult = { status: 'skipped', steps: [], totalDuration: 0 };
       await taskService.updateDependencyResult(task.id, dependencyResult);
@@ -1712,6 +1760,7 @@ exit 0
         apiBaseUrl: apiBaseUrl || undefined,
         outputSchema,
         outputLastMessageFile,
+        signal: abortSignal,
         env: {
           ...(sandboxMode === 'workspace-write'
             ? {
@@ -1775,6 +1824,7 @@ exit 0
         apiKey,
         apiBaseUrl: apiBaseUrl || undefined,
         outputLastMessageFile,
+        signal: abortSignal,
         env: {
           ...(sandboxMode === 'workspace-write'
             ? {
@@ -1842,6 +1892,7 @@ exit 0
         apiBaseUrl: apiBaseUrl || undefined,
         outputLastMessageFile,
         geminiHomeDir,
+        signal: abortSignal,
         env: {
           ...(sandboxMode === 'workspace-write'
             ? {
@@ -1930,6 +1981,19 @@ exit 0
 
     return { logs, logsSeq, providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
   } catch (err: any) {
+    // Short-circuit aborts so pause/stop does not post failure comments. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    if (abortSignal?.aborted) {
+      await appendLog('Execution aborted by user request.');
+      const safeMessage = redactSensitiveText(err?.message || 'Task execution aborted');
+      throw new AgentExecutionError(safeMessage, {
+        logs,
+        logsSeq,
+        gitStatus,
+        cause: err,
+        aborted: true
+      });
+    }
+
     const payload: any = task.payload ?? {};
     const consoleUrl = getTaskConsoleUrl(task.id);
     const details = buildGitlabLogDetails(logs);

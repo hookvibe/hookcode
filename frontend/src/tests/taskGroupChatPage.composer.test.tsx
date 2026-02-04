@@ -39,6 +39,32 @@ describe('TaskGroupChatPage composer', () => {
     expect(textarea).toHaveValue('');
   });
 
+  test('replaces the send button with pause when a task is processing', async () => {
+    const ui = userEvent.setup();
+    const now = '2026-01-11T00:00:00.000Z';
+
+    // Ensure the composer renders pause controls for processing tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([
+      {
+        id: 't_run',
+        eventType: 'chat',
+        status: 'processing',
+        retries: 0,
+        createdAt: now,
+        updatedAt: now,
+        permissions: { canManage: true }
+      } as any
+    ]);
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    // Match the accessible name that includes the AntD icon label. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    const pauseButton = await screen.findByRole('button', { name: /Pause/ });
+    await ui.click(pauseButton);
+
+    await waitFor(() => expect(api.pauseTask).toHaveBeenCalledWith('t_run'));
+  });
+
   // Validate provider labels appear in robot picker text. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
   test('shows bound AI provider in the robot selector', async () => {
     renderTaskGroupChatPage();

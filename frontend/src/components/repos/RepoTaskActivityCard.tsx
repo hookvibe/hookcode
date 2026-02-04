@@ -8,14 +8,17 @@ import { buildTaskHash, buildTasksHash } from '../../router';
 import { clampText, getTaskEventText } from '../../utils/task';
 import { RepoTaskVolumeTrend } from './RepoTaskVolumeTrend';
 
-type TaskStatKey = 'queued' | 'processing' | 'success' | 'failed';
+// Extend repo activity distribution to include paused tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+type TaskStatKey = 'queued' | 'processing' | 'paused' | 'success' | 'failed';
 
-const TASK_STAT_KEYS: TaskStatKey[] = ['queued', 'processing', 'success', 'failed'];
+// Include paused in the distribution ordering for repo activity stats. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+const TASK_STAT_KEYS: TaskStatKey[] = ['queued', 'processing', 'paused', 'success', 'failed'];
 
 const statColor = (key: TaskStatKey): string => {
   if (key === 'success') return '#22c55e';
   if (key === 'failed') return '#ef4444';
   if (key === 'processing') return '#3b82f6';
+  if (key === 'paused') return '#f59e0b';
   return '#94a3b8';
 };
 
@@ -59,7 +62,8 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
   }, [refresh]);
 
   const derived = useMemo(() => {
-    const s: TaskStatusStats = stats ?? { total: 0, queued: 0, processing: 0, success: 0, failed: 0 };
+    // Default missing stats to zeros, including paused, for consistent repo activity rendering. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    const s: TaskStatusStats = stats ?? { total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 };
     const total = s.total ?? 0;
     const successRate = total ? (s.success ?? 0) / total : 0;
     const successPercent = Math.round(successRate * 100);
@@ -72,7 +76,8 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
     const latestFailed = sorted.filter((task) => task.status === 'failed').slice(0, 3);
     const latestSuccess = sorted.filter((task) => task.status === 'succeeded' || task.status === 'commented').slice(0, 3);
 
-    const distTotal = (s.queued ?? 0) + (s.processing ?? 0) + (s.success ?? 0) + (s.failed ?? 0);
+    // Include paused tasks in the distribution total so percentages stay accurate. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    const distTotal = (s.queued ?? 0) + (s.processing ?? 0) + (s.paused ?? 0) + (s.success ?? 0) + (s.failed ?? 0);
     const distribution = TASK_STAT_KEYS.map((k) => ({
       key: k,
       count: (s as any)?.[k] ?? 0,
@@ -93,8 +98,15 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
     };
   }, [recentTasks, stats]);
 
+  // Include paused counts when determining whether to render activity stats. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   const hasAnyTasks = Boolean(
-    stats && ((stats.total ?? 0) > 0 || (stats.queued ?? 0) > 0 || (stats.processing ?? 0) > 0 || (stats.success ?? 0) > 0 || (stats.failed ?? 0) > 0)
+    stats &&
+    ((stats.total ?? 0) > 0 ||
+      (stats.queued ?? 0) > 0 ||
+      (stats.processing ?? 0) > 0 ||
+      (stats.paused ?? 0) > 0 ||
+      (stats.success ?? 0) > 0 ||
+      (stats.failed ?? 0) > 0)
   );
 
   const openTask = useCallback((taskId: string) => {

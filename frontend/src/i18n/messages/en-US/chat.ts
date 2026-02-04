@@ -6,7 +6,11 @@ export const enUSChat = {
   'chat.page.newGroupTitle': 'New task group',
   'chat.page.updatedAt': 'Updated',
   'chat.page.newGroupHint': 'Pick a repository and a robot to start',
+  // Expand empty/missing group copy to avoid dialog-only views. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   'chat.page.emptyGroup': 'No tasks in this group',
+  'chat.page.emptyGroupHint': 'Start a new task below or return to the task group list.',
+  'chat.page.missingGroup': 'Task group not found',
+  'chat.page.missingGroupHint': 'This task group may have been deleted or archived.',
   'chat.welcome.title': 'What can I do for you?',
   'chat.welcome.desc': 'Pick a repository and a robot, then ask a question to create a task group.',
   'chat.repoPlaceholder': 'Select repository',
@@ -19,6 +23,9 @@ export const enUSChat = {
   'chat.form.textPlaceholder': 'Ask something… (Enter to send, Shift+Enter for newline)',
   'chat.form.timeWindow': 'Execution window',
   'chat.form.send': 'Send',
+  // Pause/resume controls for active task-group runs. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'chat.form.pause': 'Pause',
+  'chat.form.resume': 'Resume',
   'chat.validation.repoRequired': 'Please select a repository first',
   'chat.validation.robotRequired': 'Please select a robot first',
   'chat.validation.textRequired': 'Please enter some text',
@@ -133,6 +140,13 @@ export const enUSChat = {
   // Display a stable message when task logs are hidden by server configuration. nykx5svtlgh050cstyht
   'logViewer.disabled': 'Task logs are disabled on server.',
   'logViewer.empty': 'No logs',
+  // Add stage hints so early log views explain task progress. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'logViewer.empty.queued.title': 'Queued: waiting for a worker',
+  'logViewer.empty.queued.hint': 'Execution will start once a worker picks up this task.',
+  'logViewer.empty.processing.title': 'Starting execution',
+  'logViewer.empty.processing.hint': 'Preparing workspace and dependencies; logs will appear shortly.',
+  'logViewer.empty.paused.title': 'Paused',
+  'logViewer.empty.paused.hint': 'Resume the task to continue execution.',
   'logViewer.copySuccess': 'Copied',
   'logViewer.copyFailed': 'Copy failed',
   'logViewer.clearNotAllowed': 'Not allowed to clear logs',

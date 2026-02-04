@@ -112,6 +112,8 @@ export const enUSRepos = {
   'repos.dashboard.activity.tasks.loadFailed': 'Failed to load task activity',
   'repos.dashboard.activity.tasks.status.queued': 'Queued',
   'repos.dashboard.activity.tasks.status.processing': 'Processing',
+  // Add paused label for repo activity distribution legend. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'repos.dashboard.activity.tasks.status.paused': 'Paused',
   'repos.dashboard.activity.tasks.status.success': 'Success',
   'repos.dashboard.activity.tasks.status.failed': 'Failed',
 

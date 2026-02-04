@@ -18,6 +18,11 @@ export const zhCNAuth = {
   'toast.task.fetchFailed': '获取任务详情失败',
   'toast.task.deleted': '已删除任务',
   'toast.task.deleteFailed': '删除失败，请稍后再试',
+  // Pause/resume toasts for task execution control. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'toast.task.pauseSuccess': '已暂停任务',
+  'toast.task.pauseFailed': '暂停失败，请稍后再试',
+  'toast.task.resumeSuccess': '已继续任务',
+  'toast.task.resumeFailed': '继续失败，请稍后再试',
   'toast.task.forceRetrySuccess': '已强制重试：任务已重新入队',
   'toast.task.retrySuccess': '已重试任务',
   'toast.task.retryBlockedProcessing': '任务仍在处理中；若确认已卡死请使用“强制重试”或等待超时回收',

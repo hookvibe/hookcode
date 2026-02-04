@@ -84,6 +84,8 @@ export const zhCNCore = {
   // --- Task status ---
   'task.status.queued': '排队中',
   'task.status.processing': '处理中',
+  // Include paused label for stop/resume status tags. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'task.status.paused': '已暂停',
   'task.status.succeeded': '已完成',
   'task.status.failed': '失败',
   'task.status.commented': '已评论',
@@ -141,6 +143,9 @@ export const zhCNCore = {
   'tasks.detailTitle': '任务详情',
   'tasks.empty.noPermission': '无权限访问该页面',
   'tasks.retry': '重试',
+  // Pause/resume controls for task execution. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  'tasks.pause': '暂停',
+  'tasks.resume': '继续',
   'tasks.executeNow': '立即执行',
   // Add queued task diagnosis hints for better "stuck in queue" UX. f3a9c2d8e1b7f4a0c6d1
   'tasks.queue.hintTitle': '队列等待中',

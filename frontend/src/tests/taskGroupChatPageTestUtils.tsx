@@ -79,6 +79,9 @@ vi.mock('../api', () => {
     })),
     listRepos: vi.fn(async () => [repo]),
     listRepoRobots: vi.fn(async () => [robot]),
+    // Mock pause/resume APIs for task-group controls. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    pauseTask: vi.fn(async (id: string) => makeTask(id)),
+    resumeTask: vi.fn(async (id: string) => makeTask(id)),
     startTaskGroupPreview: vi.fn(async () => ({ success: true, instances: [] })),
     stopTaskGroupPreview: vi.fn(async () => ({ success: true }))
   };
@@ -140,6 +143,23 @@ export const setupTaskGroupChatMocks = () => {
     createdAt: NOW,
     updatedAt: NOW
   }));
+  // Keep pause/resume mocks in a stable default state for tests. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  vi.mocked(api.pauseTask).mockResolvedValue({
+    id: 't_pause',
+    eventType: 'chat',
+    status: 'paused',
+    retries: 0,
+    createdAt: NOW,
+    updatedAt: NOW
+  } as any);
+  vi.mocked(api.resumeTask).mockResolvedValue({
+    id: 't_resume',
+    eventType: 'chat',
+    status: 'queued',
+    retries: 0,
+    createdAt: NOW,
+    updatedAt: NOW
+  } as any);
   vi.mocked(api.executeChat).mockImplementation(async () => ({
     taskGroup: {
       id: 'g_new',
