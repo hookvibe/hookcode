@@ -191,6 +191,296 @@
     };
   };
 
+  // Preview bridge selector resolution uses layered fallbacks to keep highlight commands working across hidden and shadow DOM nodes. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  // Key steps: score visibility, prefer the best visible match, then try simple id/class/tag lookup and deep shadow-root scans. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  // Assumption: if all matches are invisible, the first match is still returned to preserve deterministic behavior. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const safeQuerySelector = (root, selector) => {
+    if (!root || typeof root.querySelector !== 'function') return null;
+    try {
+      return root.querySelector(selector);
+    } catch {
+      return null;
+    }
+  };
+
+  const safeQuerySelectorAll = (root, selector) => {
+    if (!root || typeof root.querySelectorAll !== 'function') return [];
+    try {
+      return Array.from(root.querySelectorAll(selector));
+    } catch {
+      return [];
+    }
+  };
+
+  const collectRoots = () => {
+    // Collect document + open shadow roots so text/attribute rules can search beyond the light DOM. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    const roots = [];
+    const visited = new Set();
+    const queue = [document];
+    while (queue.length) {
+      const root = queue.shift();
+      if (!root || visited.has(root)) continue;
+      visited.add(root);
+      roots.push(root);
+      const elements = safeQuerySelectorAll(root, '*');
+      for (const element of elements) {
+        if (element && element.shadowRoot) queue.push(element.shadowRoot);
+      }
+    }
+    return roots;
+  };
+
+  const stripQuotes = (value) => {
+    // Normalize matcher values like text:"Save" or attr:data-testid='cta'. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    if (trimmed.length < 2) return trimmed;
+    if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+      return trimmed.slice(1, -1).trim();
+    }
+    return trimmed;
+  };
+
+  // Define attribute operator tokens used by selector matcher parsing. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const ATTRIBUTE_OPERATORS = ['^=', '$=', '*=', '~=', '='];
+
+  // Parse attribute expressions like data-testid=cta or data-testid for presence checks. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const parseAttributeExpression = (expression) => {
+    const trimmed = expression.trim();
+    if (!trimmed) return null;
+    for (const operator of ATTRIBUTE_OPERATORS) {
+      const index = trimmed.indexOf(operator);
+      if (index > 0) {
+        const name = trimmed.slice(0, index).trim();
+        const value = stripQuotes(trimmed.slice(index + operator.length));
+        if (!name || !value) return null;
+        return { name, operator, value };
+      }
+    }
+    return { name: trimmed, operator: null, value: null };
+  };
+
+  // Parse text matcher selectors like text:Save or text="Save". docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const parseTextMatcher = (selector) => {
+    const match = selector.match(/^text\s*[:=]\s*(.+)$/i);
+    if (!match) return null;
+    const value = stripQuotes(match[1]);
+    return value ? value : null;
+  };
+
+  // Parse attribute matcher selectors like attr:data-testid=cta or role:button. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const parseAttributeMatcher = (selector) => {
+    const prefixMatch = selector.match(/^([a-zA-Z]+)\s*[:=]\s*(.+)$/);
+    if (prefixMatch) {
+      const prefix = prefixMatch[1].toLowerCase();
+      const rest = prefixMatch[2];
+      if (prefix === 'text') return null;
+      if (prefix === 'testid') {
+        const value = stripQuotes(rest);
+        return value ? { name: 'data-testid', operator: '=', value } : null;
+      }
+      if (['role', 'title', 'placeholder', 'alt', 'name', 'value'].includes(prefix)) {
+        const value = stripQuotes(rest);
+        return value ? { name: prefix, operator: '=', value } : null;
+      }
+      if (prefix === 'attr') {
+        return parseAttributeExpression(rest);
+      }
+      if (prefix === 'data' || prefix === 'aria') {
+        const parsed = parseAttributeExpression(rest);
+        if (!parsed) return null;
+        return { ...parsed, name: `${prefix}-${parsed.name}` };
+      }
+    }
+
+    if (/[\s>+~,[\]]/.test(selector)) return null;
+    if (selector.startsWith('.') || selector.startsWith('#')) return null;
+    if (!ATTRIBUTE_OPERATORS.some((operator) => selector.includes(operator))) return null;
+    return parseAttributeExpression(selector);
+  };
+
+  // Compare attribute values using the supported operators for selector rules. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const matchAttributeValue = (actualValue, expectedValue, operator) => {
+    if (expectedValue == null) return true;
+    const actual = actualValue ?? '';
+    const expected = expectedValue ?? '';
+    if (operator === '^=') return actual.startsWith(expected);
+    if (operator === '$=') return actual.endsWith(expected);
+    if (operator === '*=') return actual.includes(expected);
+    if (operator === '~=') return actual.split(/\s+/).includes(expected);
+    return actual === expected;
+  };
+
+  // Build a safe attribute selector for querySelectorAll or fall back to manual scans. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const buildAttributeSelector = (name) => {
+    if (window.CSS && typeof window.CSS.escape === 'function') {
+      return `[${window.CSS.escape(name)}]`;
+    }
+    if (/^[A-Za-z_][A-Za-z0-9_:-]*$/.test(name)) {
+      return `[${name}]`;
+    }
+    return null;
+  };
+
+  // Resolve attribute-based selectors across all roots with visibility scoring. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const findByAttribute = (match) => {
+    if (!match || !match.name) return null;
+    const roots = collectRoots();
+    const selector = buildAttributeSelector(match.name);
+    const matches = [];
+    for (const root of roots) {
+      const candidates = selector ? safeQuerySelectorAll(root, selector) : safeQuerySelectorAll(root, '*');
+      for (const element of candidates) {
+        if (!element || typeof element.getAttribute !== 'function') continue;
+        if (match.operator === null) {
+          if (!element.hasAttribute(match.name)) continue;
+          matches.push(element);
+          continue;
+        }
+        const actual = element.getAttribute(match.name);
+        if (actual == null) continue;
+        if (matchAttributeValue(actual, match.value, match.operator)) matches.push(element);
+      }
+    }
+    return pickBestCandidate(matches);
+  };
+
+  // Resolve text-based selectors and pick the most visible matching element. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const findByText = (value) => {
+    if (!value) return null;
+    const needle = value.toLowerCase();
+    const roots = collectRoots();
+    let best = null;
+    let bestScore = -1;
+    let bestRank = -1;
+    let fallback = null;
+    for (const root of roots) {
+      const elements = safeQuerySelectorAll(root, '*');
+      for (const element of elements) {
+        const text = element && typeof element.textContent === 'string' ? element.textContent.trim() : '';
+        if (!text) continue;
+        const normalized = text.toLowerCase();
+        let rank = 0;
+        if (normalized === needle) rank = 2;
+        else if (normalized.includes(needle)) rank = 1;
+        else continue;
+        if (!fallback) fallback = element;
+        const score = scoreElement(element);
+        if (score <= 0) continue;
+        if (rank > bestRank || (rank === bestRank && score > bestScore)) {
+          best = element;
+          bestScore = score;
+          bestRank = rank;
+        }
+      }
+    }
+    return best || fallback;
+  };
+
+  const scoreElement = (element) => {
+    if (!element || typeof element.getBoundingClientRect !== 'function') return 0;
+    const rect = element.getBoundingClientRect();
+    const area = Math.max(0, rect.width) * Math.max(0, rect.height);
+    if (!area) return 0;
+    const style = window.getComputedStyle ? window.getComputedStyle(element) : null;
+    // Treat opacity as zero only when it parses to a finite number to avoid false negatives. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    const opacityToken = style && typeof style.opacity === 'string' ? style.opacity.trim() : '';
+    const opacity = opacityToken ? Number(opacityToken) : NaN;
+    if (style && (style.display === 'none' || style.visibility === 'hidden' || (Number.isFinite(opacity) && opacity === 0))) {
+      return 0;
+    }
+    if (typeof element.getClientRects === 'function' && element.getClientRects().length === 0) return 0;
+    return area;
+  };
+
+  const pickBestCandidate = (elements) => {
+    const list = elements.filter((element) => element && element.nodeType === 1);
+    if (!list.length) return null;
+    let best = list[0];
+    let bestScore = scoreElement(best);
+    for (let index = 1; index < list.length; index += 1) {
+      const current = list[index];
+      const currentScore = scoreElement(current);
+      if (currentScore > bestScore) {
+        best = current;
+        bestScore = currentScore;
+      }
+    }
+    return bestScore > 0 ? best : list[0];
+  };
+
+  const resolveSimpleSelector = (selector) => {
+    const trimmed = selector.trim();
+    if (!trimmed) return null;
+    if (/[\s>+~,[\]]/.test(trimmed)) return null;
+    if (trimmed.startsWith('#')) {
+      const id = trimmed.slice(1);
+      return id ? document.getElementById(id) : null;
+    }
+    if (trimmed.startsWith('.')) {
+      const classTokens = trimmed.split('.').filter(Boolean);
+      if (!classTokens.length) return null;
+      return pickBestCandidate(Array.from(document.getElementsByClassName(classTokens.join(' '))));
+    }
+    if (/^[A-Za-z][A-Za-z0-9-]*$/.test(trimmed)) {
+      return pickBestCandidate(Array.from(document.getElementsByTagName(trimmed)));
+    }
+    return null;
+  };
+
+  // Reuse collected roots to query selectors across open shadow roots. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const querySelectorAllDeep = (selector, roots) => {
+    const results = [];
+    const rootList = roots || collectRoots();
+    for (const root of rootList) {
+      results.push(...safeQuerySelectorAll(root, selector));
+    }
+    return results;
+  };
+
+  // Resolve highlight targets with text/attribute rules before CSS fallbacks. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const resolveHighlightTarget = (selector) => {
+    const trimmed = selector.trim();
+    const textMatch = parseTextMatcher(trimmed);
+    if (textMatch) {
+      const textTarget = findByText(textMatch);
+      if (textTarget) return textTarget;
+    }
+
+    const attributeMatch = parseAttributeMatcher(trimmed);
+    if (attributeMatch) {
+      const attributeTarget = findByAttribute(attributeMatch);
+      if (attributeTarget) return attributeTarget;
+    }
+
+    const roots = collectRoots();
+    let target = safeQuerySelector(document, trimmed);
+    let targetScore = target ? scoreElement(target) : -1;
+
+    if (targetScore <= 0) {
+      const matches = safeQuerySelectorAll(document, trimmed);
+      const bestMatch = pickBestCandidate(matches);
+      if (bestMatch) {
+        const bestScore = scoreElement(bestMatch);
+        if (bestScore > targetScore) {
+          target = bestMatch;
+          targetScore = bestScore;
+        }
+      }
+    }
+
+    if (!target) {
+      target = resolveSimpleSelector(trimmed);
+      targetScore = target ? scoreElement(target) : targetScore;
+    }
+
+    if (targetScore <= 0) {
+      const deepMatch = pickBestCandidate(querySelectorAllDeep(trimmed, roots));
+      if (deepMatch) target = deepMatch;
+    }
+
+    return target;
+  };
+
   const applyHighlight = (payload) => {
     if (!payload || typeof payload.selector !== 'string') {
       return { ok: false, error: 'selector_required' };
@@ -198,7 +488,8 @@
     const selector = payload.selector.trim();
     if (!selector) return { ok: false, error: 'selector_required' };
 
-    const target = document.querySelector(selector);
+    // Prefer a visible match or safe fallback for selectors that fail in querySelector. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    const target = resolveHighlightTarget(selector);
     if (!target) return { ok: false, error: 'selector_not_found' };
 
     // Validate and normalize bubble payload before rendering. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
@@ -311,18 +602,44 @@
         const spaceBottom = viewportHeight - anchor.bottom;
         const spaceLeft = anchor.left;
         const spaceRight = viewportWidth - anchor.right;
+        const margin = 8;
+        const requiredVertical = bubbleRect.height + offset + margin;
+        const requiredHorizontal = bubbleRect.width + offset + margin;
+        const fitsTop = spaceTop >= requiredVertical;
+        const fitsBottom = spaceBottom >= requiredVertical;
+        const fitsLeft = spaceLeft >= requiredHorizontal;
+        const fitsRight = spaceRight >= requiredHorizontal;
 
-        let placement = bubble.placement;
-        if (placement === 'auto') {
+        // Prefer vertical placement and flip when space is insufficient to keep the bubble visible. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+        const pickAutoPlacement = () => {
+          if (fitsBottom) return 'bottom';
+          if (fitsTop) return 'top';
+          if (fitsRight) return 'right';
+          if (fitsLeft) return 'left';
           const candidates = [
-            { side: 'top', space: spaceTop },
             { side: 'bottom', space: spaceBottom },
+            { side: 'top', space: spaceTop },
             { side: 'right', space: spaceRight },
             { side: 'left', space: spaceLeft }
           ];
           candidates.sort((a, b) => b.space - a.space);
-          placement = candidates[0].side;
-        }
+          return candidates[0].side;
+        };
+
+        const resolvePlacement = (preferred) => {
+          if (preferred === 'auto') return pickAutoPlacement();
+          if (preferred === 'top' && fitsTop) return 'top';
+          if (preferred === 'bottom' && fitsBottom) return 'bottom';
+          if (preferred === 'left' && fitsLeft) return 'left';
+          if (preferred === 'right' && fitsRight) return 'right';
+          if (preferred === 'top' && fitsBottom) return 'bottom';
+          if (preferred === 'bottom' && fitsTop) return 'top';
+          if (preferred === 'left' && fitsRight) return 'right';
+          if (preferred === 'right' && fitsLeft) return 'left';
+          return pickAutoPlacement();
+        };
+
+        const placement = resolvePlacement(bubble.placement);
 
         let top = 0;
         let left = 0;
@@ -364,7 +681,6 @@
           }
         }
 
-        const margin = 8;
         top = clamp(top, margin, viewportHeight - bubbleRect.height - margin);
         left = clamp(left, margin, viewportWidth - bubbleRect.width - margin);
 
