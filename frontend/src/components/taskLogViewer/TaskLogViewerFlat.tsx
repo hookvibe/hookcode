@@ -1,7 +1,4 @@
-// Render the flat log viewer variant separate from the main component. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
-
 import type { ReactNode, RefObject } from 'react';
-import { Alert, Typography } from 'antd';
 import type { ExecutionTimelineState } from '../../utils/executionLog';
 import { ExecutionTimeline } from '../execution/ExecutionTimeline';
 import type { TFunction } from '../../i18n';
@@ -35,10 +32,14 @@ export const TaskLogViewerFlat = ({
 }: TaskLogViewerFlatProps) => (
   <div ref={rootRef}>
     {messageContextHolder}
-    {error ? <Alert type="warning" showIcon message={error} style={{ marginBottom: 8 }} /> : null}
+    {error ? (
+        <div className="log-error" style={{ marginBottom: 8 }}>
+           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+           <span>{error}</span>
+        </div>
+    ) : null}
     {timeline.items.length ? (
       <>
-        {/* Show reasoning in flat dialog logs to surface Codex text by default. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
         <ExecutionTimeline
           items={timeline.items}
           showReasoning={showReasoning}
@@ -51,9 +52,9 @@ export const TaskLogViewerFlat = ({
     ) : logs.length ? (
       <pre className="hc-task-code-block hc-task-code-block--expanded">{lines}</pre>
     ) : (
-      <div className="hc-exec-empty">
-        <Typography.Text type="secondary">{emptyMessage}</Typography.Text>
-        {emptyHint ? <Typography.Text type="secondary">{emptyHint}</Typography.Text> : null}
+      <div className="chat-empty">
+        <span className="text-secondary">{emptyMessage}</span>
+        {emptyHint ? <span className="text-secondary">{emptyHint}</span> : null}
       </div>
     )}
     <div ref={endRef} />

@@ -1,107 +1,104 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
-.hc-card-list {
-  max-width: var(--hc-page-max);
-  margin: 0 auto;
-  /* Add a small inset to prevent glass highlights from clipping at the container edge. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
-  padding: 2px;
-}
+/* Modern Card Styles - High-End Redesign */
 
-/* Use a responsive grid for modern card list layouts. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
-.hc-card-grid {
+.hc-card-grid-modern {
   display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  padding-bottom: 24px;
 }
 
-@media (min-width: 840px) {
-  .hc-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-  }
-}
-
-@media (min-width: 1200px) {
-  .hc-card-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-  }
-}
-
-/* Modernize list cards with flat neutral surfaces and deeper radius. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
-.hc-task-card,
-.hc-repo-card,
-.hc-taskgroup-card {
+.hc-modern-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  background-color: var(--hc-surface);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  cursor: pointer;
   position: relative;
   overflow: hidden;
-  cursor: pointer;
-  background: var(--hc-surface) !important;
-  border: 1px solid var(--hc-border) !important;
-  border-radius: 16px;
 }
 
-.hc-card {
-  background: var(--hc-surface) !important;
-  border-color: var(--hc-border) !important;
-  border-radius: 12px;
-}
-
-/* Elevation: apply consistent shadows to the cards we control via custom classes. */
-.hc-task-card.ant-card,
-.hc-repo-card.ant-card,
-.hc-taskgroup-card.ant-card,
-.hc-card.ant-card {
+.hc-modern-card:hover {
+  border-color: var(--border-hover);
   box-shadow: var(--hc-shadow-sm);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
-}
-
-.hc-task-card.ant-card.ant-card-hoverable:hover,
-.hc-repo-card.ant-card.ant-card-hoverable:hover,
-.hc-taskgroup-card.ant-card.ant-card-hoverable:hover,
-.hc-card.ant-card.ant-card-hoverable:hover {
-  box-shadow: var(--hc-shadow-md);
-  border-color: var(--hc-accent-border) !important;
   transform: translateY(-1px);
 }
 
-.hc-task-card .ant-tag,
-.hc-repo-card .ant-tag,
-.hc-taskgroup-card .ant-tag {
-  border-radius: 999px;
-  font-size: 12px;
-  padding: 1px 8px;
-  line-height: 18px;
+.hc-modern-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-/* Segment card content into clear blocks for scanning. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
-.hc-card-structure {
+.hc-modern-card__title-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  min-width: 0;
 }
 
-.hc-card-header {
+.hc-modern-card__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.hc-modern-card__subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hc-modern-card__badges {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
-.hc-card-divider {
+.hc-modern-card__divider {
   height: 1px;
-  background: color-mix(in srgb, var(--hc-border) 70%, transparent);
+  background-color: var(--border);
+  width: 100%;
+  opacity: 0.6;
 }
 
-.hc-card-note {
-  font-size: 12px;
-}
-
-/* Align shared card meta/actions rows for the list layouts. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */
-.hc-card-meta {
+.hc-modern-card__meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
 }
 
-.hc-card-actions {
-  margin-top: 2px;
+.hc-modern-card__meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.hc-modern-card__actions {
+  margin-top: auto;
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .hc-card-grid-modern {
+    grid-template-columns: 1fr;
+  }
+  
+  .hc-modern-card {
+    padding: 16px;
+  }
 }

@@ -1679,14 +1679,14 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               // Render skeleton chat items while the active task group is blocking on data. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
               <ChatTimelineSkeleton testId="hc-chat-group-skeleton" ariaLabel={t('common.loading')} />
             ) : isCentered ? (
-              <div className="hc-chat-centered-view">
-                <div className="hc-chat-hero">
-                  <Typography.Title level={2} style={{ marginTop: 0, marginBottom: 12 }}>
+              <div className="hc-welcome-container">
+                <div className="hc-welcome-hero">
+                  <h1 className="hc-welcome-title">
                     {t('chat.welcome.title')}
-                  </Typography.Title>
-                  <Typography.Paragraph type="secondary" style={{ fontSize: 16 }}>
+                  </h1>
+                  <p className="hc-welcome-desc">
                     {t('chat.welcome.desc')}
-                  </Typography.Paragraph>
+                  </p>
                 </div>
                 {composerNode}
               </div>

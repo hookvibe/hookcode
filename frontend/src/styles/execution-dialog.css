@@ -1,303 +1,355 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
 /* =============================================================================
- * Execution Dialog & Timeline
+ * Execution Dialog (Modern Chat Bubbles)
  * ========================================================================== */
 
-/* =============================================================================
- * Execution viewer (structured logs + diffs) yjlphd6rbkrq521ny796
- * ========================================================================== */
-
-:root {
-  --hc-diff-added-bg: rgba(34, 197, 94, 0.12);
-  --hc-diff-removed-bg: rgba(239, 68, 68, 0.12);
-  --hc-diff-inline-added-bg: rgba(34, 197, 94, 0.22);
-  --hc-diff-inline-removed-bg: rgba(239, 68, 68, 0.22);
-}
-
-html[data-theme='dark'] {
-  --hc-diff-added-bg: rgba(34, 197, 94, 0.16);
-  --hc-diff-removed-bg: rgba(239, 68, 68, 0.16);
-  --hc-diff-inline-added-bg: rgba(34, 197, 94, 0.26);
-  --hc-diff-inline-removed-bg: rgba(239, 68, 68, 0.26);
-}
-
-.hc-exec-empty {
-  padding: 14px 0;
-  text-align: center;
-}
-
-/* Dialog-style execution log layout (non-bubble, task-centric). docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
-.hc-exec-dialog {
+.chat-stream {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  font-family: "Fira Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  gap: 16px;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.hc-exec-dialog__item {
-  display: grid;
-  grid-template-columns: 14px minmax(0, 1fr);
+.chat-bubble {
+  display: flex;
   gap: 12px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--hc-border);
+  align-items: flex-start;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Avatar Styling */
+.chat-bubble__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   background: var(--hc-surface-elevated);
-  animation: hc-exec-item-enter 220ms ease-out;
-  will-change: opacity, transform;
-}
-
-.hc-exec-dialog__item.is-running {
-  border-color: color-mix(in srgb, var(--hc-exec-accent) 45%, var(--hc-border));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hc-exec-accent) 18%, transparent);
-}
-
-.hc-exec-dialog__item.is-failed {
-  border-color: color-mix(in srgb, #ef4444 40%, var(--hc-border));
-}
-
-.hc-exec-dialog__item.is-completed {
-  border-color: color-mix(in srgb, #22c55e 30%, var(--hc-border));
-}
-
-.hc-exec-dialog__item.is-failed .hc-exec-dialog__dot {
-  background: #ef4444;
-  border-color: color-mix(in srgb, #ef4444 30%, var(--hc-exec-accent-soft));
-}
-
-.hc-exec-dialog__item.is-completed .hc-exec-dialog__dot {
-  background: #22c55e;
-  border-color: color-mix(in srgb, #22c55e 30%, var(--hc-exec-accent-soft));
-}
-
-.hc-exec-dialog__rail {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.hc-exec-dialog__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--hc-exec-accent);
-  border: 2px solid var(--hc-exec-accent-soft);
-}
-
-.hc-exec-dialog__line {
-  flex: 1;
-  width: 2px;
-  background: var(--hc-exec-rail);
-  border-radius: 999px;
-}
-
-.hc-exec-dialog__content {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.hc-exec-dialog__header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.hc-exec-dialog__role {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  background: var(--hc-exec-role-bg);
   border: 1px solid var(--hc-border);
-  padding: 2px 6px;
-  border-radius: 999px;
-}
-
-.hc-exec-dialog__kind {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.hc-exec-dialog__status {
-  margin-left: auto;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 999px;
-  border: 1px solid var(--hc-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   color: var(--muted);
-  background: var(--hc-surface);
+  transition: all 0.2s;
 }
 
-.hc-exec-dialog__status.is-running {
-  color: var(--hc-exec-accent);
-  border-color: color-mix(in srgb, var(--hc-exec-accent) 40%, var(--hc-border));
-  background: var(--hc-exec-accent-soft);
+/* Kind-specific Avatar Colors */
+.chat-bubble.kind-agent_message .chat-bubble__avatar {
+  color: #3b82f6; /* Blue */
+  background: color-mix(in srgb, #3b82f6 8%, var(--hc-surface));
+  border-color: color-mix(in srgb, #3b82f6 20%, var(--hc-border));
 }
 
-.hc-exec-dialog__status.is-failed {
+.chat-bubble.kind-command_execution .chat-bubble__avatar {
+  color: #a855f7; /* Purple */
+  background: color-mix(in srgb, #a855f7 8%, var(--hc-surface));
+  border-color: color-mix(in srgb, #a855f7 20%, var(--hc-border));
+}
+
+.chat-bubble.kind-file_change .chat-bubble__avatar {
+  color: #f59e0b; /* Amber */
+  background: color-mix(in srgb, #f59e0b 8%, var(--hc-surface));
+  border-color: color-mix(in srgb, #f59e0b 20%, var(--hc-border));
+}
+
+.chat-bubble.kind-reasoning .chat-bubble__avatar {
+  color: #64748b; /* Slate */
+  background: color-mix(in srgb, #64748b 8%, var(--hc-surface));
+  border-color: color-mix(in srgb, #64748b 20%, var(--hc-border));
+}
+
+.chat-bubble.kind-todo_list .chat-bubble__avatar {
+  color: #14b8a6; /* Teal */
+  background: color-mix(in srgb, #14b8a6 8%, var(--hc-surface));
+  border-color: color-mix(in srgb, #14b8a6 20%, var(--hc-border));
+}
+
+/* Status Overrides for Avatar (Running/Failed take precedence) */
+.chat-bubble.is-running .chat-bubble__avatar {
+  border-color: var(--hc-primary);
+  color: var(--hc-primary);
+  background: color-mix(in srgb, var(--hc-primary) 10%, var(--hc-surface));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--hc-primary) 15%, transparent);
+}
+.chat-bubble.is-failed .chat-bubble__avatar {
+  border-color: #ef4444;
   color: #ef4444;
-  border-color: color-mix(in srgb, #ef4444 40%, var(--hc-border));
-  background: color-mix(in srgb, #ef4444 12%, var(--hc-surface-elevated));
+  background: color-mix(in srgb, #ef4444 10%, var(--hc-surface));
 }
 
-.hc-exec-dialog__status.is-completed {
-  color: #16a34a;
-  border-color: color-mix(in srgb, #22c55e 35%, var(--hc-border));
-  background: color-mix(in srgb, #22c55e 12%, var(--hc-surface-elevated));
-}
-
-.hc-exec-dialog__speech {
+.chat-bubble__content {
+  flex: 1;
   min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.hc-exec-dialog__line-text {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.hc-exec-dialog__work {
-  border: 1px dashed color-mix(in srgb, var(--hc-exec-rail) 70%, var(--hc-border));
-  background: var(--hc-exec-work-bg);
-  border-radius: 8px;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.hc-exec-dialog__work-header {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.hc-exec-dialog__work-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.hc-exec-dialog__work-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.hc-exec-dialog__mono {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--hc-surface);
-  font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.hc-exec-dialog__files {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.hc-exec-dialog__file {
+.chat-bubble__header {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
+  flex-wrap: wrap;
 }
 
-.hc-exec-dialog__file-path {
-  min-width: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+/* Role Label Styling */
+.chat-bubble__role {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 0;
 }
 
-.hc-exec-dialog__pill {
+/* Kind-specific Role Colors */
+.chat-bubble.kind-agent_message .chat-bubble__role { color: #2563eb; }
+.chat-bubble.kind-command_execution .chat-bubble__role { color: #9333ea; }
+.chat-bubble.kind-file_change .chat-bubble__role { color: #d97706; }
+.chat-bubble.kind-reasoning .chat-bubble__role { color: #475569; }
+.chat-bubble.kind-todo_list .chat-bubble__role { color: #0d9488; }
+/* Dark mode adjustments for readability */
+html[data-theme='dark'] .chat-bubble.kind-agent_message .chat-bubble__role { color: #60a5fa; }
+html[data-theme='dark'] .chat-bubble.kind-command_execution .chat-bubble__role { color: #c084fc; }
+html[data-theme='dark'] .chat-bubble.kind-file_change .chat-bubble__role { color: #fbbf24; }
+html[data-theme='dark'] .chat-bubble.kind-reasoning .chat-bubble__role { color: #94a3b8; }
+html[data-theme='dark'] .chat-bubble.kind-todo_list .chat-bubble__role { color: #2dd4bf; }
+
+.chat-bubble__kind {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.6;
+}
+
+.chat-bubble__status {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--hc-surface-neutral);
+  color: var(--muted);
+  margin-left: auto;
+  border: 1px solid transparent;
+}
+
+.chat-bubble__status.is-running { 
+  background: rgba(var(--hc-primary-rgb), 0.08); 
+  color: var(--hc-primary); 
+  border-color: rgba(var(--hc-primary-rgb), 0.2);
+}
+.chat-bubble__status.is-failed { 
+  background: rgba(239, 68, 68, 0.1); 
+  color: #ef4444; 
+  border-color: rgba(239, 68, 68, 0.2);
+}
+.chat-bubble__status.is-completed { 
+  background: rgba(34, 197, 94, 0.1); 
+  color: #16a34a; 
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.chat-bubble__body {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.chat-bubble__summary {
+  font-weight: 500;
+}
+
+/* Collapsible / Work Area */
+
+.chat-collapsible {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chat-collapsible-group {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-collapsible__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  user-select: none;
+  width: fit-content;
+  transition: color 0.2s;
+}
+
+.chat-collapsible__toggle:hover {
+  color: var(--text);
+}
+
+.chat-collapsible__toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Reasoning */
+.chat-reasoning {
+  margin-top: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--hc-border); /* Default */
+  color: var(--text);
+}
+
+/* Reasoning border color follows role color for subtle connection */
+.chat-bubble.kind-reasoning .chat-reasoning { border-left-color: #cbd5e1; }
+html[data-theme='dark'] .chat-bubble.kind-reasoning .chat-reasoning { border-left-color: #334155; }
+
+/* Code / Output */
+.chat-work__mono {
+  font-family: "Fira Code", monospace;
+  font-size: 12px;
+  background: var(--hc-surface-elevated);
+  padding: 10px;
+  border-radius: 6px;
   border: 1px solid var(--hc-border);
-  padding: 2px 6px;
-  border-radius: 999px;
+  overflow-x: auto;
+  margin: 0;
+  color: var(--text); /* Ensure high contrast */
+  max-height: 300px; 
+}
+
+/* Differentiate output background slightly based on theme for readability */
+html[data-theme='light'] .chat-work__mono { background: #f8fafc; border-color: #e2e8f0; }
+html[data-theme='dark'] .chat-work__mono { background: #0f0f11; border-color: #27272a; }
+
+/* Files List */
+.chat-files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 6px;
+}
+
+.chat-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.chat-pill {
+  font-size: 10px;
+  padding: 1px 4px;
+  border: 1px solid var(--hc-border);
+  border-radius: 4px;
+  color: var(--muted);
+  text-transform: uppercase;
   background: var(--hc-surface);
 }
 
-.hc-exec-dialog__diff-list {
+/* Diff View Integration */
+.chat-diffs {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-top: 4px;
 }
 
-.hc-exec-dialog__diff {
+.chat-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chat-diff__file {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  font-family: monospace;
+}
+
+/* Todo List */
+.chat-todo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.chat-todo__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.chat-todo__item.is-complete {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.chat-todo__marker {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hc-border);
+}
+
+.chat-todo__item.is-complete .chat-todo__marker {
+  background: #16a34a;
+}
+
+/* Loading / Running */
+.chat-running {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  justify-content: center;
+}
+
+.chat-running__dots span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--muted);
+  border-radius: 50%;
+  margin: 0 2px;
+  animation: pulse 1.4s infinite ease-in-out both;
+}
+
+.chat-running__dots span:nth-child(1) { animation-delay: -0.32s; }
+.chat-running__dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes pulse {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+.chat-empty {
+  text-align: center;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.hc-exec-dialog__diff-file {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.hc-exec-dialog__todo {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.hc-exec-dialog__todo-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hc-exec-dialog__todo-item.is-complete {
+/* Text Utilities */
+.text-secondary {
   color: var(--muted);
+  font-size: 13px;
 }
-
-.hc-exec-dialog__todo-marker {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--hc-exec-rail);
-}
-
-.hc-exec-dialog__todo-item.is-complete .hc-exec-dialog__todo-marker {
-  background: color-mix(in srgb, #22c55e 60%, var(--hc-exec-rail));
-}
-
-/* Add execution timeline spacing, entry transitions, and running indicator styling. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
-.hc-exec-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-@keyframes hc-exec-item-enter {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-

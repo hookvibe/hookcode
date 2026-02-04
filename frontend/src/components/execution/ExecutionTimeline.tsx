@@ -1,6 +1,4 @@
-import { FC, type ReactNode, useMemo } from 'react';
-import { Space, Typography } from 'antd';
-import { CheckSquareOutlined, CodeOutlined, FileTextOutlined, MessageOutlined, MoreOutlined } from '@ant-design/icons';
+import { FC, type ReactNode, useMemo, useState } from 'react';
 import type { ExecutionFileDiff, ExecutionItem } from '../../utils/executionLog';
 import { useT } from '../../i18n';
 import { MarkdownViewer } from '../MarkdownViewer';
@@ -11,12 +9,20 @@ export interface ExecutionTimelineProps {
   showReasoning?: boolean;
   wrapDiffLines?: boolean;
   showLineNumbers?: boolean;
-  // Allow callers to override empty-state copy for task-stage hints. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   emptyMessage?: string;
   emptyHint?: string;
 }
 
-// Render structured execution steps parsed from JSONL task logs as dialog-style rows. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+// Icons
+const IconCode = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>;
+const IconFile = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>;
+const IconMessage = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>;
+const IconBrain = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"></path><path d="M8.5 8.5v.01"></path><path d="M16 16v.01"></path><path d="M12 12v.01"></path></svg>;
+const IconList = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>;
+const IconDots = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>;
+const IconChevronDown = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>;
+const IconChevronRight = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>;
+
 const formatPath = (raw: string): string => {
   const value = String(raw ?? '').trim();
   if (!value) return value;
@@ -27,7 +33,6 @@ const formatPath = (raw: string): string => {
 const diffKey = (diff: ExecutionFileDiff): string => `${diff.path}::${diff.kind ?? ''}`;
 
 const clampText = (raw: string, maxLen: number): string => {
-  // **Finalizing project details** remove *
   const cleanedText = raw.replace(/^\*+|\*+$/g, '').trim();
   const text = String(cleanedText ?? '').trim();
   if (!text) return '';
@@ -41,7 +46,6 @@ const firstLine = (raw: string): string => {
   return (line ?? '').trim();
 };
 
-// Summarize execution detail text for richer headers and inline labels. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
 const summarizePaths = (paths: string[], maxItems = 3, maxLen = 160): string => {
   const usable = paths.map((entry) => String(entry ?? '').trim()).filter(Boolean);
   if (!usable.length) return '';
@@ -60,20 +64,17 @@ type StatusMeta = {
   label: string;
 };
 
-export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({
-  items,
-  showReasoning = false,
-  wrapDiffLines = true,
-  showLineNumbers = true,
-  emptyMessage,
-  emptyHint
-}) => {
-  const t = useT();
+// --- Sub-component for individual items ---
 
-  const visibleItems = useMemo(() => (showReasoning ? items : items.filter((item) => item.kind !== 'reasoning')), [items, showReasoning]);
+const ExecutionTimelineItem: FC<{
+  item: ExecutionItem;
+  wrapDiffLines: boolean;
+  showLineNumbers: boolean;
+  t: any;
+}> = ({ item, wrapDiffLines, showLineNumbers, t }) => {
+  const [expanded, setExpanded] = useState(false);
 
   const buildStatusMeta = (item: ExecutionItem): StatusMeta => {
-    // Normalize execution status text so dialog entries can share the same badge styling. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
     const status = String(item.status ?? '').trim().toLowerCase();
     const isRunning =
       status === 'in_progress' || status === 'started' || status === 'updated' || status === 'running' || status === 'processing';
@@ -96,7 +97,6 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({
   };
 
   const buildRoleLabel = (item: ExecutionItem): string => {
-    // Assign a dialog "speaker" label so logs read like a structured conversation. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
     if (item.kind === 'command_execution') return t('execViewer.role.tool');
     if (item.kind === 'file_change') return t('execViewer.role.files');
     if (item.kind === 'todo_list') return t('execViewer.role.plan');
@@ -153,197 +153,226 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({
       return item.text ? (
         <MarkdownViewer markdown={item.text} className="markdown-result--expanded" />
       ) : (
-        <Typography.Text type="secondary">-</Typography.Text>
+        <span className="text-secondary">-</span>
       );
     }
 
     const summary = buildDialogSummary(item);
-    return summary ? <Typography.Text className="hc-exec-dialog__line-text">{summary}</Typography.Text> : <Typography.Text type="secondary">-</Typography.Text>;
+    return summary ? <span className="chat-bubble__summary">{summary}</span> : <span className="text-secondary">-</span>;
   };
 
-  // Group detailed work artifacts under a dedicated work-area panel per dialog entry. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
   const renderWorkArea = (item: ExecutionItem): ReactNode => {
     if (item.kind === 'agent_message') return null;
 
-    const workTitle = t('execViewer.section.workArea');
-
+    // Command Execution: Output is collapsible
     if (item.kind === 'command_execution') {
+      if (!item.output) return null;
       return (
-        <div className="hc-exec-dialog__work">
-          <div className="hc-exec-dialog__work-header">{workTitle}</div>
-          <div className="hc-exec-dialog__work-section">
-            <div className="hc-exec-dialog__work-title">{t('execViewer.section.commandOutput')}</div>
-            {item.output ? <pre className="hc-exec-dialog__mono">{item.output}</pre> : <Typography.Text type="secondary">-</Typography.Text>}
-          </div>
+        <div className="chat-collapsible">
+          <button className="chat-collapsible__toggle" onClick={() => setExpanded(!expanded)}>
+             {expanded ? <IconChevronDown /> : <IconChevronRight />}
+             <span>{t('execViewer.section.commandOutput')}</span>
+          </button>
+          {expanded && <pre className="chat-work__mono">{item.output}</pre>}
         </div>
       );
     }
 
+    // File Change: Diffs are collapsible
     if (item.kind === 'file_change') {
       const diffs = item.diffs ?? [];
+      
+      // Use explicit changes if available, otherwise derive from diffs to ensure file list is visible
+      const filesToShow = item.changes.length > 0 
+        ? item.changes 
+        : diffs.map(d => ({ path: d.path, kind: '' })); 
+
+      const hasContent = filesToShow.length > 0 || diffs.length > 0;
+      
+      if (!hasContent) return <span className="text-secondary">{t('execViewer.files.empty')}</span>;
+
       return (
-        <div className="hc-exec-dialog__work">
-          <div className="hc-exec-dialog__work-header">{workTitle}</div>
-          <div className="hc-exec-dialog__work-section">
-            <div className="hc-exec-dialog__work-title">{t('execViewer.section.filesList')}</div>
-            {item.changes.length ? (
-              <div className="hc-exec-dialog__files">
-                {item.changes.map((change, idx) => (
-                  <div key={`${idx}-${change.path}`} className="hc-exec-dialog__file">
-                    <Typography.Text className="hc-exec-dialog__file-path" ellipsis={{ tooltip: change.path }}>
+        <div className="chat-collapsible-group">
+           {filesToShow.length > 0 && (
+              <div className="chat-files">
+                {filesToShow.map((change, idx) => (
+                  <div key={`${idx}-${change.path}`} className="chat-file">
+                    <span className="chat-file__path" title={change.path}>
                       {formatPath(change.path)}
-                    </Typography.Text>
-                    {change.kind ? <span className="hc-exec-dialog__pill">{change.kind}</span> : null}
+                    </span>
+                    {change.kind ? <span className="chat-pill">{change.kind}</span> : null}
                   </div>
                 ))}
               </div>
-            ) : (
-              <Typography.Text type="secondary">{t('execViewer.files.empty')}</Typography.Text>
-            )}
-          </div>
-          <div className="hc-exec-dialog__work-section">
-            <div className="hc-exec-dialog__work-title">{t('execViewer.section.fileDiffs')}</div>
-            {diffs.length ? (
-              <div className="hc-exec-dialog__diff-list">
-                {diffs.map((diff) => (
-                  <div key={diffKey(diff)} className="hc-exec-dialog__diff">
-                    <Typography.Text className="hc-exec-dialog__diff-file" ellipsis={{ tooltip: diff.path }}>
-                      {formatPath(diff.path)}
-                    </Typography.Text>
-                    {diff.oldText !== undefined && diff.newText !== undefined ? (
-                      <DiffView
-                        oldText={diff.oldText}
-                        newText={diff.newText}
-                        showLineNumbers={showLineNumbers}
-                        showPlusMinusSymbols
-                        wrapLines={wrapDiffLines}
-                      />
-                    ) : (
-                      <pre className="hc-exec-dialog__mono">{diff.unifiedDiff}</pre>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <Typography.Text type="secondary">{t('execViewer.diff.pending')}</Typography.Text>
-            )}
-          </div>
+           )}
+
+           {diffs.length > 0 && (
+             <div className="chat-collapsible">
+               <button className="chat-collapsible__toggle" onClick={() => setExpanded(!expanded)}>
+                  {expanded ? <IconChevronDown /> : <IconChevronRight />}
+                  <span>{t('execViewer.section.fileDiffs')}</span>
+               </button>
+               {expanded && (
+                 <div className="chat-diffs">
+                    {diffs.map((diff) => (
+                      <div key={diffKey(diff)} className="chat-diff">
+                        <span className="chat-diff__file" title={diff.path}>
+                          {formatPath(diff.path)}
+                        </span>
+                        {diff.oldText !== undefined && diff.newText !== undefined ? (
+                          <DiffView
+                            oldText={diff.oldText}
+                            newText={diff.newText}
+                            showLineNumbers={showLineNumbers}
+                            showPlusMinusSymbols
+                            wrapLines={wrapDiffLines}
+                          />
+                        ) : (
+                          <pre className="chat-work__mono">{diff.unifiedDiff}</pre>
+                        )}
+                      </div>
+                    ))}
+                 </div>
+               )}
+             </div>
+           )}
         </div>
       );
     }
 
+    // Reasoning: Always expanded (it's the content)
     if (item.kind === 'reasoning') {
       return (
-        <div className="hc-exec-dialog__work">
-          <div className="hc-exec-dialog__work-header">{workTitle}</div>
-          <div className="hc-exec-dialog__work-section">
-            <div className="hc-exec-dialog__work-title">{t('execViewer.section.reasoningDetail')}</div>
-            {/* Render reasoning content as Markdown inside the work area for rich formatting. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
-            {item.text ? (
-              <MarkdownViewer markdown={item.text} className="markdown-result--expanded" />
-            ) : (
-              <Typography.Text type="secondary">-</Typography.Text>
-            )}
-          </div>
+        <div className="chat-reasoning">
+          {item.text ? (
+            <MarkdownViewer markdown={item.text} className="markdown-result--expanded" />
+          ) : (
+            <span className="text-secondary">-</span>
+          )}
         </div>
       );
     }
 
+    // Todo List: Always visible
     if (item.kind === 'todo_list') {
+      if (!item.items.length) return <span className="text-secondary">{t('execViewer.todo.empty')}</span>;
       return (
-        <div className="hc-exec-dialog__work">
-          <div className="hc-exec-dialog__work-header">{workTitle}</div>
-          <div className="hc-exec-dialog__work-section">
-            <div className="hc-exec-dialog__work-title">{t('execViewer.section.todoItems')}</div>
-            {item.items.length ? (
-              <div className="hc-exec-dialog__todo">
-                {item.items.map((entry, index) => (
-                  <div key={`${entry.text}-${index}`} className={`hc-exec-dialog__todo-item${entry.completed ? ' is-complete' : ''}`}>
-                    <span className="hc-exec-dialog__todo-marker" />
-                    <Typography.Text delete={entry.completed}>{entry.text}</Typography.Text>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <Typography.Text type="secondary">{t('execViewer.todo.empty')}</Typography.Text>
-            )}
-          </div>
+        <div className="chat-todo">
+          {item.items.map((entry, index) => (
+            <div key={`${entry.text}-${index}`} className={`chat-todo__item${entry.completed ? ' is-complete' : ''}`}>
+              <span className="chat-todo__marker" />
+              {entry.completed ? <del>{entry.text}</del> : <span>{entry.text}</span>}
+            </div>
+          ))}
         </div>
       );
     }
 
     return (
-      <div className="hc-exec-dialog__work">
-        <div className="hc-exec-dialog__work-header">{workTitle}</div>
-        <div className="hc-exec-dialog__work-section">
-          <div className="hc-exec-dialog__work-title">{t('execViewer.item.unknown')}</div>
-          <pre className="hc-exec-dialog__mono">{JSON.stringify((item as any).raw ?? item, null, 2)}</pre>
-        </div>
+      <div className="chat-collapsible">
+        <button className="chat-collapsible__toggle" onClick={() => setExpanded(!expanded)}>
+           {expanded ? <IconChevronDown /> : <IconChevronRight />}
+           <span>{t('execViewer.item.unknown')}</span>
+        </button>
+        {expanded && <pre className="chat-work__mono">{JSON.stringify((item as any).raw ?? item, null, 2)}</pre>}
       </div>
     );
   };
 
-  const showRunningIndicator = visibleItems.some((item) => buildStatusMeta(item).tone === 'running');
+  const status = buildStatusMeta(item);
+  const role = buildRoleLabel(item);
+  const kind = buildKindLabel(item);
+  const bubbleClass = `chat-bubble chat-bubble--${item.kind === 'agent_message' ? 'message' : 'action'} kind-${item.kind} is-${status.tone}`;
+
+  // Determine if we should show the summary line in the body.
+  // Reasoning and File Changes have their content fully in the WorkArea/Details, so we hide the summary to avoid duplication.
+  const showSummary = item.kind !== 'reasoning' && item.kind !== 'file_change';
+
+  return (
+    <div className={bubbleClass}>
+      <div className="chat-bubble__avatar">
+        {item.kind === 'command_execution' && <IconCode />}
+        {item.kind === 'file_change' && <IconFile />}
+        {item.kind === 'agent_message' && <IconMessage />}
+        {item.kind === 'reasoning' && <IconBrain />}
+        {item.kind === 'todo_list' && <IconList />}
+        {item.kind === 'unknown' && <IconDots />}
+      </div>
+      
+      <div className="chat-bubble__content">
+         <div className="chat-bubble__header">
+            <span className="chat-bubble__role">{role}</span>
+            <span className="chat-bubble__kind">{kind}</span>
+            <span className={`chat-bubble__status is-${status.tone}`}>{status.label}</span>
+         </div>
+         
+         {/* Main Content Line */}
+         {/* Only render body if it's an agent message (full text) or if it's a type that needs a summary (command) */}
+         <div className="chat-bubble__body">
+            {item.kind === 'agent_message' 
+              ? renderDialogLine(item) 
+              : (showSummary ? <span className="chat-bubble__summary">{buildDialogSummary(item)}</span> : null)
+            }
+         </div>
+
+         {/* Collapsible / Details Area */}
+         {renderWorkArea(item)}
+      </div>
+    </div>
+  );
+};
+
+// --- Main Component ---
+
+export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({
+  items,
+  showReasoning = false,
+  wrapDiffLines = true,
+  showLineNumbers = true,
+  emptyMessage,
+  emptyHint
+}) => {
+  const t = useT();
+
+  const visibleItems = useMemo(() => (showReasoning ? items : items.filter((item) => item.kind !== 'reasoning')), [items, showReasoning]);
+
+  const showRunningIndicator = visibleItems.some((item) => {
+    const status = String(item.status ?? '').trim().toLowerCase();
+    return status === 'in_progress' || status === 'started' || status === 'updated' || status === 'running' || status === 'processing';
+  });
 
   if (!visibleItems.length) {
     const fallbackMessage = emptyMessage ?? t('execViewer.empty.timeline');
     return (
-      <div className="hc-exec-empty">
-        <Typography.Text type="secondary">{fallbackMessage}</Typography.Text>
-        {emptyHint ? <Typography.Text type="secondary">{emptyHint}</Typography.Text> : null}
+      <div className="chat-empty">
+        <span className="text-secondary">{fallbackMessage}</span>
+        {emptyHint ? <span className="text-secondary">{emptyHint}</span> : null}
       </div>
     );
   }
 
-  // Render dialog-style execution entries with a separate work area instead of ThoughtChain. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
   return (
-    <div className="hc-exec-dialog">
-      {visibleItems.map((item, index) => {
-        const status = buildStatusMeta(item);
-        const role = buildRoleLabel(item);
-        const kind = buildKindLabel(item);
-        const summary = buildDialogSummary(item);
-        const itemClass = `hc-exec-dialog__item is-${status.tone}`;
-        const statusClass = `hc-exec-dialog__status is-${status.tone}`;
-
-        return (
-          <div key={item.id} className={itemClass}>
-            <div className="hc-exec-dialog__rail" aria-hidden="true">
-              <span className="hc-exec-dialog__dot" />
-              {index < visibleItems.length - 1 ? <span className="hc-exec-dialog__line" /> : null}
-            </div>
-            <div className="hc-exec-dialog__content">
-              <div className="hc-exec-dialog__header">
-                <span className="hc-exec-dialog__role">{role}</span>
-                <Space size={6} wrap>
-                  {item.kind === 'command_execution' ? <CodeOutlined /> : null}
-                  {item.kind === 'file_change' ? <FileTextOutlined /> : null}
-                  {item.kind === 'agent_message' ? <MessageOutlined /> : null}
-                  {item.kind === 'reasoning' ? <MoreOutlined /> : null}
-                  {item.kind === 'todo_list' ? <CheckSquareOutlined /> : null}
-                  {item.kind === 'unknown' ? <MoreOutlined /> : null}
-                  <Typography.Text className="hc-exec-dialog__kind">{kind}</Typography.Text>
-                </Space>
-                <span className={statusClass}>{status.label}</span>
-              </div>
-              <div className="hc-exec-dialog__speech">
-                {item.kind === 'agent_message' ? renderDialogLine(item) : <Typography.Text className="hc-exec-dialog__line-text">{summary}</Typography.Text>}
-              </div>
-              {renderWorkArea(item)}
-            </div>
-          </div>
-        );
-      })}
-      {showRunningIndicator ? (
-        <div className="hc-exec-running" role="status" aria-live="polite">
-          <span className="hc-exec-running__dots" aria-hidden="true">
-            <span className="hc-exec-running__dot" />
-            <span className="hc-exec-running__dot" />
-            <span className="hc-exec-running__dot" />
+    <div className="chat-stream">
+      {visibleItems.map((item) => (
+        <ExecutionTimelineItem
+          key={item.id}
+          item={item}
+          wrapDiffLines={wrapDiffLines}
+          showLineNumbers={showLineNumbers}
+          t={t}
+        />
+      ))}
+      
+      {showRunningIndicator && (
+        <div className="chat-running">
+          <span className="chat-running__dots">
+            <span />
+            <span />
+            <span />
           </span>
-          <Typography.Text type="secondary">{t('execViewer.status.running')}</Typography.Text>
+          <span className="text-secondary">{t('execViewer.status.running')}</span>
         </div>
-      ) : null}
+      )}
     </div>
   );
 };

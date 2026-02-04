@@ -1,181 +1,168 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
-/* =============================================================================
- * Global theme variables (light/dark) for the static chat demo.
- *
- * Business context:
- * - Module: Frontend Chat / Styles.
- * - Purpose: provide CSS variables that work with `<html data-theme="...">`.
- *
- * Change record:
- * - 2026-01-11: Added base tokens + Agent Chat page layout styles.
- * - 2026-01-11: Add task list card styles for the migrated Tasks page.
- * - 2026-01-12: Modernize layout + palette (soft surfaces, accent-tinted states, consistent elevation).
- * - 2026-01-13: Redesign dark mode to a neutral near-black base (less navy/blue), keeping accent glows subtle.
- * - 2026-01-13: Unify input/control styling across the app (single-border, consistent surface, theme-aware placeholder/icons).
- * ========================================================================== */
-
-/* Load Fira Sans/Code for dialog-style execution logs. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+/* Split global styles into modular files for maintainability. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
   /* =============================================================================
-   * Design system tokens
-   *
-   * Business context:
-   * - Module: Frontend Chat / Styles / Theme.
-   * - Purpose: keep the UI modern, neutral, and consistent across pages with a fixed neutral accent.
-   *
-   * Usage:
-   * - Prefer `--hc-*` variables for component surfaces/borders/shadows.
-   * - Use `--hc-accent-*` helpers instead of hard-coding any specific accent hue.
-   *
-   * Change record (2026-01-12):
-   * - Refresh the base palette to a "soft neutral" look (light/dark).
-   * - Add reusable elevation + accent-derived tokens for consistent focus/active states.
+   * Modern Clean Theme (Light)
+   * High contrast, minimal borders, clean typography.
    * ========================================================================== */
 
-  --bg: #f8fafc;
-  --text: #0f172a;
-  --muted: #475569;
+  /* Base Colors */
+  --bg: #ffffff;
+  --text: #171717; /* Neutral 900 */
+  --text-secondary: #737373; /* Neutral 500 */
+  --text-tertiary: #a3a3a3; /* Neutral 400 */
+  
+  /* Surfaces */
   --card-bg: #ffffff;
-  --border: #e2e8f0;
+  --surface-hover: #f5f5f5; /* Neutral 100 */
+  --surface-active: #e5e5e5; /* Neutral 200 */
+  
+  /* Borders */
+  --border: #e5e5e5; /* Neutral 200 */
+  --border-hover: #d4d4d4; /* Neutral 300 */
+  
+  /* Layout */
   --page-padding: 24px;
-  --hc-page-max: 1040px;
+  --hc-page-max: 1200px; /* Slightly wider for modern feel */
 
-  /* Layout/background: keep a flat, solid base for the neutral theme. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
-  --hc-content-bg: transparent;
+  /* HookCode Semantic Variables */
   --hc-app-bg: var(--bg);
-
-  /* Surfaces/borders: tuned to look good with both AntD and custom components. */
-  --hc-sider-bg: #ffffff;
+  --hc-content-bg: transparent;
+  --hc-sider-bg: #f9f9f9; /* Very subtle gray for sidebar to distinguish from content */
   --hc-surface: #ffffff;
-  --hc-surface-elevated: #f8fafc;
-  --hc-hover: rgba(15, 23, 42, 0.04);
-  --hc-border: #e2e8f0;
+  --hc-surface-elevated: #ffffff;
+  --hc-hover: var(--surface-hover);
+  --hc-border: var(--border);
 
-  /* Form controls (inputs/selects/pickers):
-   * - Visual goal: a consistent "soft surface" control across light/dark pages + modals.
-   * - UX: keep a single border (avoid nested input borders) and a clear focus ring.
-   *
-   * Change record:
-   * - 2026-01-13: Extract theme-aware control tokens for consistent input styling across pages.
-   */
-  --hc-control-bg: color-mix(in srgb, #ffffff 92%, #f8fafc);
-  --hc-control-bg-hover: color-mix(in srgb, var(--hc-control-bg) 92%, var(--hc-hover));
-  --hc-control-bg-disabled: color-mix(in srgb, var(--hc-control-bg) 88%, var(--bg));
-  --hc-control-placeholder: color-mix(in srgb, var(--muted) 82%, transparent);
-  --hc-control-icon: color-mix(in srgb, var(--muted) 84%, transparent);
+  /* Form Controls */
+  --hc-control-bg: #ffffff;
+  --hc-control-bg-hover: #f9f9f9;
+  --hc-control-bg-disabled: #f5f5f5;
+  --hc-control-placeholder: var(--text-tertiary);
+  --hc-control-icon: var(--text-secondary);
+  --hc-control-border: var(--border);
 
-  /* User panel surfaces: keep the modal readable and visually separated from the page background. */
-  /* Usage: applied by `.hc-user-modal` + `.hc-user-panel` (UserPanelPopover.tsx). */
-  --hc-panel-bg: var(--hc-surface-elevated);
+  /* User Panel */
+  --hc-panel-bg: #ffffff;
 
-  /* Scrollbars:
-   * - UX: keep scrollbars readable without looking "heavy" in both themes.
-   * - Notes: prefer OS-native scrollbars via `color-scheme`; Firefox uses `scrollbar-color`. docs/en/developer/plans/qh23ler2y5yeesg6hqel/task_plan.md qh23ler2y5yeesg6hqel
-   */
-  --hc-scrollbar-track: rgba(15, 23, 42, 0.06);
-  --hc-scrollbar-thumb: rgba(15, 23, 42, 0.18);
-  --hc-scrollbar-thumb-hover: rgba(15, 23, 42, 0.28);
+  /* Scrollbars */
+  --hc-scrollbar-track: transparent;
+  --hc-scrollbar-thumb: #d4d4d4;
+  --hc-scrollbar-thumb-hover: #a3a3a3;
 
-  /* Elevation: shared shadows to avoid "random" shadows across the app. */
-  --hc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 1px rgba(15, 23, 42, 0.04);
-  --hc-shadow-md: 0 10px 26px rgba(15, 23, 42, 0.12);
-  --hc-shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.16);
+  /* Shadows (Softer, more diffuse) */
+  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --hc-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --hc-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 
-  /* Accent-derived helpers (do NOT hardcode accent colors in component styles). */
-  --hc-accent-soft: color-mix(in srgb, var(--accent) 12%, #ffffff);
-  --hc-accent-soft-hover: color-mix(in srgb, var(--accent) 16%, #ffffff);
-  --hc-accent-border: color-mix(in srgb, var(--accent) 34%, var(--hc-border));
-  --hc-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+  /* Accents (Neutral/Monochrome by default, can be tinted) */
+  --accent: #171717; /* Black accent for light mode */
+  --accent-hover: #404040;
+  --accent-active: #000000;
+  
+  --hc-accent-soft: #f5f5f5;
+  --hc-accent-soft-hover: #e5e5e5;
+  --hc-accent-border: #d4d4d4;
+  --hc-focus-ring: 0 0 0 2px rgba(23, 23, 23, 0.1);
 
-  /* Chat-specific surfaces. */
-  --hc-bubble-user-bg: var(--hc-accent-soft);
-  --hc-bubble-assistant-bg: var(--hc-surface-elevated);
-  --hc-code-bg: rgba(15, 23, 42, 0.06);
+  /* Chat Specific */
+  --hc-bubble-user-bg: #f5f5f5;
+  --hc-bubble-assistant-bg: #ffffff;
+  --hc-code-bg: #f9f9f9;
   --hc-top-right-safe: 120px;
 
-  /* Execution dialog accents: industrial gray + safety orange for task logs. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
-  --hc-exec-accent: #f97316;
-  --hc-exec-accent-soft: color-mix(in srgb, #f97316 16%, #ffffff);
-  --hc-exec-rail: color-mix(in srgb, #64748b 32%, var(--hc-border));
-  --hc-exec-work-bg: color-mix(in srgb, #94a3b8 12%, #ffffff);
-  --hc-exec-role-bg: color-mix(in srgb, #94a3b8 18%, #ffffff);
+  /* Execution Colors (Keep distinct) */
+  --hc-exec-accent: #f97316; /* Orange 500 */
+  --hc-exec-accent-soft: #ffedd5; /* Orange 100 */
+  --hc-exec-rail: #e5e5e5;
+  --hc-exec-work-bg: #f5f5f5;
+  --hc-exec-role-bg: #fafafa;
 
-  /* Accent color (overridden by App.tsx via CSS variables). */
-  /* Align fallback accent with the neutral palette. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
-  --accent: #64748b;
-  --accent-hover: #475569;
-  --accent-active: #334155;
-
-  /* Native controls: hint UA to render built-in UI (incl. scrollbars) for light mode. */
+  /* Native Integration */
   color-scheme: light;
-
   color: var(--text);
   background-color: var(--bg);
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
 }
 
 :root[data-theme='dark'] {
-  /* Dark palette: neutral, near-black base (avoid the "navy cast" while keeping accent configurable). */
-  /* Change record (2026-01-13): shift the base background/surfaces to neutral blacks and reduce ambient accent tint. */
-  --bg: #09090b;
-  --text: #f4f4f5;
-  --muted: #a1a1aa;
-  --card-bg: #111113;
-  --border: #232327;
+  /* =============================================================================
+   * Modern Clean Theme (Dark)
+   * Deep blacks, subtle borders, high legibility.
+   * ========================================================================== */
 
-  --hc-content-bg: transparent;
+  /* Base Colors */
+  --bg: #0a0a0a; /* Almost black */
+  --text: #ededed; /* Neutral 100 */
+  --text-secondary: #a3a3a3; /* Neutral 400 */
+  --text-tertiary: #525252; /* Neutral 600 */
+
+  /* Surfaces */
+  --card-bg: #0a0a0a;
+  --surface-hover: #1f1f1f; /* Neutral 900 */
+  --surface-active: #262626; /* Neutral 800 */
+
+  /* Borders */
+  --border: #262626; /* Neutral 800 */
+  --border-hover: #404040; /* Neutral 700 */
+
+  /* HookCode Semantic Variables */
   --hc-app-bg: var(--bg);
+  --hc-content-bg: transparent;
+  --hc-sider-bg: #000000; /* Pure black sidebar */
+  --hc-surface: #0a0a0a;
+  --hc-surface-elevated: #171717;
+  --hc-hover: var(--surface-hover);
+  --hc-border: var(--border);
 
-  --hc-sider-bg: #111113;
-  --hc-surface: #111113;
-  --hc-surface-elevated: #18181b;
-  --hc-hover: rgba(244, 244, 245, 0.06);
-  --hc-border: #232327;
+  /* Form Controls */
+  --hc-control-bg: #171717;
+  --hc-control-bg-hover: #262626;
+  --hc-control-bg-disabled: #0f0f0f;
+  --hc-control-placeholder: var(--text-tertiary);
+  --hc-control-icon: var(--text-secondary);
+  --hc-control-border: var(--border);
 
-  /* User panel surfaces (2026-01-13):
-   * - Visual goal: avoid large "pure black" blocks in the settings modal; use a neutral gray surface instead.
-   * - Pitfall: do not tie this to `--bg`, otherwise blue accents can make the panel look tinted.
-   */
-  --hc-panel-bg: #18181b;
+  /* User Panel */
+  --hc-panel-bg: #171717;
 
-  /* Form controls (dark): keep inputs readable and consistent with the neutral gray surfaces. */
-  /* Change record (2026-01-13): use a slightly lighter control surface than cards to improve affordance on dark pages. */
-  --hc-control-bg: #18181b;
-  --hc-control-bg-hover: color-mix(in srgb, var(--hc-control-bg) 92%, #ffffff);
-  --hc-control-bg-disabled: color-mix(in srgb, var(--hc-control-bg) 80%, var(--bg));
-  --hc-control-placeholder: color-mix(in srgb, var(--muted) 82%, transparent);
-  --hc-control-icon: color-mix(in srgb, var(--muted) 84%, transparent);
+  /* Scrollbars */
+  --hc-scrollbar-track: transparent;
+  --hc-scrollbar-thumb: #404040;
+  --hc-scrollbar-thumb-hover: #525252;
 
-  /* Scrollbars (dark): avoid the "white track" when scrollbars become visible on dark surfaces. */
-  /* Change record (2026-01-13): adapt scrollbars to match the neutral dark palette. */
-  --hc-scrollbar-track: rgba(244, 244, 245, 0.08);
-  --hc-scrollbar-thumb: rgba(244, 244, 245, 0.22);
-  --hc-scrollbar-thumb-hover: rgba(244, 244, 245, 0.32);
+  /* Shadows */
+  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --hc-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  --hc-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
 
-  /* Native controls: hint UA to render built-in UI (incl. scrollbars) for dark mode. */
-  color-scheme: dark;
+  /* Accents */
+  --accent: #ffffff; /* White accent for dark mode */
+  --accent-hover: #e5e5e5;
+  --accent-active: #d4d4d4;
 
-  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35), 0 1px 1px rgba(0, 0, 0, 0.22);
-  --hc-shadow-md: 0 14px 30px rgba(0, 0, 0, 0.45);
-  --hc-shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.55);
+  --hc-accent-soft: #171717;
+  --hc-accent-soft-hover: #262626;
+  --hc-accent-border: #404040;
+  --hc-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.15);
 
-  --hc-accent-soft: color-mix(in srgb, var(--accent) 20%, var(--bg));
-  --hc-accent-soft-hover: color-mix(in srgb, var(--accent) 26%, var(--bg));
-  --hc-accent-border: color-mix(in srgb, var(--accent) 38%, var(--hc-border));
-  --hc-focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent);
+  /* Chat Specific */
+  --hc-bubble-user-bg: #262626;
+  --hc-bubble-assistant-bg: #0a0a0a;
+  --hc-code-bg: #171717;
 
-  --hc-bubble-user-bg: var(--hc-accent-soft);
-  --hc-bubble-assistant-bg: var(--hc-surface-elevated);
-  --hc-code-bg: rgba(244, 244, 245, 0.08);
-
-  /* Execution dialog accents in dark mode. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */
+  /* Execution Colors */
   --hc-exec-accent: #f97316;
-  --hc-exec-accent-soft: color-mix(in srgb, #f97316 24%, var(--bg));
-  --hc-exec-rail: color-mix(in srgb, #94a3b8 30%, var(--hc-border));
-  --hc-exec-work-bg: color-mix(in srgb, #334155 28%, var(--bg));
-  --hc-exec-role-bg: color-mix(in srgb, #334155 42%, var(--hc-surface));
+  --hc-exec-accent-soft: rgba(249, 115, 22, 0.15);
+  --hc-exec-rail: #262626;
+  --hc-exec-work-bg: #171717;
+  --hc-exec-role-bg: #0f0f0f;
+
+  /* Native Integration */
+  color-scheme: dark;
 }
 
 @media (max-width: 768px) {

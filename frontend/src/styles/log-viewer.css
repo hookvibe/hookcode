@@ -1,28 +1,133 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
 /* =============================================================================
- * Log viewer
+ * Log viewer (Modern Chat Style)
  * ========================================================================== */
 
 .log-viewer {
-  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  background: var(--hc-surface);
+  border-radius: 8px;
+  overflow: hidden; /* For header corners */
 }
 
-.log-viewer__header {
-  padding: 10px 12px;
+/* Header */
+.log-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  padding: 8px 12px;
+  background: var(--hc-surface-elevated);
   border-bottom: 1px solid var(--hc-border);
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.log-viewer__title {
-  font-weight: 700;
+.log-header__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-/* Avoid nested scroll regions in the log viewer; rely on the outer page/container scroller. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */
+.log-header__title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.log-header__status {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+.log-header__status.is-connecting { background: var(--hc-surface-neutral); color: var(--muted); }
+.log-header__status.is-live { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
+.log-header__status.is-error { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+.log-header__count {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.log-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.log-header__sep {
+  width: 1px;
+  height: 16px;
+  background: var(--hc-border);
+  margin: 0 4px;
+}
+
+/* Buttons */
+.log-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.log-btn:hover {
+  background: var(--hc-surface-hover);
+  border-color: var(--hc-border-hover);
+}
+
+.log-btn svg {
+  color: var(--muted);
+}
+
+.log-btn:hover svg {
+  color: var(--text);
+}
+
+.log-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+.log-btn--danger:hover svg { color: #ef4444; }
+
+/* Toggles */
+.log-toggles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 4px;
+}
+
+.log-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--muted);
+  user-select: none;
+}
+
+.log-toggle:hover {
+  color: var(--text);
+}
+
+/* Body */
 .log-viewer__body {
-  padding: 10px 12px;
+  padding: 16px;
+  /* Use outer scroll */
 }
 
 .log-viewer__pre {
@@ -31,10 +136,30 @@
   font-size: 12px;
   line-height: 1.5;
   color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .log-viewer__empty {
-  padding: 16px 0;
+  padding: 32px 0;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
+.log-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.text-secondary {
+  color: var(--muted);
+  font-size: 13px;
+}

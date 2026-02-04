@@ -2,6 +2,7 @@
 @import './styles/tokens.css';
 @import './styles/base.css';
 @import './styles/app-shell.css';
+@import './styles/modern-sidebar.css'; /* Added Modern Sidebar */
 @import './styles/sidebar-shell.css';
 @import './styles/sidebar-sections.css';
 @import './styles/sidebar-items.css';
@@ -27,4 +28,6 @@
 @import './styles/user-panel.css';
 @import './styles/settings.css';
 @import './styles/composer.css';
-@import './styles/antd-overrides.css';
+@import './styles/antd-overrides.css';@import './styles/welcome-page.css';
+@import './styles/modern-page-nav.css';
+@import './styles/modern-user-panel.css';

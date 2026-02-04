@@ -1,102 +1,63 @@
 import type { FC, ReactNode } from 'react';
-import { Button, Typography } from 'antd';
 import { ArrowLeftOutlined, MenuOutlined } from '@ant-design/icons';
 
-/**
- * PageNav:
- * - Business context: shared top navigation bar for migrated `frontend-chat` pages.
- * - Purpose:
- *   - Keep all pages' header layout consistent (left title/meta + right actions + rightmost user panel).
- *   - Enforce a single-row header to avoid 2-line toolbars on small screens.
- *
- * Notes:
- * - The user panel trigger must always be the rightmost element for predictable muscle memory.
- * - The left section uses ellipsis + overflow clipping so the header stays 1 row even when titles are long.
- *
- * Change record:
- * - 2026-01-12: Introduced to unify headers and move the user panel into the nav.
- * - 2026-01-12: Add an optional header back icon for detail pages (behavior is owned by the page).
- */
-
 export interface PageNavBackAction {
-  /**
-   * Accessible label for the back icon button.
-   *
-   * Usage note: keep this i18n'ed even when the button has no visible text.
-   */
   ariaLabel: string;
   onClick: () => void;
 }
 
 export interface PageNavMenuAction {
-  /**
-   * Accessible label for the navigation menu button.
-   */
   ariaLabel: string;
   onClick: () => void;
 }
 
 export interface PageNavProps {
   title: string;
-  /**
-   * Optional header back icon (left of the title).
-   *
-   * Business intent: keep all full-page "go back" interactions in the header, not inside page content.
-   */
   back?: PageNavBackAction;
-  /**
-   * Extra inline meta shown next to the title (e.g. counts / updatedAt / status tags).
-   *
-   * Usage note: keep it compact because it may be hidden on small screens.
-   */
   meta?: ReactNode;
-  /**
-   * Buttons placed left of the user panel.
-   */
   actions?: ReactNode;
-  /**
-   * Optional navigation menu trigger (mobile sidebar drawer).
-   */
   navToggle?: PageNavMenuAction;
-  /**
-   * "My panel" trigger. Must be rendered as the rightmost element.
-   */
   userPanel?: ReactNode;
 }
 
 export const PageNav: FC<PageNavProps> = ({ title, back, meta, actions, navToggle, userPanel }) => {
-  const showNavToggle = Boolean(navToggle && !back); // Keep back navigation as the primary left action on detail pages. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+  const showNavToggle = Boolean(navToggle && !back);
+
   return (
-    <div className="hc-page__header hc-nav">
-      <div className="hc-nav__left">
-        {showNavToggle ? (
-          <Button
-            type="text"
-            size="small"
-            className="hc-nav__menu"
-            icon={<MenuOutlined />}
+    <header className="hc-modern-nav">
+      <div className="hc-modern-nav__left">
+        {showNavToggle && (
+          <button
+            type="button"
+            className="hc-modern-nav__toggle"
             aria-label={navToggle?.ariaLabel}
             onClick={navToggle?.onClick}
-          />
-        ) : null}
-        {back ? (
-          <Button
-            type="text"
-            size="small"
-            className="hc-nav__back"
-            icon={<ArrowLeftOutlined />}
+          >
+            <MenuOutlined />
+          </button>
+        )}
+        
+        {back && (
+          <button
+            type="button"
+            className="hc-modern-nav__back"
             aria-label={back.ariaLabel}
             onClick={back.onClick}
-          />
-        ) : null}
-        <Typography.Text className="hc-page__title">{title}</Typography.Text>
-        {meta ? <div className="hc-nav__meta">{meta}</div> : null}
+          >
+            <ArrowLeftOutlined />
+          </button>
+        )}
+
+        <div className="hc-modern-nav__title-area">
+          <h1 className="hc-modern-nav__title">{title}</h1>
+          {meta && <div className="hc-modern-nav__meta">{meta}</div>}
+        </div>
       </div>
 
-      <div className="hc-nav__right">
-        {actions ? <div className="hc-nav__actions">{actions}</div> : null}
-        {userPanel ? <div className="hc-nav__user">{userPanel}</div> : null}
+      <div className="hc-modern-nav__right">
+        {actions && <div className="hc-modern-nav__actions">{actions}</div>}
+        {userPanel}
       </div>
-    </div>
+    </header>
   );
 };

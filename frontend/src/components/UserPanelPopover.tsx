@@ -895,8 +895,12 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
 
   const closePanel = useCallback(() => {
     setOpen(false);
-    setProfileFormOpen(false);
-    setProfileEditing(null);
+    setRepoProfileFormOpen(false);
+    setRepoProfileEditing(null);
+    setModelProfileFormOpen(false);
+    setModelProfileEditing(null);
+    setApiTokenFormOpen(false);
+    setApiTokenEditing(null);
   }, []);
 
   const renderNavItem = (tab: PanelTab) => {
@@ -906,16 +910,16 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       <button
         key={tab}
         type="button"
-        className={`hc-settings-nav-item${active ? ' hc-settings-nav-item--active' : ''}`}
+        className={`hc-panel-nav-item${active ? ' hc-panel-nav-item--active' : ''}`}
         onClick={() => setActiveTab(tab)}
         disabled={disabled}
         aria-current={active ? 'page' : undefined}
         aria-label={t(tabTitleKey[tab])}
       >
-        <span className="hc-settings-nav-item__icon" aria-hidden="true">
+        <span className="hc-panel-nav-icon" aria-hidden="true">
           {tabIcon[tab]}
         </span>
-        <span className="hc-settings-nav-item__label">{t(tabTitleKey[tab])}</span>
+        <span className="hc-panel-nav-label">{t(tabTitleKey[tab])}</span>
       </button>
     );
   };
@@ -925,9 +929,8 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       case 'account':
         return (
           <>
-            <div className="hc-settings-section">
-              <div className="hc-settings-section-title">{t('panel.account.profileTitle')}</div>
-              {/* UX (2026-01-15): Use the default (middle) control size + placeholders to avoid "thin" inputs and improve scanability. */}
+            <div className="hc-panel-section">
+              <div className="hc-panel-section-title">{t('panel.account.profileTitle')}</div>
               <Form form={displayNameForm} layout="vertical" requiredMark={false} size="middle">
                 <Form.Item label={t('panel.account.displayName')} name="displayName">
                   <Input placeholder={t('panel.account.displayNamePlaceholder')} disabled={accountEditDisabled} />
@@ -944,9 +947,8 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               </Form>
             </div>
 
-            <div className="hc-settings-section">
-              <div className="hc-settings-section-title">{t('panel.account.passwordTitle')}</div>
-              {/* UX (2026-01-15): Use the default (middle) control size + placeholders to keep password forms consistent with other panels. */}
+            <div className="hc-panel-section">
+              <div className="hc-panel-section-title">{t('panel.account.passwordTitle')}</div>
               <Form form={passwordForm} layout="vertical" requiredMark={false} size="middle">
                 <Form.Item
                   label={t('panel.account.currentPassword')}
@@ -1004,232 +1006,202 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                 </Button>
               </Form>
             </div>
-
-	          </>
-	        );
-
+          </>
+        );
+      
+      // ... (credentials, tools, environment logic remains largely the same internal structure, just wrapped in hc-panel-section)
+      // I will abbreviate the other cases for the replace block but assume they follow the same pattern of wrapping in hc-panel-section
+      
       case 'credentials':
-        return (
+         return (
           <>
-            <div className="hc-settings-section">
-              <div className="hc-settings-section-title">{t('panel.credentials.modelProviderTitle')}</div>
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
-                {t('panel.credentials.modelProviderTip')}
-              </Typography.Paragraph>
-              <Card
-                size="small"
-                title={
+            <div className="hc-panel-section">
+              <div className="hc-panel-section-title">
                   <Space size={8}>
                     <KeyOutlined />
                     <span>{t('panel.credentials.modelProviderTitle')}</span>
                   </Space>
-                }
-                extra={
-                  <>
-                    {/* Use a single add entry point for the unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                    <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>
+                  <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>
                       {t('panel.credentials.profile.add')}
-                    </Button>
-                  </>
-                }
-              >
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                  {/* Render a single list of model provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                  {modelProviderProfileItems.length ? (
-                    <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                      {modelProviderProfileItems.map(({ provider, profile, defaultId }) => (
-                        <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                          <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                            <Space size={8} wrap>
-                              <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
-                              <Tag color="geekblue">{modelProviderLabel(provider, t)}</Tag>
-                              {defaultId === profile.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                              <Tag color={profile.hasApiKey ? 'green' : 'default'}>
-                                {profile.hasApiKey ? t('common.configured') : t('common.notConfigured')}
-                              </Tag>
-                            </Space>
-                            <Typography.Text type="secondary">{profile.apiBaseUrl || '-'}</Typography.Text>
-                          </Space>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                            <Button size="small" onClick={() => startEditModelProfile(provider, profile)}>
-                              {t('common.manage')}
-                            </Button>
-                            <Button size="small" danger onClick={() => void removeProfile(provider, profile.id)} disabled={!canUseAccountApis}>
-                              {t('panel.credentials.profile.remove')}
-                            </Button>
-                          </div>
-                        </Card>
-                      ))}
-                    </Space>
-                  ) : (
+                  </Button>
+              </div>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                {t('panel.credentials.modelProviderTip')}
+              </Typography.Paragraph>
+
+              {modelProviderProfileItems.length ? (
+                <div className="hc-credential-grid">
+                  {modelProviderProfileItems.map(({ provider, profile, defaultId }) => (
+                    <div key={`${provider}-${profile.id}`} className="hc-credential-card">
+                      <div className="hc-credential-header">
+                        <div className="hc-credential-info">
+                          <div className="hc-credential-name" title={profile.remark || profile.id}>{profile.remark || profile.id}</div>
+                          <div className="hc-credential-detail" title={profile.apiBaseUrl || '-'}>{profile.apiBaseUrl || '-'}</div>
+                        </div>
+                        <Tag color="geekblue" style={{ margin: 0 }}>{modelProviderLabel(provider, t)}</Tag>
+                      </div>
+                      
+                      <div className="hc-credential-tags">
+                        {defaultId === profile.id && <Tag color="blue" style={{ margin: 0 }}>{t('panel.credentials.profile.defaultTag')}</Tag>}
+                        <Tag color={profile.hasApiKey ? 'green' : 'default'} style={{ margin: 0 }}>
+                          {profile.hasApiKey ? t('common.configured') : t('common.notConfigured')}
+                        </Tag>
+                      </div>
+
+                      <div className="hc-credential-actions">
+                        <Button size="small" onClick={() => startEditModelProfile(provider, profile)}>
+                          {t('common.manage')}
+                        </Button>
+                        <Button size="small" danger onClick={() => void removeProfile(provider, profile.id)} disabled={!canUseAccountApis}>
+                          {t('panel.credentials.profile.remove')}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: 16, textAlign: 'center', background: 'var(--surface-hover)', borderRadius: 8 }}>
                     <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
-                  )}
-                </Space>
-              </Card>
+                </div>
+              )}
             </div>
 
-            <Divider style={{ margin: '14px 0' }} />
+            <Divider style={{ margin: '24px 0' }} />
 
-            <div className="hc-settings-section">
-              <div className="hc-settings-section-title">{t('panel.credentials.repoTitle')}</div>
-              <Card
-                size="small"
-                title={
+            <div className="hc-panel-section">
+              <div className="hc-panel-section-title">
                   <Space size={8}>
                     <GlobalOutlined />
                     <span>{t('panel.credentials.repoTitle')}</span>
                   </Space>
-                }
-                extra={
-                  <>
-                    {/* Use a single add entry point for the unified repo list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                    <Button size="small" onClick={() => startEditRepoProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>
+                  <Button size="small" onClick={() => startEditRepoProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>
                       {t('panel.credentials.profile.add')}
-                    </Button>
-                  </>
-                }
-              >
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                  {/* Render a single list of repo provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                  {repoProviderProfileItems.length ? (
-                    <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                      {repoProviderProfileItems.map(({ provider, profile, defaultId }) => (
-                        <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                          <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                            <Space size={8} wrap>
-                              <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
-                              <Tag color="geekblue">{providerLabel(provider)}</Tag>
-                              {defaultId === profile.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                              <Tag color={profile.hasToken ? 'green' : 'default'}>
-                                {profile.hasToken ? t('common.configured') : t('common.notConfigured')}
-                              </Tag>
-                            </Space>
-                            <Typography.Text type="secondary">{profile.cloneUsername || '-'}</Typography.Text>
-                          </Space>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                            <Button size="small" onClick={() => startEditRepoProfile(provider, profile)}>
-                              {t('common.manage')}
-                            </Button>
-                            <Button size="small" danger onClick={() => void removeProfile(provider, profile.id)} disabled={!canUseAccountApis}>
-                              {t('panel.credentials.profile.remove')}
-                            </Button>
-                          </div>
-                        </Card>
-                      ))}
-                    </Space>
-                  ) : (
+                  </Button>
+              </div>
+              
+              {repoProviderProfileItems.length ? (
+                <div className="hc-credential-grid">
+                  {repoProviderProfileItems.map(({ provider, profile, defaultId }) => (
+                    <div key={`${provider}-${profile.id}`} className="hc-credential-card">
+                      <div className="hc-credential-header">
+                        <div className="hc-credential-info">
+                          <div className="hc-credential-name" title={profile.remark || profile.id}>{profile.remark || profile.id}</div>
+                          <div className="hc-credential-detail" title={profile.cloneUsername || '-'}>{profile.cloneUsername || '-'}</div>
+                        </div>
+                        <Tag color="geekblue" style={{ margin: 0 }}>{providerLabel(provider)}</Tag>
+                      </div>
+
+                      <div className="hc-credential-tags">
+                        {defaultId === profile.id && <Tag color="blue" style={{ margin: 0 }}>{t('panel.credentials.profile.defaultTag')}</Tag>}
+                        <Tag color={profile.hasToken ? 'green' : 'default'} style={{ margin: 0 }}>
+                          {profile.hasToken ? t('common.configured') : t('common.notConfigured')}
+                        </Tag>
+                      </div>
+
+                      <div className="hc-credential-actions">
+                        <Button size="small" onClick={() => startEditRepoProfile(provider, profile)}>
+                          {t('common.manage')}
+                        </Button>
+                        <Button size="small" danger onClick={() => void removeProfile(provider, profile.id)} disabled={!canUseAccountApis}>
+                          {t('panel.credentials.profile.remove')}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: 16, textAlign: 'center', background: 'var(--surface-hover)', borderRadius: 8 }}>
                     <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>
-                  )}
-                </Space>
-              </Card>
+                </div>
+              )}
             </div>
 
-            <Divider style={{ margin: '14px 0' }} />
+            <Divider style={{ margin: '24px 0' }} />
 
-            <div className="hc-settings-section">
-              <div className="hc-settings-section-title">{t('panel.apiTokens.title')}</div>
-              <Typography.Paragraph type="secondary" style={{ marginBottom: 10 }}>
-                {t('panel.apiTokens.tip')}
-              </Typography.Paragraph>
-              <Card
-                size="small"
-                title={
+            <div className="hc-panel-section">
+              <div className="hc-panel-section-title">
                   <Space size={8}>
                     <ApiOutlined />
                     <span>{t('panel.apiTokens.title')}</span>
                   </Space>
-                }
-                extra={
-                  <>
-                    {/* Add PAT issuance entry point inside credentials panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
-                    <Button size="small" onClick={openCreateApiToken} disabled={apiTokenSubmitting || !canUseAccountApis}>
+                  <Button size="small" onClick={openCreateApiToken} disabled={apiTokenSubmitting || !canUseAccountApis}>
                       {t('panel.apiTokens.add')}
-                    </Button>
-                  </>
-                }
-                loading={apiTokensLoading}
-              >
-                <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                  {apiTokens.length ? (
-                    <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                      {apiTokens.map((tokenItem) => {
-                        const now = Date.now();
-                        const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
-                        const isExpired = Boolean(expiresAt && expiresAt <= now);
-                        const isRevoked = Boolean(tokenItem.revokedAt);
-                        const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
-                        const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
-                        return (
-                          <Card key={tokenItem.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                            <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                              <Space size={8} wrap>
-                                <Typography.Text strong>{tokenItem.name}</Typography.Text>
-                                <Tag color={statusColor}>{t(`panel.apiTokens.status.${statusKey}`)}</Tag>
-                                <Typography.Text code>{buildApiTokenHint(tokenItem)}</Typography.Text>
-                              </Space>
-                              <Typography.Text type="secondary">
-                                {t('panel.apiTokens.field.expiresAt')}: {formatDateTime(tokenItem.expiresAt ?? null)}
-                              </Typography.Text>
-                            </Space>
-                            <Space size={6} wrap style={{ marginTop: 6 }}>
-                              {/* Render group-level scope chips for each PAT. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
-                              {tokenItem.scopes.map((scope) => (
-                                <Tag key={`${tokenItem.id}-${scope.group}`} color={scope.level === 'write' ? 'gold' : 'blue'}>
-                                  {apiTokenScopeLabelMap.get(scope.group) ?? scope.group} · {apiTokenLevelLabel[scope.level]}
-                                </Tag>
-                              ))}
-                            </Space>
-                            <Space size={16} wrap style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
-                              <Space size={12} wrap>
-                                <Typography.Text type="secondary">
-                                  {t('panel.apiTokens.field.createdAt')}: {formatDateTime(tokenItem.createdAt)}
-                                </Typography.Text>
-                                <Typography.Text type="secondary">
-                                  {t('panel.apiTokens.field.lastUsed')}: {formatDateTime(tokenItem.lastUsedAt ?? null)}
-                                </Typography.Text>
-                              </Space>
-                              <Space size={8} wrap>
-                                <Button size="small" onClick={() => openEditApiToken(tokenItem)} disabled={isRevoked}>
-                                  {t('common.manage')}
-                                </Button>
-                                <Button size="small" danger onClick={() => revokeApiToken(tokenItem)} disabled={isRevoked}>
-                                  {t('panel.apiTokens.revoke')}
-                                </Button>
-                              </Space>
-                            </Space>
-                          </Card>
-                        );
-                      })}
-                    </Space>
-                  ) : (
+                  </Button>
+              </div>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                {t('panel.apiTokens.tip')}
+              </Typography.Paragraph>
+              
+              {apiTokens.length ? (
+                <div className="hc-credential-grid">
+                  {apiTokens.map((tokenItem) => {
+                    const now = Date.now();
+                    const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
+                    const isExpired = Boolean(expiresAt && expiresAt <= now);
+                    const isRevoked = Boolean(tokenItem.revokedAt);
+                    const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
+                    const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
+                    
+                    return (
+                      <div key={tokenItem.id} className="hc-credential-card">
+                        <div className="hc-credential-header">
+                          <div className="hc-credential-info">
+                            <div className="hc-credential-name" title={tokenItem.name}>{tokenItem.name}</div>
+                            <div className="hc-credential-detail">
+                                <Typography.Text code style={{ fontSize: 11 }}>{buildApiTokenHint(tokenItem)}</Typography.Text>
+                            </div>
+                          </div>
+                          <Tag color={statusColor} style={{ margin: 0 }}>{t(`panel.apiTokens.status.${statusKey}`)}</Tag>
+                        </div>
+
+                        <div className="hc-credential-tags">
+                           {tokenItem.scopes.map((scope) => (
+                            <Tag key={`${tokenItem.id}-${scope.group}`} color={scope.level === 'write' ? 'gold' : 'blue'} style={{ margin: 0 }}>
+                              {apiTokenScopeLabelMap.get(scope.group) ?? scope.group} · {apiTokenLevelLabel[scope.level]}
+                            </Tag>
+                          ))}
+                        </div>
+
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
+                            <div>{t('panel.apiTokens.field.expiresAt')}: {formatDateTime(tokenItem.expiresAt ?? null)}</div>
+                        </div>
+
+                        <div className="hc-credential-actions">
+                          <Button size="small" onClick={() => openEditApiToken(tokenItem)} disabled={isRevoked}>
+                            {t('common.manage')}
+                          </Button>
+                          <Button size="small" danger onClick={() => revokeApiToken(tokenItem)} disabled={isRevoked}>
+                            {t('panel.apiTokens.revoke')}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ padding: 16, textAlign: 'center', background: 'var(--surface-hover)', borderRadius: 8 }}>
                     <Typography.Text type="secondary">{t('panel.apiTokens.empty')}</Typography.Text>
-                  )}
-                </Space>
-              </Card>
+                </div>
+              )}
             </div>
           </>
         );
 
       case 'tools':
         return (
-          <div className="hc-settings-section">
-            <div className="hc-settings-section-title">{t('panel.tabs.tools')}</div>
-            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.tabs.tools')}</div>
+            <div className="hc-panel-grid">
               {toolCards.map((tool) => (
-                <Card
-                  key={tool.key}
-                  size="small"
-                  className="hc-panel-card"
-                  title={
-                    <Space size={8}>
-                      {tool.icon} <span>{t(tool.titleKey as any)}</span>
-                    </Space>
-                  }
-                  loading={toolsLoading}
-                >
-                  <Space size={8} wrap>
+                <div key={tool.key} className="hc-panel-card">
+                  <div className="hc-panel-card-header">
+                    <div className="hc-panel-card-icon">{tool.icon}</div>
+                    <div style={{ flex: 1 }}>
+                      <div className="hc-panel-card-title">{t(tool.titleKey as any)}</div>
+                      <div className="hc-panel-card-meta">{t('panel.tools.portHint', { port: tool.port })}</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
                     <Button
                       type="primary"
                       size="small"
@@ -1239,48 +1211,63 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                     >
                       {t('panel.tools.open')}
                     </Button>
-                    <Typography.Text type="secondary">{t('panel.tools.portHint', { port: tool.port })}</Typography.Text>
-                  </Space>
-                </Card>
+                  </div>
+                </div>
               ))}
-            </Space>
+            </div>
           </div>
         );
 
       case 'environment':
-        // Render runtime availability for multi-language dependency installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
         return (
-          <div className="hc-settings-section">
-            <div className="hc-settings-section-title">{t('panel.environment.availableTitle')}</div>
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.environment.availableTitle')}</div>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
               {t('panel.environment.tip')}
             </Typography.Paragraph>
-            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-              {runtimesLoading ? (
-                <Card loading size="small" />
-              ) : runtimes.length ? (
-                runtimes.map((rt) => (
-                  <Card key={`${rt.language}-${rt.version}`} size="small" className="hc-panel-card">
-                    <Space size={8} wrap>
-                      <Tag color="green">{rt.language}</Tag>
-                      <Typography.Text>{rt.version}</Typography.Text>
-                      <Typography.Text type="secondary">{rt.packageManager || '-'}</Typography.Text>
-                    </Space>
-                    <div style={{ marginTop: 6 }}>
-                      <Typography.Text type="secondary">{rt.path}</Typography.Text>
+            
+            {runtimesLoading ? (
+               <div className="hc-panel-grid">
+                 <div className="hc-panel-card" style={{ alignItems: 'center', justifyContent: 'center', minHeight: 100 }}>
+                    <ReloadOutlined spin style={{ fontSize: 24, color: 'var(--text-tertiary)' }} />
+                 </div>
+               </div>
+            ) : runtimes.length ? (
+              <div className="hc-panel-grid">
+                {runtimes.map((rt) => (
+                  <div key={`${rt.language}-${rt.version}`} className="hc-panel-card">
+                    <div className="hc-panel-card-header">
+                      <div className="hc-panel-card-icon"><GlobalOutlined /></div>
+                      <div style={{ flex: 1 }}>
+                        <div className="hc-panel-card-title">{rt.language} {rt.version}</div>
+                        <div className="hc-panel-card-meta">{rt.packageManager || '-'}</div>
+                      </div>
                     </div>
-                  </Card>
-                ))
-              ) : (
-                <Typography.Text type="secondary">{t('panel.environment.empty')}</Typography.Text>
-              )}
-            </Space>
-            <Divider style={{ margin: '16px 0' }} />
-            <Space size={8} wrap>
-              <Typography.Text type="secondary">{t('panel.environment.detectedAt')}</Typography.Text>
-              <Typography.Text type="secondary">{runtimesDetectedAt || '-'}</Typography.Text>
-            </Space>
-            <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 8, wordBreak: 'break-all' }}>
+                        {rt.path}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: 16, textAlign: 'center', background: 'var(--surface-hover)', borderRadius: 8 }}>
+                  <Typography.Text type="secondary">{t('panel.environment.empty')}</Typography.Text>
+              </div>
+            )}
+
+            <Divider style={{ margin: '32px 0 24px' }} />
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <Space size={8}>
+                  <Typography.Text type="secondary">{t('panel.environment.detectedAt')}</Typography.Text>
+                  <Typography.Text strong>{runtimesDetectedAt || '-'}</Typography.Text>
+                </Space>
+                <Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshRuntimes()} loading={runtimesLoading}>
+                    {t('common.refresh')}
+                </Button>
+            </div>
+            
+            <Typography.Paragraph type="secondary" style={{ marginTop: 12, fontSize: 12 }}>
               {t('panel.environment.customImageHint')}
             </Typography.Paragraph>
           </div>
@@ -1290,13 +1277,12 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
       default:
         return (
           <>
-            <div className="hc-settings-section">
-              <div className="hc-settings-section-title">{t('panel.settings.generalTitle')}</div>
+            <div className="hc-panel-section">
+              <div className="hc-panel-section-title">{t('panel.settings.generalTitle')}</div>
               <div style={{ marginBottom: 14 }}>
                 <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                   {t('panel.settings.languageTitle')}
                 </Typography.Text>
-                {/* UX (2026-01-15): Keep settings controls full-width to match other modal content (avoid narrow selects). */}
                 <Select
                   value={locale}
                   style={{ width: '100%' }}
@@ -1309,9 +1295,8 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               </div>
             </div>
 
-            {/* Keep settings focused on language + theme now that accent is fixed. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */}
-            <div className="hc-settings-section">
-              <div className="hc-settings-section-title">{t('panel.settings.themeTitle')}</div>
+            <div className="hc-panel-section">
+              <div className="hc-panel-section-title">{t('panel.settings.themeTitle')}</div>
               <div className="hc-theme-cards">
                 {[
                   { key: 'light', label: t('common.theme.light') },
@@ -1351,99 +1336,95 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
     return roles.slice(0, 2).map(String);
   }, [canUseAccountApis, user?.roles]);
 
-  const content = (
-    <div className="hc-user-panel" data-density="compact">
-      {/* UX (2026-01-13): Opt-in to the compact density rules in `styles.css` for a denser settings panel. */}
-      {/* Visual Sidebar */}
-      <div className="hc-user-panel__sidebar">
-        <div className="hc-user-panel__sidebar-header">
-          <div className="hc-user-panel__user">
-            <div className="hc-user-panel__user-avatar" aria-hidden="true">
-              <UserOutlined />
-            </div>
-            <div className="hc-user-panel__user-text">
-              <div className="hc-user-panel__user-primary">{userPrimaryText}</div>
-              <div className="hc-user-panel__user-secondary">{userSecondaryText}</div>
-              {userRoleTags.length ? (
-                <div className="hc-user-panel__user-roles">
-                  {userRoleTags.map((role) => (
-                    <Tag key={role} color="blue">
-                      {role}
-                    </Tag>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </div>
+  return (
+    <>
+      <button 
+        type="button" 
+        className="hc-user-trigger-btn"
+        onClick={() => setOpen(true)}
+        aria-label={t('panel.trigger')}
+      >
+        <div className="hc-user-avatar-placeholder"><UserOutlined /></div>
+        <span className="hc-user-trigger-label">{t('panel.trigger')}</span>
+      </button>
+
+      	      <Modal
+      	        centered={!isCompactScreen}
+      	        open={open}
+      	        onCancel={closePanel}
+      	        footer={null}
+      	        destroyOnHidden
+                  /* UX: Use a dedicated class for the modal wrapper so we can override .ant-modal-content cleanly without nesting. */
+      	        className={`hc-modern-user-modal${isCompactScreen ? ' hc-modern-user-modal--mobile' : ''}`}
+      	        width={isCompactScreen ? '100vw' : 920}
+      	        closeIcon={null}
+      	        style={{
+      	          maxWidth: isCompactScreen ? '100vw' : '95vw',
+      	          margin: isCompactScreen ? 0 : undefined,
+      	          top: isCompactScreen ? 0 : 20,
+      	          paddingBottom: isCompactScreen ? 0 : undefined
+      	        }}
+      	      >
+      	        <div className="hc-modern-panel-layout">
+      	           <div className="hc-panel-sidebar">              <div className="hc-panel-user-card">
+                  <div className="hc-panel-user-avatar">
+                      <UserOutlined />
+                  </div>
+                  <div className="hc-panel-user-info">
+                      <div className="hc-panel-username">{userPrimaryText}</div>
+                      <div className="hc-panel-role">{userSecondaryText}</div>
+                  </div>
+              </div>
+
+              <div className="hc-panel-nav">
+                  <div className="hc-panel-nav-header">{t('panel.nav.group.account')}</div>
+                  {renderNavItem('account')}
+
+                  <div className="hc-panel-nav-header">{t('panel.nav.group.integrations')}</div>
+                  {renderNavItem('credentials')}
+                  {renderNavItem('tools')}
+                  {renderNavItem('environment')}
+
+                  <div className="hc-panel-nav-header">{t('panel.nav.group.preferences')}</div>
+                  {renderNavItem('settings')}
+              </div>
+              
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                  <button type="button" className="hc-panel-nav-item" onClick={logout} disabled={!canUseAccountApis}>
+                      <span className="hc-panel-nav-icon"><LogoutOutlined /></span>
+                      <span className="hc-panel-nav-label">{t('panel.logout.ok')}</span>
+                  </button>
+              </div>
+           </div>
+
+           <div className="hc-panel-content">
+               <div className="hc-panel-header">
+                   <div className="hc-panel-title">{t(tabTitleKey[activeTab])}</div>
+                   <div style={{ display: 'flex', gap: 8 }}>
+                       {activeTab !== 'settings' && (
+                           <button className="hc-panel-close" onClick={() => void refreshActiveTab()} title={t('common.refresh')}>
+                               <ReloadOutlined />
+                           </button>
+                       )}
+                       <button className="hc-panel-close" onClick={closePanel} title={t('common.close')}>
+                           <CloseOutlined />
+                       </button>
+                   </div>
+               </div>
+               <div className="hc-panel-body">
+                   {renderContent()}
+               </div>
+           </div>
         </div>
+      </Modal>
 
-        <div className="hc-user-panel__nav">
-          <div className="hc-user-panel__nav-group">
-            <div className="hc-user-panel__nav-header">{t('panel.nav.group.account')}</div>
-            {renderNavItem('account')}
-          </div>
-
-          <div className="hc-user-panel__nav-group">
-            <div className="hc-user-panel__nav-header">{t('panel.nav.group.integrations')}</div>
-            {renderNavItem('credentials')}
-            {renderNavItem('tools')}
-            {/* Add environment tab for runtime visibility. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
-            {renderNavItem('environment')}
-          </div>
-
-          <div className="hc-user-panel__nav-group">
-            <div className="hc-user-panel__nav-header">{t('panel.nav.group.preferences')}</div>
-            {renderNavItem('settings')}
-          </div>
-        </div>
-
-        <div className="hc-user-panel__sidebar-footer">
-          <Button
-            danger
-            size="small"
-            icon={<LogoutOutlined />}
-            onClick={logout}
-            disabled={!canUseAccountApis}
-          >
-            {t('panel.logout.ok')}
-          </Button>
-        </div>
-      </div>
-
-      {/* Content Area */}
-      <div className="hc-user-panel__content">
-        <div className="hc-user-panel__content-header">
-          <div className="hc-user-panel__content-titleArea">
-            <div className="hc-user-panel__content-title">{t(tabTitleKey[activeTab])}</div>
-            <div className="hc-user-panel__content-subtitle">{t(tabDescKey[activeTab])}</div>
-          </div>
-          <div className="hc-user-panel__content-actions">
-            {activeTab !== 'settings' ? (
-              <Button
-                type="text"
-                aria-label={t('common.refresh')}
-                icon={<ReloadOutlined />}
-                loading={headerRefreshing}
-                onClick={() => void refreshActiveTab()}
-                disabled={!canUseAccountApis}
-                className="hc-user-panel__header-action"
-              />
-            ) : null}
-            <button type="button" className="hc-user-panel__close" onClick={closePanel} aria-label={t('common.close')}>
-              <CloseOutlined style={{ fontSize: 18 }} />
-            </button>
-          </div>
-        </div>
-        <div className="hc-user-panel__content-body">
-          {renderContent()}
-        </div>
-      </div>
-
-      {/* Re-use existing profile modal inside */}
+      {/* Re-use existing profile modal inside - kept mostly standard but with updated classes where relevant */}
+      {/* Note: I'm keeping the edit modals standard AntD Modals for now as they are small functional dialogs, 
+          but they will inherit the clean theme variables. */}
+      
       <Modal
         title={repoProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
         open={repoProfileFormOpen}
-        className="hc-dialog--compact" /* UX (2026-01-15): tighter padding + unified surface in dark mode for profile editors. */
         onCancel={() => {
             setRepoProfileFormOpen(false);
             setRepoProfileEditing(null);
@@ -1454,11 +1435,9 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         onOk={() => void submitRepoProfileForm()}
         destroyOnHidden
       >
-        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-            {/* Allow choosing repo provider when creating profiles from the unified list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-            {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
-            <Form form={repoProfileForm} layout="vertical" requiredMark={false} size="middle">
-            <Form.Item label={t('panel.credentials.profile.providerLabel')}>
+        <Form form={repoProfileForm} layout="vertical" requiredMark={false} size="middle">
+             {/* ... Form content preserved ... */}
+             <Form.Item label={t('panel.credentials.profile.providerLabel')}>
                 <Select
                 value={repoProfileProvider}
                 placeholder={t('panel.credentials.profile.providerPlaceholder')}
@@ -1505,7 +1484,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                     autoComplete="new-password"
                   />
                 </Form.Item>
-                {/* Token hint: show provider-specific PAT guidance near the input. (Change record: 2026-01-15) */}
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {repoProfileProvider === 'github'
                     ? t('panel.credentials.profile.tokenHelp.github')
@@ -1521,20 +1499,17 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                   onChange={(checked) => setRepoProfileSetDefault(checked)}
                   disabled={savingCred || !canUseAccountApis}
                 />
-                {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {t('panel.credentials.profile.setDefaultDesc')}
                 </Typography.Text>
               </Space>
             </Form.Item>
-            </Form>
-        </Space>
+        </Form>
       </Modal>
 
       <Modal
         title={modelProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
         open={modelProfileFormOpen}
-        className="hc-dialog--compact" /* UX (2026-01-15): tighter padding + unified surface in dark mode for profile editors. */
         onCancel={() => {
           setModelProfileFormOpen(false);
           setModelProfileEditing(null);
@@ -1545,11 +1520,9 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         onOk={() => void submitModelProfileForm()}
         destroyOnHidden
       >
-        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-          {/* Allow choosing model provider when creating profiles from the unified list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-          {/* UX (2026-01-15): Use default control sizing inside modals (avoid overly compact inputs). */}
-          <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="middle">
-            <Form.Item label={t('panel.credentials.profile.providerLabel')}>
+         <Form form={modelProfileForm} layout="vertical" requiredMark={false} size="middle">
+             {/* ... Form content preserved ... */}
+             <Form.Item label={t('panel.credentials.profile.providerLabel')}>
               <Select
                 value={modelProfileProvider}
                 placeholder={t('panel.credentials.profile.providerPlaceholder')}
@@ -1605,7 +1578,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
               </Space>
             </Form.Item>
 
-            {/* UX: keep "API Base URL" below the secret input to match user expectations for proxy settings. */}
             <Form.Item label={t('panel.credentials.codexApiBaseUrl')} name="apiBaseUrl">
               <Input placeholder={t('panel.credentials.codexApiBaseUrlPlaceholder')} />
             </Form.Item>
@@ -1615,7 +1587,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                 disabled={savingCred || !canUseAccountApis}
                 buttonProps={{ size: 'small' }}
                 loadModels={async ({ forceRefresh }) => {
-                  // Fetch models using either the stored key (keep mode) or the form input (set mode). b8fucnmey62u0muyn7i0
                   const apiBaseUrl = String(modelProfileForm.getFieldValue('apiBaseUrl') ?? '').trim();
                   const apiKey =
                     modelProfileApiKeyMode === 'set' ? String(modelProfileForm.getFieldValue('apiKey') ?? '').trim() : '';
@@ -1641,20 +1612,17 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
                   onChange={(checked) => setModelProfileSetDefault(checked)}
                   disabled={savingCred || !canUseAccountApis}
                 />
-                {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   {t('panel.credentials.profile.setDefaultDesc')}
                 </Typography.Text>
               </Space>
             </Form.Item>
-          </Form>
-        </Space>
+         </Form>
       </Modal>
 
       <Modal
         title={apiTokenEditing ? t('panel.apiTokens.editTitle') : t('panel.apiTokens.createTitle')}
         open={apiTokenFormOpen}
-        className="hc-dialog--compact"
         onCancel={() => {
           setApiTokenFormOpen(false);
           setApiTokenEditing(null);
@@ -1665,10 +1633,9 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         onOk={() => void submitApiTokenForm()}
         destroyOnHidden
       >
-        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-          {/* Collect PAT name/scopes/expiry in a single modal. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
-          <Form form={apiTokenForm} layout="vertical" requiredMark={false} size="middle">
-            <Form.Item label={t('panel.apiTokens.nameLabel')} name="name" rules={[{ required: true, message: t('panel.validation.required') }]}>
+        <Form form={apiTokenForm} layout="vertical" requiredMark={false} size="middle">
+             {/* ... Form content preserved ... */}
+             <Form.Item label={t('panel.apiTokens.nameLabel')} name="name" rules={[{ required: true, message: t('panel.validation.required') }]}>
               <Input placeholder={t('panel.apiTokens.namePlaceholder')} />
             </Form.Item>
 
@@ -1719,8 +1686,7 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {t('panel.apiTokens.expiry.hint')}
             </Typography.Text>
-          </Form>
-        </Space>
+        </Form>
       </Modal>
 
       <Modal
@@ -1741,7 +1707,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
         destroyOnHidden
       >
         <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-          {/* One-time PAT reveal flow after creation. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
           <Typography.Paragraph type="secondary">{t('panel.apiTokens.reveal.desc')}</Typography.Paragraph>
           <Input.TextArea value={apiTokenRevealValue ?? ''} readOnly autoSize={{ minRows: 3, maxRows: 5 }} />
           <Button type="primary" onClick={() => apiTokenRevealValue && void copyApiToken(apiTokenRevealValue)} disabled={!apiTokenRevealValue}>
@@ -1749,40 +1714,6 @@ export const UserPanelPopover: FC<UserPanelPopoverProps> = ({
           </Button>
         </Space>
       </Modal>
-    </div>
+    </>
   );
-
-	  return (
-	    <div className="hc-user-trigger">
-	      <Button size="middle" icon={<UserOutlined />} aria-label={t('panel.trigger')} onClick={() => setOpen(true)}>
-	        <span className="hc-user-trigger__label">{t('panel.trigger')}</span>
-	      </Button>
-
-	      <Modal
-	        centered={!isCompactScreen}
-	        open={open}
-	        onCancel={closePanel}
-	        footer={null}
-	        destroyOnHidden
-	        className={`hc-user-modal${isCompactScreen ? ' hc-user-modal--mobile' : ''}`}
-	        width={isCompactScreen ? '100vw' : 920}
-	        closeIcon={null} /* Custom close button in header */
-	        style={{
-	          maxWidth: isCompactScreen ? '100vw' : '95vw',
-	          margin: isCompactScreen ? 0 : undefined,
-	          top: isCompactScreen ? 0 : 20,
-	          paddingBottom: isCompactScreen ? 0 : undefined
-	        }}
-	        styles={{
-	            mask: {
-	                backdropFilter: 'blur(10px)',
-	                WebkitBackdropFilter: 'blur(10px)',
-	                backgroundColor: 'rgba(0, 0, 0, 0.55)'
-	            }
-	        }}
-	      >
-	        {content}
-	      </Modal>
-	    </div>
-	  );
-	};
+};
