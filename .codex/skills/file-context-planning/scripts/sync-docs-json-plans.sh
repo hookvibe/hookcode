@@ -2,7 +2,7 @@
 # Sync docs/docs.json navigation entries for planning session files. docsjsonindex20260121
 #
 # Usage:
-#   bash .codex/skills/planning-with-files/scripts/sync-docs-json-plans.sh
+#   bash .codex/skills/file-context-planning/scripts/sync-docs-json-plans.sh
 #
 # Behavior:
 # - Scans: docs/en/developer/plans/<session-hash>/{task_plan,findings,progress}.md

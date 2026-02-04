@@ -1,5 +1,5 @@
 ---
-name: planning-with-files
+name: file-context-planning
 version: "4.0.0"
 description: "Manus-style file-based planning for Codex CLI. Stores task_plan.md/findings.md/progress.md under docs/en/developer/plans/<session-hash>/ for durable planning + traceability."
 ---
@@ -37,14 +37,14 @@ When using this skill on a complex task:
 
 When using this skill:
 
-- **Skill assets** (templates/scripts/reference) live in: `.codex/skills/planning-with-files/`
-  - Templates: `.codex/skills/planning-with-files/templates/`
-  - Scripts: `.codex/skills/planning-with-files/scripts/`
+- **Skill assets** (templates/scripts/reference) live in: `.codex/skills/file-context-planning/`
+  - Templates: `.codex/skills/file-context-planning/templates/`
+  - Scripts: `.codex/skills/file-context-planning/scripts/`
 - **Your planning files** live in a **hash folder** under: `docs/en/developer/plans/<session-hash>/`
 
 | Location | What Goes There |
 |----------|-----------------|
-| Skill directory (`.codex/skills/planning-with-files/`) | Templates, scripts, reference docs |
+| Skill directory (`.codex/skills/file-context-planning/`) | Templates, scripts, reference docs |
 | `docs/en/developer/plans/<session-hash>/` | `task_plan.md`, `findings.md`, `progress.md` |
 
 This ensures your planning files are:
@@ -63,22 +63,22 @@ Creates `docs/en/developer/plans/<session-hash>/` and copies templates there if 
 Also syncs `docs/docs.json` when present (Mintlify) so the new session files are discoverable; if `docs/docs.json` is absent (Docusaurus), the sync step is skipped.
 
 ```bash
-bash .codex/skills/planning-with-files/scripts/init-session.sh "<session-hash>" "<session-title>"
+bash .codex/skills/file-context-planning/scripts/init-session.sh "<session-hash>" "<session-title>"
 ```
 
 If you need a one-off backfill or want to rebuild the navigation index deterministically:
 
 ```bash
-bash .codex/skills/planning-with-files/scripts/sync-docs-json-plans.sh
+bash .codex/skills/file-context-planning/scripts/sync-docs-json-plans.sh
 ```
 
 ### Option B: Copy Templates (Most Detailed)
 
 ```bash
 mkdir -p docs/en/developer/plans/<session-hash>
-cp .codex/skills/planning-with-files/templates/task_plan.md docs/en/developer/plans/<session-hash>/task_plan.md
-cp .codex/skills/planning-with-files/templates/findings.md docs/en/developer/plans/<session-hash>/findings.md
-cp .codex/skills/planning-with-files/templates/progress.md docs/en/developer/plans/<session-hash>/progress.md
+cp .codex/skills/file-context-planning/templates/task_plan.md docs/en/developer/plans/<session-hash>/task_plan.md
+cp .codex/skills/file-context-planning/templates/findings.md docs/en/developer/plans/<session-hash>/findings.md
+cp .codex/skills/file-context-planning/templates/progress.md docs/en/developer/plans/<session-hash>/progress.md
 ```
 
 Then:
@@ -91,7 +91,7 @@ Then:
 Optional completion check:
 
 ```bash
-bash .codex/skills/planning-with-files/scripts/check-complete.sh <session-hash>
+bash .codex/skills/file-context-planning/scripts/check-complete.sh <session-hash>
 ```
 
 > **Note:** All three planning files should be created in `docs/en/developer/plans/<session-hash>/`, not in your project root and not in the skill folder.
@@ -141,14 +141,14 @@ When the task is completed, update `docs/en/change-log/0.0.0.md` with:
 Example entry:
 
 ```md
-- sddsa89612jk4hbwas678: Refactor planning-with-files to store plans in hash folders. ([plan](../developer/plans/sddsa89612jk4hbwas678/task_plan.md))
+- sddsa89612jk4hbwas678: Refactor file-context-planning to store plans in hash folders. ([plan](../developer/plans/sddsa89612jk4hbwas678/task_plan.md))
 ```
 
 {/* Keep changelog entries clean and single-line (no extra HTML comment lines). l290bb7v758opd6uxu6r */}
 > **Note:** Do not add an extra `{/* ... */}` line above changelog bullets. The bullet itself (hash + plan link) is enough traceability.
 
 {/* Prefer stdin to avoid shell expansion when summaries contain code-like characters. l290bb7v758opd6uxu6r */}
-> **Tip:** If your summary contains backticks or other shell-sensitive characters, pipe it via stdin: `printf '%s' "<summary>" | bash .codex/skills/planning-with-files/scripts/append-changelog.sh "<hash>"`.
+> **Tip:** If your summary contains backticks or other shell-sensitive characters, pipe it via stdin: `printf '%s' "<summary>" | bash .codex/skills/file-context-planning/scripts/append-changelog.sh "<hash>"`.
 
 ## Critical Rules
 

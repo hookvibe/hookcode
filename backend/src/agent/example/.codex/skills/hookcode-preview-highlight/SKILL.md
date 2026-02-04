@@ -9,7 +9,10 @@ description: End-to-end workflow for HookCode preview DOM highlighting check/sta
 ## Overview
 
 
-This skill ships JS request scripts (with `.env` loading) and protocol notes for the complete preview highlight flow: check preview status, start previews, install dependencies if needed, send highlight commands, and stop previews after debugging. It also explains the bridge handshake required for cross-origin iframes so you can confirm whether highlight commands are actually reaching the preview DOM.
+This skill ships JS request scripts (with `.env` loading) and protocol notes for the complete preview highlight flow: check preview status, start previews, install dependencies if needed, send highlight commands, and stop previews after debugging. It also explains the bridge handshake required for cross-origin iframes so you can confirm whether highlight commands are actually reaching the preview DOM. Selector rules now include CSS selectors plus text/attribute matchers (for example `text:Save`, `attr:data-testid=cta`, `data:testid=cta`, `aria:label=Search`, `role:button`, or loose `data-testid=cta`). If a highlight command includes `targetUrl`, the preview UI will auto-navigate to that URL (and push it to the iframe history) unless the user locks auto-navigation in the toolbar. Target URL matching now supports route patterns like `:id`, `*`, `**`, hash/query wildcards, and `||` alternatives to avoid unnecessary navigation.
+<!-- Document auto-navigation + lock behavior for highlight target URLs. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+<!-- Document selector matcher rules in the skill overview. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+<!-- Document advanced targetUrl route matching rules in the skill overview. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
 
 ## Capabilities
 
@@ -19,6 +22,10 @@ This skill ships JS request scripts (with `.env` loading) and protocol notes for
 - Send optional bubble tooltip payloads alongside highlights (text + placement + theme).
 - Provide CLI flags that map one-to-one with highlight + bubble payload fields.
 <!-- Expand highlight capability coverage to include bubble payloads. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48 -->
+- Support selector matcher rules like `text:`, `attr:`, `data:`, `aria:`, `role:`, and `testid:` when CSS selectors are not enough.
+<!-- Describe selector matcher capabilities for highlight requests. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+- Auto-navigate previews when `targetUrl` is supplied, with a lock toggle and route-matching rules to keep the current URL stable.
+<!-- Explain auto-navigation support in the preview highlight skill. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
 - Verify bridge readiness by checking `subscribers` and bridge error responses.
 - Stop previews after debugging to free ports and resources.
 
@@ -48,6 +55,7 @@ node .codex/skills/hookcode-preview-highlight/scripts/preview_highlight.mjs \
   --task-group <taskGroupId> \
   --instance app \
   --selector ".page-kicker" \
+  --target-url "/add" \
   --bubble-text "Update this headline" \
   --bubble-placement right \
   --bubble-theme dark
@@ -116,14 +124,26 @@ node .codex/skills/hookcode-preview-highlight/scripts/preview_dependencies_insta
 **Script**: `scripts/preview_highlight.mjs`
 
 **Parameters**:
-- `selector` (required): CSS selector to highlight (max length 200).
+- `selector` (required): CSS selector to highlight (max length 200); supports matcher rules like `text:`, `attr:`, `data:`, `aria:`, `role:`, `testid:`, or loose `data-testid=...`.
+<!-- Document selector matcher rules in the parameter list. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+- `targetUrl` (optional): preview URL or path to navigate to before highlighting; matching supports `:param`, `*`, `**`, query/hash wildcards (e.g. `/users/:id?tab=*`), and `||` alternatives (first entry is used for navigation).
+<!-- Document target URL route matching behavior in the parameter list. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+
+**TargetUrl matching rules**:
+- `:param` matches a single path segment (e.g. `/users/:id`).
+- `*` matches any characters within a segment; `**` matches across segments (e.g. `/projects/**/settings`).
+- Query rules only require params you declare; use `?tab` for any value or `?tab=*` for wildcard values.
+- Hash rules accept wildcards like `#section-*`.
+- `||` separates alternatives; the first entry is used for navigation if auto-navigation is needed.
+<!-- Detail targetUrl route matching rules in the skill docs. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
 - `padding` (optional): number of pixels around the element (0-64, default 4).
 - `color` (optional): CSS color string for outline/glow (max length 40).
 - `mode` (optional): `outline` or `mask` (default `outline`).
 - `scrollIntoView` (optional): `true`/`false` (default `false`).
 - `bubble` (optional): object for tooltip rendering near the highlight.
   - `text` (required when bubble provided): text content to display (1-280 chars).
-  - `placement` (optional): `top` | `right` | `bottom` | `left` | `auto` (default `auto`).
+  - `placement` (optional): `top` | `right` | `bottom` | `left` | `auto` (default `auto`); auto prefers bottom/top and flips when space is insufficient to avoid clipping.
+  <!-- Document bubble placement flipping rules to avoid clipped tooltips. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
   - `align` (optional): `start` | `center` | `end` (default `center`).
   - `offset` (optional): number of pixels between highlight and bubble (0-64, default `10`).
   - `maxWidth` (optional): max width in px (120-640, default `320`).
@@ -135,6 +155,10 @@ node .codex/skills/hookcode-preview-highlight/scripts/preview_dependencies_insta
   - `arrow` (optional): `true`/`false` to show the pointer (default `true`).
 - `requestId` (optional): client-defined id for tracking.
 <!-- Expand highlight parameter docs to include bubble payload fields. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48 -->
+
+**Response**:
+- `success`, `requestId`, `subscribers`, and optional `targetUrl` echo for navigation-aware clients.
+<!-- Document highlight response fields including targetUrl echo. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
 
 ```bash
 node .codex/skills/hookcode-preview-highlight/scripts/preview_highlight.mjs \
@@ -176,6 +200,10 @@ node .codex/skills/hookcode-preview-highlight/scripts/preview_stop.mjs \
 
 - **`preview_not_running`** (409): Start the preview first or check the instance name.
 - **`selector_required` / `selector_not_found`** (response from bridge): verify the selector exists in the preview DOM.
+- The bridge now retries selector resolution with `querySelectorAll`, simple id/class/tag fallbacks, and open shadow-root scans; when in doubt, send a stable CSS selector that maps to a visible element.
+<!-- Note selector fallback strategies in troubleshooting guidance. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+- If a `targetUrl` is supplied but the preview does not navigate, check whether the auto-navigation lock button is enabled in the preview toolbar.
+<!-- Document auto-navigation lock behavior in troubleshooting guidance. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
 - **`bubble_text_required`**: a bubble payload was supplied without valid `text`.
 - **`fetch failed`**: the backend is unreachable; check `HOOKCODE_API_BASE_URL` and local network access.
 - **`subscribers: 0`**: the preview UI is not listening or the bridge script is missing.

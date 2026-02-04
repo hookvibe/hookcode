@@ -467,6 +467,7 @@ export const buildTaskGroupAgentsContent = (params: { envFileContents: string; r
   // Provide a fixed task-group AGENTS template and embed the .env content verbatim. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
   const repoFolder = safeTrim(params.repoFolderName) || 'repo';
   const repoLabel = `<<${repoFolder}>>`;
+  // Add target URL guidance with route matching rules for auto-navigating previews. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
   return [
     '# Task Group Workspace Rules',
     '',
@@ -499,7 +500,6 @@ export const buildTaskGroupAgentsContent = (params: { envFileContents: string; r
     '   - Send highlight commands with specific CSS selectors',
     '   - Include bubble tooltips explaining what was changed',
     '   - Use appropriate colors (e.g., blue for additions, yellow for modifications)',
-    // Add target URL guidance with route matching rules for auto-navigating previews. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
     '4. If changes apply to a specific route, include `targetUrl` (supports :param/*/**/|| patterns) so the preview can auto-navigate or confirm the current route (users may lock auto-navigation).',
     '5. Inform users about the exact location of changes in the UI',
     '</IMPORTANT>',
@@ -532,7 +532,7 @@ const ensureTaskGroupLayout = async (params: {
     envFileContents: envContents,
     repoFolderName: params.repoFolderName
   });
-  await writeFileIfChanged(path.join(params.taskGroupDir, 'AGENTS.md'), agentsContents);
+  await writeFileIfChanged(path.join(params.taskGroupDir, 'AGENTS.override.md'), agentsContents);
   await syncTaskGroupSkillEnvFiles({ taskGroupDir: params.taskGroupDir, envContents });
 };
 

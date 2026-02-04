@@ -3,7 +3,7 @@
 # Refactor planning session storage to hash directories for traceability. sddsa89612jk4hbwas678
 #
 # Usage:
-#   bash .codex/skills/planning-with-files/scripts/init-session.sh [session-hash] [session-title]
+#   bash .codex/skills/file-context-planning/scripts/init-session.sh [session-hash] [session-title]
 #
 # Behavior:
 # - Stores planning files under: docs/en/developer/plans/<session-hash>/

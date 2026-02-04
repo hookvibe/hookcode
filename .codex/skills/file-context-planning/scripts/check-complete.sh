@@ -49,11 +49,11 @@ PLAN_FILE="$(resolve_plan_file "$INPUT")"
 if [ ! -f "$PLAN_FILE" ]; then
     echo "ERROR: task plan not found"
     echo "Usage:"
-    echo "  bash .codex/skills/planning-with-files/scripts/check-complete.sh <plan-path|session-hash>"
+    echo "  bash .codex/skills/file-context-planning/scripts/check-complete.sh <plan-path|session-hash>"
     echo ""
     echo "Examples:"
-    echo "  bash .codex/skills/planning-with-files/scripts/check-complete.sh docs/en/developer/plans/<hash>/task_plan.md"
-    echo "  bash .codex/skills/planning-with-files/scripts/check-complete.sh <hash>"
+    echo "  bash .codex/skills/file-context-planning/scripts/check-complete.sh docs/en/developer/plans/<hash>/task_plan.md"
+    echo "  bash .codex/skills/file-context-planning/scripts/check-complete.sh <hash>"
     exit 1
 fi
 
