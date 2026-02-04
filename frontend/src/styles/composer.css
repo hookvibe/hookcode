@@ -162,6 +162,32 @@
   gap: 8px;
 }
 
+.hc-composer-actions {
+  /* Stack composer utility actions inside the popover. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 240px;
+}
+
+.hc-composer-action-block {
+  /* Group the time-window label + picker inside the actions popover. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-composer-action-title {
+  /* Keep action titles compact in the composer popover. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt */
+  font-size: 12px;
+}
+
+.hc-composer-action-divider {
+  /* Separate primary and secondary composer actions. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt */
+  height: 1px;
+  background: var(--hc-border);
+}
+
 .hc-composer-footer-right {
   /* Keep repo/robot selectors grouped with the send action on the right. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
   display: flex;

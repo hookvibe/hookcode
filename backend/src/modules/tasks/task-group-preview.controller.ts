@@ -13,7 +13,9 @@ import {
   PreviewStopResponseDto,
   PreviewDependencyInstallResponseDto,
   PreviewHighlightRequestDto,
-  PreviewHighlightResponseDto
+  PreviewHighlightResponseDto,
+  PreviewVisibilityRequestDto,
+  PreviewVisibilityResponseDto
 } from './dto/task-group-preview.dto';
 
 @AuthScopeGroup('tasks') // Scope task-group preview APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
@@ -96,6 +98,23 @@ export class TaskGroupPreviewController {
       return await this.previewService.getStatus(id);
     } catch (err) {
       this.handleError(err, '[task-groups] preview status failed');
+    }
+  }
+
+  @Post(':id/preview/visibility')
+  @ApiOperation({
+    summary: 'Set TaskGroup preview visibility',
+    description: 'Report whether the preview is currently visible in the UI.',
+    operationId: 'task_groups_preview_visibility'
+  })
+  @ApiOkResponse({ description: 'OK', type: PreviewVisibilityResponseDto })
+  async visibility(@Param('id') id: string, @Body() body: PreviewVisibilityRequestDto): Promise<PreviewVisibilityResponseDto> {
+    // Accept visibility updates to drive hidden preview shutdown timers. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    try {
+      this.previewService.markPreviewVisibility(id, body.visible);
+      return { success: true };
+    } catch (err) {
+      this.handleError(err, '[task-groups] preview visibility failed');
     }
   }
 

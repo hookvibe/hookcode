@@ -29,6 +29,56 @@ describe('TaskGroupChatPage preview', () => {
     expect(screen.getByRole('button', { name: 'admin' })).toBeInTheDocument();
   });
 
+  test('defaults preview panel width to half on wide layouts', async () => {
+    // Ensure the preview panel defaults to half width on wide layouts. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+    });
+
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect');
+    rectSpy.mockImplementation(function () {
+      if (this instanceof HTMLElement && this.classList?.contains('hc-chat-layout')) {
+        return {
+          width: 1200,
+          height: 800,
+          top: 0,
+          left: 0,
+          right: 1200,
+          bottom: 800,
+          x: 0,
+          y: 0,
+          toJSON: () => ({})
+        };
+      }
+      return {
+        width: 0,
+        height: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      };
+    });
+
+    window.localStorage.removeItem('hc-preview-panel-width');
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    try {
+      await waitFor(() => {
+        const panel = document.querySelector('.hc-preview-panel') as HTMLElement | null;
+        expect(panel).not.toBeNull();
+        expect(panel?.style.width).toBe('600px');
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
   test('uses direct port preview URL on localhost', async () => {
     // Validate local direct-port routing for preview iframes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
@@ -145,8 +195,8 @@ describe('TaskGroupChatPage preview', () => {
     expect(screen.getByText('boom')).toBeInTheDocument();
   });
 
-  // Verify preview start modal exposes manual dependency reinstall action. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  test('shows manual dependency reinstall action in the preview start modal', async () => {
+  // Verify preview start modal exposes manual dependency reinstall + auto-start behavior. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+  test('auto-starts preview after dependency reinstall', async () => {
     const ui = userEvent.setup();
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
       available: true,
@@ -165,5 +215,6 @@ describe('TaskGroupChatPage preview', () => {
     await ui.click(reinstallButton);
 
     await waitFor(() => expect(api.installTaskGroupPreviewDependencies).toHaveBeenCalledWith('g1'));
+    await waitFor(() => expect(api.startTaskGroupPreview).toHaveBeenCalledWith('g1'));
   });
 });

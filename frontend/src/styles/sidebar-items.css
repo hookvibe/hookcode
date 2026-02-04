@@ -172,6 +172,30 @@
   color: var(--muted);
 }
 
+.hc-sider-group-label {
+  /* Align preview dots with task-group labels in the sidebar. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hc-sider-group-text {
+  /* Preserve text truncation within the sidebar menu label. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-sider-preview-dot {
+  /* Small accent dot to indicate an active preview. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--hc-sider-bg);
+}
+
 /* Boost touch target sizes for sidebar controls on phones. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
 @media (max-width: 768px) {
   .hc-sider-item.ant-btn,

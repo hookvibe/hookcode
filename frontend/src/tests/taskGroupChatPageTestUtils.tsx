@@ -72,6 +72,8 @@ vi.mock('../api', () => {
     fetchTaskGroupTasks: vi.fn(async () => []),
     // Mock preview endpoints so TaskGroupChatPage can render preview UI state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     fetchTaskGroupPreviewStatus: vi.fn(async () => ({ available: false, instances: [] })),
+    // Mock preview visibility updates for hidden auto-stop logic. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    setTaskGroupPreviewVisibility: vi.fn(async () => ({ success: true })),
     // Mock preview dependency reinstall endpoint for modal coverage. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     installTaskGroupPreviewDependencies: vi.fn(async () => ({
       success: true,
@@ -121,6 +123,8 @@ export const setupTaskGroupChatMocks = () => {
   ]);
   vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([]);
   vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValue({ available: false, instances: [] });
+  // Reset preview visibility mock per test run. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+  vi.mocked(api.setTaskGroupPreviewVisibility).mockResolvedValue({ success: true });
   vi.mocked(api.installTaskGroupPreviewDependencies).mockResolvedValue({
     success: true,
     result: { status: 'success', steps: [], totalDuration: 0 }

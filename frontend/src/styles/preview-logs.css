@@ -180,9 +180,57 @@
   }
 }
 
+@media (max-width: 768px) {
+  /* Float the preview panel on phones with a compact chrome and top placement. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o */
+  .hc-preview-panel {
+    order: -1;
+    height: 240px;
+    max-height: 40vh;
+    margin-bottom: 12px;
+  }
+
+  .hc-preview-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .hc-preview-header-main {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .hc-preview-window-controls {
+    display: none;
+  }
+
+  /* Keep the mobile preview toolbar focused on action buttons. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
+  .hc-preview-header-toolbar {
+    padding: 6px 8px;
+  }
+
+  .hc-preview-header-nav,
+  .hc-preview-header-browser-input,
+  .hc-preview-header-toolbar-divider {
+    display: none;
+  }
+
+  .hc-preview-header-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .hc-preview-body {
+    padding: 8px;
+  }
+}
+
 @media (max-width: 720px) {
   .hc-preview-log-line {
     grid-template-columns: 1fr;
   }
 }
-

@@ -21,6 +21,8 @@ export const enUSChat = {
   'chat.form.robotTip': 'You can switch robots per message',
   'chat.form.unsupportedGroupTip': 'This task group does not support manual chat messages',
   'chat.form.textPlaceholder': 'Ask something… (Enter to send, Shift+Enter for newline)',
+  // Add a composer actions label for the new popover trigger. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+  'chat.form.actions': 'Composer actions',
   'chat.form.timeWindow': 'Execution window',
   'chat.form.send': 'Send',
   // Pause/resume controls for active task-group runs. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203

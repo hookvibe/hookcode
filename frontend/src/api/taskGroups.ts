@@ -53,6 +53,12 @@ export const stopTaskGroupPreview = async (id: string): Promise<{ success: boole
   return data;
 };
 
+export const setTaskGroupPreviewVisibility = async (id: string, visible: boolean): Promise<{ success: boolean }> => {
+  // Report preview visibility so the backend can stop hidden previews. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+  const { data } = await api.post<{ success: boolean }>(`/task-groups/${id}/preview/visibility`, { visible });
+  return data;
+};
+
 // Send highlight commands to the preview iframe bridge via the backend API. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export const sendTaskGroupPreviewHighlight = async (
   id: string,

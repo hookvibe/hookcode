@@ -102,6 +102,19 @@ export class PreviewDependencyInstallResponseDto {
   result!: DependencyResultDto;
 }
 
+export class PreviewVisibilityRequestDto {
+  // Accept UI visibility updates so previews can stop after long hides. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+  @ApiProperty()
+  @IsBoolean()
+  visible!: boolean;
+}
+
+export class PreviewVisibilityResponseDto {
+  // Return a generic success payload for visibility updates. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+  @ApiProperty()
+  success!: boolean;
+}
+
 export class PreviewHighlightBubbleDto {
   // Describe tooltip bubble rendering alongside preview highlights. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
   @ApiProperty({ description: 'Bubble text rendered near the highlighted element.' })

@@ -69,6 +69,8 @@ vi.mock('../api', () => {
         { id: 'g1', kind: 'chat', bindingKey: 'b1', title: 'Group 1', createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' }
       ]
     })),
+    // Mock preview visibility updates so chat pages can report hidden state. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    setTaskGroupPreviewVisibility: vi.fn(async () => ({ success: true })),
     // Mirror paused counts in task stats mocks for sidebar updates. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     fetchTaskStats: vi.fn(async () => ({ total: 7, queued: 5, processing: 1, paused: 0, success: 1, failed: 0 })),
     // Mock the daily task volume series used by the repo dashboard line chart. dashtrendline20260119m9v2
@@ -254,6 +256,32 @@ describe('AppShell (frontend-chat migration)', () => {
     const groupLabel = await screen.findByText('Group 1');
     const groupItem = groupLabel.closest('li');
     expect(groupItem?.querySelector('.ant-menu-item-icon, .anticon')).toBeTruthy();
+  });
+
+  test('renders preview-active dots for running task groups', async () => {
+    // Ensure preview-active sidebar indicators render when previews are running. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    const fetchDashboardSidebarMock = vi.mocked(api.fetchDashboardSidebar);
+    fetchDashboardSidebarMock.mockResolvedValue({
+      // Include paused counts to keep stats shape aligned. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      stats: { total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 },
+      tasksByStatus: { queued: [], processing: [], success: [], failed: [] },
+      taskGroups: [
+        {
+          id: 'g1',
+          kind: 'chat',
+          bindingKey: 'b1',
+          title: 'Group 1',
+          previewActive: true,
+          createdAt: '',
+          updatedAt: '2026-01-11T00:00:00.000Z'
+        }
+      ]
+    } as any);
+
+    renderApp();
+
+    const label = await screen.findByLabelText('Group 1 (Running)');
+    expect(label.querySelector('.hc-sider-preview-dot')).toBeTruthy();
   });
 
   test('renders sidebar dividers in expanded and collapsed modes', async () => {

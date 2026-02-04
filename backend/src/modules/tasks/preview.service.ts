@@ -37,6 +37,7 @@ const PREVIEW_LOG_BUFFER_MAX = 500;
 const PREVIEW_DIAGNOSTIC_LOG_TAIL = 80;
 const PREVIEW_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const PREVIEW_IDLE_POLL_MS = 60 * 1000;
+const PREVIEW_HIDDEN_TIMEOUT_MS = 30 * 60 * 1000;
 const PREVIEW_CONFIG_RELOAD_DEBOUNCE_MS = 750;
 
 // Capture preview-specific error codes for controller mapping. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -90,6 +91,8 @@ export class PreviewService implements OnModuleDestroy {
   // Maintain per-group config watchers and idle timers for Phase 3 hot reload/cleanup. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   private readonly configWatchers = new Map<string, fs.FSWatcher>();
   private readonly configReloadTimers = new Map<string, NodeJS.Timeout>();
+  // Track per-group hidden timers to auto-stop previews after long hides. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+  private readonly hiddenTimers = new Map<string, NodeJS.Timeout>();
   private readonly idleTimer: NodeJS.Timeout;
 
   constructor(
@@ -200,6 +203,17 @@ export class PreviewService implements OnModuleDestroy {
     return { available: true, instances };
   }
 
+  getActiveTaskGroupIds(): Set<string> {
+    // Surface active preview groups so list endpoints can mark sidebar indicators. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    const active = new Set<string>();
+    for (const [groupId, runtime] of this.groups.entries()) {
+      if (runtime.instances.some((instance) => instance.status === 'running' || instance.status === 'starting')) {
+        active.add(groupId);
+      }
+    }
+    return active;
+  }
+
   async startPreview(taskGroupId: string): Promise<PreviewStatusSnapshot> {
     // Start preview dev servers for the task group if configured. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const existing = this.startLocks.get(taskGroupId);
@@ -231,6 +245,7 @@ export class PreviewService implements OnModuleDestroy {
     const runtime = this.groups.get(taskGroupId);
     if (!runtime) return;
 
+    this.clearHiddenTimer(taskGroupId);
     this.clearConfigWatcher(taskGroupId);
     this.clearConfigReloadTimer(taskGroupId);
     await Promise.all(runtime.instances.map((instance) => this.stopInstance(taskGroupId, instance)));
@@ -259,10 +274,25 @@ export class PreviewService implements OnModuleDestroy {
     }
   }
 
+  markPreviewVisibility(taskGroupId: string, visible: boolean): void {
+    // Schedule preview shutdown when the UI hides previews for too long. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    const runtime = this.groups.get(taskGroupId);
+    if (!runtime) return;
+    if (visible) {
+      this.clearHiddenTimer(taskGroupId);
+      runtime.instances.forEach((instance) => {
+        instance.lastAccessAt = Date.now();
+      });
+      return;
+    }
+    this.scheduleHiddenStop(taskGroupId, runtime);
+  }
+
   async onModuleDestroy(): Promise<void> {
     // Ensure preview child processes are terminated when the module shuts down. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     clearInterval(this.idleTimer);
     this.clearAllConfigReloadTimers();
+    this.clearAllHiddenTimers();
     const groupIds = Array.from(this.groups.keys());
     await Promise.all(groupIds.map((groupId) => this.stopPreview(groupId)));
   }
@@ -490,6 +520,36 @@ export class PreviewService implements OnModuleDestroy {
         await this.stopPreview(groupId);
       })
     );
+  }
+
+  private scheduleHiddenStop(taskGroupId: string, runtime: PreviewGroupRuntime): void {
+    // Start or reset the hidden timer so previews stop after long UI hides. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    this.clearHiddenTimer(taskGroupId);
+    const timer = setTimeout(() => {
+      this.hiddenTimers.delete(taskGroupId);
+      runtime.instances.forEach((instance) => {
+        this.appendSystemLog(taskGroupId, instance, 'hidden timeout reached, stopping preview');
+      });
+      void this.stopPreview(taskGroupId);
+    }, PREVIEW_HIDDEN_TIMEOUT_MS);
+    timer.unref?.();
+    this.hiddenTimers.set(taskGroupId, timer);
+  }
+
+  private clearHiddenTimer(taskGroupId: string): void {
+    // Prevent stale hidden timers from firing after previews are resumed/stopped. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    const existing = this.hiddenTimers.get(taskGroupId);
+    if (!existing) return;
+    clearTimeout(existing);
+    this.hiddenTimers.delete(taskGroupId);
+  }
+
+  private clearAllHiddenTimers(): void {
+    // Clear all hidden timers during shutdown to avoid leaking handles. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    for (const timer of this.hiddenTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.hiddenTimers.clear();
   }
 
   private resolveConfigPath(workspaceDir: string): string {

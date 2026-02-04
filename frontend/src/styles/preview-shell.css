@@ -5,7 +5,8 @@
 
 .hc-preview-panel {
   flex: 0 0 auto;
-  width: 38%;
+  /* Default the preview panel to half width on wide layouts. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o */
+  width: 50%;
   min-width: 320px;
   max-width: none;
   display: flex;
@@ -44,13 +45,13 @@
 }
 
 .hc-preview-header {
+  /* Stack header rows so tabs can sit beneath the address bar. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--hc-border);
-  flex-wrap: wrap;
   /* Align the preview header layout with the flat neutral chrome. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
   background: var(--hc-surface-elevated);
 }
@@ -103,32 +104,33 @@
   background: #22c55e;
 }
 
-/* Push preview header actions to the right edge of the chrome. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+/* Keep preview action buttons aligned with the address bar divider. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
 .hc-preview-header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
 }
 
 .hc-preview-tabs {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--hc-border);
-  background: var(--hc-surface-elevated);
+  /* Keep tabs compact beneath the address bar for tighter header spacing. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
+  padding: 6px 2px 2px;
+  border-top: 1px solid var(--hc-border);
+  background: transparent;
   overflow-x: auto;
 }
 
+/* Shrink preview tabs so the header stays compact. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
 .hc-preview-tab {
   appearance: none;
   border: 1px solid var(--hc-border);
   background: transparent;
   color: var(--text);
   border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
+  padding: 3px 8px;
+  font-size: 11px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -149,13 +151,11 @@
   font-weight: 600;
 }
 
-.hc-preview-header-browser {
-  /* Place the preview browser toolbar alongside the header status row. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
-  flex: 1 1 320px;
+.hc-preview-header-toolbar {
+  /* Group nav buttons, address bar, and actions in one toolbar row. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 260px;
   padding: 4px 6px;
   border-radius: 999px;
   border: 1px solid var(--hc-border);
@@ -164,19 +164,20 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.hc-preview-header-browser:focus-within {
+.hc-preview-header-toolbar:focus-within {
   /* Keep the address bar focus ring visible for keyboard users. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
   border-color: var(--hc-accent-border);
   box-shadow: var(--hc-focus-ring);
 }
 
-.hc-preview-header-browser-actions {
+/* Group navigation buttons beside the address bar for compact spacing. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
+.hc-preview-header-nav {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.hc-preview-header-browser-actions .ant-btn {
+.hc-preview-header-nav .ant-btn {
   /* Style toolbar buttons to feel browser-native. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
   width: 28px;
   height: 28px;
@@ -188,13 +189,13 @@
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.hc-preview-header-browser-actions .ant-btn:hover {
+.hc-preview-header-nav .ant-btn:hover {
   background: var(--hc-accent-soft-hover);
   border-color: var(--hc-accent-border);
 }
 
-.hc-preview-header-browser-actions .ant-btn:disabled,
-.hc-preview-header-browser-actions .ant-btn[disabled] {
+.hc-preview-header-nav .ant-btn:disabled,
+.hc-preview-header-nav .ant-btn[disabled] {
   background: var(--hc-control-bg-disabled);
   border-color: var(--hc-border);
   color: var(--muted);
@@ -203,6 +204,15 @@
 .hc-preview-header-browser-input {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.hc-preview-header-toolbar-divider {
+  /* Separate the address bar from preview actions without adding visual clutter. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
+  width: 1px;
+  align-self: stretch;
+  background: var(--hc-border);
+  opacity: 0.7;
+  margin-left: auto;
 }
 
 /* Align the address bar prefix icon spacing with browser inputs. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */

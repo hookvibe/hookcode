@@ -5,6 +5,7 @@ import { normalizeString, parsePositiveInt } from '../../utils/parse';
 import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { TaskService } from './task.service';
+import { PreviewService } from './preview.service';
 import { GetTaskGroupResponseDto, ListTaskGroupsResponseDto, ListTasksByGroupResponseDto } from './dto/task-groups-swagger.dto';
 
 const normalizeArchiveScope = (value: unknown): 'active' | 'archived' | 'all' => {
@@ -21,7 +22,10 @@ const normalizeArchiveScope = (value: unknown): 'active' | 'archived' | 'all' =>
 @ApiTags('Task Groups')
 @ApiBearerAuth('bearerAuth')
 export class TaskGroupsController {
-  constructor(private readonly taskService: TaskService) {}
+  constructor(
+    private readonly taskService: TaskService,
+    private readonly previewService: PreviewService
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -54,7 +58,14 @@ export class TaskGroupsController {
         includeMeta: true
       });
 
-      return { taskGroups };
+      // Attach preview activity to task-group list rows for sidebar indicators. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+      const previewActiveIds = this.previewService.getActiveTaskGroupIds();
+      const decorated = taskGroups.map((group) => ({
+        ...group,
+        previewActive: previewActiveIds.has(group.id)
+      }));
+
+      return { taskGroups: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[task-groups] list failed', err);
@@ -77,7 +88,9 @@ export class TaskGroupsController {
       if (!taskGroup) {
         throw new NotFoundException({ error: 'Task group not found' });
       }
-      return { taskGroup };
+      // Decorate single task-group payloads with preview activity state. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+      const previewActiveIds = this.previewService.getActiveTaskGroupIds();
+      return { taskGroup: { ...taskGroup, previewActive: previewActiveIds.has(taskGroup.id) } };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[task-groups] get failed', err);

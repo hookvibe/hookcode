@@ -1,7 +1,7 @@
 // Split TaskGroupChatPage composer tests into a focused spec file. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderTaskGroupChatPage, setupTaskGroupChatMocks } from './taskGroupChatPageTestUtils';
 import * as api from '../api';
@@ -116,12 +116,33 @@ describe('TaskGroupChatPage composer', () => {
     expect(textarea).toHaveValue('Action 1');
   });
 
-  // Ensure the time-window control renders as a compact icon button. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
-  test('renders time window icon button in the composer', async () => {
-    renderTaskGroupChatPage();
+  test('renders composer actions popover with time window and preview start', async () => {
+    // Ensure the composer actions popover exposes time window + preview shortcuts. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+    const ui = userEvent.setup();
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
 
     await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
-    expect(screen.getByRole('button', { name: 'Execution window' })).toBeInTheDocument();
+    const actionsButton = screen.getByRole('button', { name: 'Composer actions' });
+    await ui.click(actionsButton);
+
+    expect(screen.getByText('Execution window')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start preview' })).toBeInTheDocument();
+  });
+
+  test('opens the preview start modal from the composer actions popover', async () => {
+    // Verify the preview start modal opens from the composer actions menu. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+    const ui = userEvent.setup();
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    const actionsButton = screen.getByRole('button', { name: 'Composer actions' });
+    await ui.click(actionsButton);
+
+    const startButton = screen.getByRole('button', { name: 'Start preview' });
+    await ui.click(startButton);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Start preview', { selector: '.ant-modal-title' })).toBeInTheDocument();
   });
 
   test('does not submit when robot is missing (Enter-to-send)', async () => {

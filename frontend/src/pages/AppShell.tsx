@@ -546,24 +546,37 @@ export const AppShell: FC<AppShellProps> = ({
 
   const groupMenuItems = useMemo<MenuProps['items']>(() => {
     // Always compute task group menu items; collapsed layouts decide visibility at render time. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
-    return taskGroups.map((g) => ({
-      key: g.id,
-      // Show per-group icons in expanded mode for quicker scanning. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131
-      icon:
-        g.kind === 'chat' ? (
-          <MessageOutlined />
-        ) : g.kind === 'issue' ? (
-          <BugOutlined />
-        ) : g.kind === 'merge_request' ? (
-          <PullRequestOutlined />
-        ) : g.kind === 'commit' ? (
-          <CodeOutlined />
-        ) : (
-          <FileTextOutlined />
-        ),
-      label: clampText(String(g.title ?? g.bindingKey ?? g.id).trim() || g.id, 36)
-    }));
-  }, [taskGroups]);
+    return taskGroups.map((g) => {
+      const rawLabel = String(g.title ?? g.bindingKey ?? g.id).trim() || g.id;
+      const labelText = clampText(rawLabel, 36);
+      // Add preview-active dots to task-group labels in the sidebar. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+      const a11yLabel = g.previewActive ? `${labelText} (${t('preview.status.running')})` : labelText;
+      return {
+        key: g.id,
+        // Show per-group icons in expanded mode for quicker scanning. docs/en/developer/plans/sidebar-menu-20260131/task_plan.md sidebar-menu-20260131
+        icon:
+          g.kind === 'chat' ? (
+            <MessageOutlined />
+          ) : g.kind === 'issue' ? (
+            <BugOutlined />
+          ) : g.kind === 'merge_request' ? (
+            <PullRequestOutlined />
+          ) : g.kind === 'commit' ? (
+            <CodeOutlined />
+          ) : (
+            <FileTextOutlined />
+          ),
+        label: (
+          <span className="hc-sider-group-label" aria-label={a11yLabel}>
+            <span className="hc-sider-group-text">{labelText}</span>
+            {g.previewActive ? (
+              <span className="hc-sider-preview-dot" aria-hidden="true" title={t('preview.status.running')} />
+            ) : null}
+          </span>
+        )
+      };
+    });
+  }, [t, taskGroups]);
 
   const activeGroupKey = route.page === 'taskGroup' ? route.taskGroupId : undefined;
   const taskGroupsListActive = route.page === 'taskGroups';

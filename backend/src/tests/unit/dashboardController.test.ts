@@ -28,7 +28,9 @@ describe('DashboardController.sidebar', () => {
       listTaskGroups: jest.fn().mockResolvedValue([{ id: 'g1', kind: 'chat', bindingKey: 'b1', createdAt: '', updatedAt: '' }])
     };
 
-    const controller = new DashboardController(taskService);
+    // Stub preview activity lookups so sidebar decoration can be validated. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    const previewService: any = { getActiveTaskGroupIds: jest.fn().mockReturnValue(new Set()) };
+    const controller = new DashboardController(taskService, previewService);
     const res = await controller.sidebar(undefined, undefined, undefined, undefined, undefined);
 
     expect(taskService.getTaskStats).toHaveBeenCalledTimes(1);
@@ -45,6 +47,8 @@ describe('DashboardController.sidebar', () => {
     expect(res.tasksByStatus.queued[0].result?.logs).toBeUndefined();
     expect(res.tasksByStatus.queued[0].result?.outputText).toBeUndefined();
     expect(res.taskGroups).toHaveLength(1);
+    expect(previewService.getActiveTaskGroupIds).toHaveBeenCalledTimes(1);
+    expect(res.taskGroups[0]?.previewActive).toBe(false);
   });
 
   test('passes through query filters and custom limits', async () => {
@@ -55,7 +59,9 @@ describe('DashboardController.sidebar', () => {
       listTaskGroups: jest.fn().mockResolvedValue([])
     };
 
-    const controller = new DashboardController(taskService);
+    // Provide preview activity dependency for dashboard sidebar coverage. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    const previewService: any = { getActiveTaskGroupIds: jest.fn().mockReturnValue(new Set()) };
+    const controller = new DashboardController(taskService, previewService);
     await controller.sidebar('5', '10', 'repo_1', 'robot_1', 'push');
 
     expect(taskService.getTaskStats).toHaveBeenCalledWith(expect.objectContaining({ repoId: 'repo_1', robotId: 'robot_1', eventType: 'push' }));

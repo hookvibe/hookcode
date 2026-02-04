@@ -21,6 +21,8 @@ export const zhCNChat = {
   'chat.form.robotTip': '可在不同消息中切换机器人',
   'chat.form.unsupportedGroupTip': '该任务组类型暂不支持继续对话',
   'chat.form.textPlaceholder': '输入你的问题…（Enter 发送，Shift+Enter 换行）',
+  // Add a composer actions label for the new popover trigger. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+  'chat.form.actions': '输入操作',
   'chat.form.timeWindow': '执行时间段',
   'chat.form.send': '发送',
   // Pause/resume controls for active task-group runs. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203

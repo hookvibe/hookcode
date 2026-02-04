@@ -36,6 +36,10 @@ export class TaskGroupWithMetaDto {
   @ApiPropertyOptional({ nullable: true })
   commitSha?: string | null;
 
+  // Expose preview activity in task-group DTOs for sidebar indicators. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+  @ApiPropertyOptional({ description: 'Whether a preview is currently running for this task group.' })
+  previewActive?: boolean;
+
   @ApiPropertyOptional({ nullable: true, format: 'date-time' })
   archivedAt?: string | null;
 
