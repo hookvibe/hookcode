@@ -65,9 +65,9 @@
 
 .hc-modern-nav__title-area {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
+  flex-direction: row; /* Side-by-side for compact header */
+  align-items: baseline;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -75,7 +75,7 @@
   font-size: 18px;
   font-weight: 600;
   color: var(--text);
-  line-height: 1.2;
+  line-height: 1.5; /* Relaxed line-height for vertical centering */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -83,13 +83,13 @@
 }
 
 .hc-modern-nav__meta {
-  font-size: 12px;
+  font-size: 13px; /* Slightly larger for readability next to title */
   color: var(--text-secondary);
-  line-height: 1.2;
+  line-height: 1.5;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .hc-modern-nav__right {
