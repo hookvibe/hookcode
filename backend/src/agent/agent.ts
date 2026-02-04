@@ -499,7 +499,9 @@ export const buildTaskGroupAgentsContent = (params: { envFileContents: string; r
     '   - Send highlight commands with specific CSS selectors',
     '   - Include bubble tooltips explaining what was changed',
     '   - Use appropriate colors (e.g., blue for additions, yellow for modifications)',
-    '4. Inform users about the exact location of changes in the UI',
+    // Add target URL guidance with route matching rules for auto-navigating previews. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    '4. If changes apply to a specific route, include `targetUrl` (supports :param/*/**/|| patterns) so the preview can auto-navigate or confirm the current route (users may lock auto-navigation).',
+    '5. Inform users about the exact location of changes in the UI',
     '</IMPORTANT>',
     '',
     '```env',

@@ -232,6 +232,13 @@ export class PreviewHighlightRequestDto {
   // Attach bubble tooltip data to highlight commands. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
   bubble?: PreviewHighlightBubbleDto;
 
+  @ApiPropertyOptional({ description: 'Optional preview URL to navigate to before highlighting.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  // Capture target URLs for preview auto-navigation before highlight delivery. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  targetUrl?: string;
+
   @ApiPropertyOptional({ description: 'Optional request identifier for client-side tracking.' })
   @IsOptional()
   @IsString()
@@ -249,4 +256,8 @@ export class PreviewHighlightResponseDto {
 
   @ApiProperty({ description: 'Number of SSE subscribers receiving the command.' })
   subscribers!: number;
+
+  @ApiPropertyOptional({ description: 'Echoed target URL used by preview auto-navigation.' })
+  // Surface the requested target URL in API responses for client debugging. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  targetUrl?: string;
 }

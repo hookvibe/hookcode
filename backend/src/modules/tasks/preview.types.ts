@@ -62,6 +62,8 @@ export interface PreviewHighlightCommand {
   scrollIntoView?: boolean;
   // Forward optional bubble tooltip payload to the preview bridge. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
   bubble?: PreviewHighlightBubble;
+  // Optionally tell the preview UI which URL to navigate to before highlighting. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  targetUrl?: string;
   requestId?: string;
 }
 

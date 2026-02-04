@@ -12,6 +12,7 @@ import {
 // Send DOM highlight commands to the preview highlight API. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 // Keep help text aligned with CLI-only highlight flags. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 // Extend CLI help to document bubble payload options. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+// Document target URL auto-navigation flags and matching rules for preview highlights. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
 const HELP_TEXT = `Hookcode Preview Highlight
 
 Usage:
@@ -21,6 +22,7 @@ Options:
   --task-group <id>   Task group id (env: HOOKCODE_TASK_GROUP_ID)
   --instance <name>   Preview instance name (env: HOOKCODE_PREVIEW_INSTANCE, default: app)
   --selector <css>    CSS selector to highlight
+  --target-url <url>  Optional preview URL/path (supports :param, *, **, ||) to navigate before highlighting
   --mode <mode>       Highlight mode: outline|mask
   --color <css>       Highlight color
   --padding <number>  Padding in px
@@ -58,6 +60,8 @@ async function main() {
   // Require highlight-specific inputs from CLI flags, not environment defaults. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const selector = args.selector;
   const modeRaw = args.mode;
+  // Allow highlight commands to supply a target URL for preview auto-navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const targetUrl = args['target-url'];
   const color = args.color;
   const paddingRaw = args.padding;
   const scrollRaw = args.scroll;
@@ -178,6 +182,7 @@ async function main() {
   }
 
   const payload = { selector };
+  if (targetUrl) payload.targetUrl = targetUrl;
   if (mode) payload.mode = mode;
   if (color) payload.color = color;
   if (padding !== undefined) payload.padding = padding;

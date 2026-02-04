@@ -148,9 +148,12 @@ export class TaskGroupPreviewController {
       scrollIntoView: body.scrollIntoView,
       // Forward optional bubble payload to the preview bridge. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
       bubble: body.bubble,
+      // Forward optional target URLs for preview auto-navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+      targetUrl: body.targetUrl,
       requestId: body.requestId
     });
-    return { success: true, requestId: result.requestId, subscribers: result.subscribers };
+    // Echo the target URL in the response so clients can reconcile navigation hints. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    return { success: true, requestId: result.requestId, subscribers: result.subscribers, targetUrl: body.targetUrl };
   }
 
   // Stream preview instance logs via SSE for live debugging. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as

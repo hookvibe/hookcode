@@ -16,6 +16,7 @@
 - Sync changes in `shared/preview-bridge.js` and update related skill documentation.
 - Add additional matching rules (text/attribute-style selectors) and describe them clearly in the skill introduction.
 - Prefer bubble placement on top/bottom with edge detection so tooltips do not clip off-screen.
+- Auto-navigate preview URLs based on highlight target URLs, with a lock toggle to keep the current page.
 
 ## Research Findings
 {/* Key discoveries during exploration */}
@@ -31,6 +32,7 @@
 | Use Vitest + JSDOM to eval the bridge script for selector fallback tests. | Provides DOM coverage without introducing a new test runner. |
 | Add text/attribute matcher rules (text:, attr:, data:, aria:, role:, testid:, loose attr syntax). | Extends highlight targeting without changing the API surface. |
 | Prefer vertical bubble placement with edge-aware flipping. | Prevents tooltips from rendering off-screen near the viewport edges. |
+| Auto-navigate preview URLs based on `targetUrl` with a lock toggle. | Aligns highlights to the intended route while preserving user control. |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -45,3 +47,11 @@
 
 ## Visual/Browser Findings
 - None.
+
+- New requirement: enhance targetUrl support with more complex route matching rules (beyond direct string match), impacting preview auto-navigation behavior and docs/tests.
+- Current preview auto-navigation compares normalized URLs by origin+pathname+hash after dropping token query param; enhance this matcher to handle complex route rules for targetUrl.
+- Current skill/protocol docs describe targetUrl as a plain URL/path; need to extend docs/examples for new matching rules once defined.
+- Backend DTO currently validates targetUrl as a plain string (max 500); expanding route matching should stay string-based unless we update validation and API docs.
+- CLI help and agent prompt mention targetUrl but not advanced matching; these docs need extension to describe new route match rules.
+- Skill and protocol docs currently describe targetUrl as a plain URL/path; update sections in SKILL.md and highlight-protocol.md to document new wildcard/param/OR matching rules.
+- Changelog already contains an entry for previewhighlightselector20260204; updated wording should mention advanced targetUrl route matching.

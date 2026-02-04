@@ -13,9 +13,11 @@ import {
   PlayCircleOutlined,
   ReloadOutlined,
   SendOutlined,
+  UnlockOutlined,
   UnorderedListOutlined
 } from '@ant-design/icons';
 import type {
+  PreviewHighlightCommand,
   PreviewHighlightEvent,
   PreviewInstanceSummary,
   PreviewLogEntry,
@@ -53,6 +55,7 @@ import { TimeWindowPicker } from '../components/TimeWindowPicker';
 import { formatTimeWindowLabel } from '../utils/timeWindow';
 import { formatRobotLabelWithProvider } from '../utils/robot';
 import { createAuthedEventSource } from '../utils/sse';
+import { matchPreviewTargetUrl, splitPreviewTargetUrlCandidates } from '../utils/previewRouteMatch';
 
 /**
  * TaskGroupChatPage:
@@ -135,6 +138,10 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [previewAddress, setPreviewAddress] = useState('');
   const [previewAddressInput, setPreviewAddressInput] = useState('');
   const [previewAddressEditing, setPreviewAddressEditing] = useState(false);
+  // Control automatic preview navigation triggered by highlight commands. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const [previewAutoNavigateLocked, setPreviewAutoNavigateLocked] = useState(false);
+  // Stash pending highlight commands until the preview bridge is ready after navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const pendingPreviewHighlightRef = useRef<PreviewHighlightCommand | null>(null);
   // Maintain draggable preview panel sizing state for Phase 3 layout updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewPanelWidth, setPreviewPanelWidth] = useState<number | null>(null);
   const [previewDragActive, setPreviewDragActive] = useState(false);
@@ -575,6 +582,25 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     [currentPreviewIframeSrc]
   );
 
+  const isPreviewUrlEquivalent = useCallback(
+    // Match preview URLs against targetUrl route rules before auto-navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    (currentUrl: string, targetUrl: string) => matchPreviewTargetUrl(currentUrl, targetUrl),
+    []
+  );
+
+  const resolvePreviewTargetUrl = useCallback((rawTargetUrl: string) => {
+    // Pick the primary navigation target when multiple targetUrl patterns are provided. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    const candidates = splitPreviewTargetUrlCandidates(rawTargetUrl);
+    return candidates[0] ?? rawTargetUrl;
+  }, []);
+
+  const applyPreviewNavigation = useCallback((nextUrl: string, options: { updateInput: boolean }) => {
+    // Update iframe src + address bar state so back/forward history includes auto-navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    setPreviewIframeOverrideSrc(nextUrl);
+    setPreviewAddress(nextUrl);
+    if (options.updateInput) setPreviewAddressInput(nextUrl);
+  }, []);
+
   const syncPreviewAddress = useCallback(() => {
     // Sync address bar state after iframe navigation events. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
     const frame = previewIframeRef.current;
@@ -601,13 +627,43 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       // Navigate the iframe to a user-entered address. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
       const nextUrl = normalizePreviewUrl(value ?? previewAddressInput);
       if (!nextUrl) return;
-      setPreviewIframeOverrideSrc(nextUrl);
-      setPreviewAddress(nextUrl);
-      setPreviewAddressInput(nextUrl);
+      applyPreviewNavigation(nextUrl, { updateInput: true });
       setPreviewAddressEditing(false);
     },
-    [normalizePreviewUrl, previewAddressInput]
+    [applyPreviewNavigation, normalizePreviewUrl, previewAddressInput]
   );
+
+  const maybeAutoNavigatePreview = useCallback(
+    (rawTargetUrl?: string) => {
+      // Auto-navigate previews when highlight commands include a target URL (unless locked). docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+      if (!rawTargetUrl || previewAutoNavigateLocked || previewAddressEditing) return { didNavigate: false };
+      const currentUrl = previewAddress || currentPreviewIframeSrc;
+      if (currentUrl && isPreviewUrlEquivalent(currentUrl, rawTargetUrl)) return { didNavigate: false };
+      const primaryTargetUrl = resolvePreviewTargetUrl(rawTargetUrl);
+      const nextUrl = normalizePreviewUrl(primaryTargetUrl);
+      if (!nextUrl) return { didNavigate: false };
+      applyPreviewNavigation(nextUrl, { updateInput: !previewAddressEditing });
+      return { didNavigate: true, url: nextUrl };
+    },
+    [
+      applyPreviewNavigation,
+      currentPreviewIframeSrc,
+      isPreviewUrlEquivalent,
+      normalizePreviewUrl,
+      previewAddress,
+      previewAddressEditing,
+      previewAutoNavigateLocked,
+      resolvePreviewTargetUrl
+    ]
+  );
+
+  const flushPendingHighlight = useCallback(() => {
+    // Send any pending highlight once the bridge becomes ready after navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    const pending = pendingPreviewHighlightRef.current;
+    if (!pending) return;
+    pendingPreviewHighlightRef.current = null;
+    postPreviewBridgeMessage({ type: 'hookcode:preview:highlight', ...pending });
+  }, [postPreviewBridgeMessage]);
 
   const handlePreviewBack = useCallback(() => {
     // Drive iframe history navigation from the toolbar. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
@@ -673,10 +729,11 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       if (!payload || payload.type !== 'hookcode:preview:pong') return;
       previewBridgeReadyRef.current = true;
       setPreviewBridgeReady(true);
+      flushPendingHighlight();
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [previewIframeOrigin]);
+  }, [flushPendingHighlight, previewIframeOrigin]);
 
   // Format preview log timestamps for the log viewer. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const formatPreviewLogTime = useCallback(
@@ -1080,14 +1137,18 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         const payload = JSON.parse(event.data || '{}') as PreviewHighlightEvent;
         if (!payload?.command || !payload.instanceName) return;
         if (activePreviewInstance?.name && payload.instanceName !== activePreviewInstance.name) return;
+        // Auto-navigate to the target URL before highlighting when allowed. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+        const navigation = maybeAutoNavigatePreview(payload.command.targetUrl);
+        if (navigation.didNavigate) {
+          pendingPreviewHighlightRef.current = payload.command;
+          return;
+        }
         if (!previewBridgeReadyRef.current) {
+          pendingPreviewHighlightRef.current = payload.command;
           postPreviewBridgeMessage({ type: 'hookcode:preview:ping' });
           return;
         }
-        postPreviewBridgeMessage({
-          type: 'hookcode:preview:highlight',
-          ...payload.command
-        });
+        postPreviewBridgeMessage({ type: 'hookcode:preview:highlight', ...payload.command });
       } catch (err) {
         console.error(err);
       }
@@ -1103,7 +1164,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       source.close();
       previewHighlightStreamRef.current = null;
     };
-  }, [activePreviewInstance?.name, postPreviewBridgeMessage, previewPanelOpen, taskGroupId]);
+  }, [activePreviewInstance?.name, maybeAutoNavigatePreview, postPreviewBridgeMessage, previewPanelOpen, taskGroupId]);
 
   useEffect(() => {
     void refreshRepos();
@@ -1785,6 +1846,15 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                     </Tooltip>
                     <Tooltip title={t('preview.action.copyLink')}>
                       <Button size="small" icon={<CopyOutlined />} disabled={!currentPreviewIframeSrc} onClick={handleCopyPreviewLink} />
+                    </Tooltip>
+                    {/* Toggle preview auto-navigation lock to keep the current URL stable. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
+                    <Tooltip title={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}>
+                      <Button
+                        size="small"
+                        icon={previewAutoNavigateLocked ? <LockOutlined /> : <UnlockOutlined />}
+                        aria-label={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}
+                        onClick={() => setPreviewAutoNavigateLocked((prev) => !prev)}
+                      />
                     </Tooltip>
                   </div>
                 </div>

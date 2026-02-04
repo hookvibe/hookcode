@@ -46,12 +46,16 @@ export interface PreviewHighlightCommand {
   mode?: PreviewHighlightMode;
   bubble?: PreviewHighlightBubble;
   label?: string;
+  // Allow highlight commands to request preview auto-navigation via target URLs. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  targetUrl?: string;
 }
 
 export interface PreviewHighlightEvent {
   id: string;
   command?: PreviewHighlightCommand;
   createdAt: string;
+  // Include instance names from preview SSE payloads for routing highlights. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  instanceName?: string;
 }
 
 // Shape repo preview config responses for the repo detail dashboard. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as

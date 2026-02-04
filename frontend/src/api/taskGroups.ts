@@ -59,13 +59,13 @@ export const setTaskGroupPreviewVisibility = async (id: string, visible: boolean
   return data;
 };
 
-// Send highlight commands to the preview iframe bridge via the backend API. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+// Send highlight commands (with optional target URLs) to the preview iframe bridge via the backend API. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
 export const sendTaskGroupPreviewHighlight = async (
   id: string,
   instanceName: string,
   command: PreviewHighlightCommand
-): Promise<{ success: boolean; requestId: string; subscribers: number }> => {
-  const { data } = await api.post<{ success: boolean; requestId: string; subscribers: number }>(
+): Promise<{ success: boolean; requestId: string; subscribers: number; targetUrl?: string }> => {
+  const { data } = await api.post<{ success: boolean; requestId: string; subscribers: number; targetUrl?: string }>(
     `/task-groups/${id}/preview/${instanceName}/highlight`,
     command
   );

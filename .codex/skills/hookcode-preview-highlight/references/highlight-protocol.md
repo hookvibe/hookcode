@@ -15,6 +15,13 @@ Send a DOM highlight command to the preview iframe bridge for a specific task gr
   - `role:<value>` / `testid:<value>` (role or data-testid shorthand).
   - Loose attribute syntax like `data-testid=cta` is also accepted.
 <!-- Document selector matcher rules for bridge resolution. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+- `targetUrl` (string, optional): preview URL or path to navigate before highlighting; supports route matching rules like `:param`, `*`, `**`, query/hash wildcards, and `||` alternatives, and the preview UI may auto-navigate unless auto-navigation is locked.
+<!-- Document target URL route matching behavior for preview highlights. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+  - `:param` matches a single path segment; `*` matches within a segment; `**` matches across segments.
+  - Query matching only enforces params you declare (e.g. `?tab` or `?tab=*`).
+  - Hash matching accepts wildcards such as `#section-*`.
+  - `||` provides alternate acceptable routes; the first entry is used for navigation when needed.
+<!-- Detail targetUrl route matching rules in protocol docs. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
 - `padding` (number, optional): Padding in px around the element (0-64, default 4).
 - `color` (string, optional): CSS color value for the outline/mask (max length 40).
 - `mode` (`outline` | `mask`, optional): Highlight style (default `outline`).
@@ -39,6 +46,8 @@ Send a DOM highlight command to the preview iframe bridge for a specific task gr
 - `success` (boolean): Whether the command was published.
 - `requestId` (string): Request id used by the backend.
 - `subscribers` (number): Number of live SSE subscribers receiving the command.
+- `targetUrl` (string, optional): Echo of the requested target URL (useful for debugging).
+<!-- Document target URL echo in highlight responses. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
 
 ### Common errors
 - `404 Preview instance not found`: invalid task group or instance name.

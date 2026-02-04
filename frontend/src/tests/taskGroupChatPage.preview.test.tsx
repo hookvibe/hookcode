@@ -1,7 +1,7 @@
 // Split TaskGroupChatPage preview tests into a dedicated spec file. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderTaskGroupChatPage, setupTaskGroupChatMocks } from './taskGroupChatPageTestUtils';
 import * as api from '../api';
@@ -159,6 +159,71 @@ describe('TaskGroupChatPage preview', () => {
         'http://127.0.0.1:12345'
       )
     );
+  });
+
+  test('auto-navigates previews when highlight commands include target URLs', async () => {
+    // Ensure preview highlight commands can drive iframe navigation when targetUrl is provided. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+    });
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    const iframe = await screen.findByTitle('frontend');
+    expect(iframe).toHaveAttribute('src', 'http://127.0.0.1:12345/');
+
+    const sources = (globalThis as any).__eventSourceInstances ?? [];
+    const highlightSource = sources.find((source: any) =>
+      decodeURIComponent(String(source.url)).includes('preview-highlight:g1')
+    );
+    expect(highlightSource).toBeTruthy();
+    highlightSource.emit('preview.highlight', {
+      data: JSON.stringify({
+        taskGroupId: 'g1',
+        instanceName: 'frontend',
+        command: {
+          selector: '.btn',
+          targetUrl: '/add'
+        },
+        issuedAt: '2026-02-04T00:00:00.000Z'
+      })
+    });
+
+    await waitFor(() => expect(iframe).toHaveAttribute('src', 'http://127.0.0.1:12345/add'));
+  });
+
+  test('respects the auto-navigation lock for highlight target URLs', async () => {
+    // Lock the preview URL so highlight target URLs do not override the current page. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+    });
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    const iframe = await screen.findByTitle('frontend');
+    const lockButton = await screen.findByLabelText('Lock auto navigation');
+    fireEvent.click(lockButton);
+
+    const sources = (globalThis as any).__eventSourceInstances ?? [];
+    const highlightSource = sources.find((source: any) =>
+      decodeURIComponent(String(source.url)).includes('preview-highlight:g1')
+    );
+    expect(highlightSource).toBeTruthy();
+    highlightSource.emit('preview.highlight', {
+      data: JSON.stringify({
+        taskGroupId: 'g1',
+        instanceName: 'frontend',
+        command: {
+          selector: '.btn',
+          targetUrl: '/add'
+        },
+        issuedAt: '2026-02-04T00:00:00.000Z'
+      })
+    });
+
+    await waitFor(() => expect(iframe).toHaveAttribute('src', 'http://127.0.0.1:12345/'));
   });
 
   test('renders diagnostics when preview startup fails', async () => {
