@@ -125,4 +125,27 @@ describe('repoAutomation config 校验', () => {
 
     expect(() => validateAutomationConfigOrThrow(config)).not.toThrow();
   });
+
+  // Accept null timeWindow values to represent "no limit" scheduling rules. docs/en/developer/plans/automation-disable-20260204/task_plan.md automation-disable-20260204
+  test('accepts null rule.timeWindow values', () => {
+    const config: RepoAutomationConfig = {
+      version: 2,
+      events: {
+        issue: {
+          enabled: true,
+          rules: [
+            {
+              id: 'rule-1',
+              name: 'rule 1',
+              enabled: true,
+              timeWindow: null as any,
+              actions: [{ id: 'act-1', robotId: 'rb-1', enabled: true }]
+            }
+          ]
+        }
+      }
+    };
+
+    expect(() => validateAutomationConfigOrThrow(config)).not.toThrow();
+  });
 });
