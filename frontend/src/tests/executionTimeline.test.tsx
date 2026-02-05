@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ExecutionTimeline } from '../components/execution/ExecutionTimeline';
 import { setLocale } from '../i18n';
 import type { ExecutionItem } from '../utils/executionLog';
@@ -12,7 +13,9 @@ describe('ExecutionTimeline', () => {
     setLocale('en-US');
   });
 
-  test('renders dialog rows with work areas for commands and file changes', () => {
+  test('renders dialog rows with work areas for commands and file changes', async () => {
+    // Use user events to expand the new collapsible sections. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    const ui = userEvent.setup();
     // Validate work-area sections render inline without expand/collapse controls. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
     const items: ExecutionItem[] = [
       {
@@ -34,12 +37,15 @@ describe('ExecutionTimeline', () => {
 
     const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
 
-    expect(container.querySelector('.hc-exec-dialog')).toBeTruthy();
+    // Match updated execution timeline layout classes after the style refresh. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    expect(container.querySelector('.chat-stream')).toBeTruthy();
     expect(screen.getAllByText(/echo hi/)).toHaveLength(1);
-    expect(screen.getByText('Command output')).toBeInTheDocument();
+    const outputToggle = screen.getByRole('button', { name: 'Command output' });
+    await ui.click(outputToggle);
     expect(screen.getByText('hi')).toBeInTheDocument();
-    expect(screen.getAllByText('Files').length).toBeGreaterThan(0);
-    expect(screen.getByText('Diffs')).toBeInTheDocument();
+    expect(screen.getByText('/tmp/a.txt')).toBeInTheDocument();
+    const diffToggle = screen.getByRole('button', { name: 'Diffs' });
+    await ui.click(diffToggle);
     expect(screen.getByText('diff --git a/a.txt b/a.txt')).toBeInTheDocument();
   });
 
@@ -55,7 +61,8 @@ describe('ExecutionTimeline', () => {
     ];
 
     const { container, rerender } = render(<ExecutionTimeline items={reasoningOnly} showReasoning={false} wrapDiffLines showLineNumbers />);
-    expect(container.querySelector('.hc-exec-empty')).toBeTruthy();
+    // Keep empty-state selector aligned with the new chat timeline layout. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    expect(container.querySelector('.chat-empty')).toBeTruthy();
 
     const withVisible: ExecutionItem[] = [
       ...reasoningOnly,
@@ -72,7 +79,7 @@ describe('ExecutionTimeline', () => {
     expect(() =>
       rerender(<ExecutionTimeline items={withVisible} showReasoning={false} wrapDiffLines showLineNumbers />)
     ).not.toThrow();
-    expect(container.querySelector('.hc-exec-dialog')).toBeTruthy();
+    expect(container.querySelector('.chat-stream')).toBeTruthy();
   });
 
   test('renders todo_list items with completion markers', () => {
@@ -93,7 +100,8 @@ describe('ExecutionTimeline', () => {
 
     expect(screen.getByText('First task')).toBeInTheDocument();
     expect(screen.getByText('Second task')).toBeInTheDocument();
-    expect(container.querySelector('.hc-exec-dialog__todo-item.is-complete')).toBeTruthy();
+    // Verify the updated todo item class names in the refreshed execution UI. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    expect(container.querySelector('.chat-todo__item.is-complete')).toBeTruthy();
   });
 
   test('shows a running indicator when any item is in progress', () => {
@@ -110,7 +118,8 @@ describe('ExecutionTimeline', () => {
 
     const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
 
-    const running = container.querySelector('.hc-exec-running');
+    // Assert running indicator with the new chat-running class. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    const running = container.querySelector('.chat-running');
     expect(running).toBeTruthy();
     if (running) {
       expect(within(running).getByText('Running')).toBeInTheDocument();

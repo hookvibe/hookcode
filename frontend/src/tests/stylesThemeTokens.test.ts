@@ -15,11 +15,12 @@ describe('styles tokens', () => {
     const cssText = readFileSync(resolve(process.cwd(), 'src/styles/tokens.css'), 'utf8');
     const darkBlock = extractDarkThemeBlock(cssText);
 
-    expect(darkBlock).toContain('--bg: #09090b;');
-    expect(darkBlock).toContain('--hc-panel-bg: #18181b;');
-    expect(darkBlock).toContain('--hc-control-bg: #18181b;');
+    // Align dark theme token assertions with the latest neutral palette. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    expect(darkBlock).toContain('--bg: #0a0a0a;');
+    expect(darkBlock).toContain('--hc-panel-bg: #171717;');
+    expect(darkBlock).toContain('--hc-control-bg: #171717;');
     expect(darkBlock).toContain('color-scheme: dark;');
-    expect(darkBlock).toContain('--hc-scrollbar-track: rgba(244, 244, 245, 0.08);');
+    expect(darkBlock).toContain('--hc-scrollbar-track: transparent;');
     expect(darkBlock).not.toContain('#0b1020');
     expect(darkBlock).not.toContain('#0f172a');
   });

@@ -58,8 +58,6 @@ export const enUSChat = {
   // Add auto-navigation lock labels for preview URL syncing. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
   'preview.browser.lockAutoNav': 'Lock auto navigation',
   'preview.browser.unlockAutoNav': 'Unlock auto navigation',
-  'preview.browser.lockAutoNav': 'Lock auto navigation',
-  'preview.browser.unlockAutoNav': 'Unlock auto navigation',
   'preview.logs.open': 'View logs',
   'preview.logs.title': 'Preview logs',
   'preview.logs.loading': 'Loading logs…',

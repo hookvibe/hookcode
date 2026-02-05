@@ -58,8 +58,6 @@ export const zhCNChat = {
   // Add auto-navigation lock labels for preview URL syncing. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
   'preview.browser.lockAutoNav': '锁定自动跳转',
   'preview.browser.unlockAutoNav': '解除自动跳转锁定',
-  'preview.browser.lockAutoNav': '锁定自动跳转',
-  'preview.browser.unlockAutoNav': '解除自动跳转锁定',
   'preview.logs.open': '查看日志',
   'preview.logs.title': '预览日志',
   'preview.logs.loading': '正在加载日志…',

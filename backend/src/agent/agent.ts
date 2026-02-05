@@ -99,8 +99,15 @@ const resolveBuildRoot = (): string => {
 // Resolve the build root deterministically to prevent preview workspace mismatches. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 // Export agent workspace root for shared git operations. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 export const BUILD_ROOT = resolveBuildRoot();
+const resolveTaskGroupWorkspaceRoot = (buildRoot: string): string => {
+  // Allow overriding the task-group root relative to the build root. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
+  const raw = (process.env.HOOKCODE_TASK_GROUPS_ROOT ?? '').trim();
+  if (!raw) return path.join(buildRoot, 'task-groups');
+  if (path.isAbsolute(raw)) return raw;
+  return path.join(buildRoot, raw);
+};
 // Centralize task-group workspace root so each group maps to a single checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
-export const TASK_GROUP_WORKSPACE_ROOT = path.join(BUILD_ROOT, 'task-groups');
+export const TASK_GROUP_WORKSPACE_ROOT = resolveTaskGroupWorkspaceRoot(BUILD_ROOT);
 const MAX_LOG_LINES = 1000;
 
 let taskService: TaskService;
@@ -1655,12 +1662,9 @@ exit 0
       : isGeminiCliProvider
         ? 'gemini-output.txt'
         : 'codex-output.txt';
-    // Store provider outputs under a task-scoped directory outside the repo to avoid git pollution. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
-    const outputSelection = buildTaskOutputFilePath({ taskId: task.id, fileName: outputLastMessageFileName, repoDir });
+    // Store provider outputs in the task-group root to keep artifacts alongside the group workspace. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
+    const outputSelection = buildTaskOutputFilePath({ taskGroupDir, fileName: outputLastMessageFileName });
     const outputLastMessageFile = outputSelection.filePath;
-    if (outputSelection.selection.source === 'repo-conflict') {
-      await appendLog('Configured task output dir points inside the repo; falling back to safe default output root.');
-    }
     await mkdir(outputSelection.dir, { recursive: true });
     await rm(outputLastMessageFile, { force: true });
 

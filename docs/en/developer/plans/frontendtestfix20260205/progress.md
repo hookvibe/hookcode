@@ -1,126 +1,84 @@
 # Progress Log
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
-{/* Keep phase status updates in sync with task_plan.md for this session. codexoutputdir20260124 */}
+{/* Keep phase status updates in sync with task_plan.md for this session. frontendtestfix20260205 */}
 
 ## Session Metadata
-- **Session Title:** Relocate Codex output directory
-- **Session Hash:** codexoutputdir20260124
+- **Session Title:** Fix frontend test failures
+- **Session Hash:** frontendtestfix20260205
 
 ## Session: 2026-02-05
-### Phase 1: Requirements & Discovery
-- **Status:** complete
-- Actions taken:
-  - Reviewed current task output path utility and task-group workspace roots.
-  - Confirmed `HOOKCODE_TASK_OUTPUT_DIR` references for removal.
-- Files created/modified:
-  - docs/en/developer/plans/codexoutputdir20260124/task_plan.md
-  - docs/en/developer/plans/codexoutputdir20260124/findings.md
-
-### Phase 2: Planning & Structure
-- **Status:** complete
-- Actions taken:
-  - Chose task-group root for provider output artifacts.
-- Files created/modified:
-  - docs/en/developer/plans/codexoutputdir20260124/task_plan.md
-  - docs/en/developer/plans/codexoutputdir20260124/findings.md
-
-### Phase 3: Implementation
-- **Status:** complete
-- Actions taken:
-  - Updated provider output path builder to use task-group root.
-  - Added task-group root override via HOOKCODE_TASK_GROUPS_ROOT in agent workspace resolution.
-  - Removed HOOKCODE_TASK_OUTPUT_DIR from backend env example.
-  - Updated unit tests for task-group output paths and task-group root overrides.
-- Files created/modified:
-  - backend/src/utils/taskOutputPath.ts
-  - backend/src/agent/agent.ts
-  - backend/src/tests/unit/taskOutputPath.test.ts
-  - backend/src/tests/unit/buildRootResolution.test.ts
-  - backend/.env.example
-
-### Phase 4: Testing & Verification
-- **Status:** complete
-- Actions taken:
-  - Ran full test suite and backend build.
-- Files created/modified:
-  - None
-
-### Phase 5: Delivery
-- **Status:** complete
-- Actions taken:
-  - Updated changelog entry for this session.
-
-## Session: 2026-01-24
 {/* WHAT: The date of this work session. WHY: Helps track when work happened, useful for resuming after time gaps. EXAMPLE: 2026-01-15 */}
+<!-- Log progress for frontend test fix phases. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 -->
 
 ### Phase 1: Requirements & Discovery
 {/* WHAT: Detailed log of actions taken during this phase. WHY: Provides context for what was done, making it easier to resume or debug. WHEN: Update as you work through the phase, or at least when you complete it. */}
 - **Status:** complete
-- **Started:** 2026-01-24 11:20
+- **Started:** 2026-02-05 10:40
+- **Completed:** 2026-02-05 11:15
 {/* STATUS: Same as task_plan.md (pending, in_progress, complete) TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00") */}
 - Actions taken:
   {/* WHAT: List of specific actions you performed. EXAMPLE: - Created todo.py with basic structure - Implemented add functionality - Fixed FileNotFoundError */}
-  - Located current provider output file handling in `backend/src/agent/agent.ts` and `backend/src/modelProviders/*`.
-  - Captured requirements and constraints in plan + findings docs.
+  - Reviewed failing frontend tests and modern sidebar markup to confirm expected selectors.
+  - Logged style-token and sidebar refresh findings for test alignment.
 - Files created/modified:
   {/* WHAT: Which files you created or changed. WHY: Quick reference for what was touched. Helps with debugging and review. EXAMPLE: - todo.py (created) - todos.json (created by app) - task_plan.md (updated) */}
-  - docs/en/developer/plans/codexoutputdir20260124/task_plan.md
-  - docs/en/developer/plans/codexoutputdir20260124/findings.md
+  - docs/en/developer/plans/frontendtestfix20260205/findings.md
+  - docs/en/developer/plans/frontendtestfix20260205/task_plan.md
 
 ### Phase 2: Planning & Structure
 {/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
 - **Status:** complete
 - Actions taken:
-  - Defined output-root strategy (env override + default) and task-id directory mapping.
+  - Confirmed tests should follow the modern sidebar and updated style baseline.
+  - Planned selector updates and remount refresh coverage for sidebar counts.
 - Files created/modified:
-  - docs/en/developer/plans/codexoutputdir20260124/task_plan.md
-  - docs/en/developer/plans/codexoutputdir20260124/findings.md
+  - docs/en/developer/plans/frontendtestfix20260205/task_plan.md
 
 ### Phase 3: Implementation
+{/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
 - **Status:** complete
-- **Started:** 2026-01-24 11:35
 - Actions taken:
-  - Added task output path utility and integrated it into agent execution flow.
-  - Updated outputText documentation and backend env example.
-  - Added unit tests for output path resolution.
+  - Updated frontend tests to use modern sidebar/nav classes and refreshed theme tokens.
+  - Adjusted sidebar remount test to use stable count assertions and snapshot mocks.
 - Files created/modified:
-  - backend/src/utils/taskOutputPath.ts
-  - backend/src/agent/agent.ts
-  - backend/src/types/task.ts
-  - backend/.env.example
-  - backend/src/tests/unit/taskOutputPath.test.ts
+  - frontend/src/tests/stylesThemeTokens.test.ts
+  - frontend/src/tests/executionTimeline.test.tsx
+  - frontend/src/tests/userPanelPopover.test.tsx
+  - frontend/src/tests/taskDetailPage.test.tsx
+  - frontend/src/tests/appShell.test.tsx
 
 ### Phase 4: Testing & Verification
+{/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
 - **Status:** complete
-- **Started:** 2026-01-24 11:45
 - Actions taken:
-  - Ran backend unit test for task output path resolution.
+  - Ran targeted AppShell tests and full frontend test suite after fixes.
+  - Recorded test results and verified no remaining failures.
 - Files created/modified:
-  - None
+  - docs/en/developer/plans/frontendtestfix20260205/progress.md
 
 ### Phase 5: Delivery
+{/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
 - **Status:** complete
-- **Started:** 2026-01-24 11:50
 - Actions taken:
-  - Updated changelog and prepared final response.
+  - Updated the changelog with the session entry for frontend test fixes.
 - Files created/modified:
   - docs/en/change-log/0.0.0.md
 
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
+<!-- Record frontend test runs for this session. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 -->
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-| backend unit tests | `pnpm -C backend test -- --runTestsByPath src/tests/unit/taskOutputPath.test.ts` | Pass | Pass | ✅ |
-| full test suite | `pnpm test` | Pass | Pass (Jest warning: worker process did not exit cleanly) | ✅ |
-| backend build | `pnpm --filter hookcode-backend build` | Pass | Pass | ✅ |
+| AppShell tests | pnpm --filter hookcode-frontend test -- --run src/tests/appShell.test.tsx | All AppShell tests pass | 25 tests passed | ✓ |
+| Frontend test suite | pnpm --filter hookcode-frontend test | All frontend tests pass | 27 files, 139 tests passed | ✓ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
 {/* Keep ALL errors - they help avoid repetition */}
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-|           |       | 1       |            |
+| 2026-02-05 12:17 | Sidebar remount test still showed queued count 5 after mock update. | 1 | Switched to mockResolvedValue so all post-remount calls used the new snapshot. |
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}
@@ -128,10 +86,10 @@
 | Question | Answer |
 |----------|--------|
 | Where am I? | Phase 5 (Delivery) |
-| Where am I going? | Changelog update + final response |
-| What's the goal? | Move provider output artifacts outside repo with task-id scoping. |
+| Where am I going? | Wrap up deliverables and changelog update |
+| What's the goal? | Fix frontend test failures by aligning tests with the latest styles and behavior |
 | What have I learned? | See findings.md |
-| What have I done? | See above |
+| What have I done? | Updated frontend tests and verified full test suite passes |
 
 ---
 {/* REMINDER: - Update after completing each phase or encountering errors - Be detailed - this is your "what happened" log - Include timestamps for errors to track when issues occurred */}

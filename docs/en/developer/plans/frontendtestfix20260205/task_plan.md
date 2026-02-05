@@ -1,76 +1,82 @@
-# Task Plan: Relocate Codex output directory
+# Task Plan: Fix frontend test failures
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
-{/* Track code changes with this session hash for traceability. codexoutputdir20260124 */}
+{/* Track code changes with this session hash for traceability. frontendtestfix20260205 */}
 
 ## Session Metadata
 {/* WHAT: Stable identifiers for traceability (code comments ↔ plan folder). WHY: Makes it easy to find the plan that explains a change. */}
-- **Session Hash:** codexoutputdir20260124
-- **Created:** 2026-01-24
+- **Session Hash:** frontendtestfix20260205
+- **Created:** 2026-02-05
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Route provider output artifacts (codex/claude/gemini) into each task-group root under `backend/src/agent/build/task-groups`, removing `HOOKCODE_TASK_OUTPUT_DIR` configuration.
+Fix frontend test failures by aligning tests and components with the latest intended styles, while keeping behavior correct and documented.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-Complete
+Phase 5 (Complete)
 
 ## Phases
+<!-- Update phase statuses after completing test fixes. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 -->
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
 
 ### Phase 1: Requirements & Discovery
 {/* WHAT: Understand what needs to be done and gather initial information. WHY: Starting without understanding leads to wasted effort. This phase prevents that. */}
-- [x] Understand user intent
-- [x] Identify constraints and requirements
+- [x] Understand user intent and failing test scope
+- [x] Identify style-related vs logic-related failures
 - [x] Document findings in findings.md
 - **Status:** complete
 {/* STATUS VALUES: - pending: Not started yet - in_progress: Currently working on this - complete: Finished this phase */}
 
 ### Phase 2: Planning & Structure
 {/* WHAT: Decide how you'll approach the problem and what structure you'll use. WHY: Good planning prevents rework. Document decisions so you remember why you chose them. */}
-- [x] Define technical approach
+- [x] Define fix approach per failing test category
+- [x] Identify files to update (tests, components, styles)
 - [x] Document decisions with rationale
 - **Status:** complete
 
 ### Phase 3: Implementation
 {/* WHAT: Actually build/create/write the solution. WHY: This is where the work happens. Break into smaller sub-tasks if needed. */}
-- [x] Update task output path to use task-group root
-- [x] Add task-group root override and adjust docs/tests
-- [x] Update tests and run full suite
+- [x] Update components/styles and tests to match new design
+- [x] Add required inline traceability comments for changes
+- [x] Run targeted tests as fixes land
 - **Status:** complete
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Verify everything works and meets requirements. WHY: Catching issues early saves time. Document test results in progress.md. */}
-- [x] Verify all requirements met
+- [x] Run full frontend test suite after fixes
 - [x] Document test results in progress.md
-- [x] Fix any issues found
+- [x] Fix any remaining failures
 - **Status:** complete
 
 ### Phase 5: Delivery
 {/* WHAT: Final review and handoff to user. WHY: Ensures nothing is forgotten and deliverables are complete. */}
 - [x] Review all output files
 - [x] Ensure deliverables are complete
-- [x] Update changelog entry
+- [x] Deliver to user
 - **Status:** complete
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
-1. Where should provider output files live now that task groups are standardized? → Under the task-group root at `backend/src/agent/build/task-groups/<taskGroupId>/`.
-2. Which config/doc references to `HOOKCODE_TASK_OUTPUT_DIR` need removal? → `backend/.env.example`, `backend/src/utils/taskOutputPath.ts`, unit tests, and changelog entry.
+1. Which frontend test files are failing and why?
+2. Are failures caused by style updates or logic regressions?
+3. What is the intended "new style" baseline for snapshots/selectors?
 
 ## Decisions Made
+<!-- Record decisions for aligning tests with modern sidebar behavior. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 -->
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
 | Decision | Rationale |
 |----------|-----------|
-| Place provider output files directly in each task-group root under `backend/src/agent/build/task-groups` and remove `HOOKCODE_TASK_OUTPUT_DIR`. | Task groups are already isolated; keeping outputs there avoids repo pollution without extra config. |
-| Add `HOOKCODE_TASK_GROUPS_ROOT` (relative to `HOOKCODE_BUILD_ROOT` unless absolute). | Enables a stable task-group root override without hardcoded absolute paths. |
+| Assert sidebar queued count by text instead of span selector. | Avoid icon markup causing selector mismatch in modern sidebar. |
+| Use mockResolvedValue for sidebar refresh snapshot. | Prevent in-flight polling calls from consuming the updated mock once. |
 
 ## Errors Encountered
+<!-- Log errors encountered while fixing frontend tests. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 -->
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-|       | 1       |            |
+| Frontend test run timed out at 10s while Vitest was executing. | 1 | Re-run with a higher timeout to capture full failure details. |
+| Sidebar remount test still showed queued count 5 after mock update. | 1 | Use mockResolvedValue to apply the new snapshot to subsequent calls. |
 
 ## Notes
 {/* REMINDERS: - Update phase status as you progress: pending → in_progress → complete - Re-read this plan before major decisions (attention manipulation) - Log ALL errors - they help avoid repetition - Never repeat a failed action - mutate your approach instead */}

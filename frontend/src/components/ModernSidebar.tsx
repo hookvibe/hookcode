@@ -309,18 +309,18 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
                     >
                         <span className="hc-nav-icon" style={{ fontSize: 14 }}>{section.icon}</span>
                         <div style={{ overflow: 'hidden', textAlign: 'left' }}>
-                            <div className="hc-nav-label" style={{ fontSize: 13 }}>{clampText(getTaskSidebarPrimaryText(t, task), 24)}</div>
+                            <div className="hc-nav-label">{clampText(getTaskSidebarPrimaryText(t, task), 24)}</div>
                             <div className="hc-nav-label" style={{ fontSize: 11, opacity: 0.6 }}>{clampText(getTaskSidebarSecondaryText(task), 24)}</div>
                         </div>
                     </button>
                 ))}
                 {count > 3 && (
                     <button 
-                        className="hc-nav-item"
-                        style={{ paddingLeft: 44, fontSize: 12, opacity: 0.8 }}
+                        className="hc-nav-item hc-nav-view-all"
                         onClick={() => navigate(buildTasksHash({ status: section.statusFilter }))}
+                        title={t('sidebar.tasks.viewAll')}
                     >
-                        {t('sidebar.tasks.viewAll')} <RightOutlined style={{ fontSize: 10, marginLeft: 4 }} />
+                        {t('sidebar.tasks.viewAll')}
                     </button>
                 )}
             </div>

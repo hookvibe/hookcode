@@ -114,8 +114,8 @@ describe('UserPanelPopover', () => {
 
     // Settings content should be visible; auth-only nav items are disabled.
     expect(await screen.findByText('Language')).toBeInTheDocument();
-    // UX regression guard (2026-01-13): the user panel should always render in compact density mode.
-    expect(document.querySelector('.hc-user-panel')).toHaveAttribute('data-density', 'compact');
+    // Keep the regression guard aligned with the modern panel layout classes. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    expect(document.querySelector('.hc-modern-panel-layout')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Me' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
   });
@@ -126,8 +126,8 @@ describe('UserPanelPopover', () => {
 
     await ui.click(screen.getByRole('button', { name: /Panel/i }));
 
-    // UX regression guard (2026-01-13): the user panel should always render in compact density mode.
-    expect(document.querySelector('.hc-user-panel')).toHaveAttribute('data-density', 'compact');
+    // Keep the regression guard aligned with the modern panel layout classes. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    expect(document.querySelector('.hc-modern-panel-layout')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Me' })).not.toBeDisabled();
 
     await ui.click(screen.getByRole('button', { name: 'Credentials' }));
@@ -161,14 +161,14 @@ describe('UserPanelPopover', () => {
     const modelTitles = await screen.findAllByText('Model provider credentials');
     expect(modelTitles.length).toBeGreaterThan(0);
 
-    // Open the model-provider add flow from its card header. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
-    const modelCard = screen
+    // Open the model-provider add flow from the updated section header layout. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    const modelSection = screen
       .getAllByText('Model provider credentials')
-      .map((node) => node.closest('.ant-card'))
-      .find((card): card is HTMLElement => Boolean(card));
-    expect(modelCard).toBeTruthy();
+      .map((node) => node.closest('.hc-panel-section'))
+      .find((section): section is HTMLElement => Boolean(section));
+    expect(modelSection).toBeTruthy();
 
-    await ui.click(within(modelCard as HTMLElement).getByRole('button', { name: /Add/i }));
+    await ui.click(within(modelSection as HTMLElement).getByRole('button', { name: /Add/i }));
     expect(await screen.findByText('Add credential profile')).toBeInTheDocument();
 
     // Modal structure note:

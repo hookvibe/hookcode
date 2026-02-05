@@ -118,7 +118,8 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
 
     await waitFor(() => expect(api.fetchTask).toHaveBeenCalled());
     await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
-    expect(await screen.findByText('Task t1', { selector: '.hc-page__title' })).toBeInTheDocument();
+    // Align header title selector with the updated PageNav markup. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    expect(await screen.findByText('Task t1', { selector: '.hc-modern-nav__title' })).toBeInTheDocument();
 
     // Regression: ensure the full-width task summary strip still surfaces key fields for quick scanning. tdlayout20260117k8p3
     const strip = document.querySelector('.hc-task-summary-strip');
