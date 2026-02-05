@@ -2,7 +2,7 @@
 export {};
 
 import { mkdtemp, rm } from 'fs/promises';
-import { tmpdir } from 'os';
+import { homedir, tmpdir } from 'os';
 import path from 'path';
 
 describe('BUILD_ROOT resolution', () => {
@@ -35,6 +35,31 @@ describe('BUILD_ROOT resolution', () => {
     jest.resetModules();
     const agent = await import('../../agent/agent');
     expect(agent.TASK_GROUP_WORKSPACE_ROOT).toBe(path.join(dir, 'custom-task-groups'));
+
+    if (originalBuildRoot === undefined) {
+      delete process.env.HOOKCODE_BUILD_ROOT;
+    } else {
+      process.env.HOOKCODE_BUILD_ROOT = originalBuildRoot;
+    }
+    if (originalTaskGroupsRoot === undefined) {
+      delete process.env.HOOKCODE_TASK_GROUPS_ROOT;
+    } else {
+      process.env.HOOKCODE_TASK_GROUPS_ROOT = originalTaskGroupsRoot;
+    }
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('expands tilde in task-group root overrides', async () => {
+    // Validate "~" expansion so task-group roots can point to the user home directory. docs/en/developer/plans/codexoutputdirfix20260205/task_plan.md codexoutputdirfix20260205
+    const dir = await mkdtemp(path.join(tmpdir(), 'hookcode-build-'));
+    const originalBuildRoot = process.env.HOOKCODE_BUILD_ROOT;
+    const originalTaskGroupsRoot = process.env.HOOKCODE_TASK_GROUPS_ROOT;
+    process.env.HOOKCODE_BUILD_ROOT = dir;
+    process.env.HOOKCODE_TASK_GROUPS_ROOT = '~/.hookcode/task-groups';
+
+    jest.resetModules();
+    const agent = await import('../../agent/agent');
+    expect(agent.TASK_GROUP_WORKSPACE_ROOT).toBe(path.join(homedir(), '.hookcode', 'task-groups'));
 
     if (originalBuildRoot === undefined) {
       delete process.env.HOOKCODE_BUILD_ROOT;

@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { mkdir, rm, writeFile, stat, readFile, chmod, rename, copyFile, cp, readdir } from 'fs/promises';
+import { homedir } from 'os';
 import path from 'path';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import type { Task, TaskGitStatusSnapshot, TaskGitStatusWorkingTree, TaskResult } from '../types/task';
@@ -103,8 +104,10 @@ const resolveTaskGroupWorkspaceRoot = (buildRoot: string): string => {
   // Allow overriding the task-group root relative to the build root. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
   const raw = (process.env.HOOKCODE_TASK_GROUPS_ROOT ?? '').trim();
   if (!raw) return path.join(buildRoot, 'task-groups');
-  if (path.isAbsolute(raw)) return raw;
-  return path.join(buildRoot, raw);
+  // Expand "~" to the current user home before absolute/relative resolution. docs/en/developer/plans/codexoutputdirfix20260205/task_plan.md codexoutputdirfix20260205
+  const expanded = raw === '~' ? homedir() : raw.startsWith('~/') || raw.startsWith('~\\') ? path.join(homedir(), raw.slice(2)) : raw;
+  if (path.isAbsolute(expanded)) return expanded;
+  return path.join(buildRoot, expanded);
 };
 // Centralize task-group workspace root so each group maps to a single checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
 export const TASK_GROUP_WORKSPACE_ROOT = resolveTaskGroupWorkspaceRoot(BUILD_ROOT);
@@ -484,18 +487,6 @@ export const buildTaskGroupAgentsContent = (params: { envFileContents: string; r
     '',
     'If a skill requires HookCode API access, use the following .env configuration:',
     'Use a long-lived PAT (no expiry preferred) for this workspace.',
-    '',
-    '## Planning with Files',
-    '',
-    '<IMPORTANT>',
-    'MANDATORY: Must use planning-with-files skill for all tasks:',
-    '1. First scan the session directory ( Current directory ) to check if planning files exist',
-    '2. If files exist: Continue working with existing task_plan.md, findings.md, progress.md',
-    '3. If files do not exist:',
-    '   a. Read skill: `.codex/skills/planning-with-files/SKILL.md`',
-    '   b. Create task_plan.md, findings.md, progress.md in the session directory',
-    '4. Follow 3-file pattern throughout the task',
-    '</IMPORTANT>',
     '',
     '## Web Project Modifications',
     '',
