@@ -1758,58 +1758,96 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               <span className="hc-preview-divider-handle" aria-hidden="true" />
             </div>
             <aside className="hc-preview-panel" style={previewPanelStyle}>
-              {/* Render multi-instance preview tabs with logs/share controls. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+              {/* Refactor preview header to a more modern, browser-like compact layout. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
               <div className="hc-preview-header">
-                <div className="hc-preview-header-main">
-                  {/* Add window controls to reinforce the embedded browser chrome. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
-                  <div className="hc-preview-header-title">
-                    <div className="hc-preview-window-controls" aria-hidden="true">
-                      <span className="hc-preview-window-dot hc-preview-window-dot--close" />
-                      <span className="hc-preview-window-dot hc-preview-window-dot--minimize" />
-                      <span className="hc-preview-window-dot hc-preview-window-dot--zoom" />
-                    </div>
-                    <Typography.Text strong>{t('preview.panel.title')}</Typography.Text>
+                {/* Row 1: Instance tabs and status. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
+                <div className="hc-preview-header-top">
+                  <div className="hc-preview-tabs">
+                    {previewInstances.length > 0 ? (
+                      previewInstances.map((instance) => (
+                        <button
+                          key={instance.name}
+                          type="button"
+                          className={`hc-preview-tab${instance.name === activePreviewName ? ' hc-preview-tab--active' : ''}`}
+                          onClick={() => setActivePreviewName(instance.name)}
+                        >
+                          <span
+                            className={`hc-preview-status-dot hc-preview-status-dot--${instance.status}`}
+                            aria-hidden="true"
+                          />
+                          <span className="hc-preview-tab-name">{instance.name}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="hc-preview-tab hc-preview-tab--active">
+                        <span
+                          className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
+                          aria-hidden="true"
+                        />
+                        <span className="hc-preview-tab-name">{t('preview.panel.title')}</span>
+                      </div>
+                    )}
                   </div>
-                  <Space size={6}>
-                    <span
-                      className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
-                      aria-hidden="true"
-                    />
-                    <Typography.Text type="secondary">{previewAggregateStatusLabel}</Typography.Text>
-                  </Space>
+                  <div className="hc-preview-header-actions">
+                    <Tooltip title={t('preview.logs.open')}>
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<FileTextOutlined />}
+                        disabled={!activePreviewInstance}
+                        onClick={() => setPreviewLogsOpen(true)}
+                      />
+                    </Tooltip>
+                    <Tooltip title={t('preview.action.openWindow')}>
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<ExportOutlined />}
+                        disabled={!currentPreviewIframeSrc}
+                        onClick={handleOpenPreviewWindow}
+                      />
+                    </Tooltip>
+                    <Tooltip title={t('preview.action.copyLink')}>
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<CopyOutlined />}
+                        disabled={!currentPreviewIframeSrc}
+                        onClick={handleCopyPreviewLink}
+                      />
+                    </Tooltip>
+                  </div>
                 </div>
-                {/* Align the preview toolbar and instance labels for a tighter header layout. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */}
+
+                {/* Row 2: Navigation and Address Bar. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
                 <div className="hc-preview-header-toolbar">
                   <div className="hc-preview-header-nav">
-                    <Tooltip title={t('preview.browser.back')}>
-                      <Button
-                        size="small"
-                        icon={<ArrowLeftOutlined />}
-                        aria-label={t('preview.browser.back')}
-                        disabled={!currentPreviewIframeSrc}
-                        onClick={handlePreviewBack}
-                      />
-                    </Tooltip>
-                    <Tooltip title={t('preview.browser.forward')}>
-                      <Button
-                        size="small"
-                        icon={<ArrowRightOutlined />}
-                        aria-label={t('preview.browser.forward')}
-                        disabled={!currentPreviewIframeSrc}
-                        onClick={handlePreviewForward}
-                      />
-                    </Tooltip>
-                    <Tooltip title={t('preview.browser.refresh')}>
-                      <Button
-                        size="small"
-                        icon={<ReloadOutlined />}
-                        aria-label={t('preview.browser.refresh')}
-                        disabled={!currentPreviewIframeSrc}
-                        onClick={handlePreviewReload}
-                      />
-                    </Tooltip>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<ArrowLeftOutlined />}
+                      aria-label={t('preview.browser.back')}
+                      disabled={!currentPreviewIframeSrc}
+                      onClick={handlePreviewBack}
+                    />
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<ArrowRightOutlined />}
+                      aria-label={t('preview.browser.forward')}
+                      disabled={!currentPreviewIframeSrc}
+                      onClick={handlePreviewForward}
+                    />
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<ReloadOutlined />}
+                      aria-label={t('preview.browser.refresh')}
+                      disabled={!currentPreviewIframeSrc}
+                      onClick={handlePreviewReload}
+                    />
                   </div>
-                  {/* Add a security/globe prefix to the address bar for browser-like affordance. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
+
                   <Input
                     size="small"
                     className="hc-preview-header-browser-input"
@@ -1826,6 +1864,19 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                         {previewAddressMeta.isSecure ? <LockOutlined /> : <GlobalOutlined />}
                       </span>
                     }
+                    suffix={
+                      /* Toggle preview auto-navigation lock inside the address bar as a suffix action. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
+                      <Tooltip title={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}>
+                        <Button
+                          size="small"
+                          type="text"
+                          className="hc-preview-header-browser-lock"
+                          icon={previewAutoNavigateLocked ? <LockOutlined /> : <UnlockOutlined />}
+                          aria-label={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}
+                          onClick={() => setPreviewAutoNavigateLocked((prev) => !prev)}
+                        />
+                      </Tooltip>
+                    }
                     title={previewAddressInput || previewAddress}
                     disabled={!currentPreviewIframeSrc}
                     onChange={(event) => setPreviewAddressInput(event.target.value)}
@@ -1836,57 +1887,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                     }}
                     onPressEnter={() => handlePreviewNavigate()}
                   />
-                  <span className="hc-preview-header-toolbar-divider" aria-hidden="true" />
-                  <div className="hc-preview-header-actions">
-                    <Tooltip title={t('preview.logs.open')}>
-                      <Button
-                        size="small"
-                        icon={<FileTextOutlined />}
-                        disabled={!activePreviewInstance}
-                        onClick={() => setPreviewLogsOpen(true)}
-                      />
-                    </Tooltip>
-                    <Tooltip title={t('preview.action.openWindow')}>
-                      <Button
-                        size="small"
-                        icon={<ExportOutlined />}
-                        disabled={!currentPreviewIframeSrc}
-                        onClick={handleOpenPreviewWindow}
-                      />
-                    </Tooltip>
-                    <Tooltip title={t('preview.action.copyLink')}>
-                      <Button size="small" icon={<CopyOutlined />} disabled={!currentPreviewIframeSrc} onClick={handleCopyPreviewLink} />
-                    </Tooltip>
-                    {/* Toggle preview auto-navigation lock to keep the current URL stable. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
-                    <Tooltip title={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}>
-                      <Button
-                        size="small"
-                        icon={previewAutoNavigateLocked ? <LockOutlined /> : <UnlockOutlined />}
-                        aria-label={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}
-                        onClick={() => setPreviewAutoNavigateLocked((prev) => !prev)}
-                      />
-                    </Tooltip>
-                  </div>
                 </div>
-                {/* Keep preview instance tabs beneath the address bar for compactness. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */}
-                {previewInstances.length > 0 && (
-                  <div className="hc-preview-tabs">
-                    {previewInstances.map((instance) => (
-                      <button
-                        key={instance.name}
-                        type="button"
-                        className={`hc-preview-tab${instance.name === activePreviewName ? ' hc-preview-tab--active' : ''}`}
-                        onClick={() => setActivePreviewName(instance.name)}
-                      >
-                        <span
-                          className={`hc-preview-status-dot hc-preview-status-dot--${instance.status}`}
-                          aria-hidden="true"
-                        />
-                        <span className="hc-preview-tab-name">{instance.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
               <div className="hc-preview-body">
                 {activePreviewStatus === 'running' && previewIframeSrc ? (
