@@ -206,6 +206,31 @@
   flex: 1;
 }
 
+/* Lay out task-group labels with a preview-active dot in the modern sidebar. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */
+.hc-nav-group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hc-nav-group-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-nav-preview-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--hc-sider-bg);
+  flex-shrink: 0;
+}
+
 .hc-modern-sidebar--collapsed .hc-nav-label {
   display: none;
 }

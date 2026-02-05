@@ -45,11 +45,15 @@ export const fetchTaskGroupPreviewStatus = async (id: string): Promise<PreviewSt
 
 export const startTaskGroupPreview = async (id: string): Promise<{ success: boolean; instances: PreviewInstanceSummary[] }> => {
   const { data } = await api.post<{ success: boolean; instances: PreviewInstanceSummary[] }>(`/task-groups/${id}/preview/start`);
+  // Refresh task-group sidebar caches so preview-active dots update promptly. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+  invalidateTaskCaches();
   return data;
 };
 
 export const stopTaskGroupPreview = async (id: string): Promise<{ success: boolean }> => {
   const { data } = await api.post<{ success: boolean }>(`/task-groups/${id}/preview/stop`);
+  // Refresh task-group sidebar caches so preview-active dots clear promptly. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+  invalidateTaskCaches();
   return data;
 };
 

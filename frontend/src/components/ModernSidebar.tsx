@@ -411,22 +411,26 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
                    </button>
                )}
                
-               {!siderCollapsed && taskGroups.map(g => (
-                   <button
-                    key={g.id}
-                    className={`hc-nav-item ${activeGroupKey === g.id ? 'hc-nav-item--active' : ''}`}
-                    onClick={() => navigate(buildTaskGroupHash(g.id))}
-                    title={g.title || g.id}
-                   >
-                       <span className="hc-nav-icon">
-                           {g.kind === 'chat' ? <MessageOutlined /> : 
-                            g.kind === 'issue' ? <BugOutlined /> :
-                            g.kind === 'merge_request' ? <PullRequestOutlined /> :
-                            g.kind === 'commit' ? <CodeOutlined /> : <FileTextOutlined />}
-                       </span>
-                       <span className="hc-nav-label">{clampText(g.title || g.id, 28)}</span>
-                   </button>
-               ))}
+                {!siderCollapsed && taskGroups.map(g => (
+                    <button
+                     key={g.id}
+                     className={`hc-nav-item ${activeGroupKey === g.id ? 'hc-nav-item--active' : ''}`}
+                     onClick={() => navigate(buildTaskGroupHash(g.id))}
+                     title={g.title || g.id}
+                    >
+                        <span className="hc-nav-icon">
+                            {g.kind === 'chat' ? <MessageOutlined /> : 
+                             g.kind === 'issue' ? <BugOutlined /> :
+                             g.kind === 'merge_request' ? <PullRequestOutlined /> :
+                             g.kind === 'commit' ? <CodeOutlined /> : <FileTextOutlined />}
+                        </span>
+                        <span className="hc-nav-group-label">
+                          <span className="hc-nav-group-text">{clampText(g.title || g.id, 28)}</span>
+                          {/* Show a preview-active dot on task group rows in the modern sidebar. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */}
+                          {g.previewActive ? <span className="hc-nav-preview-dot" aria-hidden="true" /> : null}
+                        </span>
+                    </button>
+                ))}
           </div>
 
       </div>

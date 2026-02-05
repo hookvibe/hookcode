@@ -16,6 +16,9 @@ TaskGroup Preview lets you run your frontend dev server during a task so you can
 Open a TaskGroup, then use the **Start preview** toggle in the chat header. The preview panel opens automatically while the preview is starting or running, and closes when you stop the preview.
 <!-- Explain the merged preview start and panel open behavior in the TaskGroup header. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
 
+Task group entries in the left sidebar show a small dot when previews are active.
+<!-- Highlight the sidebar preview-active dot for running task groups. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 -->
+
 ## Preview access modes
 
 ### Local development (direct port)
@@ -68,6 +71,8 @@ When the preview iframe loads, HookCode sends a handshake ping. If the bridge re
 ## Idle timeout and hot reload
 
 - Preview sessions stop automatically after **30 minutes of inactivity** (preview traffic or log streams count as activity).
+- Hidden previews stop automatically after **30 minutes** (for example, if the tab is hidden or you leave the TaskGroup page), and their ports are reclaimed.
+<!-- Document the hidden preview auto-stop behavior and port reclaim. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 -->
 - Editing `.hookcode.yml` restarts running previews automatically after a short debounce window.
 
 ## Workspace layout

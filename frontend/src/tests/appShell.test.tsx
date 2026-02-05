@@ -263,8 +263,8 @@ describe('AppShell (frontend-chat migration)', () => {
     expect(groupItem?.querySelector('.hc-nav-icon')).toBeTruthy();
   });
 
-  test('does not render preview dots for running task groups in the modern sidebar', async () => {
-    // Modern sidebar removes preview dots; keep the test aligned with the new baseline. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+  test('renders preview dots for running task groups in the modern sidebar', async () => {
+    // Show preview-active dots on task-group rows in the modern sidebar. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
     const fetchDashboardSidebarMock = vi.mocked(api.fetchDashboardSidebar);
     fetchDashboardSidebarMock.mockResolvedValue({
       // Include paused counts to keep stats shape aligned. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
@@ -286,8 +286,7 @@ describe('AppShell (frontend-chat migration)', () => {
     renderApp();
 
     const label = await screen.findByText('Group 1');
-    // Preview dots are no longer rendered in the modern sidebar layout. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
-    expect(document.querySelector('.hc-sider-preview-dot')).toBeNull();
+    expect(document.querySelector('.hc-nav-preview-dot')).toBeTruthy();
     expect(label).toBeInTheDocument();
   });
 

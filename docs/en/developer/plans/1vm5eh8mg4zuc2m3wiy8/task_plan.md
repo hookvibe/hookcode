@@ -10,7 +10,7 @@
 Improve TaskGroup preview UX by (1) defaulting preview to half-width on wide screens and a compact top panel on mobile with open-in-new-page actions, (2) adding a composer actions popover with preview start + auto-start after dependency installs, and (3) showing preview-active indicators + hidden 30-minute auto-stop/port reclaim.
 
 ## Current Phase
-Phase 5
+Phase 5 (complete)
 
 ## Phases
 
@@ -29,10 +29,12 @@ Phase 5
 ### Phase 3: Implementation
 - [x] Implement preview panel layout (wide half-width + mobile top panel with open actions)
 - [x] Add composer actions popover with preview start + auto-start after dependency installs
-- [x] Add preview-active indicator in sidebar task group list
-- [x] Add backend detection to stop preview after 30 minutes hidden + port reclaim
+- [x] Add preview-active indicator in modern sidebar task group list
+- [x] Validate preview hidden reporting and 30-minute auto-stop/port reclaim wiring
 - [x] Reposition preview instance tabs beneath the address bar and refine toolbar layout
 - [x] Add/adjust tests
+- [x] Ensure preview-active dots refresh immediately after preview start/stop
+- [x] Start hidden-timeout tracking when previews run without UI visibility reports
 - **Status:** complete
 
 ### Phase 4: Testing & Verification
@@ -58,6 +60,7 @@ Phase 5
 | Decision | Rationale |
 |----------|-----------|
 | Decorate task-group list/sidebar payloads with `previewActive` from PreviewService. | Avoid extra frontend polling while keeping sidebar dots accurate. |
+| Render the preview-active dot inside modern sidebar task group rows. | Keeps the indicator visible without reverting the refreshed sidebar layout. |
 | Add `/task-groups/:id/preview/visibility` endpoint + frontend visibility reporting. | Backend owns the 30-minute hidden timeout and port cleanup. |
 | Use responsive CSS + stored width ratio for preview panel sizing. | Keep wide screens at 50% while allowing mobile to float a compact top panel. |
 | Reuse the preview start modal for composer actions and auto-start after dependency installs. | Keeps preview controls consistent and reduces duplicate logic. |
@@ -66,4 +69,4 @@ Phase 5
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-|       | 1       |            |
+| rg: unrecognized flag --accent | 1 | Re-ran with `rg -n -- \"--accent\"` to avoid flag parsing. |

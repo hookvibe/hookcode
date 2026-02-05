@@ -325,6 +325,8 @@ export class PreviewService implements OnModuleDestroy {
     };
     this.groups.set(taskGroupId, runtime);
     this.ensureConfigWatcher(taskGroupId, runtime.configPath);
+    // Start the hidden-timeout timer until the UI reports visibility. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    this.scheduleHiddenStop(taskGroupId, runtime);
 
     return {
       available: true,

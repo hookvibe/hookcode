@@ -1041,13 +1041,23 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       report(document.visibilityState === 'visible');
     };
 
+    const handleHidden = () => {
+      report(false);
+    };
+
     handleVisibility();
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', handleVisibility);
+    window.addEventListener('pageshow', handleVisibility);
+    window.addEventListener('blur', handleHidden);
+    window.addEventListener('pagehide', handleHidden);
     return () => {
       disposed = true;
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleVisibility);
+      window.removeEventListener('pageshow', handleVisibility);
+      window.removeEventListener('blur', handleHidden);
+      window.removeEventListener('pagehide', handleHidden);
       report(false);
     };
   }, [previewPanelOpen, taskGroupId]);
