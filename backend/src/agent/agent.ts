@@ -295,13 +295,13 @@ const readCodexOutputSchema = async (params: {
   }
 };
 
-const resolveAgentExampleCodexDir = (): string | null => {
-  // Locate the bundled .codex template from the agent example workspace. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+const resolveAgentExampleTemplateDir = (templateName: string): string | null => {
+  // Locate the bundled agent template directory (.codex/.claude/.gemini) for task-group seeding. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
   const cwd = process.cwd();
   const candidates = [
-    path.join(cwd, 'backend', 'src', 'agent', 'example', '.codex'),
-    path.join(cwd, 'src', 'agent', 'example', '.codex'),
-    path.join(__dirname, 'example', '.codex')
+    path.join(cwd, 'backend', 'src', 'agent', 'example', templateName),
+    path.join(cwd, 'src', 'agent', 'example', templateName),
+    path.join(__dirname, 'example', templateName)
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
@@ -309,18 +309,39 @@ const resolveAgentExampleCodexDir = (): string | null => {
   return null;
 };
 
-const ensureTaskGroupCodexDir = async (taskGroupDir: string): Promise<void> => {
-  // Seed task-group .codex folders from the example template when available. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-  const destination = path.join(taskGroupDir, '.codex');
+const ensureTaskGroupTemplateDir = async (params: {
+  taskGroupDir: string;
+  templateName: string;
+  requiredSubdirs?: string[];
+}): Promise<void> => {
+  // Seed task-group template folders from the example workspace when available. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  const destination = path.join(params.taskGroupDir, params.templateName);
   if (!existsSync(destination)) {
-    const template = resolveAgentExampleCodexDir();
+    const template = resolveAgentExampleTemplateDir(params.templateName);
     if (template) {
       await cp(template, destination, { recursive: true });
     } else {
       await mkdir(destination, { recursive: true });
     }
   }
-  await mkdir(path.join(destination, 'skills'), { recursive: true });
+  for (const subdir of params.requiredSubdirs ?? []) {
+    await mkdir(path.join(destination, subdir), { recursive: true });
+  }
+};
+
+const ensureTaskGroupCodexDir = async (taskGroupDir: string): Promise<void> => {
+  // Seed task-group .codex folders for Codex runs using the shared template helper. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  await ensureTaskGroupTemplateDir({ taskGroupDir, templateName: '.codex', requiredSubdirs: ['skills'] });
+};
+
+const ensureTaskGroupClaudeDir = async (taskGroupDir: string): Promise<void> => {
+  // Seed task-group .claude folders for Claude Code runs. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  await ensureTaskGroupTemplateDir({ taskGroupDir, templateName: '.claude', requiredSubdirs: ['skills'] });
+};
+
+const ensureTaskGroupGeminiDir = async (taskGroupDir: string): Promise<void> => {
+  // Seed task-group .gemini folders for Gemini CLI runs. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  await ensureTaskGroupTemplateDir({ taskGroupDir, templateName: '.gemini', requiredSubdirs: ['skills'] });
 };
 
 const writeFileIfChanged = async (filePath: string, contents: string): Promise<void> => {
@@ -365,6 +386,10 @@ export const __test__resolveTaskGroupApiBaseUrl = resolveTaskGroupApiBaseUrl;
 // Expose codex-schema defaults/parsing for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
 export const __test__buildCodexSchemaContents = buildCodexSchemaContents;
 export const __test__readCodexOutputSchema = readCodexOutputSchema;
+// Expose template directory seeding for unit coverage of provider workspace setup. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+export const __test__ensureTaskGroupTemplateDir = ensureTaskGroupTemplateDir;
+// Expose workspace prompt prefix builder for unit coverage. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+export const __test__buildTaskGroupWorkspacePromptPrefix = buildTaskGroupWorkspacePromptPrefix;
 
 const parseEnvContent = (content: string): Record<string, string> => {
   // Parse simple KEY=VALUE env content to reuse PATs when present. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
@@ -473,15 +498,16 @@ export const buildTaskGroupEnvFileContents = (params: { apiBaseUrl: string; pat:
   ].join('\n');
 };
 
-export const buildTaskGroupAgentsContent = (params: { envFileContents: string; repoFolderName: string }): string => {
-  // Provide a fixed task-group AGENTS template and embed the .env content verbatim. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+const buildTaskGroupAgentGuidanceContent = (params: { envFileContents: string; repoFolderName: string }): string => {
+  // Provide guidance that sets the task-group root as cwd while scoping edits to the repo folder. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
   const repoFolder = safeTrim(params.repoFolderName) || 'repo';
   const repoLabel = `<<${repoFolder}>>`;
   // Add target URL guidance with route matching rules for auto-navigating previews. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
   return [
     '# Task Group Workspace Rules',
     '',
-    `Your working directory is the git-cloned repository folder named ${repoLabel} for this task group.`,
+    'Your working directory is the task-group root for this task.',
+    `The git-cloned repository lives in the folder named ${repoLabel} under the task-group root.`,
     `Operate only inside the git-cloned repository folder ${repoLabel} for this task group.`,
     `Do not modify files outside ${repoLabel} up to the task-group root.`,
     '',
@@ -509,6 +535,35 @@ export const buildTaskGroupAgentsContent = (params: { envFileContents: string; r
   ].join('\n');
 };
 
+function buildTaskGroupWorkspacePromptPrefix(params: { taskGroupDir: string; repoFolderName: string }): string {
+  // Surface task-group cwd and repo folder expectations in the provider prompt. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  const repoFolder = safeTrim(params.repoFolderName) || 'repo';
+  const workspaceRoot = safeTrim(params.taskGroupDir) || '<task-group-root>';
+  return [
+    'TASK GROUP WORKSPACE CONTEXT',
+    `Workspace root (cwd): ${workspaceRoot}`,
+    `Repository folder: ${repoFolder}`,
+    'Always treat the workspace root as the current working directory.',
+    `When accessing repo files, include the repository folder in paths (for example, "${repoFolder}/README.md").`,
+    ''
+  ].join('\n');
+}
+
+export const buildTaskGroupAgentsContent = (params: { envFileContents: string; repoFolderName: string }): string => {
+  // Build AGENTS.md guidance for Codex task-group workspaces. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  return buildTaskGroupAgentGuidanceContent(params);
+};
+
+export const buildTaskGroupClaudeContent = (params: { envFileContents: string; repoFolderName: string }): string => {
+  // Build CLAUDE.md guidance for Claude Code task-group workspaces. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  return buildTaskGroupAgentGuidanceContent(params);
+};
+
+export const buildTaskGroupGeminiContent = (params: { envFileContents: string; repoFolderName: string }): string => {
+  // Build GEMINI.md guidance for Gemini CLI task-group workspaces. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  return buildTaskGroupAgentGuidanceContent(params);
+};
+
 const ensureTaskGroupLayout = async (params: {
   taskGroupDir: string;
   taskGroupId: string;
@@ -516,7 +571,10 @@ const ensureTaskGroupLayout = async (params: {
 }): Promise<void> => {
   // Initialize the task-group root with required placeholders and env/agent templates. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
   await mkdir(params.taskGroupDir, { recursive: true });
+  // Ensure template directories are present for Codex, Claude Code, and Gemini CLI execution. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
   await ensureTaskGroupCodexDir(params.taskGroupDir);
+  await ensureTaskGroupClaudeDir(params.taskGroupDir);
+  await ensureTaskGroupGeminiDir(params.taskGroupDir);
   // Seed codex-schema.json with the default structured output schema used by Codex runs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
   await ensurePlaceholderFile(path.join(params.taskGroupDir, 'codex-schema.json'), buildCodexSchemaContents());
   const existingEnv = await readEnvFileValues(path.join(params.taskGroupDir, '.env'));
@@ -530,7 +588,18 @@ const ensureTaskGroupLayout = async (params: {
     envFileContents: envContents,
     repoFolderName: params.repoFolderName
   });
-  await writeFileIfChanged(path.join(params.taskGroupDir, 'AGENTS.override.md'), agentsContents);
+  await writeFileIfChanged(path.join(params.taskGroupDir, 'AGENTS.md'), agentsContents);
+  // Mirror task-group guidance into Claude/Gemini instruction files for their CLIs. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  const claudeContents = buildTaskGroupClaudeContent({
+    envFileContents: envContents,
+    repoFolderName: params.repoFolderName
+  });
+  await writeFileIfChanged(path.join(params.taskGroupDir, 'CLAUDE.md'), claudeContents);
+  const geminiContents = buildTaskGroupGeminiContent({
+    envFileContents: envContents,
+    repoFolderName: params.repoFolderName
+  });
+  await writeFileIfChanged(path.join(params.taskGroupDir, 'GEMINI.md'), geminiContents);
   await syncTaskGroupSkillEnvFiles({ taskGroupDir: params.taskGroupDir, envContents });
 };
 
@@ -1624,6 +1693,16 @@ exit 0
       }
     }
 
+    // Resolve provider selection before building prompts to allow provider-specific context. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+    const modelProvider = safeTrim(execution.robot.modelProvider).toLowerCase() || CODEX_PROVIDER_KEY;
+    const isCodexProvider = modelProvider === CODEX_PROVIDER_KEY;
+    const isClaudeCodeProvider = modelProvider === CLAUDE_CODE_PROVIDER_KEY;
+    const isGeminiCliProvider = modelProvider === GEMINI_CLI_PROVIDER_KEY;
+    if (!isCodexProvider && !isClaudeCodeProvider && !isGeminiCliProvider) {
+      await appendLog(`Unsupported model provider: ${modelProvider}`);
+      throw new Error(`unsupported model provider: ${modelProvider}`);
+    }
+
     // Build prompt based on robot type.
     const promptCtx = await buildPrompt({
       task,
@@ -1636,17 +1715,13 @@ exit 0
       github: execution.github
     });
     const promptFile = path.join(repoDir, '.codex_prompt.txt');
-    await writeFile(promptFile, promptCtx.body, 'utf8');
+    // Prepend workspace-root guidance for Claude Code so cwd expectations are explicit. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+    const promptBody = isClaudeCodeProvider
+      ? `${buildTaskGroupWorkspacePromptPrefix({ taskGroupDir, repoFolderName })}${promptCtx.body}`
+      : promptCtx.body;
+    await writeFile(promptFile, promptBody, 'utf8');
 
     // Run the selected model provider (default: codex).
-    const modelProvider = safeTrim(execution.robot.modelProvider).toLowerCase() || CODEX_PROVIDER_KEY;
-    const isCodexProvider = modelProvider === CODEX_PROVIDER_KEY;
-    const isClaudeCodeProvider = modelProvider === CLAUDE_CODE_PROVIDER_KEY;
-    const isGeminiCliProvider = modelProvider === GEMINI_CLI_PROVIDER_KEY;
-    if (!isCodexProvider && !isClaudeCodeProvider && !isGeminiCliProvider) {
-      await appendLog(`Unsupported model provider: ${modelProvider}`);
-      throw new Error(`unsupported model provider: ${modelProvider}`);
-    }
 
     const outputLastMessageFileName = isClaudeCodeProvider
       ? 'claude-output.txt'

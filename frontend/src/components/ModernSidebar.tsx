@@ -89,6 +89,7 @@ export interface ModernSidebarProps {
   onCloseMobileNav?: () => void;
 }
 
+// Fix sidebar abnormal behavior in collapsed state (header alignment, padding, nesting). docs/en/developer/plans/sidebar-collapsed-fix-20260205/task_plan.md sidebar-collapsed-fix-20260205
 export const ModernSidebar: FC<ModernSidebarProps> = ({
   route,
   className,
@@ -270,24 +271,10 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
     const expanded = taskSectionExpanded[sectionKey];
     const isActive = activeTasksStatus === section.statusFilter;
 
-    return (
-      <div className="hc-sidebar-section" key={sectionKey}>
-        {!siderCollapsed && (
-             <div className="hc-task-status-row">
-                 <button 
-                    className="hc-task-status-toggle"
-                    onClick={() => setTaskSectionExpanded(p => ({...p, [sectionKey]: !p[sectionKey]}))}
-                 >
-                     <span style={{ fontSize: 10 }}>{expanded ? <CaretDownOutlined /> : <CaretRightOutlined />}</span>
-                     <span>{t(section.labelKey)}</span>
-                     <span style={{ fontSize: 11, opacity: 0.6 }}>{count}</span>
-                 </button>
-             </div>
-        )}
-        
-        {/* Collapsed Mode: Icon only */}
-        {siderCollapsed && (
+    if (siderCollapsed) {
+        return (
             <button 
+                key={sectionKey}
                 className={`hc-nav-item ${isActive ? 'hc-nav-item--active' : ''}`}
                 title={t(section.labelKey)}
                 onClick={() => navigate(buildTasksHash({ status: section.statusFilter }))}
@@ -295,10 +282,24 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
                 <span className="hc-nav-icon">{section.icon}</span>
                 <span className="hc-nav-badge">{count}</span>
             </button>
-        )}
+        );
+    }
 
+    return (
+      <div className="hc-sidebar-section" key={sectionKey}>
+         <div className="hc-task-status-row">
+             <button 
+                className="hc-task-status-toggle"
+                onClick={() => setTaskSectionExpanded(p => ({...p, [sectionKey]: !p[sectionKey]}))}
+             >
+                 <span style={{ fontSize: 10 }}>{expanded ? <CaretDownOutlined /> : <CaretRightOutlined />}</span>
+                 <span>{t(section.labelKey)}</span>
+                 <span style={{ fontSize: 11, opacity: 0.6 }}>{count}</span>
+             </button>
+         </div>
+        
         {/* Expanded Items */}
-        {!siderCollapsed && expanded && (
+        {expanded && (
             <div className="hc-sidebar-section-items">
                 {items.map(task => (
                     <button
@@ -346,7 +347,7 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
       </div>
 
       {/* Primary Action */}
-      <div style={{ padding: '0 12px' }}>
+      <div className="hc-sidebar-action-area">
           <button 
             className="hc-sidebar-primary-action"
             onClick={() => navigate(buildHomeHash())}
@@ -388,9 +389,9 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
 
           {/* Section: Task Groups */}
           <div className="hc-sidebar-section">
-               <div className="hc-task-status-row" style={{ padding: '0 12px', marginBottom: 4 }}>
-                   <div className="hc-sidebar-section-title" style={{ margin: 0, padding: 0 }}>{t('sidebar.section.taskGroups')}</div>
-                   {!siderCollapsed && (
+               {!siderCollapsed && (
+                   <div className="hc-task-status-row" style={{ padding: '0 12px', marginBottom: 4 }}>
+                       <div className="hc-sidebar-section-title" style={{ margin: 0, padding: 0 }}>{t('sidebar.section.taskGroups')}</div>
                        <button 
                         className="hc-sidebar-toggle" 
                         style={{ width: 'auto', padding: 4 }}
@@ -399,8 +400,8 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
                        >
                            <UnorderedListOutlined />
                        </button>
-                   )}
-               </div>
+                   </div>
+               )}
                {siderCollapsed && (
                    <button 
                     className={`hc-nav-item ${taskGroupsListActive ? 'hc-nav-item--active' : ''}`}

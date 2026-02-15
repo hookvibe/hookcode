@@ -83,12 +83,16 @@ Task runs create a workspace under the build root (configurable via `HOOKCODE_BU
 - `<build-root>/task-groups/<taskGroupId>/`
   <!-- Mention that bundled skills include per-skill .env copies for API access. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
   - `.codex/skills/` (bundled skills with per-skill .env copies)
+  <!-- Document Claude/Gemini template folders in the task-group workspace. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205 -->
+  - `.claude/skills/` (bundled Claude Code skills)
+  - `.gemini/skills/` (bundled Gemini CLI skills)
   - `.env` (task-group API base URL + PAT + task group id)
   - `<repo-name>/` (cloned repository)
   - `codex-output.txt` / `claude-output.txt` / `gemini-output.txt`
   <!-- Note codex-schema.json now drives structured output + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
   - `codex-schema.json` (Codex TurnOptions output schema for structured output + next-action suggestions)
-  - `AGENTS.md` (task-group rules + embedded .env config)
+  <!-- Note provider-specific instruction files alongside AGENTS.md. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205 -->
+  - `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` (task-group rules + embedded .env config)
 
 Model commands run from the task-group root, so repo-relative paths live under `<repo-name>/`.
 

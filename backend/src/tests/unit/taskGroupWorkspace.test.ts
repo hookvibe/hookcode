@@ -3,14 +3,18 @@ export {};
 
 import path from 'path';
 import os from 'os';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'fs/promises';
 // Include task-group env resolution helpers for workspace coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
 import {
   buildTaskGroupAgentsContent,
+  buildTaskGroupClaudeContent,
   buildTaskGroupEnvFileContents,
+  buildTaskGroupGeminiContent,
   buildTaskGroupRootDir,
   buildTaskGroupWorkspaceDir,
   __test__buildCodexSchemaContents,
+  __test__buildTaskGroupWorkspacePromptPrefix,
+  __test__ensureTaskGroupTemplateDir,
   __test__ensureTaskGroupPat,
   __test__readCodexOutputSchema,
   __test__resolveTaskGroupApiBaseUrl,
@@ -40,19 +44,27 @@ describe('buildTaskGroupWorkspaceDir', () => {
     expect(envContents).toContain('HOOKCODE_TASK_GROUP_ID=group-123');
   });
 
-  test('embeds env contents verbatim in task-group AGENTS template', () => {
-    const envContents = buildTaskGroupEnvFileContents({
-      apiBaseUrl: 'http://localhost:4000',
-      pat: 'hcpat_test',
-      taskGroupId: 'group-123'
-    });
-    const agentsContents = buildTaskGroupAgentsContent({ envFileContents: envContents, repoFolderName: 'repo' });
+  // Share guidance template builders for AGENTS/CLAUDE/GEMINI coverage. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  const guidanceTemplateBuilders = [
+    { label: 'AGENTS', builder: buildTaskGroupAgentsContent },
+    { label: 'CLAUDE', builder: buildTaskGroupClaudeContent },
+    { label: 'GEMINI', builder: buildTaskGroupGeminiContent }
+  ];
 
-    // Keep AGENTS templates aligned with the generated .env content. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-    expect(agentsContents).toContain(envContents);
-    expect(agentsContents).toContain('Operate only inside the git-cloned repository folder');
-    expect(agentsContents).toContain('<<repo>>');
-    expect(agentsContents).toContain('## Planning with Files');
+  guidanceTemplateBuilders.forEach(({ label, builder }) => {
+    test(`embeds env contents verbatim in task-group ${label} template`, () => {
+      const envContents = buildTaskGroupEnvFileContents({
+        apiBaseUrl: 'http://localhost:4000',
+        pat: 'hcpat_test',
+        taskGroupId: 'group-123'
+      });
+      const templateContents = builder({ envFileContents: envContents, repoFolderName: 'repo' });
+
+      // Validate AGENTS/CLAUDE/GEMINI templates embed env content and repo guidance. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+      expect(templateContents).toContain(envContents);
+      expect(templateContents).toContain('Operate only inside the git-cloned repository folder');
+      expect(templateContents).toContain('<<repo>>');
+    });
   });
 
   test('uses task group id when available', () => {
@@ -77,6 +89,39 @@ describe('buildTaskGroupWorkspaceDir', () => {
 
     // Maintain deterministic fallback paths when task group ids are unavailable. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
     expect(result).toBe(path.join(TASK_GROUP_WORKSPACE_ROOT, 'task-789', 'repo'));
+  });
+});
+
+describe('task-group workspace prompt prefix', () => {
+  test('includes workspace root and repo folder guidance', () => {
+    const prefix = __test__buildTaskGroupWorkspacePromptPrefix({
+      taskGroupDir: '/tmp/task-groups/tg-123',
+      repoFolderName: 'demo-repo'
+    });
+
+    // Ensure Claude prompt prefix surfaces workspace cwd expectations. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+    expect(prefix).toContain('Workspace root (cwd): /tmp/task-groups/tg-123');
+    expect(prefix).toContain('Repository folder: demo-repo');
+    expect(prefix).toContain('workspace root as the current working directory');
+  });
+});
+
+describe('task-group template helpers', () => {
+  test('copies Claude/Gemini templates into the task-group root', async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'hookcode-taskgroup-templates-'));
+
+    try {
+      // Ensure provider template directories are seeded alongside .codex for CLI runs. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+      await __test__ensureTaskGroupTemplateDir({ taskGroupDir: tempDir, templateName: '.claude', requiredSubdirs: ['skills'] });
+      await __test__ensureTaskGroupTemplateDir({ taskGroupDir: tempDir, templateName: '.gemini', requiredSubdirs: ['skills'] });
+
+      await expect(stat(path.join(tempDir, '.claude', 'skills'))).resolves.toBeDefined();
+      await expect(stat(path.join(tempDir, '.gemini', 'skills'))).resolves.toBeDefined();
+      await expect(stat(path.join(tempDir, '.claude', 'skills', 'hookcode-preview-highlight'))).resolves.toBeDefined();
+      await expect(stat(path.join(tempDir, '.gemini', 'skills', 'hookcode-preview-highlight'))).resolves.toBeDefined();
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 });
 

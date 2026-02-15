@@ -263,19 +263,28 @@ export const runClaudeCodeExecWithSdk = async (params: {
       : {})
   });
 
+  // Use the task-group root as the Claude Code working directory boundary when provided. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  const workspaceRoot = params.workspaceDir ?? params.repoDir;
+  const resolveWorkspacePath = (rawPath: string): string =>
+    path.isAbsolute(rawPath) ? rawPath : path.join(workspaceRoot, rawPath);
+
   const runOnce = async (resumeSessionId?: string): Promise<{ threadId: string | null; finalResponse: string }> => {
     const logger = createAsyncLineLogger({ logLine: params.logLine, redact: params.redact, maxQueueSize: 500 });
     let threadId: string | null = null;
     let finalResponse = '';
     let resultError: string | null = null;
-    const workingDir = params.workspaceDir ?? params.repoDir;
+
+    if (params.logLine) {
+      // Log the Claude Code working directory to validate task-group root execution. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+      await params.logLine(`[claude_code] workspace_root=${workspaceRoot} repo_dir=${params.repoDir}`);
+    }
 
     const q = query({
       prompt,
       options: {
         abortController,
-        // Run Claude Code from the task-group root when provided; fall back to repo root. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-        cwd: workingDir,
+        // Run Claude Code from the task-group root when provided; fall back to repo root. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+        cwd: workspaceRoot,
         env: mergedEnv,
         model: params.model ? params.model : undefined,
         tools: baseTools,
@@ -297,23 +306,25 @@ export const runClaudeCodeExecWithSdk = async (params: {
           params.sandbox === 'workspace-write' ? [path.join(params.repoDir, '.git')] : undefined,
         // Safety notes:
         // - Deny any attempt to bypass sandbox (`dangerouslyDisableSandbox`) to avoid full host access.
-        // - Enforce repo boundary for file tools to match Codex's workspace directory scoping.
+        // - Enforce task-group boundary for file tools to match workspace directory scoping. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
         canUseTool: async (toolName, input) => {
           if (!baseTools.includes(toolName)) {
             return { behavior: 'deny', message: 'Tool is not allowed by this robot configuration.' };
           }
 
           if ((toolName === 'Read' || toolName === 'Edit' || toolName === 'Write') && typeof (input as any).file_path === 'string') {
-            const filePath = String((input as any).file_path);
-            if (!path.isAbsolute(filePath) || !isPathWithinRoot(params.repoDir, filePath)) {
-              return { behavior: 'deny', message: 'File access outside the repository directory is not allowed.' };
+            const rawPath = String((input as any).file_path);
+            const resolvedPath = resolveWorkspacePath(rawPath);
+            if (!isPathWithinRoot(workspaceRoot, resolvedPath)) {
+              return { behavior: 'deny', message: 'File access outside the task-group workspace is not allowed.' };
             }
           }
 
           if ((toolName === 'Grep' || toolName === 'Glob') && typeof (input as any).path === 'string') {
-            const targetPath = String((input as any).path);
-            if (targetPath && (!path.isAbsolute(targetPath) || !isPathWithinRoot(params.repoDir, targetPath))) {
-              return { behavior: 'deny', message: 'Search path outside the repository directory is not allowed.' };
+            const rawPath = String((input as any).path);
+            const resolvedPath = rawPath ? resolveWorkspacePath(rawPath) : '';
+            if (resolvedPath && !isPathWithinRoot(workspaceRoot, resolvedPath)) {
+              return { behavior: 'deny', message: 'Search path outside the task-group workspace is not allowed.' };
             }
           }
 
