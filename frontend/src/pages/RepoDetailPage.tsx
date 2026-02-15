@@ -173,6 +173,7 @@ const providerLabel = (provider: string) => (provider === 'github' ? 'GitHub' : 
 const ONBOARDING_STORAGE_PREFIX = 'hookcode-repo-onboarding:'; // Persist per-repo onboarding completion in localStorage. 58w1q3n5nr58flmempxe
 
 const CREDENTIAL_PROFILE_PAGE_SIZE = 4; // Limit credential profile list height so the dashboard board stays visually dense. u55e45ffi8jng44erdzp
+const TASK_GROUP_TOKEN_PAGE_SIZE = 4; // Paginate task-group tokens to keep the bottom section compact. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
 
 const getOnboardingKey = (repoId: string): string => `${ONBOARDING_STORAGE_PREFIX}${repoId}`;
 
@@ -252,6 +253,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
   const [repoTaskGroupTokens, setRepoTaskGroupTokens] = useState<UserApiTokenPublic[]>([]);
   const [repoTaskGroupTokensLoading, setRepoTaskGroupTokensLoading] = useState(false);
   const [repoTaskGroupTokenRevokingId, setRepoTaskGroupTokenRevokingId] = useState<string | null>(null);
+  const [repoTaskGroupTokensPage, setRepoTaskGroupTokensPage] = useState(1); // Track task-group token pagination for the bottom section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
   // Track preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewConfig, setPreviewConfig] = useState<RepoPreviewConfigResponse | null>(null);
   const [previewConfigLoading, setPreviewConfigLoading] = useState(false);
@@ -297,6 +299,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     // Clear repo-scoped auto-generated PATs when switching repositories. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
     setRepoTaskGroupTokens([]);
     setRepoTaskGroupTokenRevokingId(null);
+    // Reset task-group token pagination on repo switch to avoid empty pages. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    setRepoTaskGroupTokensPage(1);
   }, [repoId]);
 
   useEffect(() => {
@@ -309,7 +313,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     const modelProfilesTotal = modelProviderProfileItems.length;
     const modelMaxPage = Math.max(1, Math.ceil(modelProfilesTotal / CREDENTIAL_PROFILE_PAGE_SIZE));
     setModelProviderProfilesPage((p) => Math.min(p, modelMaxPage));
-  }, [modelProviderProfileItems, repoScopedCredentials]);
+    // Clamp task-group token pagination when the list size changes. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    const tokenMaxPage = Math.max(1, Math.ceil(repoTaskGroupTokens.length / TASK_GROUP_TOKEN_PAGE_SIZE));
+    setRepoTaskGroupTokensPage((p) => Math.min(p, tokenMaxPage));
+  }, [modelProviderProfileItems, repoScopedCredentials, repoTaskGroupTokens]);
 
   const [repoProviderProfileModalOpen, setRepoProviderProfileModalOpen] = useState(false);
   const [repoProviderProfileEditing, setRepoProviderProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
@@ -1746,89 +1753,6 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                           </div>
                         </Col>
 
-                        <Col xs={24} style={{ display: 'flex' }}>
-                          <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
-                            <Card
-                              size="small"
-                              title={
-                                <Space size={8}>
-                                  <ApiOutlined />
-                                  <span>{t('repos.detail.autoTokens.title')}</span>
-                                </Space>
-                              }
-                              extra={
-                                <Button
-                                  size="small"
-                                  icon={<ReloadOutlined />}
-                                  onClick={() => void refreshRepoTaskGroupTokens()}
-                                  disabled={repoTaskGroupTokensLoading}
-                                >
-                                  {t('common.refresh')}
-                                </Button>
-                              }
-                              className="hc-card"
-                              loading={repoTaskGroupTokensLoading}
-                            >
-                              <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                                {/* Render auto-generated task-group PATs under repo credentials. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 */}
-                                <Typography.Text type="secondary">{t('repos.detail.autoTokens.tip')}</Typography.Text>
-                                {repoTaskGroupTokens.length ? (
-                                  <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                                    {repoTaskGroupTokens.map((tokenItem) => {
-                                      const now = Date.now();
-                                      const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
-                                      const isExpired = Boolean(expiresAt && expiresAt <= now);
-                                      const isRevoked = Boolean(tokenItem.revokedAt);
-                                      const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
-                                      const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
-                                      return (
-                                        <Card key={tokenItem.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                          <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                            <Space size={8} wrap>
-                                              <Typography.Text strong>{tokenItem.name}</Typography.Text>
-                                              <Tag color={statusColor}>{t(`panel.apiTokens.status.${statusKey}`)}</Tag>
-                                            </Space>
-                                            <Typography.Text type="secondary">
-                                              {t('panel.apiTokens.field.expiresAt')}: {formatTokenTime(tokenItem.expiresAt ?? null)}
-                                            </Typography.Text>
-                                          </Space>
-                                          <Space size={16} wrap style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
-                                            <Space size={12} wrap>
-                                              <Typography.Text type="secondary">
-                                                {t('panel.apiTokens.field.createdAt')}: {formatTokenTime(tokenItem.createdAt)}
-                                              </Typography.Text>
-                                              <Typography.Text type="secondary">
-                                                {t('panel.apiTokens.field.lastUsed')}: {formatTokenTime(tokenItem.lastUsedAt ?? null)}
-                                              </Typography.Text>
-                                            </Space>
-                                            <Popconfirm
-                                              title={t('panel.apiTokens.revokeTitle')}
-                                              description={t('panel.apiTokens.revokeDesc')}
-                                              okText={t('panel.apiTokens.revokeOk')}
-                                              cancelText={t('common.cancel')}
-                                              onConfirm={() => void revokeRepoTaskGroupToken(tokenItem)}
-                                            >
-                                              <Button
-                                                size="small"
-                                                danger
-                                                loading={repoTaskGroupTokenRevokingId === tokenItem.id}
-                                                disabled={isRevoked || repoArchived}
-                                              >
-                                                {t('panel.apiTokens.revoke')}
-                                              </Button>
-                                            </Popconfirm>
-                                          </Space>
-                                        </Card>
-                                      );
-                                    })}
-                                  </Space>
-                                ) : (
-                                  <Typography.Text type="secondary">{t('repos.detail.autoTokens.empty')}</Typography.Text>
-                                )}
-                              </Space>
-                            </Card>
-                          </div>
-                        </Col>
                       </Row>
                     )
                   },
@@ -2051,6 +1975,113 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                   ] as const;
 
                   const section = (key: RepoDetailSectionKey) => items.find((i) => i.key === key)?.children ?? null;
+                  // Build the bottom task-group token card with pagination controls. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+                  const repoTaskGroupTokensCard = (
+                    <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+                      <Card
+                        size="small"
+                        title={
+                          <Space size={8}>
+                            <ApiOutlined />
+                            <span>{t('repos.detail.autoTokens.title')}</span>
+                          </Space>
+                        }
+                        extra={
+                          <Button
+                            size="small"
+                            icon={<ReloadOutlined />}
+                            onClick={() => void refreshRepoTaskGroupTokens()}
+                            disabled={repoTaskGroupTokensLoading}
+                          >
+                            {t('common.refresh')}
+                          </Button>
+                        }
+                        className="hc-card"
+                        loading={repoTaskGroupTokensLoading}
+                      >
+                        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                          {/* Render auto-generated task-group PATs in the bottom section with pagination. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215 */}
+                          <Typography.Text type="secondary">{t('repos.detail.autoTokens.tip')}</Typography.Text>
+                          {(() => {
+                            const total = repoTaskGroupTokens.length;
+                            if (!total) {
+                              return <Typography.Text type="secondary">{t('repos.detail.autoTokens.empty')}</Typography.Text>;
+                            }
+
+                            const start = (repoTaskGroupTokensPage - 1) * TASK_GROUP_TOKEN_PAGE_SIZE;
+                            const paged = repoTaskGroupTokens.slice(start, start + TASK_GROUP_TOKEN_PAGE_SIZE);
+
+                            return (
+                              <>
+                                <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                                  {paged.map((tokenItem) => {
+                                    const now = Date.now();
+                                    const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
+                                    const isExpired = Boolean(expiresAt && expiresAt <= now);
+                                    const isRevoked = Boolean(tokenItem.revokedAt);
+                                    const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
+                                    const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
+                                    return (
+                                      <Card key={tokenItem.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                        <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                          <Space size={8} wrap>
+                                            <Typography.Text strong>{tokenItem.name}</Typography.Text>
+                                            <Tag color={statusColor}>{t(`panel.apiTokens.status.${statusKey}`)}</Tag>
+                                          </Space>
+                                          <Typography.Text type="secondary">
+                                            {t('panel.apiTokens.field.expiresAt')}: {formatTokenTime(tokenItem.expiresAt ?? null)}
+                                          </Typography.Text>
+                                        </Space>
+                                        <Space size={16} wrap style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
+                                          <Space size={12} wrap>
+                                            <Typography.Text type="secondary">
+                                              {t('panel.apiTokens.field.createdAt')}: {formatTokenTime(tokenItem.createdAt)}
+                                            </Typography.Text>
+                                            <Typography.Text type="secondary">
+                                              {t('panel.apiTokens.field.lastUsed')}: {formatTokenTime(tokenItem.lastUsedAt ?? null)}
+                                            </Typography.Text>
+                                          </Space>
+                                          <Popconfirm
+                                            title={t('panel.apiTokens.revokeTitle')}
+                                            description={t('panel.apiTokens.revokeDesc')}
+                                            okText={t('panel.apiTokens.revokeOk')}
+                                            cancelText={t('common.cancel')}
+                                            onConfirm={() => void revokeRepoTaskGroupToken(tokenItem)}
+                                          >
+                                            <Button
+                                              size="small"
+                                              danger
+                                              loading={repoTaskGroupTokenRevokingId === tokenItem.id}
+                                              disabled={isRevoked || repoArchived}
+                                            >
+                                              {t('panel.apiTokens.revoke')}
+                                            </Button>
+                                          </Popconfirm>
+                                        </Space>
+                                      </Card>
+                                    );
+                                  })}
+                                </Space>
+
+                                {total > TASK_GROUP_TOKEN_PAGE_SIZE ? (
+                                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                    <Pagination
+                                      size="small"
+                                      current={repoTaskGroupTokensPage}
+                                      pageSize={TASK_GROUP_TOKEN_PAGE_SIZE}
+                                      total={total}
+                                      showSizeChanger={false}
+                                      onChange={(page) => setRepoTaskGroupTokensPage(page)}
+                                    />
+                                  </div>
+                                ) : null}
+                              </>
+                            );
+                          })()}
+                        </Space>
+                      </Card>
+                    </div>
+                  );
 
 	                  return (
 	                    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
@@ -2150,10 +2181,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
 	                        </div>
 	                      </div>
 
-	                      <div className="hc-repo-dashboard__region">
-	                        {/* Region 6: webhook records (config + activity + deliveries) in a single row. u55e45ffi8jng44erdzp */}
-	                        <Row gutter={[12, 12]}>
-	                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
+                      <div className="hc-repo-dashboard__region">
+                        {/* Region 6: webhook records (config + activity + deliveries) in a single row. u55e45ffi8jng44erdzp */}
+                        <Row gutter={[12, 12]}>
+                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
 	                            <Space orientation="vertical" size={12} style={{ width: '100%', flex: 1 }}>
                               <div id={sectionDomId('webhooks')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
                                 {section('webhooks')}
@@ -2184,6 +2215,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                             </div>
                           </Col>
                         </Row>
+                      </div>
+
+                      <div className="hc-repo-dashboard__region">
+                        {/* Place task-group API tokens at the bottom of the repo detail dashboard. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215 */}
+                        {repoTaskGroupTokensCard}
                       </div>
                     </Space>
                   );

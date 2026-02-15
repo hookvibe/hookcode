@@ -40,7 +40,7 @@ vi.mock('../api', () => {
     archiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksArchived: 0, taskGroupsArchived: 0 })),
     unarchiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksRestored: 0, taskGroupsRestored: 0 })),
     updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null })),
-    // Provide repo task-group PAT mocks for the credentials card. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    // Provide repo task-group PAT mocks for the bottom token section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
     fetchMyApiTokens: vi.fn(async () => []),
     fetchTaskGroups: vi.fn(async () => []),
     revokeMyApiToken: vi.fn(async () => ({
@@ -444,8 +444,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     expect(failureModeSelectAfter).not.toHaveClass('ant-select-disabled');
   });
 
-  test('renders repo task-group PATs in credentials', async () => {
-    // Verify auto-generated task-group PATs appear in the repo credentials area. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+  test('renders repo task-group PATs in the bottom section', async () => {
+    // Verify task-group PATs render in the bottom dashboard section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
     vi.mocked(api.fetchMyApiTokens).mockResolvedValueOnce([
       {
@@ -473,7 +473,71 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     renderPage({ repoId: 'r1' });
 
     await waitFor(() => expect(api.fetchMyApiTokens).toHaveBeenCalled());
-    expect(await screen.findByText('Task-group API tokens')).toBeInTheDocument();
-    expect(await screen.findByText('task-group-123e4567-e89b-12d3-a456-426614174000')).toBeInTheDocument();
+    const title = await screen.findByText('Task-group API tokens');
+    const regions = Array.from(document.querySelectorAll('.hc-repo-dashboard__region'));
+    const lastRegion = regions[regions.length - 1] as HTMLElement | undefined;
+    expect(lastRegion).toBeTruthy();
+    expect(within(lastRegion as HTMLElement).getByText('Task-group API tokens')).toBeInTheDocument();
+    expect(within(lastRegion as HTMLElement).getByText('task-group-123e4567-e89b-12d3-a456-426614174000')).toBeInTheDocument();
+    expect(title).toBeInTheDocument();
+  });
+
+  test('paginates repo task-group PATs', async () => {
+    // Ensure task-group PAT pagination switches pages in the bottom section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    const taskGroupIds = [
+      '11111111-1111-1111-1111-111111111111',
+      '22222222-2222-2222-2222-222222222222',
+      '33333333-3333-3333-3333-333333333333',
+      '44444444-4444-4444-4444-444444444444',
+      '55555555-5555-5555-5555-555555555555'
+    ];
+    const tokens = taskGroupIds.map((id, index) => ({
+      id: `pat-auto-${index}`,
+      name: `task-group-${id}`,
+      tokenPrefix: 'hcpat_auto',
+      tokenLast4: `00${index}`,
+      scopes: [{ group: 'tasks', level: 'write' }],
+      createdAt: new Date().toISOString(),
+      expiresAt: null,
+      revokedAt: null,
+      lastUsedAt: null
+    }));
+
+    vi.mocked(api.fetchMyApiTokens).mockResolvedValueOnce(tokens);
+    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce(
+      taskGroupIds.map(
+        (id) =>
+          ({
+            id,
+            kind: 'task',
+            bindingKey: `task-group-${id}`,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }) as any
+      )
+    );
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchMyApiTokens).toHaveBeenCalled());
+
+    expect(await screen.findByText(`task-group-${taskGroupIds[0]}`)).toBeInTheDocument();
+    expect(screen.getByText(`task-group-${taskGroupIds[1]}`)).toBeInTheDocument();
+    expect(screen.getByText(`task-group-${taskGroupIds[2]}`)).toBeInTheDocument();
+    expect(screen.getByText(`task-group-${taskGroupIds[3]}`)).toBeInTheDocument();
+    expect(screen.queryByText(`task-group-${taskGroupIds[4]}`)).not.toBeInTheDocument();
+
+    const tokenTitle = screen.getByText('Task-group API tokens');
+    const tokenCard = tokenTitle.closest('.ant-card') ?? document.body;
+    const pagination = tokenCard.querySelector('.ant-pagination');
+    expect(pagination).toBeTruthy();
+
+    await ui.click(within(pagination as HTMLElement).getByText('2'));
+
+    expect(await screen.findByText(`task-group-${taskGroupIds[4]}`)).toBeInTheDocument();
+    expect(screen.queryByText(`task-group-${taskGroupIds[0]}`)).not.toBeInTheDocument();
   });
 });
