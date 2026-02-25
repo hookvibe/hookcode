@@ -274,10 +274,8 @@ export const runClaudeCodeExecWithSdk = async (params: {
     let finalResponse = '';
     let resultError: string | null = null;
 
-    if (params.logLine) {
-      // Log the Claude Code working directory to validate task-group root execution. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
-      await params.logLine(`[claude_code] workspace_root=${workspaceRoot} repo_dir=${params.repoDir}`);
-    }
+    // Log workspace-root context without blocking provider execution if log sinks stall. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    logger.enqueue(`[claude_code] workspace_root=${workspaceRoot} repo_dir=${params.repoDir}`, { important: true });
 
     const q = query({
       prompt,

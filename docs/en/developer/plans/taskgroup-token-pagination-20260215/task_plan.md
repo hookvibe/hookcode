@@ -14,7 +14,7 @@ Move the task group API token list on the repo detail page to the bottom and add
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-Phase 4
+Complete
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -46,15 +46,15 @@ Phase 4
 {/* WHAT: Verify everything works and meets requirements. WHY: Catching issues early saves time. Document test results in progress.md. */}
 - [x] Verify list renders at bottom with paging
 - [x] Document test results in progress.md
-- [ ] Fix any issues found
-- **Status:** in_progress
+- [x] Fix any issues found
+- **Status:** complete
 
 ### Phase 5: Delivery
 {/* WHAT: Final review and handoff to user. WHY: Ensures nothing is forgotten and deliverables are complete. */}
-- [ ] Review all output files
-- [ ] Update changelog entry
-- [ ] Deliver to user
-- **Status:** pending
+- [x] Review all output files
+- [x] Update changelog entry
+- [x] Deliver to user
+- **Status:** complete
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
@@ -67,12 +67,13 @@ Phase 4
 |----------|-----------|
 | Move task-group API token card to a new bottom dashboard region (after webhooks) | Meets the "bottom of page" requirement without altering existing section navigation keys. |
 | Add local pagination state + page-size constant for task-group tokens using Ant Design Pagination | Matches existing pagination UX patterns in the repo detail page while keeping list height manageable. |
+| Log Claude Code workspace-root context via async logger enqueue | Prevents stalled log sinks from blocking provider execution while still emitting context. |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-| `pnpm test` failed in backend `claudeCodeExec.test.ts` (timeout) | 1 | Full suite aborted; ran frontend tests separately and will report backend failure. |
+| `pnpm test` failed in backend `claudeCodeExec.test.ts` (timeout) | 1 | Fixed by using async logger enqueue for the workspace-root log line. |
 | Frontend pagination test could not find page link role | 1 | Switched to clicking the pagination text node (`getByText('2')`). |
 
 ## Notes

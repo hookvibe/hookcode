@@ -28,6 +28,7 @@
 - `RepoDetailPage.tsx` defines `CREDENTIAL_PROFILE_PAGE_SIZE = 4` and uses dedicated pagination state for credential lists, which can be mirrored for task-group token paging.
 - `frontend/src/tests/repoDetailPage.test.tsx` has a test asserting task-group PATs render in the credentials area; it will need updates for pagination/placement changes.
 - No existing frontend tests cover Ant Design pagination controls directly, so new pagination coverage will need to be added for the task-group token list.
+- Backend `claudeCodeExec` test hangs because `runClaudeCodeExecWithSdk` directly awaits `logLine` for the workspace-root message, so a stalled logger blocks execution.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}
@@ -36,6 +37,7 @@
 |----------|-----------|
 | Relocate task-group token card to a new bottom dashboard region | Satisfies the requirement to place the token list at the page bottom without changing the summary strip section keys. |
 | Add dedicated pagination state + page size for task-group tokens | Aligns with existing pagination patterns and keeps the list height manageable. |
+| Enqueue Claude Code workspace-root log lines via async logger | Avoids blocking execution when logLine stalls while preserving log context. |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}
