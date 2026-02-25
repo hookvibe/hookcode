@@ -7,3 +7,4 @@ export * from './types/auth';
 export * from './types/models';
 export * from './types/repos';
 export * from './types/automation';
+export * from './types/skills'; // Add skills registry types for the console page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225

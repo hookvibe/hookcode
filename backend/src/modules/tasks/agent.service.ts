@@ -9,6 +9,7 @@ import { TaskLogStream } from './task-log-stream.service';
 import { TaskService } from './task.service';
 import { RuntimeService } from '../../services/runtimeService';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
+import { SkillsService } from '../skills/skills.service';
 
 @Injectable()
 export class AgentService {
@@ -21,7 +22,8 @@ export class AgentService {
     // Provide PAT issuance to the agent runtime for task-group .env generation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
     userApiTokenService: UserApiTokenService,
     runtimeService: RuntimeService,
-    hookcodeConfigService: HookcodeConfigService
+    hookcodeConfigService: HookcodeConfigService,
+    skillsService: SkillsService
   ) {
     // Register dependency-related services with the agent runtime. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
     setAgentServices({
@@ -32,7 +34,8 @@ export class AgentService {
       userService,
       userApiTokenService,
       runtimeService,
-      hookcodeConfigService
+      hookcodeConfigService,
+      skillsService // Provide skill registry access for prompt injection. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
     });
   }
 

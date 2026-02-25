@@ -75,6 +75,8 @@ import {
 } from './dto/repositories-swagger.dto';
 import { RepoPreviewConfigResponseDto } from './dto/repo-preview-config.dto';
 import { PreviewService } from '../tasks/preview.service';
+import { SkillsService } from '../skills/skills.service';
+import { SkillSelectionPatchDto, SkillSelectionResponseDto } from '../skills/dto/skill-selection.dto';
 import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
 import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
 import {
@@ -188,7 +190,8 @@ export class RepositoriesController {
     private readonly repoAutomationService: RepoAutomationService,
     private readonly repoWebhookDeliveryService: RepoWebhookDeliveryService,
     private readonly userService: UserService,
-    private readonly previewService: PreviewService
+    private readonly previewService: PreviewService,
+    private readonly skillsService: SkillsService
   ) {}
 
   @Get()
@@ -324,6 +327,56 @@ export class RepositoriesController {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get failed', err);
       throw new InternalServerErrorException({ error: 'Failed to fetch repo' });
+    }
+  }
+
+  @Get(':id/skills')
+  @ApiOperation({
+    summary: 'Get repository skill defaults',
+    description: 'Get repo-level default skills for new task groups.',
+    operationId: 'repos_skill_defaults_get'
+  })
+  @ApiOkResponse({ description: 'OK', type: SkillSelectionResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async getSkillDefaults(@Param('id') id: string) {
+    try {
+      // Surface repo-level skill defaults for the console UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+      const selection = await this.skillsService.resolveRepoSkillSelection(id);
+      if (!selection) throw new NotFoundException({ error: 'Repo not found' });
+      return { selection };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] skill defaults get failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch repo skill defaults' });
+    }
+  }
+
+  @Patch(':id/skills')
+  @ApiOperation({
+    summary: 'Update repository skill defaults',
+    description: 'Update repo-level default skills for new task groups.',
+    operationId: 'repos_skill_defaults_update'
+  })
+  @ApiOkResponse({ description: 'OK', type: SkillSelectionResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async updateSkillDefaults(@Param('id') id: string, @Body() body: SkillSelectionPatchDto) {
+    try {
+      // Persist repo default skill selections for new task groups. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+      const selectionRaw = body?.selection;
+      const selection = selectionRaw === null ? null : Array.isArray(selectionRaw) ? selectionRaw : undefined;
+      if (selection === undefined) {
+        throw new BadRequestException({ error: 'selection is required' });
+      }
+      const updated = await this.skillsService.updateRepoSkillSelection(id, selection);
+      if (!updated) throw new NotFoundException({ error: 'Repo not found' });
+      return { selection: updated };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] skill defaults update failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to update repo skill defaults' });
     }
   }
 

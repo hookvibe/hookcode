@@ -31,6 +31,11 @@ describe('router (hash routes)', () => {
     expect(parseRoute('#/login')).toEqual({ page: 'login' });
   });
 
+  test('parses skills route', () => {
+    // Ensure skills registry routes resolve to the skills page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    expect(parseRoute('#/skills')).toEqual({ page: 'skills' });
+  });
+
   test('parses repos routes', () => {
     expect(parseRoute('#/repos')).toEqual({ page: 'repos' });
     expect(parseRoute('#/repos/repo_1')).toEqual({ page: 'repo', repoId: 'repo_1' });

@@ -15,6 +15,7 @@ import {
   ProjectOutlined,
   PullRequestOutlined,
   UnorderedListOutlined,
+  ToolOutlined,
   CaretRightOutlined,
   InboxOutlined,
   CaretDownOutlined
@@ -31,6 +32,7 @@ import {
   buildTaskHash,
   buildTaskGroupsHash,
   buildTasksHash,
+  buildSkillsHash,
   type RouteState
 } from '../router';
 import { navigateFromSidebar } from '../navHistory';
@@ -256,6 +258,7 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
   const taskGroupsListActive = route.page === 'taskGroups';
   const reposActive = route.page === 'repos' || route.page === 'repo';
   const archiveActive = route.page === 'archive';
+  const skillsActive = route.page === 'skills'; // Highlight the skills registry nav state. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   const activeTaskId = route.page === 'task' ? route.taskId : undefined;
   const activeTasksStatus = route.page === 'tasks' ? route.tasksStatus : undefined;
 
@@ -438,6 +441,15 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
 
       {/* Footer */}
       <div className="hc-sidebar-footer">
+          {/* Surface the skills registry page in the sidebar footer. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+          <button
+            className={`hc-nav-item ${skillsActive ? 'hc-nav-item--active' : ''}`}
+            onClick={() => navigate(buildSkillsHash())}
+            title={t('sidebar.nav.skills')}
+          >
+              <span className="hc-nav-icon"><ToolOutlined /></span>
+              <span className="hc-nav-label">{t('sidebar.nav.skills')}</span>
+          </button>
           <button 
             className={`hc-nav-item ${archiveActive ? 'hc-nav-item--active' : ''}`}
             onClick={() => navigate(buildArchiveHash())}

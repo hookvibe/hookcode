@@ -25,7 +25,11 @@ describe('Webhook / Agent legacy guardrails', () => {
       userService: {} as any,
       userApiTokenService: { createToken: jest.fn(), verifyToken: jest.fn() } as any,
       runtimeService: { hasRuntime: jest.fn().mockReturnValue(true) } as any,
-      hookcodeConfigService: { parseConfig: jest.fn().mockResolvedValue(null) } as any
+      hookcodeConfigService: { parseConfig: jest.fn().mockResolvedValue(null) } as any,
+      skillsService: {
+        buildPromptPrefix: jest.fn().mockResolvedValue(''),
+        syncExtraSkillsToTaskGroup: jest.fn().mockResolvedValue(undefined)
+      } as any // Stub skills registry for agent guardrail tests. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
     });
 
     await expect(

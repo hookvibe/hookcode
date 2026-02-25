@@ -196,6 +196,12 @@ vi.mock('../api', () => {
     // Provide preview status mock for TaskGroupChatPage side effects. docs/en/developer/plans/test-output-noise-20260129/task_plan.md test-output-noise-20260129
     fetchTaskGroupPreviewStatus: vi.fn(async () => ({ available: false, instances: [] })),
     fetchTaskGroupTasks: vi.fn(async () => []),
+    // Provide skills registry mocks so chat-level selection hooks can resolve data. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [] })),
+    fetchRepoSkillSelection: vi.fn(async () => ({ selection: null, effective: [], mode: 'all' })),
+    updateRepoSkillSelection: vi.fn(async () => ({ selection: null, effective: [], mode: 'all' })),
+    fetchTaskGroupSkillSelection: vi.fn(async () => ({ selection: null, effective: [], mode: 'all' })),
+    updateTaskGroupSkillSelection: vi.fn(async () => ({ selection: null, effective: [], mode: 'all' })),
     executeChat: vi.fn(async () => ({
       taskGroup: { id: 'g_new', kind: 'chat', bindingKey: 'b1', title: 'Group new', createdAt: '', updatedAt: '' },
       task: makeTask({ id: 't_new', title: 'New task', status: 'queued', eventType: 'issue', issueId: 123 })

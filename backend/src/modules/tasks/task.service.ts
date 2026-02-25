@@ -189,6 +189,8 @@ const taskGroupRecordToTaskGroup = (row: any): TaskGroup => ({
   issueId: row.issueId ?? undefined,
   mrId: row.mrId ?? undefined,
   commitSha: row.commitSha ?? undefined,
+  skillSelections: Array.isArray(row.skillSelections ?? row.skill_selections) ? (row.skillSelections ?? row.skill_selections) : null,
+  // Preserve per-task-group skill selection overrides for prompt injection. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   // Archived groups are excluded from default sidebar/chat lists. qnp1mtxhzikhbi0xspbc
   archivedAt: row.archivedAt ? toIso(row.archivedAt) : undefined,
   createdAt: toIso(row.createdAt),

@@ -117,8 +117,6 @@ describe('task-group template helpers', () => {
 
       await expect(stat(path.join(tempDir, '.claude', 'skills'))).resolves.toBeDefined();
       await expect(stat(path.join(tempDir, '.gemini', 'skills'))).resolves.toBeDefined();
-      await expect(stat(path.join(tempDir, '.claude', 'skills', 'hookcode-preview-highlight'))).resolves.toBeDefined();
-      await expect(stat(path.join(tempDir, '.gemini', 'skills', 'hookcode-preview-highlight'))).resolves.toBeDefined();
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -195,19 +193,23 @@ describe('resolveTaskGroupApiBaseUrl', () => {
 describe('syncTaskGroupSkillEnvFiles', () => {
   test('copies task-group env contents into each skill folder', async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), 'hookcode-taskgroup-'));
-    const skillsRoot = path.join(tempDir, '.codex', 'skills');
+    const codexSkillsRoot = path.join(tempDir, '.codex', 'skills');
+    const claudeSkillsRoot = path.join(tempDir, '.claude', 'skills');
+    const geminiSkillsRoot = path.join(tempDir, '.gemini', 'skills');
     const envContents = 'HOOKCODE_API_BASE_URL=http://localhost:4000\nHOOKCODE_PAT=hcpat_test\n';
 
     try {
-      await mkdir(path.join(skillsRoot, 'skill-a'), { recursive: true });
-      await mkdir(path.join(skillsRoot, 'skill-b'), { recursive: true });
-      await writeFile(path.join(skillsRoot, 'skill-b', '.env'), 'stale', 'utf8');
+      await mkdir(path.join(codexSkillsRoot, 'skill-a'), { recursive: true });
+      await mkdir(path.join(claudeSkillsRoot, 'skill-b'), { recursive: true });
+      await mkdir(path.join(geminiSkillsRoot, 'skill-c'), { recursive: true });
+      await writeFile(path.join(codexSkillsRoot, 'skill-a', '.env'), 'stale', 'utf8');
 
-      // Keep per-skill env files aligned with the task-group .env. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+      // Keep per-skill env files aligned with the task-group .env. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
       await __test__syncTaskGroupSkillEnvFiles({ taskGroupDir: tempDir, envContents });
 
-      await expect(readFile(path.join(skillsRoot, 'skill-a', '.env'), 'utf8')).resolves.toBe(envContents);
-      await expect(readFile(path.join(skillsRoot, 'skill-b', '.env'), 'utf8')).resolves.toBe(envContents);
+      await expect(readFile(path.join(codexSkillsRoot, 'skill-a', '.env'), 'utf8')).resolves.toBe(envContents);
+      await expect(readFile(path.join(claudeSkillsRoot, 'skill-b', '.env'), 'utf8')).resolves.toBe(envContents);
+      await expect(readFile(path.join(geminiSkillsRoot, 'skill-c', '.env'), 'utf8')).resolves.toBe(envContents);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -235,7 +237,11 @@ describe('ensureTaskGroupPat', () => {
       userService: userService as any,
       userApiTokenService: { verifyToken, createToken } as any,
       runtimeService: {} as any,
-      hookcodeConfigService: {} as any
+      hookcodeConfigService: {} as any,
+      skillsService: {
+        buildPromptPrefix: jest.fn().mockResolvedValue(''),
+        syncExtraSkillsToTaskGroup: jest.fn().mockResolvedValue(undefined)
+      } as any // Stub skills registry hooks for agent service setup. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
     });
 
     await expect(__test__ensureTaskGroupPat({ taskGroupId: 'tg-1', existingPat: 'hcpat_existing' })).resolves.toBe(
@@ -264,7 +270,11 @@ describe('ensureTaskGroupPat', () => {
       userService: userService as any,
       userApiTokenService: { verifyToken, createToken } as any,
       runtimeService: {} as any,
-      hookcodeConfigService: {} as any
+      hookcodeConfigService: {} as any,
+      skillsService: {
+        buildPromptPrefix: jest.fn().mockResolvedValue(''),
+        syncExtraSkillsToTaskGroup: jest.fn().mockResolvedValue(undefined)
+      } as any // Stub skills registry hooks for agent service setup. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
     });
 
     await expect(__test__ensureTaskGroupPat({ taskGroupId: 'tg-2', existingPat: 'hcpat_existing' })).resolves.toBe(

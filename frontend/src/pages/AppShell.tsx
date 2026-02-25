@@ -18,6 +18,7 @@ import { TaskGroupChatPage } from './TaskGroupChatPage';
 import { TaskGroupsPage } from './TaskGroupsPage';
 import { TasksPage } from './TasksPage';
 import { ArchivePage } from './ArchivePage';
+import { SkillsPage } from './SkillsPage';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -168,6 +169,9 @@ export const AppShell: FC<AppShellProps> = ({
         {route.page === 'repo' && route.repoId ? (
           <RepoDetailPage repoId={route.repoId} userPanel={userPanel} navToggle={navToggle} />
         ) : null}
+        {route.page === 'skills' ? (
+          <SkillsPage userPanel={userPanel} navToggle={navToggle} />
+        ) : null /* Render the skills registry page inside the shell. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
         {route.page === 'archive' ? <ArchivePage tab={route.archiveTab} userPanel={userPanel} navToggle={navToggle} /> : null}
         {route.page === 'tasks' ? (
           <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} navToggle={navToggle} />

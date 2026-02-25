@@ -53,6 +53,7 @@ import type { RepoRobotService } from '../modules/repositories/repo-robot.servic
 import type { TaskService } from '../modules/tasks/task.service';
 import type { TaskLogStream } from '../modules/tasks/task-log-stream.service';
 import type { UserService } from '../modules/users/user.service';
+import type { SkillsService } from '../modules/skills/skills.service';
 import {
   getGithubRepoSlugFromPayload,
   getGitlabProjectIdFromPayload,
@@ -64,6 +65,7 @@ import { getTaskConsoleUrl } from '../utils/taskConsoleUrl';
 import { buildTaskOutputFilePath } from '../utils/taskOutputPath';
 // Keep git workflow helpers and config keys centralized for hook guard logic. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
 import { canTokenPushToUpstream, GIT_CONFIG_KEYS, normalizeGitRemoteUrl, toRepoWebUrl } from '../utils/gitWorkflow';
+import { resolveAgentExampleTemplateDir } from '../utils/agentTemplatePaths';
 import { ensureGithubForkRepo, ensureGitlabForkProject, resolveRepoWorkflowMode } from '../services/repoWorkflowMode';
 // Pull git status helpers to report repo changes after write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAheadBehind } from '../utils/gitStatus';
@@ -121,6 +123,7 @@ let userService: UserService;
 let userApiTokenService: UserApiTokenService;
 let runtimeService: RuntimeService;
 let hookcodeConfigService: HookcodeConfigService;
+let skillsService: SkillsService;
 
 export const setAgentServices = (services: {
   taskService: TaskService;
@@ -131,6 +134,7 @@ export const setAgentServices = (services: {
   userApiTokenService: UserApiTokenService;
   runtimeService: RuntimeService;
   hookcodeConfigService: HookcodeConfigService;
+  skillsService: SkillsService;
 }) => {
   // Inject runtime/config services so dependency installs run inside the agent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   taskService = services.taskService;
@@ -141,9 +145,11 @@ export const setAgentServices = (services: {
   userApiTokenService = services.userApiTokenService;
   runtimeService = services.runtimeService;
   hookcodeConfigService = services.hookcodeConfigService;
+  skillsService = services.skillsService; // Provide skill registry access for prompt injection. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
 };
 
 const assertAgentServicesReady = () => {
+  // Require skills registry wiring before running task-group prompts. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   if (
     !taskService ||
     !taskLogStream ||
@@ -152,7 +158,8 @@ const assertAgentServicesReady = () => {
     !userService ||
     !userApiTokenService ||
     !runtimeService ||
-    !hookcodeConfigService
+    !hookcodeConfigService ||
+    !skillsService
   ) {
     throw new Error('[agent] services are not initialized (missing setAgentServices call)');
   }
@@ -295,20 +302,6 @@ const readCodexOutputSchema = async (params: {
   }
 };
 
-const resolveAgentExampleTemplateDir = (templateName: string): string | null => {
-  // Locate the bundled agent template directory (.codex/.claude/.gemini) for task-group seeding. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
-  const cwd = process.cwd();
-  const candidates = [
-    path.join(cwd, 'backend', 'src', 'agent', 'example', templateName),
-    path.join(cwd, 'src', 'agent', 'example', templateName),
-    path.join(__dirname, 'example', templateName)
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
-  }
-  return null;
-};
-
 const ensureTaskGroupTemplateDir = async (params: {
   taskGroupDir: string;
   templateName: string;
@@ -433,11 +426,46 @@ const listSkillDirectories = async (skillsRoot: string): Promise<string[]> => {
 };
 
 const syncTaskGroupSkillEnvFiles = async (params: { taskGroupDir: string; envContents: string }): Promise<void> => {
-  // Duplicate the task-group .env into each skill folder for consistent API access. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-  const skillsRoot = path.join(params.taskGroupDir, '.codex', 'skills');
-  const skillDirs = await listSkillDirectories(skillsRoot);
-  for (const skillDir of skillDirs) {
-    await writeFileIfChanged(path.join(skillDir, '.env'), params.envContents);
+  // Duplicate the task-group .env into each skill folder for consistent API access. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  const skillRoots = ['.codex', '.claude', '.gemini'];
+  for (const root of skillRoots) {
+    const skillsRoot = path.join(params.taskGroupDir, root, 'skills');
+    const skillDirs = await listSkillDirectories(skillsRoot);
+    for (const skillDir of skillDirs) {
+      await writeFileIfChanged(path.join(skillDir, '.env'), params.envContents);
+    }
+  }
+};
+
+const syncTaskGroupExtraSkills = async (taskGroupDir: string, taskGroupId: string): Promise<void> => {
+  // Seed selected extra skills into the task-group workspace before env syncing. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  try {
+    const selection = await skillsService.resolveTaskGroupSkillSelection(taskGroupId);
+    await skillsService.syncExtraSkillsToTaskGroup(taskGroupDir, selection?.effective ?? null);
+  } catch (err: any) {
+    console.warn('[agent] failed to sync extra skills (continuing)', err);
+  }
+};
+
+const syncTaskGroupBuiltInSkills = async (taskGroupDir: string): Promise<void> => {
+  // Ensure built-in skills are available in provider-specific task-group folders. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  try {
+    await skillsService.syncBuiltInSkillsToTaskGroup(taskGroupDir);
+  } catch (err: any) {
+    console.warn('[agent] failed to sync built-in skills (continuing)', err);
+  }
+};
+
+const buildSkillPromptPrefix = async (appendLog: (line: string) => Promise<void>, taskGroupId: string | null): Promise<string> => {
+  // Prepend enabled skill prompt text without blocking task execution on registry failures. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  const resolvedTaskGroupId = safeTrim(taskGroupId);
+  if (!resolvedTaskGroupId) return '';
+  try {
+    const selection = await skillsService.resolveTaskGroupSkillSelection(resolvedTaskGroupId);
+    return await skillsService.buildPromptPrefix(selection?.effective ?? null);
+  } catch (err: any) {
+    await appendLog('Failed to load skill prompt text; continuing without skill prefix.');
+    return '';
   }
 };
 
@@ -600,6 +628,10 @@ const ensureTaskGroupLayout = async (params: {
     repoFolderName: params.repoFolderName
   });
   await writeFileIfChanged(path.join(params.taskGroupDir, 'GEMINI.md'), geminiContents);
+  // Seed built-in skills before copying env files into skill folders. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  await syncTaskGroupBuiltInSkills(params.taskGroupDir);
+  // Add enabled extra skills before copying env files into skill folders. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  await syncTaskGroupExtraSkills(params.taskGroupDir, params.taskGroupId);
   await syncTaskGroupSkillEnvFiles({ taskGroupDir: params.taskGroupDir, envContents });
 };
 
@@ -1715,10 +1747,13 @@ exit 0
       github: execution.github
     });
     const promptFile = path.join(repoDir, '.codex_prompt.txt');
+    // Prepend enabled skill prompt text before the main task prompt. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    const skillPromptPrefix = await buildSkillPromptPrefix(appendLog, taskGroupId);
+    const promptBase = `${skillPromptPrefix}${promptCtx.body}`;
     // Prepend workspace-root guidance for Claude Code so cwd expectations are explicit. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
     const promptBody = isClaudeCodeProvider
-      ? `${buildTaskGroupWorkspacePromptPrefix({ taskGroupDir, repoFolderName })}${promptCtx.body}`
-      : promptCtx.body;
+      ? `${buildTaskGroupWorkspacePromptPrefix({ taskGroupDir, repoFolderName })}${promptBase}`
+      : promptBase;
     await writeFile(promptFile, promptBody, 'utf8');
 
     // Run the selected model provider (default: codex).

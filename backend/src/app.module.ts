@@ -12,6 +12,7 @@ import { ToolsModule } from './modules/tools/tools.module';
 import { OpenApiModule } from './modules/openapi/openapi.module';
 import { UsersHttpModule } from './modules/users/users-http.module';
 import { WebhookHttpModule } from './modules/webhook/webhook-http.module';
+import { SkillsHttpModule } from './modules/skills/skills-http.module';
 
 @Module({
   imports: [
@@ -30,7 +31,9 @@ import { WebhookHttpModule } from './modules/webhook/webhook-http.module';
     ToolsModule,
     // Serve OpenAPI JSON for docs rendering and API explorer. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126
     OpenApiModule,
-    WebhookHttpModule
+    WebhookHttpModule,
+    // Expose skill registry endpoints for the console UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    SkillsHttpModule
   ]
 })
 export class AppModule {}

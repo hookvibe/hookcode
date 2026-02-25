@@ -7,3 +7,4 @@ export * from './api/auth';
 export * from './api/credentials';
 export * from './api/system';
 export * from './api/repos';
+export * from './api/skills'; // Expose skills API helpers for the Skills page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225

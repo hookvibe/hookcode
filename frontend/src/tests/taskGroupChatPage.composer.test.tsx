@@ -129,6 +129,27 @@ describe('TaskGroupChatPage composer', () => {
     expect(screen.getByRole('button', { name: 'Start preview' })).toBeInTheDocument();
   });
 
+  test('opens the skill selection modal from composer actions', async () => {
+    // Ensure task-group skill overrides are reachable from the composer actions menu. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    const ui = userEvent.setup();
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    // Wait for task group load so the actions popover is enabled. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    await waitFor(() => expect(api.fetchTaskGroup).toHaveBeenCalled());
+    const actionsButton = await screen.findByRole('button', { name: 'Composer actions' });
+    await waitFor(() => expect(actionsButton).toBeEnabled());
+    await ui.click(actionsButton);
+
+    // Confirm the actions popover is visible before locating the skills control. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    expect(await screen.findByText('Execution window')).toBeInTheDocument();
+    const skillsButton = await screen.findByRole('button', { name: /Configure skills/i });
+    await ui.click(skillsButton);
+
+    // Assert the modal title inside the dialog to avoid duplicate inline labels. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Task group skills', { selector: '.ant-modal-title' })).toBeInTheDocument();
+  });
+
   test('opens the preview start modal from the composer actions popover', async () => {
     // Verify the preview start modal opens from the composer actions menu. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
     const ui = userEvent.setup();

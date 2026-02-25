@@ -122,6 +122,7 @@ export interface TaskGroup {
   issueId?: number;
   mrId?: number;
   commitSha?: string;
+  skillSelections?: string[] | null; // Track task-group skill overrides for the chat UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   // Indicate whether a preview is currently running for the group. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
   previewActive?: boolean;
   // Archived groups are excluded from default sidebar/chat lists. qnp1mtxhzikhbi0xspbc

@@ -254,6 +254,8 @@ const recordToRepository = (row: any): Repository => ({
   branches: normalizeBranches(row.branches),
   // Archived repositories are hidden from default lists and block new automation/tasks. qnp1mtxhzikhbi0xspbc
   archivedAt: row.archivedAt ? toIso(row.archivedAt) : undefined,
+  skillDefaults: Array.isArray(row.skillDefaults ?? row.skill_defaults) ? (row.skillDefaults ?? row.skill_defaults) : null,
+  // Surface repo-level default skills for task-group defaults. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   enabled: Boolean(row.enabled),
   createdAt: toIso(row.createdAt),
   updatedAt: toIso(row.updatedAt)

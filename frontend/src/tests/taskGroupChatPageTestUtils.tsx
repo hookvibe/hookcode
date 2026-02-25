@@ -69,6 +69,11 @@ vi.mock('../api', () => {
       createdAt: mockNow,
       updatedAt: mockNow
     })),
+    fetchTaskGroupSkillSelection: vi.fn(async () => ({
+      selection: null,
+      effective: ['built_in:hookcode-preview-highlight'],
+      mode: 'repo_default'
+    })),
     fetchTaskGroupTasks: vi.fn(async () => []),
     // Mock preview endpoints so TaskGroupChatPage can render preview UI state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     fetchTaskGroupPreviewStatus: vi.fn(async () => ({ available: false, instances: [] })),
@@ -85,7 +90,13 @@ vi.mock('../api', () => {
     pauseTask: vi.fn(async (id: string) => makeTask(id)),
     resumeTask: vi.fn(async (id: string) => makeTask(id)),
     startTaskGroupPreview: vi.fn(async () => ({ success: true, instances: [] })),
-    stopTaskGroupPreview: vi.fn(async () => ({ success: true }))
+    stopTaskGroupPreview: vi.fn(async () => ({ success: true })),
+    updateTaskGroupSkillSelection: vi.fn(async () => ({
+      selection: [],
+      effective: [],
+      mode: 'custom'
+    })),
+    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [] }))
   };
 });
 
@@ -139,6 +150,17 @@ export const setupTaskGroupChatMocks = () => {
     createdAt: NOW,
     updatedAt: NOW
   }));
+  vi.mocked(api.fetchTaskGroupSkillSelection).mockResolvedValue({
+    selection: null,
+    effective: ['built_in:hookcode-preview-highlight'],
+    mode: 'repo_default'
+  } as any);
+  vi.mocked(api.updateTaskGroupSkillSelection).mockResolvedValue({
+    selection: [],
+    effective: [],
+    mode: 'custom'
+  } as any);
+  vi.mocked(api.fetchSkills).mockResolvedValue({ builtIn: [], extra: [] } as any);
   vi.mocked(api.fetchTask).mockImplementation(async (id: string) => ({
     id,
     eventType: 'chat',

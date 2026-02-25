@@ -14,7 +14,8 @@ import {
   ReloadOutlined,
   SendOutlined,
   UnlockOutlined,
-  UnorderedListOutlined
+  UnorderedListOutlined,
+  ToolOutlined
 } from '@ant-design/icons';
 import type {
   PreviewHighlightCommand,
@@ -24,6 +25,8 @@ import type {
   PreviewStatusResponse,
   RepoRobot,
   Repository,
+  SkillSelectionKey,
+  SkillSelectionState,
   Task,
   TaskGroup,
   TimeWindow
@@ -33,6 +36,7 @@ import {
   executeChat,
   fetchTask,
   fetchTaskGroup,
+  fetchTaskGroupSkillSelection,
   fetchTaskGroupPreviewStatus,
   fetchTaskGroupTasks,
   installTaskGroupPreviewDependencies,
@@ -42,7 +46,8 @@ import {
   resumeTask,
   setTaskGroupPreviewVisibility,
   startTaskGroupPreview,
-  stopTaskGroupPreview
+  stopTaskGroupPreview,
+  updateTaskGroupSkillSelection
 } from '../api';
 import { getToken } from '../auth';
 import { useLocale, useT } from '../i18n';
@@ -56,6 +61,8 @@ import { formatTimeWindowLabel } from '../utils/timeWindow';
 import { formatRobotLabelWithProvider } from '../utils/robot';
 import { createAuthedEventSource } from '../utils/sse';
 import { matchPreviewTargetUrl, splitPreviewTargetUrlCandidates } from '../utils/previewRouteMatch';
+import { SkillSelectionPanel } from '../components/skills/SkillSelectionPanel';
+import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
 
 /**
  * TaskGroupChatPage:
@@ -114,6 +121,12 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const chatTimeWindowLabel = useMemo(() => formatTimeWindowLabel(chatTimeWindow), [chatTimeWindow]);
   // Control the composer actions popover for time window + preview shortcuts. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
   const [composerActionsOpen, setComposerActionsOpen] = useState(false);
+  const { skills: skillsCatalog, loading: skillsCatalogLoading, refresh: refreshSkillsCatalog } = useSkillsCatalog();
+  // Track task-group skill overrides for the chat-level selection modal. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  const [skillSelection, setSkillSelection] = useState<SkillSelectionState | null>(null);
+  const [skillSelectionLoading, setSkillSelectionLoading] = useState(false);
+  const [skillSelectionSaving, setSkillSelectionSaving] = useState(false);
+  const [skillSelectionOpen, setSkillSelectionOpen] = useState(false);
 
   // Track TaskGroup preview status to render the dev server panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewState, setPreviewState] = useState<PreviewStatusResponse | null>(null);
@@ -157,6 +170,41 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       return `${prev}\n${suggestion}`;
     });
   }, []);
+
+  const refreshSkillSelection = useCallback(async () => {
+    // Load task-group skill selections for the chat-level override modal. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    if (!taskGroupId) return;
+    setSkillSelectionLoading(true);
+    try {
+      const selection = await fetchTaskGroupSkillSelection(taskGroupId);
+      setSkillSelection(selection);
+    } catch (err) {
+      console.error(err);
+      message.error(t('skills.selection.toast.fetchFailed'));
+      setSkillSelection(null);
+    } finally {
+      setSkillSelectionLoading(false);
+    }
+  }, [message, t, taskGroupId]);
+
+  const saveSkillSelection = useCallback(
+    async (nextSelection: SkillSelectionKey[] | null) => {
+      // Persist task-group skill overrides for the current conversation. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+      if (!taskGroupId) return;
+      setSkillSelectionSaving(true);
+      try {
+        const updated = await updateTaskGroupSkillSelection(taskGroupId, nextSelection);
+        setSkillSelection(updated);
+        message.success(t('skills.selection.toast.saved'));
+      } catch (err) {
+        console.error(err);
+        message.error(t('skills.selection.toast.saveFailed'));
+      } finally {
+        setSkillSelectionSaving(false);
+      }
+    },
+    [message, t, taskGroupId]
+  );
 
   const pollTimerRef = useRef<number | null>(null);
   const chatBodyRef = useRef<HTMLDivElement | null>(null);
@@ -756,6 +804,13 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     setTaskPagingPinnedToLatest(true);
     setTaskHiddenCount(0);
   }, [taskGroupId]);
+
+  useEffect(() => {
+    // Refresh chat-level skill selections when the active task group changes. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    if (!taskGroupId) return;
+    void refreshSkillSelection();
+    void refreshSkillsCatalog();
+  }, [refreshSkillSelection, refreshSkillsCatalog, taskGroupId]);
 
   const groupTitle = useMemo(() => {
     if (!group) return '';
@@ -1491,6 +1546,13 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     controlMode === 'pause' ? <PauseCircleOutlined /> : controlMode === 'resume' ? <PlayCircleOutlined /> : <SendOutlined />;
   const composerActionLoading = controlMode ? controlLoading : sending;
   const composerActionDisabled = controlMode ? !canControlTask : !canSend;
+  const skillModeLabel = useMemo(() => {
+    // Map task-group skill mode labels for the composer actions menu. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    if (!skillSelection) return t('common.loading');
+    if (skillSelection.mode === 'custom') return t('skills.selection.mode.custom');
+    if (skillSelection.mode === 'repo_default') return t('skills.selection.mode.repoDefault');
+    return t('skills.selection.mode.all');
+  }, [skillSelection, t]);
   const handleComposerAction = () => {
     if (controlMode) {
       void handleControlTask();
@@ -1524,6 +1586,23 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       >
         {t('preview.action.start')}
       </Button>
+      <div className="hc-composer-action-divider" aria-hidden="true" />
+      <div className="hc-composer-action-block">
+        <Typography.Text type="secondary" className="hc-composer-action-title">
+          {t('skills.selection.taskGroup.title')}
+        </Typography.Text>
+        <Button
+          size="small"
+          icon={<ToolOutlined />}
+          disabled={!taskGroupId}
+          onClick={() => setSkillSelectionOpen(true)}
+        >
+          {t('skills.selection.action.configure')}
+        </Button>
+        <Typography.Text type="secondary" className="hc-composer-action-hint">
+          {skillModeLabel}
+        </Typography.Text>
+      </div>
     </div>
   );
 
@@ -1668,9 +1747,9 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                 </Button>
               </Popover>
             )}
-            <Button icon={<UnorderedListOutlined />} onClick={() => openTaskGroupList()}>
+            {/* <Button icon={<UnorderedListOutlined />} onClick={() => openTaskGroupList()}>
               {t('taskGroups.page.viewAll')}
-            </Button>
+            </Button> */}
           </Space>
         }
         // Provide the mobile nav toggle so chat can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
@@ -1989,6 +2068,28 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         <Typography.Paragraph type="secondary">
           {t('preview.start.desc')}
         </Typography.Paragraph>
+      </Modal>
+
+      {/* Provide task-group skill overrides inside a dedicated modal. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+      <Modal
+        open={skillSelectionOpen}
+        title={t('skills.selection.taskGroup.title')}
+        onCancel={() => setSkillSelectionOpen(false)}
+        footer={null}
+        width={760}
+      >
+        <SkillSelectionPanel
+          scope="task_group"
+          skills={skillsCatalog}
+          selection={skillSelection}
+          loading={skillSelectionLoading || skillsCatalogLoading}
+          saving={skillSelectionSaving}
+          onRefresh={() => {
+            void refreshSkillSelection();
+            void refreshSkillsCatalog();
+          }}
+          onChange={saveSkillSelection}
+        />
       </Modal>
 
       {/* Preview log modal is driven by SSE when open. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}

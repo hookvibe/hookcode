@@ -17,6 +17,8 @@ coverage
 tmp
 .tmp
 logs
+# Persist uploaded extra skill bundles outside git. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+backend/storage/skills/
 .codex_prompt.txt
 .codex_output.txt
 .mintlify

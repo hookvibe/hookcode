@@ -27,6 +27,7 @@ export interface Repository {
   // Archived repositories are hidden from default lists and block new automation/tasks. qnp1mtxhzikhbi0xspbc
   archivedAt?: string;
   branches?: RepositoryBranch[];
+  skillDefaults?: string[] | null; // Store repo-level default skills for task-group inheritance. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   enabled: boolean;
   createdAt: string;
   updatedAt: string;

@@ -36,6 +36,17 @@ vi.mock('../api', () => {
         }
       }
     })),
+    fetchRepoSkillSelection: vi.fn(async () => ({
+      selection: null,
+      effective: ['built_in:hookcode-preview-highlight'],
+      mode: 'all'
+    })),
+    updateRepoSkillSelection: vi.fn(async () => ({
+      selection: [],
+      effective: [],
+      mode: 'custom'
+    })),
+    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [] })),
     // Expose archive APIs in the mock so RepoDetailPage can render the archive controls safely. qnp1mtxhzikhbi0xspbc
     archiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksArchived: 0, taskGroupsArchived: 0 })),
     unarchiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksRestored: 0, taskGroupsRestored: 0 })),
@@ -179,6 +190,16 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await waitFor(() => expect(api.fetchRepoPreviewConfig).toHaveBeenCalled());
     const matches = await screen.findAllByText('frontend');
     expect(matches.length).toBeGreaterThan(0);
+  });
+
+  test('shows the repository skill defaults panel', async () => {
+    // Ensure repo-level skill selection UI renders in the dashboard. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+    // Target the skill panel heading to avoid duplicate card title matches. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    expect(await screen.findByRole('heading', { name: 'Repository skills' })).toBeInTheDocument();
   });
 
   test('renders unified model credential list with provider tags', async () => {

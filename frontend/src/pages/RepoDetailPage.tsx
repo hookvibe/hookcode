@@ -33,6 +33,8 @@ import type {
   RepoScopedCredentialsPublic,
   RepoPreviewConfigResponse,
   Repository,
+  SkillSelectionKey,
+  SkillSelectionState,
   TaskGroup,
   TimeWindow,
   UserApiTokenPublic,
@@ -47,6 +49,7 @@ import {
   fetchMyApiTokens,
   fetchMyModelCredentials,
   fetchRepo,
+  fetchRepoSkillSelection,
   fetchRepoPreviewConfig,
   fetchTaskGroups,
   listMyModelProviderModels,
@@ -57,7 +60,8 @@ import {
   testRepoRobotWorkflow, // Add workflow-mode test API to validate direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   updateRepo,
   updateRepoAutomation,
-  updateRepoRobot
+  updateRepoRobot,
+  updateRepoSkillSelection
 } from '../api';
 import { supportedLocales, useLocale, useT } from '../i18n';
 import { buildReposHash, buildTaskHash } from '../router';
@@ -83,6 +87,8 @@ import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailPro
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
 import { uuid as generateUuid } from '../components/repoAutomation/utils';
 import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
+import { SkillSelectionPanel } from '../components/skills/SkillSelectionPanel';
+import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
 
 /**
  * RepoDetailPage:
@@ -257,6 +263,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
   // Track preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewConfig, setPreviewConfig] = useState<RepoPreviewConfigResponse | null>(null);
   const [previewConfigLoading, setPreviewConfigLoading] = useState(false);
+  const { skills: skillsCatalog, loading: skillsCatalogLoading, refresh: refreshSkillsCatalog } = useSkillsCatalog();
+  // Track repo-level skill selections for default task-group behavior. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  const [skillSelection, setSkillSelection] = useState<SkillSelectionState | null>(null);
+  const [skillSelectionLoading, setSkillSelectionLoading] = useState(false);
+  const [skillSelectionSaving, setSkillSelectionSaving] = useState(false);
   // Share webhook delivery data across dashboard cards to avoid duplicate requests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   const {
     deliveries: webhookDeliveries,
@@ -424,6 +435,41 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     }
   }, [repoId]);
 
+  const refreshSkillSelection = useCallback(async () => {
+    // Load repo-level skill defaults for the selection panel. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    if (!repoId) return;
+    setSkillSelectionLoading(true);
+    try {
+      const selection = await fetchRepoSkillSelection(repoId);
+      setSkillSelection(selection);
+    } catch (err) {
+      console.error(err);
+      message.error(t('skills.selection.toast.fetchFailed'));
+      setSkillSelection(null);
+    } finally {
+      setSkillSelectionLoading(false);
+    }
+  }, [message, repoId, t]);
+
+  const saveSkillSelection = useCallback(
+    async (nextSelection: SkillSelectionKey[] | null) => {
+      // Persist repo-level skill defaults from the selection panel. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+      if (!repoId) return;
+      setSkillSelectionSaving(true);
+      try {
+        const updated = await updateRepoSkillSelection(repoId, nextSelection);
+        setSkillSelection(updated);
+        message.success(t('skills.selection.toast.saved'));
+      } catch (err) {
+        console.error(err);
+        message.error(t('skills.selection.toast.saveFailed'));
+      } finally {
+        setSkillSelectionSaving(false);
+      }
+    },
+    [message, repoId, t]
+  );
+
   const refreshRepoTaskGroupTokens = useCallback(async () => {
     // Load task-group PATs scoped to this repo by matching task-group ids. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
     if (!repoId) return;
@@ -505,6 +551,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
   useEffect(() => {
     void refreshPreviewConfig();
   }, [refreshPreviewConfig]);
+
+  useEffect(() => {
+    void refreshSkillSelection();
+    void refreshSkillsCatalog();
+  }, [refreshSkillSelection, refreshSkillsCatalog]);
 
   useEffect(() => {
     // Keep repo task-group PATs in sync on repo changes. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
@@ -2159,6 +2210,27 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                                 ) : null}
                               </Space>
                             )}
+                          </Card>
+                        </div>
+                      </div>
+
+                      <div className="hc-repo-dashboard__region">
+                        {/* Region 2.8: repo-level skill defaults for task-group inheritance. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+                        <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+                          <Card size="small" title={t('skills.selection.repo.title')} className="hc-card">
+                            <SkillSelectionPanel
+                              scope="repo"
+                              skills={skillsCatalog}
+                              selection={skillSelection}
+                              loading={skillSelectionLoading || skillsCatalogLoading}
+                              saving={skillSelectionSaving}
+                              disabled={repoArchived}
+                              onRefresh={() => {
+                                void refreshSkillSelection();
+                                void refreshSkillsCatalog();
+                              }}
+                              onChange={saveSkillSelection}
+                            />
                           </Card>
                         </div>
                       </div>

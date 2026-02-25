@@ -42,6 +42,10 @@ export class RepositorySwaggerDto {
   @ApiPropertyOptional({ type: RepositoryBranchSwaggerDto, isArray: true })
   branches?: RepositoryBranchSwaggerDto[];
 
+  @ApiPropertyOptional({ type: String, isArray: true, nullable: true })
+  skillDefaults?: string[] | null;
+  // Expose repo-level skill defaults for task-group inheritance. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+
   @ApiProperty()
   enabled!: boolean;
 

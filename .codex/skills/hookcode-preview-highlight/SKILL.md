@@ -1,7 +1,12 @@
 ---
 name: hookcode-preview-highlight
 description: End-to-end workflow for HookCode preview DOM highlighting check/start/stop previews, install dependencies, send highlight commands, and verify preview bridge readiness via PAT-authenticated APIs. Use when debugging cross-origin preview iframes, validating bridge integration, or scripting highlight requests against task-group previews.
+tags:
+  - preview
+  - debugging
+  - highlight
 ---
+<!-- Add tags metadata for built-in skill filtering. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
 
 # Hookcode Preview Highlight
 

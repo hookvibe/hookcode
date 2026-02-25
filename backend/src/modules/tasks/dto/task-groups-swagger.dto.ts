@@ -36,6 +36,10 @@ export class TaskGroupWithMetaDto {
   @ApiPropertyOptional({ nullable: true })
   commitSha?: string | null;
 
+  @ApiPropertyOptional({ type: String, isArray: true, nullable: true })
+  skillSelections?: string[] | null;
+  // Expose task-group skill selection overrides for the console UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+
   // Expose preview activity in task-group DTOs for sidebar indicators. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
   @ApiPropertyOptional({ description: 'Whether a preview is currently running for this task group.' })
   previewActive?: boolean;
