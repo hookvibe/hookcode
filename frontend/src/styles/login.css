@@ -1,0 +1,21 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Login
+ * ========================================================================== */
+
+.hc-login {
+  height: 100vh;
+  background: var(--hc-content-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.hc-login__card {
+  width: min(420px, 94vw);
+  border-radius: 12px;
+  background: var(--hc-surface);
+  border-color: var(--hc-border);
+}
+

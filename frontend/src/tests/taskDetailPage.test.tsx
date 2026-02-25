@@ -69,6 +69,27 @@ vi.mock('../api', () => {
       updatedAt: '2026-01-11T00:00:00.000Z',
       permissions: { canManage: true }
     })),
+    // Mock pause/resume APIs for task control actions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    pauseTask: vi.fn(async () => ({
+      id: 't1',
+      eventType: 'chat',
+      title: 'Task t1',
+      status: 'paused',
+      retries: 0,
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+      permissions: { canManage: true }
+    })),
+    resumeTask: vi.fn(async () => ({
+      id: 't1',
+      eventType: 'chat',
+      title: 'Task t1',
+      status: 'queued',
+      retries: 0,
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+      permissions: { canManage: true }
+    })),
     deleteTask: vi.fn(async () => undefined),
     // Provide robot provider lookup for task detail provider labels. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
     listRepoRobots: vi.fn(async () => [
@@ -97,7 +118,8 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
 
     await waitFor(() => expect(api.fetchTask).toHaveBeenCalled());
     await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
-    expect(await screen.findByText('Task t1', { selector: '.hc-page__title' })).toBeInTheDocument();
+    // Align header title selector with the updated PageNav markup. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    expect(await screen.findByText('Task t1', { selector: '.hc-modern-nav__title' })).toBeInTheDocument();
 
     // Regression: ensure the full-width task summary strip still surfaces key fields for quick scanning. tdlayout20260117k8p3
     const strip = document.querySelector('.hc-task-summary-strip');
@@ -238,6 +260,64 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     await waitFor(() => expect(api.fetchTask).toHaveBeenCalled());
     await ui.click(screen.getByRole('button', { name: /Run now/i }));
     await waitFor(() => expect(api.executeTaskNow).toHaveBeenCalledWith('tq2'));
+  });
+
+  // Verify pause control in task detail header actions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  test('pauses a processing task from the header actions', async () => {
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchTask).mockResolvedValueOnce({
+      id: 't_pause',
+      eventType: 'chat',
+      title: 'Task pause',
+      status: 'processing',
+      retries: 0,
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+      permissions: { canManage: true },
+      repoId: 'r1',
+      repoProvider: 'gitlab',
+      repo: { id: 'r1', provider: 'gitlab', name: 'Repo r1', enabled: true },
+      robotId: 'bot1',
+      robot: { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true },
+      payload: { user_name: 'Alice', user_username: 'alice' }
+    } as any);
+
+    renderPage({ taskId: 't_pause' });
+
+    // Match the accessible name that includes the AntD icon label. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    const pauseButton = await screen.findByRole('button', { name: /Pause/ });
+    await ui.click(pauseButton);
+
+    await waitFor(() => expect(api.pauseTask).toHaveBeenCalledWith('t_pause'));
+  });
+
+  // Verify resume control in task detail header actions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  test('resumes a paused task from the header actions', async () => {
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchTask).mockResolvedValueOnce({
+      id: 't_resume',
+      eventType: 'chat',
+      title: 'Task resume',
+      status: 'paused',
+      retries: 0,
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+      permissions: { canManage: true },
+      repoId: 'r1',
+      repoProvider: 'gitlab',
+      repo: { id: 'r1', provider: 'gitlab', name: 'Repo r1', enabled: true },
+      robotId: 'bot1',
+      robot: { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true },
+      payload: { user_name: 'Alice', user_username: 'alice' }
+    } as any);
+
+    renderPage({ taskId: 't_resume' });
+
+    // Match the accessible name that includes the AntD icon label. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    const resumeButton = await screen.findByRole('button', { name: /Resume/ });
+    await ui.click(resumeButton);
+
+    await waitFor(() => expect(api.resumeTask).toHaveBeenCalledWith('t_resume'));
   });
 
   test('shows prompt patch template + rendered preview side-by-side', async () => {

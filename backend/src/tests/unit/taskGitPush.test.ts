@@ -14,9 +14,13 @@ jest.mock('../../agent/agent', () => {
     // Provide git proxy flags in the agent mock so push commands don't throw in tests. docs/en/developer/plans/gitpushfix20260127/task_plan.md gitpushfix20260127
     buildGitProxyFlags: jest.fn().mockReturnValue(''),
     // Mock the task-group workspace builder so push paths stay aligned with agent behavior. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
-    buildTaskGroupWorkspaceDir: jest
-      .fn()
-      .mockImplementation(({ taskGroupId, taskId, provider, repoSlug }) => `/tmp/build/task-groups/${taskGroupId ?? taskId}__${provider}__${repoSlug}`),
+    buildTaskGroupWorkspaceDir: jest.fn().mockImplementation(({ taskGroupId, taskId, repoSlug }) => {
+      // Mirror the task-group root + repo-name layout when mocking repo paths. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+      const slug = String(repoSlug ?? '').trim();
+      const segments = slug.split('__').filter(Boolean);
+      const repoName = segments.length > 0 ? segments[segments.length - 1] : slug || 'repo';
+      return `/tmp/build/task-groups/${taskGroupId ?? taskId}/${repoName}`;
+    }),
     collectGitStatusSnapshot: jest.fn(),
     getRepoCloneUrl: jest.fn().mockReturnValue('https://example.com/upstream.git'),
     getRepoSlug: jest.fn().mockReturnValue('org__repo'),

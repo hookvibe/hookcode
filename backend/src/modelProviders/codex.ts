@@ -305,16 +305,19 @@ export const normalizeCodexApiBaseUrl = (raw: string): string | undefined => {
 
 export const buildCodexSdkThreadOptions = (params: {
   repoDir: string;
+  workspaceDir?: string;
   model: CodexModel;
   sandbox: 'read-only' | 'workspace-write';
   modelReasoningEffort: CodexReasoningEffort;
 }): CodexSdkThreadOptions => {
   const sandboxMode = params.sandbox || 'read-only';
+  const workingDir = params.workspaceDir ?? params.repoDir;
 
   return {
     model: params.model,
     sandboxMode,
-    workingDirectory: params.repoDir,
+    // Run Codex from the task-group root when provided; fall back to repo root. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    workingDirectory: workingDir,
     skipGitRepoCheck: true,
     approvalPolicy: 'never',
     modelReasoningEffort: params.modelReasoningEffort as CodexSdkModelReasoningEffort,
@@ -326,6 +329,7 @@ export const buildCodexSdkThreadOptions = (params: {
 
 export const runCodexExecWithSdk = async (params: {
   repoDir: string;
+  workspaceDir?: string;
   promptFile: string;
   model: CodexModel;
   sandbox: 'read-only' | 'workspace-write';
@@ -333,6 +337,7 @@ export const runCodexExecWithSdk = async (params: {
   resumeThreadId?: string;
   apiKey: string;
   apiBaseUrl?: string;
+  outputSchema?: unknown;
   outputLastMessageFile: string;
   env?: Record<string, string | undefined>;
   signal?: AbortSignal;
@@ -357,12 +362,14 @@ export const runCodexExecWithSdk = async (params: {
 
   const threadOptions = buildCodexSdkThreadOptions({
     repoDir: params.repoDir,
+    workspaceDir: params.workspaceDir,
     model: params.model,
     sandbox: params.sandbox,
     // Thread options now always enable network access for Codex runs. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
     modelReasoningEffort: params.modelReasoningEffort
   });
   const resumeThreadId = (params.resumeThreadId ?? '').trim();
+  console.log('codex threadOptions', threadOptions);
   const thread = resumeThreadId
     ? (() => {
       try {
@@ -382,7 +389,12 @@ export const runCodexExecWithSdk = async (params: {
 
   // Change record: use shared async logger to avoid blocking provider execution on DB/log persistence.
   const logger = createAsyncLineLogger({ logLine: params.logLine, redact: params.redact, maxQueueSize: 500 });
-  const { events } = await thread.runStreamed(prompt, { signal: params.signal });
+  // Pass optional outputSchema through turn options so Codex can return structured JSON outputs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const turnOptions: { signal?: AbortSignal; outputSchema?: unknown } = {};
+  if (params.signal) turnOptions.signal = params.signal;
+  if (params.outputSchema) turnOptions.outputSchema = params.outputSchema;
+  console.log('codex runStreamed turnOptions', turnOptions);
+  const { events } = await thread.runStreamed(prompt, turnOptions);
 
   try {
     for await (const event of events) {

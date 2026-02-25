@@ -10,10 +10,13 @@ import { RepositoryService } from '../../modules/repositories/repository.service
 import { UserService } from '../../modules/users/user.service';
 // Use PreviewService token for controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
 import { PreviewService } from '../../modules/tasks/preview.service';
+import { SkillsService } from '../../modules/skills/skills.service';
 
 describe('Archived repo read-only API guard', () => {
   // Provide a stable PreviewService mock to satisfy controller DI across tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
   const previewService = {};
+  // Provide a stable SkillsService mock to satisfy controller DI across tests. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  const skillsService = {};
   const archivedRepo = () => {
     const iso = '2026-01-20T00:00:00.000Z';
     return { id: 'r1', provider: 'gitlab', name: 'hookcode', enabled: true, archivedAt: iso, createdAt: iso, updatedAt: iso };
@@ -48,7 +51,8 @@ describe('Archived repo read-only API guard', () => {
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
-        { provide: PreviewService, useValue: previewService }
+        { provide: PreviewService, useValue: previewService },
+        { provide: SkillsService, useValue: skillsService }
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
@@ -71,7 +75,8 @@ describe('Archived repo read-only API guard', () => {
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
-        { provide: PreviewService, useValue: previewService }
+        { provide: PreviewService, useValue: previewService },
+        { provide: SkillsService, useValue: skillsService }
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
@@ -94,7 +99,8 @@ describe('Archived repo read-only API guard', () => {
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
-        { provide: PreviewService, useValue: previewService }
+        { provide: PreviewService, useValue: previewService },
+        { provide: SkillsService, useValue: skillsService }
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
@@ -117,7 +123,8 @@ describe('Archived repo read-only API guard', () => {
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
-        { provide: PreviewService, useValue: previewService }
+        { provide: PreviewService, useValue: previewService },
+        { provide: SkillsService, useValue: skillsService }
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
@@ -140,7 +147,8 @@ describe('Archived repo read-only API guard', () => {
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
-        { provide: PreviewService, useValue: previewService }
+        { provide: PreviewService, useValue: previewService },
+        { provide: SkillsService, useValue: skillsService }
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
@@ -163,7 +171,8 @@ describe('Archived repo read-only API guard', () => {
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
-        { provide: PreviewService, useValue: previewService }
+        { provide: PreviewService, useValue: previewService },
+        { provide: SkillsService, useValue: skillsService }
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);

@@ -212,14 +212,17 @@ export const validateAutomationConfigOrThrow = (config: RepoAutomationConfig): v
           details: { eventKey, ruleId, ruleName }
         });
       }
-      // Validate trigger-level time windows when provided. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+      // Allow null/undefined timeWindow for "no limit" rules while still rejecting invalid shapes. docs/en/developer/plans/automation-disable-20260204/task_plan.md automation-disable-20260204
       if (isRecord(rule) && Object.prototype.hasOwnProperty.call(rule, 'timeWindow')) {
-        const normalized = normalizeTimeWindow((rule as any).timeWindow);
-        if (!normalized) {
-          throw new RepoAutomationConfigValidationError('Automation rule timeWindow is invalid', {
-            code: 'RULE_TIME_WINDOW_INVALID',
-            details: { eventKey, ruleId, ruleName }
-          });
+        const timeWindowRaw = (rule as any).timeWindow;
+        if (timeWindowRaw !== null && timeWindowRaw !== undefined) {
+          const normalized = normalizeTimeWindow(timeWindowRaw);
+          if (!normalized) {
+            throw new RepoAutomationConfigValidationError('Automation rule timeWindow is invalid', {
+              code: 'RULE_TIME_WINDOW_INVALID',
+              details: { eventKey, ruleId, ruleName }
+            });
+          }
         }
       }
       const actions = Array.isArray((rule as any)?.actions) ? (rule as any).actions : [];

@@ -14,25 +14,24 @@
 ## Requirements
 {/* WHAT: What the user asked for, broken down into specific requirements. WHY: Keeps requirements visible so you don't forget what you're building. WHEN: Fill this in during Phase 1 (Requirements & Discovery). EXAMPLE: - Command-line interface - Add tasks - List all tasks - Delete tasks - Python implementation */}
 {/* Captured from user request */}
-- Move .codex-output / claude output / gemini output artifacts to a fixed directory outside the repo.
-- Organize output by task ID to avoid Git pollution in the project.
+- Remove `HOOKCODE_TASK_OUTPUT_DIR` configuration and any docs references.
+- Write provider output artifacts directly into the task-group root under `backend/src/agent/build/task-groups`.
+- Add a task-group root override that supports relative paths for task-group storage.
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
 {/* Key discoveries during exploration */}
-- Planning session initialized at `docs/en/developer/plans/codexoutputdir20260124/` with required templates.
-- `backend/src/agent/agent.ts` sets `outputLastMessageFile` to `codex-output.txt` / `claude-output.txt` / `gemini-output.txt` and currently removes it under `repoDir`.
-- Provider implementations (`backend/src/modelProviders/*.ts`) resolve `outputLastMessageFile` to an absolute path if provided; otherwise they join with `repoDir`.
-- `backend/src/agent/agent.ts` uses `BUILD_ROOT = path.join(__dirname, 'build')` and builds `repoDir` under it for cloned repos.
-- No existing backend env/config mentions an output directory for provider output files (needs new config or derived path).
-- `backend/.env.example` is the canonical place to document new backend env vars for operators.
+- Task group workspaces already live under `backend/src/agent/build/task-groups` via `TASK_GROUP_WORKSPACE_ROOT` in `backend/src/agent/agent.ts`.
+- Current output path utility uses `HOOKCODE_TASK_OUTPUT_DIR` and task IDs, so it must be replaced with task-group root routing.
+- `HOOKCODE_TASK_GROUPS_ROOT` can be resolved relative to `HOOKCODE_BUILD_ROOT` to support a stable relative path override.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}
 {/* Decisions made with rationale */}
 | Decision | Rationale |
 |----------|-----------|
-| Add `HOOKCODE_TASK_OUTPUT_DIR` (default `~/.hookcode/task-outputs`) and build output paths as `<root>/<taskId>/<provider-output-file>` | Keeps output artifacts outside the repo while remaining stable and partitioned by task ID. |
+| Remove `HOOKCODE_TASK_OUTPUT_DIR` and place provider output artifacts in the task-group root directory. | Task groups already isolate workspaces; keeping outputs there avoids repo pollution and extra config. |
+| Add `HOOKCODE_TASK_GROUPS_ROOT` (relative to `HOOKCODE_BUILD_ROOT` unless absolute). | Allows operators to fix the task-group location without hardcoding absolute paths. |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}

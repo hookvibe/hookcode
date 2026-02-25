@@ -1,0 +1,232 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Preview Shell (Task Group)
+ * ========================================================================== */
+
+.hc-preview-panel {
+  flex: 0 0 auto;
+  /* Default the preview panel to half width on wide layouts. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o */
+  width: 50%;
+  min-width: 320px;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  /* Flatten preview panel chrome to a solid surface. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  box-shadow: var(--hc-shadow-md);
+  overflow: hidden;
+  min-height: 0;
+  animation: hc-preview-panel-reveal 0.28s ease-out;
+}
+
+/* Add draggable divider and diagnostics styling for preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */
+.hc-preview-divider {
+  flex: 0 0 14px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  cursor: col-resize;
+}
+
+.hc-preview-divider-handle {
+  width: 2px;
+  margin: 10px 0;
+  border-radius: 999px;
+  background: var(--hc-border);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-preview-divider:hover .hc-preview-divider-handle,
+.hc-preview-divider--active .hc-preview-divider-handle {
+  background: var(--hc-accent-border);
+  box-shadow: 0 0 0 4px var(--hc-accent-soft);
+}
+
+.hc-preview-header {
+  /* Streamline the header into a compact browser-style chrome. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  gap: 8px;
+}
+
+/* Row 1: Integrated tabs and global actions. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
+.hc-preview-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hc-preview-tabs {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  /* Hide scrollbar for cleaner look. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
+  scrollbar-width: none;
+}
+
+.hc-preview-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* Modern pill-style tabs for instance selection. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
+.hc-preview-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.hc-preview-tab:hover {
+  background: var(--hc-control-bg-hover);
+  color: var(--text);
+}
+
+.hc-preview-tab--active {
+  background: var(--hc-surface);
+  border-color: var(--hc-border);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-preview-tab-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hc-preview-header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Row 2: Navigation toolbar and address bar. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
+.hc-preview-header-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-preview-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.hc-preview-header-nav .ant-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--muted);
+}
+
+.hc-preview-header-nav .ant-btn:hover {
+  background: var(--hc-control-bg-hover);
+  color: var(--text);
+}
+
+.hc-preview-header-browser-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hc-preview-header-browser-input .ant-input-affix-wrapper {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+  padding: 2px 8px;
+  transition: all 0.2s ease;
+}
+
+.hc-preview-header-browser-input .ant-input-affix-wrapper:hover {
+  border-color: var(--hc-accent-border);
+}
+
+.hc-preview-header-browser-input .ant-input-affix-wrapper-focused {
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-preview-header-browser-prefix {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hc-preview-header-browser-prefix--secure {
+  color: var(--hc-accent);
+}
+
+.hc-preview-header-browser-lock {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.hc-preview-header-browser-lock:hover {
+  color: var(--hc-accent);
+  background: var(--hc-accent-soft-hover);
+}
+
+/* Style the preview body to focus on the content. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
+.hc-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--hc-surface);
+}
+
+.hc-preview-iframe-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  background: #ffffff;
+}
+
+
+/* Ensure the iframe fills the framed viewport without overflow. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */
+.hc-preview-iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+  min-height: 0;
+}
+
+.hc-preview-placeholder {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-preview-message {
+  opacity: 0.8;
+}

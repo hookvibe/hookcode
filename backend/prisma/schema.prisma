@@ -54,6 +54,7 @@ model TaskGroup {
   issueId      Int?     @map("issue_id")
   mrId         Int?     @map("mr_id")
   commitSha    String?  @map("commit_sha")
+  skillSelections Json? @map("skill_selections") // Store per-task-group skill selections as JSON to preserve null inheritance. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -67,6 +68,26 @@ model TaskGroup {
   @@index([repoId, commitSha, archivedAt], map: "task_groups_repo_commit_archived_idx")
   @@index([repoId, mrId, archivedAt], map: "task_groups_repo_mr_archived_idx")
   @@index([repoId, issueId, archivedAt], map: "task_groups_repo_issue_archived_idx")
+}
+
+/// Store global extra skill metadata + prompt injection flags for the skills registry. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+model ExtraSkill {
+  id            String   @id @db.Uuid // Extra skills use app-generated UUIDs for consistent ID creation. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  slug          String   @unique
+  displayName   String   @map("display_name")
+  description   String?
+  version       String?
+  enabled       Boolean  @default(true)
+  promptText    String?  @map("prompt_text") @db.Text
+  promptEnabled Boolean  @default(false) @map("prompt_enabled")
+  tags          String[] @default([]) @map("tags") // Store skill tags for filtering in the console UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  storagePath   String   @map("storage_path")
+  checksum      String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("extra_skills")
+  @@index([enabled, createdAt], map: "extra_skills_enabled_created_at_idx")
 }
 
 model User {
@@ -122,6 +143,7 @@ model Repository {
   modelProviderCredentials Json?  @map("model_provider_credentials_json") @db.JsonB
   webhookVerifiedAt      DateTime? @map("webhook_verified_at") @db.Timestamptz(6)
   archivedAt             DateTime? @map("archived_at") @db.Timestamptz(6)
+  skillDefaults          Json?    @map("skill_defaults") // Store repo-level default skills as JSON to preserve null semantics. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   enabled                Boolean  @default(true)
   createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)

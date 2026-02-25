@@ -57,6 +57,53 @@ describe('claude_code exec', () => {
     }
   });
 
+  test('runClaudeCodeExecWithSdk uses workspaceDir for cwd and tool boundaries', async () => {
+    const repoDir = await makeTempDir();
+    const workspaceDir = await makeTempDir();
+    try {
+      const promptFile = path.join(repoDir, 'prompt.txt');
+      await fs.writeFile(promptFile, 'hello', 'utf8');
+
+      let capturedOptions: any;
+      const query = jest.fn((params: any) => {
+        capturedOptions = params.options;
+        return (async function* () {
+          yield { type: 'system', subtype: 'init', session_id: 'sess_456' } as any;
+          yield { type: 'result', subtype: 'success', session_id: 'sess_456', result: 'ok' } as any;
+        })();
+      });
+
+      await runClaudeCodeExecWithSdk({
+        repoDir,
+        workspaceDir,
+        promptFile,
+        model: 'claude-sonnet-4-5-20250929',
+        sandbox: 'read-only',
+        networkAccess: false,
+        apiKey: 'sk-ant-test',
+        outputLastMessageFile: 'claude-output.txt',
+        __internal: {
+          importClaudeSdk: async () => ({ query } as any)
+        }
+      });
+
+      // Validate workspace-root execution for Claude Code tool access. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+      expect(capturedOptions.cwd).toBe(workspaceDir);
+      await expect(
+        capturedOptions.canUseTool('Read', { file_path: path.join(workspaceDir, 'note.txt') })
+      ).resolves.toMatchObject({ behavior: 'allow' });
+      await expect(
+        capturedOptions.canUseTool('Read', { file_path: 'note.txt' })
+      ).resolves.toMatchObject({ behavior: 'allow' });
+      await expect(
+        capturedOptions.canUseTool('Read', { file_path: path.join(os.tmpdir(), 'outside.txt') })
+      ).resolves.toMatchObject({ behavior: 'deny' });
+    } finally {
+      await fs.rm(repoDir, { recursive: true, force: true });
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
   test('runClaudeCodeExecWithSdk 在 logLine 卡住时也不会卡住执行流程', async () => {
     const repoDir = await makeTempDir();
     try {
@@ -100,4 +147,3 @@ describe('claude_code exec', () => {
     }
   });
 });
-

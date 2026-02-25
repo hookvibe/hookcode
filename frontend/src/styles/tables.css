@@ -1,0 +1,57 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Shared helpers (tables)
+ * ========================================================================== */
+
+.table-wrapper {
+  width: 100%;
+  min-width: 0;
+}
+
+.table-wrapper .ant-table-content,
+.table-wrapper .ant-table-body {
+  /* Style the real AntD scroll containers (avoid an extra scroll layer that can force a vertical scrollbar). docs/en/developer/plans/qh23ler2y5yeesg6hqel/task_plan.md qh23ler2y5yeesg6hqel */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-color: var(--hc-scrollbar-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.table-wrapper .ant-table-content::-webkit-scrollbar,
+.table-wrapper .ant-table-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.table-wrapper .ant-table-content::-webkit-scrollbar-track,
+.table-wrapper .ant-table-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-wrapper .ant-table-content::-webkit-scrollbar-thumb,
+.table-wrapper .ant-table-body::-webkit-scrollbar-thumb {
+  background-color: var(--hc-scrollbar-thumb);
+  border-radius: 999px;
+  /* Use a transparent border so the thumb looks lighter than a solid "pill" bar. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.table-wrapper .ant-table-content::-webkit-scrollbar-thumb:hover,
+.table-wrapper .ant-table-body::-webkit-scrollbar-thumb:hover {
+  background-color: var(--hc-scrollbar-thumb-hover);
+}
+
+.table-wrapper .ant-table-content::-webkit-scrollbar-corner,
+.table-wrapper .ant-table-body::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.table-cell-ellipsis {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+

@@ -1,0 +1,173 @@
+/* Split docs styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Style OpenAPI panels with consistent flat neutral surfaces and inputs. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+.openapi-settings,
+.openapi-operation {
+  border: 1px solid var(--glass-border);
+  background-color: var(--glass-surface);
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  box-shadow: var(--glass-shadow);
+}
+
+.openapi-settings__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.openapi-settings__title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.openapi-settings__desc {
+  margin: 0.35rem 0 0;
+  color: var(--ifm-color-content-secondary);
+}
+
+.openapi-settings__grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+/* Keep OpenAPI inputs on solid neutral surfaces. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+.openapi-field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.openapi-label {
+  font-size: 0.9rem;
+  color: var(--ifm-color-content);
+}
+
+.openapi-input,
+.openapi-textarea {
+  border: 1px solid var(--glass-border-strong);
+  background-color: var(--ifm-background-surface-color);
+  color: var(--ifm-color-content);
+  padding: 0.55rem 0.75rem;
+  font-family: var(--ifm-font-family-base);
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow-soft);
+  width: 100%;
+}
+
+html[data-theme='dark'] .openapi-input,
+html[data-theme='dark'] .openapi-textarea {
+  background-color: var(--glass-surface);
+}
+
+.openapi-textarea {
+  min-height: 140px;
+}
+
+.openapi-help,
+.openapi-status {
+  color: var(--ifm-color-content-secondary);
+  font-size: 0.85rem;
+}
+
+.openapi-status {
+  margin-top: 0.85rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.openapi-error {
+  color: #ef4444;
+}
+
+.openapi-operation__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Neutralize method chips to grayscale for the flat palette. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+.openapi-method {
+  border: 1px solid var(--glass-border);
+  padding: 0.2rem 0.6rem;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  background-color: rgba(15, 23, 42, 0.08);
+  color: var(--ifm-color-content);
+}
+
+.openapi-method--get {
+  background-color: rgba(15, 23, 42, 0.08);
+  color: var(--ifm-color-content);
+}
+
+.openapi-method--post {
+  background-color: rgba(15, 23, 42, 0.08);
+  color: var(--ifm-color-content);
+}
+
+.openapi-method--patch {
+  background-color: rgba(15, 23, 42, 0.08);
+  color: var(--ifm-color-content);
+}
+
+.openapi-method--delete {
+  background-color: rgba(15, 23, 42, 0.08);
+  color: var(--ifm-color-content);
+}
+
+html[data-theme='dark'] .openapi-method {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--ifm-color-content);
+}
+
+.openapi-path {
+  font-size: 0.9rem;
+}
+
+.openapi-summary {
+  margin-top: 0.75rem;
+}
+
+.openapi-params__list,
+.openapi-responses__list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* Use solid neutral cards for param/response blocks. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+.openapi-param,
+.openapi-response,
+.openapi-response-box {
+  border: 1px solid var(--glass-border);
+  background-color: var(--glass-surface-muted);
+  padding: 0.75rem;
+  border-radius: 14px;
+  box-shadow: var(--glass-shadow-soft);
+}
+
+.openapi-param__name {
+  font-weight: 600;
+}
+
+.openapi-param__meta {
+  color: var(--ifm-color-content-secondary);
+  font-size: 0.8rem;
+}
+
+.openapi-try {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.openapi-try__params {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}

@@ -21,7 +21,7 @@ import {
   Tag,
   Typography
 } from 'antd';
-import { GlobalOutlined, KeyOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { ApiOutlined, GlobalOutlined, KeyOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import type {
   CodexRobotProviderConfigPublic,
   ClaudeCodeRobotProviderConfigPublic,
@@ -33,7 +33,11 @@ import type {
   RepoScopedCredentialsPublic,
   RepoPreviewConfigResponse,
   Repository,
+  SkillSelectionKey,
+  SkillSelectionState,
+  TaskGroup,
   TimeWindow,
+  UserApiTokenPublic,
   UserModelCredentialsPublic,
   UserModelProviderCredentialProfilePublic,
   UserRepoProviderCredentialProfilePublic
@@ -42,17 +46,22 @@ import {
   archiveRepo,
   createRepoRobot,
   deleteRepoRobot,
+  fetchMyApiTokens,
   fetchMyModelCredentials,
   fetchRepo,
+  fetchRepoSkillSelection,
   fetchRepoPreviewConfig,
+  fetchTaskGroups,
   listMyModelProviderModels,
   listRepoModelProviderModels,
+  revokeMyApiToken,
   unarchiveRepo,
   testRepoRobot,
   testRepoRobotWorkflow, // Add workflow-mode test API to validate direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   updateRepo,
   updateRepoAutomation,
-  updateRepoRobot
+  updateRepoRobot,
+  updateRepoSkillSelection
 } from '../api';
 import { supportedLocales, useLocale, useT } from '../i18n';
 import { buildReposHash, buildTaskHash } from '../router';
@@ -65,9 +74,10 @@ import { RepoOnboardingWizard } from '../components/repos/RepoOnboardingWizard';
 import { ResponsiveDialog } from '../components/dialogs/ResponsiveDialog';
 import { TemplateEditor } from '../components/TemplateEditor';
 import { ScrollableTable } from '../components/ScrollableTable';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { buildWebhookUrl } from '../utils/webhook';
 import { getRobotProviderLabel } from '../utils/robot';
+import { extractTaskGroupIdFromTokenName } from '../utils/apiTokens';
 import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
 import { RepoDetailDashboardSummaryStrip, type RepoDetailSectionKey } from '../components/repos/RepoDetailDashboardSummaryStrip';
 import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
@@ -77,6 +87,8 @@ import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailPro
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
 import { uuid as generateUuid } from '../components/repoAutomation/utils';
 import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
+import { SkillSelectionPanel } from '../components/skills/SkillSelectionPanel';
+import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
 
 /**
  * RepoDetailPage:
@@ -104,6 +116,7 @@ import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
 export interface RepoDetailPageProps {
   repoId: string;
   userPanel?: ReactNode;
+  navToggle?: PageNavMenuAction;
 }
 
 type ModelProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
@@ -166,6 +179,7 @@ const providerLabel = (provider: string) => (provider === 'github' ? 'GitHub' : 
 const ONBOARDING_STORAGE_PREFIX = 'hookcode-repo-onboarding:'; // Persist per-repo onboarding completion in localStorage. 58w1q3n5nr58flmempxe
 
 const CREDENTIAL_PROFILE_PAGE_SIZE = 4; // Limit credential profile list height so the dashboard board stays visually dense. u55e45ffi8jng44erdzp
+const TASK_GROUP_TOKEN_PAGE_SIZE = 4; // Paginate task-group tokens to keep the bottom section compact. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
 
 const getOnboardingKey = (repoId: string): string => `${ONBOARDING_STORAGE_PREFIX}${repoId}`;
 
@@ -219,7 +233,7 @@ const resolveRobotStatusTag = (t: ReturnType<typeof useT>, robot: RepoRobot) => 
   return <Tag color="gold">{t('repos.robots.status.pending')}</Tag>;
 };
 
-export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) => {
+export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -241,9 +255,19 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [webhookPathRaw, setWebhookPathRaw] = useState<string | null>(null);
   const [repoScopedCredentials, setRepoScopedCredentials] = useState<RepoScopedCredentialsPublic | null>(null);
+  // Track auto-generated task-group PATs for the repo credentials view. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+  const [repoTaskGroupTokens, setRepoTaskGroupTokens] = useState<UserApiTokenPublic[]>([]);
+  const [repoTaskGroupTokensLoading, setRepoTaskGroupTokensLoading] = useState(false);
+  const [repoTaskGroupTokenRevokingId, setRepoTaskGroupTokenRevokingId] = useState<string | null>(null);
+  const [repoTaskGroupTokensPage, setRepoTaskGroupTokensPage] = useState(1); // Track task-group token pagination for the bottom section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
   // Track preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewConfig, setPreviewConfig] = useState<RepoPreviewConfigResponse | null>(null);
   const [previewConfigLoading, setPreviewConfigLoading] = useState(false);
+  const { skills: skillsCatalog, loading: skillsCatalogLoading, refresh: refreshSkillsCatalog } = useSkillsCatalog();
+  // Track repo-level skill selections for default task-group behavior. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  const [skillSelection, setSkillSelection] = useState<SkillSelectionState | null>(null);
+  const [skillSelectionLoading, setSkillSelectionLoading] = useState(false);
+  const [skillSelectionSaving, setSkillSelectionSaving] = useState(false);
   // Share webhook delivery data across dashboard cards to avoid duplicate requests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   const {
     deliveries: webhookDeliveries,
@@ -283,6 +307,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     setRepoProviderProfilesPage(1);
     // Reset unified model profile pagination on repo switch. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
     setModelProviderProfilesPage(1);
+    // Clear repo-scoped auto-generated PATs when switching repositories. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    setRepoTaskGroupTokens([]);
+    setRepoTaskGroupTokenRevokingId(null);
+    // Reset task-group token pagination on repo switch to avoid empty pages. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    setRepoTaskGroupTokensPage(1);
   }, [repoId]);
 
   useEffect(() => {
@@ -295,7 +324,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     const modelProfilesTotal = modelProviderProfileItems.length;
     const modelMaxPage = Math.max(1, Math.ceil(modelProfilesTotal / CREDENTIAL_PROFILE_PAGE_SIZE));
     setModelProviderProfilesPage((p) => Math.min(p, modelMaxPage));
-  }, [modelProviderProfileItems, repoScopedCredentials]);
+    // Clamp task-group token pagination when the list size changes. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    const tokenMaxPage = Math.max(1, Math.ceil(repoTaskGroupTokens.length / TASK_GROUP_TOKEN_PAGE_SIZE));
+    setRepoTaskGroupTokensPage((p) => Math.min(p, tokenMaxPage));
+  }, [modelProviderProfileItems, repoScopedCredentials, repoTaskGroupTokens]);
 
   const [repoProviderProfileModalOpen, setRepoProviderProfileModalOpen] = useState(false);
   const [repoProviderProfileEditing, setRepoProviderProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
@@ -382,6 +414,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     [locale]
   );
 
+  // Format nullable API token timestamps for the repo task-group PAT list. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+  const formatTokenTime = useCallback((value?: string | null): string => {
+    if (!value) return '-';
+    return formatTime(value);
+  }, [formatTime]);
+
   const refreshPreviewConfig = useCallback(async () => {
     // Load repo preview configuration metadata for the dashboard card. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     if (!repoId) return;
@@ -394,6 +432,64 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
       setPreviewConfig(null);
     } finally {
       setPreviewConfigLoading(false);
+    }
+  }, [repoId]);
+
+  const refreshSkillSelection = useCallback(async () => {
+    // Load repo-level skill defaults for the selection panel. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    if (!repoId) return;
+    setSkillSelectionLoading(true);
+    try {
+      const selection = await fetchRepoSkillSelection(repoId);
+      setSkillSelection(selection);
+    } catch (err) {
+      console.error(err);
+      message.error(t('skills.selection.toast.fetchFailed'));
+      setSkillSelection(null);
+    } finally {
+      setSkillSelectionLoading(false);
+    }
+  }, [message, repoId, t]);
+
+  const saveSkillSelection = useCallback(
+    async (nextSelection: SkillSelectionKey[] | null) => {
+      // Persist repo-level skill defaults from the selection panel. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+      if (!repoId) return;
+      setSkillSelectionSaving(true);
+      try {
+        const updated = await updateRepoSkillSelection(repoId, nextSelection);
+        setSkillSelection(updated);
+        message.success(t('skills.selection.toast.saved'));
+      } catch (err) {
+        console.error(err);
+        message.error(t('skills.selection.toast.saveFailed'));
+      } finally {
+        setSkillSelectionSaving(false);
+      }
+    },
+    [message, repoId, t]
+  );
+
+  const refreshRepoTaskGroupTokens = useCallback(async () => {
+    // Load task-group PATs scoped to this repo by matching task-group ids. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    if (!repoId) return;
+    setRepoTaskGroupTokensLoading(true);
+    try {
+      const [tokens, taskGroups] = await Promise.all([
+        fetchMyApiTokens(),
+        fetchTaskGroups({ repoId, archived: 'all', limit: 200 })
+      ]);
+      const taskGroupIds = new Set((taskGroups ?? []).map((group: TaskGroup) => group.id));
+      const filtered = (Array.isArray(tokens) ? tokens : []).filter((token) => {
+        const groupId = extractTaskGroupIdFromTokenName(token.name);
+        return Boolean(groupId && taskGroupIds.has(groupId));
+      });
+      setRepoTaskGroupTokens(filtered);
+    } catch (err) {
+      console.error(err);
+      setRepoTaskGroupTokens([]);
+    } finally {
+      setRepoTaskGroupTokensLoading(false);
     }
   }, [repoId]);
 
@@ -429,6 +525,25 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
     }
   }, [basicForm, message, repoId, t]);
 
+  const revokeRepoTaskGroupToken = useCallback(
+    async (token: UserApiTokenPublic) => {
+      // Allow revoking auto-generated task-group PATs from the repo credentials card. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+      if (!token?.id || repoTaskGroupTokenRevokingId) return;
+      setRepoTaskGroupTokenRevokingId(token.id);
+      try {
+        await revokeMyApiToken(token.id);
+        message.success(t('toast.apiTokens.revoked'));
+        await refreshRepoTaskGroupTokens();
+      } catch (err: any) {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.apiTokens.saveFailed'));
+      } finally {
+        setRepoTaskGroupTokenRevokingId(null);
+      }
+    },
+    [message, refreshRepoTaskGroupTokens, repoTaskGroupTokenRevokingId, t]
+  );
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -436,6 +551,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
   useEffect(() => {
     void refreshPreviewConfig();
   }, [refreshPreviewConfig]);
+
+  useEffect(() => {
+    void refreshSkillSelection();
+    void refreshSkillsCatalog();
+  }, [refreshSkillSelection, refreshSkillsCatalog]);
+
+  useEffect(() => {
+    // Keep repo task-group PATs in sync on repo changes. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    void refreshRepoTaskGroupTokens();
+  }, [refreshRepoTaskGroupTokens]);
 
   useEffect(() => {
     // Keep onboarding visibility aligned with the current repo id (hash route may change without a full reload). 58w1q3n5nr58flmempxe
@@ -1387,6 +1512,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
             </Typography.Text>
           }
 	          actions={headerActions}
+	          // Pass the mobile nav toggle (hidden when back is shown) for consistent header behavior. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+	          navToggle={navToggle}
 	          userPanel={userPanel}
 	        />
 
@@ -1676,6 +1803,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                             </Card>
                           </div>
                         </Col>
+
                       </Row>
                     )
                   },
@@ -1898,6 +2026,113 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                   ] as const;
 
                   const section = (key: RepoDetailSectionKey) => items.find((i) => i.key === key)?.children ?? null;
+                  // Build the bottom task-group token card with pagination controls. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+                  const repoTaskGroupTokensCard = (
+                    <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+                      <Card
+                        size="small"
+                        title={
+                          <Space size={8}>
+                            <ApiOutlined />
+                            <span>{t('repos.detail.autoTokens.title')}</span>
+                          </Space>
+                        }
+                        extra={
+                          <Button
+                            size="small"
+                            icon={<ReloadOutlined />}
+                            onClick={() => void refreshRepoTaskGroupTokens()}
+                            disabled={repoTaskGroupTokensLoading}
+                          >
+                            {t('common.refresh')}
+                          </Button>
+                        }
+                        className="hc-card"
+                        loading={repoTaskGroupTokensLoading}
+                      >
+                        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                          {/* Render auto-generated task-group PATs in the bottom section with pagination. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215 */}
+                          <Typography.Text type="secondary">{t('repos.detail.autoTokens.tip')}</Typography.Text>
+                          {(() => {
+                            const total = repoTaskGroupTokens.length;
+                            if (!total) {
+                              return <Typography.Text type="secondary">{t('repos.detail.autoTokens.empty')}</Typography.Text>;
+                            }
+
+                            const start = (repoTaskGroupTokensPage - 1) * TASK_GROUP_TOKEN_PAGE_SIZE;
+                            const paged = repoTaskGroupTokens.slice(start, start + TASK_GROUP_TOKEN_PAGE_SIZE);
+
+                            return (
+                              <>
+                                <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                                  {paged.map((tokenItem) => {
+                                    const now = Date.now();
+                                    const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
+                                    const isExpired = Boolean(expiresAt && expiresAt <= now);
+                                    const isRevoked = Boolean(tokenItem.revokedAt);
+                                    const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
+                                    const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
+                                    return (
+                                      <Card key={tokenItem.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                        <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                          <Space size={8} wrap>
+                                            <Typography.Text strong>{tokenItem.name}</Typography.Text>
+                                            <Tag color={statusColor}>{t(`panel.apiTokens.status.${statusKey}`)}</Tag>
+                                          </Space>
+                                          <Typography.Text type="secondary">
+                                            {t('panel.apiTokens.field.expiresAt')}: {formatTokenTime(tokenItem.expiresAt ?? null)}
+                                          </Typography.Text>
+                                        </Space>
+                                        <Space size={16} wrap style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
+                                          <Space size={12} wrap>
+                                            <Typography.Text type="secondary">
+                                              {t('panel.apiTokens.field.createdAt')}: {formatTokenTime(tokenItem.createdAt)}
+                                            </Typography.Text>
+                                            <Typography.Text type="secondary">
+                                              {t('panel.apiTokens.field.lastUsed')}: {formatTokenTime(tokenItem.lastUsedAt ?? null)}
+                                            </Typography.Text>
+                                          </Space>
+                                          <Popconfirm
+                                            title={t('panel.apiTokens.revokeTitle')}
+                                            description={t('panel.apiTokens.revokeDesc')}
+                                            okText={t('panel.apiTokens.revokeOk')}
+                                            cancelText={t('common.cancel')}
+                                            onConfirm={() => void revokeRepoTaskGroupToken(tokenItem)}
+                                          >
+                                            <Button
+                                              size="small"
+                                              danger
+                                              loading={repoTaskGroupTokenRevokingId === tokenItem.id}
+                                              disabled={isRevoked || repoArchived}
+                                            >
+                                              {t('panel.apiTokens.revoke')}
+                                            </Button>
+                                          </Popconfirm>
+                                        </Space>
+                                      </Card>
+                                    );
+                                  })}
+                                </Space>
+
+                                {total > TASK_GROUP_TOKEN_PAGE_SIZE ? (
+                                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                    <Pagination
+                                      size="small"
+                                      current={repoTaskGroupTokensPage}
+                                      pageSize={TASK_GROUP_TOKEN_PAGE_SIZE}
+                                      total={total}
+                                      showSizeChanger={false}
+                                      onChange={(page) => setRepoTaskGroupTokensPage(page)}
+                                    />
+                                  </div>
+                                ) : null}
+                              </>
+                            );
+                          })()}
+                        </Space>
+                      </Card>
+                    </div>
+                  );
 
 	                  return (
 	                    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
@@ -1979,6 +2214,27 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                         </div>
                       </div>
 
+                      <div className="hc-repo-dashboard__region">
+                        {/* Region 2.8: repo-level skill defaults for task-group inheritance. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+                        <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+                          <Card size="small" title={t('skills.selection.repo.title')} className="hc-card">
+                            <SkillSelectionPanel
+                              scope="repo"
+                              skills={skillsCatalog}
+                              selection={skillSelection}
+                              loading={skillSelectionLoading || skillsCatalogLoading}
+                              saving={skillSelectionSaving}
+                              disabled={repoArchived}
+                              onRefresh={() => {
+                                void refreshSkillSelection();
+                                void refreshSkillsCatalog();
+                              }}
+                              onChange={saveSkillSelection}
+                            />
+                          </Card>
+                        </div>
+                      </div>
+
 	                      <div id={sectionDomId('credentials')} className="hc-repo-dashboard__region">
 	                        {section('credentials')}
 	                      </div>
@@ -1997,10 +2253,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
 	                        </div>
 	                      </div>
 
-	                      <div className="hc-repo-dashboard__region">
-	                        {/* Region 6: webhook records (config + activity + deliveries) in a single row. u55e45ffi8jng44erdzp */}
-	                        <Row gutter={[12, 12]}>
-	                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
+                      <div className="hc-repo-dashboard__region">
+                        {/* Region 6: webhook records (config + activity + deliveries) in a single row. u55e45ffi8jng44erdzp */}
+                        <Row gutter={[12, 12]}>
+                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
 	                            <Space orientation="vertical" size={12} style={{ width: '100%', flex: 1 }}>
                               <div id={sectionDomId('webhooks')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
                                 {section('webhooks')}
@@ -2031,6 +2287,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel }) =
                             </div>
                           </Col>
                         </Row>
+                      </div>
+
+                      <div className="hc-repo-dashboard__region">
+                        {/* Place task-group API tokens at the bottom of the repo detail dashboard. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215 */}
+                        {repoTaskGroupTokensCard}
                       </div>
                     </Space>
                   );

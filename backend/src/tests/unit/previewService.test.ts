@@ -160,4 +160,126 @@ describe('PreviewService', () => {
     await previewService.onModuleDestroy();
     await rm(workspaceDir, { recursive: true, force: true });
   });
+
+  test('stops previews after the hidden timeout elapses', async () => {
+    // Validate hidden preview timeout triggers auto-stop for port reclaim. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    jest.useFakeTimers();
+    const taskGroupId = 'group-preview-hidden';
+    const previewService = new PreviewService(
+      {} as any,
+      new HookcodeConfigService(),
+      {} as any,
+      new PreviewLogStream()
+    );
+    clearInterval((previewService as any).idleTimer);
+    const stopPreviewSpy = jest.spyOn(previewService, 'stopPreview').mockResolvedValue();
+
+    (previewService as any).groups.set(taskGroupId, {
+      taskGroupId,
+      workspaceDir: '/tmp',
+      configPath: '/tmp/.hookcode.yml',
+      instances: [
+        {
+          config: { name: 'app', command: 'npm run dev', workdir: '.' },
+          port: 12345,
+          status: 'running',
+          startedAt: new Date().toISOString(),
+          lastAccessAt: Date.now(),
+          logs: []
+        }
+      ]
+    });
+
+    previewService.markPreviewVisibility(taskGroupId, false);
+    jest.advanceTimersByTime(30 * 60 * 1000);
+    await Promise.resolve();
+
+    expect(stopPreviewSpy).toHaveBeenCalledWith(taskGroupId);
+    stopPreviewSpy.mockRestore();
+    (previewService as any).groups.delete(taskGroupId);
+    jest.useRealTimers();
+  });
+
+  test('starts hidden timeout when previews start without visibility reports', async () => {
+    // Ensure previews started without UI visibility still auto-stop after the hidden window. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    jest.useFakeTimers();
+    const taskGroupId = 'group-preview-start-hidden';
+    const previewService = new PreviewService(
+      {} as any,
+      new HookcodeConfigService(),
+      {} as any,
+      new PreviewLogStream()
+    );
+    clearInterval((previewService as any).idleTimer);
+    const stopPreviewSpy = jest.spyOn(previewService, 'stopPreview').mockResolvedValue();
+
+    const instanceConfig = { name: 'app', command: 'npm run dev', workdir: '.' };
+    jest.spyOn(previewService as any, 'resolvePreviewConfig').mockResolvedValue({
+      available: true,
+      workspaceDir: '/tmp',
+      config: { version: 1, preview: { instances: [instanceConfig] } },
+      snapshot: { available: true, instances: [] }
+    });
+    jest.spyOn(previewService as any, 'installDependenciesIfNeeded').mockResolvedValue(null);
+    jest.spyOn(previewService as any, 'startInstance').mockResolvedValue({
+      config: instanceConfig,
+      port: 12347,
+      status: 'running',
+      startedAt: new Date().toISOString(),
+      lastAccessAt: Date.now(),
+      logs: []
+    });
+    jest.spyOn(previewService as any, 'ensureConfigWatcher').mockImplementation(() => {});
+    jest.spyOn(previewService as any, 'resolveConfigPath').mockReturnValue('/tmp/.hookcode.yml');
+
+    await (previewService as any).startPreviewInternal(taskGroupId);
+    stopPreviewSpy.mockClear();
+    jest.advanceTimersByTime(30 * 60 * 1000);
+    await Promise.resolve();
+
+    expect(stopPreviewSpy).toHaveBeenCalledWith(taskGroupId);
+    stopPreviewSpy.mockRestore();
+    (previewService as any).groups.delete(taskGroupId);
+    jest.useRealTimers();
+  });
+
+  test('clears hidden timers when preview becomes visible again', async () => {
+    // Ensure preview visibility updates cancel pending hidden shutdowns. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    jest.useFakeTimers();
+    const taskGroupId = 'group-preview-visible';
+    const previewService = new PreviewService(
+      {} as any,
+      new HookcodeConfigService(),
+      {} as any,
+      new PreviewLogStream()
+    );
+    clearInterval((previewService as any).idleTimer);
+    const stopPreviewSpy = jest.spyOn(previewService, 'stopPreview').mockResolvedValue();
+
+    (previewService as any).groups.set(taskGroupId, {
+      taskGroupId,
+      workspaceDir: '/tmp',
+      configPath: '/tmp/.hookcode.yml',
+      instances: [
+        {
+          config: { name: 'app', command: 'npm run dev', workdir: '.' },
+          port: 12346,
+          status: 'running',
+          startedAt: new Date().toISOString(),
+          lastAccessAt: Date.now(),
+          logs: []
+        }
+      ]
+    });
+
+    previewService.markPreviewVisibility(taskGroupId, false);
+    previewService.markPreviewVisibility(taskGroupId, true);
+    jest.advanceTimersByTime(30 * 60 * 1000);
+    await Promise.resolve();
+
+    expect(stopPreviewSpy).not.toHaveBeenCalled();
+    stopPreviewSpy.mockRestore();
+    (previewService as any).groups.delete(taskGroupId);
+    jest.useRealTimers();
+  });
 });

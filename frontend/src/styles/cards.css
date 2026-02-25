@@ -1,0 +1,104 @@
+/* Modern Card Styles - High-End Redesign */
+
+.hc-card-grid-modern {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+.hc-modern-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  background-color: var(--hc-surface);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.hc-modern-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--hc-shadow-sm);
+  transform: translateY(-1px);
+}
+
+.hc-modern-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.hc-modern-card__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.hc-modern-card__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.hc-modern-card__subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hc-modern-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hc-modern-card__divider {
+  height: 1px;
+  background-color: var(--border);
+  width: 100%;
+  opacity: 0.6;
+}
+
+.hc-modern-card__meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.hc-modern-card__meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.hc-modern-card__actions {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .hc-card-grid-modern {
+    grid-template-columns: 1fr;
+  }
+  
+  .hc-modern-card {
+    padding: 16px;
+  }
+}

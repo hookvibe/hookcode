@@ -1,20 +1,32 @@
 import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Input, Modal, Popover, Select, Space, Tooltip, Typography } from 'antd';
 import {
+  ArrowLeftOutlined,
+  ArrowRightOutlined,
   ClockCircleOutlined,
   CopyOutlined,
   ExportOutlined,
   FileTextOutlined,
+  GlobalOutlined,
+  LockOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
   ReloadOutlined,
   SendOutlined,
-  UnorderedListOutlined
+  UnlockOutlined,
+  UnorderedListOutlined,
+  ToolOutlined
 } from '@ant-design/icons';
 import type {
+  PreviewHighlightCommand,
+  PreviewHighlightEvent,
   PreviewInstanceSummary,
   PreviewLogEntry,
   PreviewStatusResponse,
   RepoRobot,
   Repository,
+  SkillSelectionKey,
+  SkillSelectionState,
   Task,
   TaskGroup,
   TimeWindow
@@ -24,24 +36,33 @@ import {
   executeChat,
   fetchTask,
   fetchTaskGroup,
+  fetchTaskGroupSkillSelection,
   fetchTaskGroupPreviewStatus,
   fetchTaskGroupTasks,
   installTaskGroupPreviewDependencies,
   listRepoRobots,
   listRepos,
+  pauseTask,
+  resumeTask,
+  setTaskGroupPreviewVisibility,
   startTaskGroupPreview,
-  stopTaskGroupPreview
+  stopTaskGroupPreview,
+  updateTaskGroupSkillSelection
 } from '../api';
 import { getToken } from '../auth';
 import { useLocale, useT } from '../i18n';
 import { buildTaskGroupHash, buildTaskGroupsHash, buildTaskHash } from '../router';
 import { TaskConversationItem } from '../components/chat/TaskConversationItem';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { isTerminalStatus } from '../utils/task';
 import { ChatTimelineSkeleton } from '../components/skeletons/ChatTimelineSkeleton';
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
 import { formatTimeWindowLabel } from '../utils/timeWindow';
 import { formatRobotLabelWithProvider } from '../utils/robot';
+import { createAuthedEventSource } from '../utils/sse';
+import { matchPreviewTargetUrl, splitPreviewTargetUrlCandidates } from '../utils/previewRouteMatch';
+import { SkillSelectionPanel } from '../components/skills/SkillSelectionPanel';
+import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
 
 /**
  * TaskGroupChatPage:
@@ -64,9 +85,10 @@ export interface TaskGroupChatPageProps {
   taskGroupId?: string;
   userPanel?: ReactNode;
   taskLogsEnabled?: boolean | null;
+  navToggle?: PageNavMenuAction;
 }
 
-export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, userPanel, taskLogsEnabled }) => {
+export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, userPanel, taskLogsEnabled, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -82,6 +104,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [robotId, setRobotId] = useState('');
 
   const [group, setGroup] = useState<TaskGroup | null>(null);
+  // Flag 404 task-group fetches to render a dedicated empty state. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const [groupMissing, setGroupMissing] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskDetailsById, setTaskDetailsById] = useState<Record<string, Task | null>>({});
   // Track the latest sent task so it can animate into its final chat position. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
@@ -89,10 +113,20 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
 
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  // Track pause/resume button loading state for active task groups. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const [controlLoading, setControlLoading] = useState(false);
   // Track optional chat-level time windows for manual scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
   const [chatTimeWindow, setChatTimeWindow] = useState<TimeWindow | null>(null);
   // Compute a concise label for the chat time window icon badge. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
   const chatTimeWindowLabel = useMemo(() => formatTimeWindowLabel(chatTimeWindow), [chatTimeWindow]);
+  // Control the composer actions popover for time window + preview shortcuts. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+  const [composerActionsOpen, setComposerActionsOpen] = useState(false);
+  const { skills: skillsCatalog, loading: skillsCatalogLoading, refresh: refreshSkillsCatalog } = useSkillsCatalog();
+  // Track task-group skill overrides for the chat-level selection modal. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  const [skillSelection, setSkillSelection] = useState<SkillSelectionState | null>(null);
+  const [skillSelectionLoading, setSkillSelectionLoading] = useState(false);
+  const [skillSelectionSaving, setSkillSelectionSaving] = useState(false);
+  const [skillSelectionOpen, setSkillSelectionOpen] = useState(false);
 
   // Track TaskGroup preview status to render the dev server panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewState, setPreviewState] = useState<PreviewStatusResponse | null>(null);
@@ -107,12 +141,70 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [previewLogsLoading, setPreviewLogsLoading] = useState(false);
   const [previewLogs, setPreviewLogs] = useState<PreviewLogEntry[]>([]);
   const previewLogStreamRef = useRef<EventSource | null>(null);
+  // Track preview bridge readiness for cross-origin highlight commands. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  const [previewBridgeReady, setPreviewBridgeReady] = useState(false);
+  const previewBridgeReadyRef = useRef(false);
+  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const previewHighlightStreamRef = useRef<EventSource | null>(null);
+  // Track preview iframe navigation + address bar state for the embedded browser UI. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+  const [previewIframeOverrideSrc, setPreviewIframeOverrideSrc] = useState<string | null>(null);
+  const [previewAddress, setPreviewAddress] = useState('');
+  const [previewAddressInput, setPreviewAddressInput] = useState('');
+  const [previewAddressEditing, setPreviewAddressEditing] = useState(false);
+  // Control automatic preview navigation triggered by highlight commands. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const [previewAutoNavigateLocked, setPreviewAutoNavigateLocked] = useState(false);
+  // Stash pending highlight commands until the preview bridge is ready after navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  const pendingPreviewHighlightRef = useRef<PreviewHighlightCommand | null>(null);
   // Maintain draggable preview panel sizing state for Phase 3 layout updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewPanelWidth, setPreviewPanelWidth] = useState<number | null>(null);
   const [previewDragActive, setPreviewDragActive] = useState(false);
   const [previewLayoutWidth, setPreviewLayoutWidth] = useState(0);
   const previewDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
+
+  const handleSuggestionClick = useCallback((suggestion: string) => {
+    // Append suggested next actions into the chat composer draft for quick follow-up. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    setDraft((prev) => {
+      if (!prev.trim()) return suggestion;
+      if (prev.endsWith('\n')) return `${prev}${suggestion}`;
+      return `${prev}\n${suggestion}`;
+    });
+  }, []);
+
+  const refreshSkillSelection = useCallback(async () => {
+    // Load task-group skill selections for the chat-level override modal. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    if (!taskGroupId) return;
+    setSkillSelectionLoading(true);
+    try {
+      const selection = await fetchTaskGroupSkillSelection(taskGroupId);
+      setSkillSelection(selection);
+    } catch (err) {
+      console.error(err);
+      message.error(t('skills.selection.toast.fetchFailed'));
+      setSkillSelection(null);
+    } finally {
+      setSkillSelectionLoading(false);
+    }
+  }, [message, t, taskGroupId]);
+
+  const saveSkillSelection = useCallback(
+    async (nextSelection: SkillSelectionKey[] | null) => {
+      // Persist task-group skill overrides for the current conversation. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+      if (!taskGroupId) return;
+      setSkillSelectionSaving(true);
+      try {
+        const updated = await updateTaskGroupSkillSelection(taskGroupId, nextSelection);
+        setSkillSelection(updated);
+        message.success(t('skills.selection.toast.saved'));
+      } catch (err) {
+        console.error(err);
+        message.error(t('skills.selection.toast.saveFailed'));
+      } finally {
+        setSkillSelectionSaving(false);
+      }
+    },
+    [message, t, taskGroupId]
+  );
 
   const pollTimerRef = useRef<number | null>(null);
   const chatBodyRef = useRef<HTMLDivElement | null>(null);
@@ -132,10 +224,11 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   // Cap preview log buffering on the frontend to keep the modal responsive. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const PREVIEW_LOG_TAIL = 200;
   const PREVIEW_LOG_MAX = 500;
-  // Configure preview panel resize constraints and persistence. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  // Configure preview panel sizing defaults and responsive breakpoints. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
   const PREVIEW_PANEL_MIN_WIDTH = 320;
   const PREVIEW_PANEL_MIN_CHAT_WIDTH = 420;
-  const PREVIEW_PANEL_DEFAULT_RATIO = 0.38;
+  const PREVIEW_PANEL_DEFAULT_RATIO = 0.5;
+  const PREVIEW_PANEL_STACK_BREAKPOINT = 1024;
   const PREVIEW_PANEL_STORAGE_KEY = 'hc-preview-panel-width';
 
   const repoLocked = Boolean(taskGroupId);
@@ -178,6 +271,19 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     Math.min(taskPagingPinnedToLatest ? pinnedHiddenCount : taskHiddenCount, orderedTasks.length)
   );
   const visibleTasks = useMemo(() => orderedTasks.slice(effectiveHiddenCount), [effectiveHiddenCount, orderedTasks]);
+
+  // Prefer pausing active processing tasks, otherwise allow resuming the most recent paused task. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const processingTask = useMemo(
+    () => [...orderedTasks].reverse().find((task) => task.status === 'processing') ?? null,
+    [orderedTasks]
+  );
+  const pausedTask = useMemo(
+    () => [...orderedTasks].reverse().find((task) => task.status === 'paused') ?? null,
+    [orderedTasks]
+  );
+  const controlTask = processingTask ?? pausedTask;
+  const controlMode: 'pause' | 'resume' | null = processingTask ? 'pause' : pausedTask ? 'resume' : null;
+  const canControlTask = Boolean(controlTask?.permissions?.canManage);
 
   const previewInstances = previewState?.instances ?? [];
   const previewAvailable = previewState?.available ?? false;
@@ -245,8 +351,12 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
 
   const handlePreviewDividerPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      // Start dragging only on wide layouts where the preview sits side-by-side. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-      if (!layoutRef.current || window.matchMedia('(max-width: 1024px)').matches) return;
+      // Start dragging only on wide layouts where the preview sits side-by-side. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
+      if (
+        !layoutRef.current ||
+        window.matchMedia(`(max-width: ${PREVIEW_PANEL_STACK_BREAKPOINT}px)`).matches
+      )
+        return;
       const layoutWidth = layoutRef.current.getBoundingClientRect().width;
       if (!layoutWidth) return;
       const maxWidth = Math.max(PREVIEW_PANEL_MIN_WIDTH, layoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
@@ -260,7 +370,13 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       event.preventDefault();
       event.currentTarget.setPointerCapture?.(event.pointerId);
     },
-    [PREVIEW_PANEL_DEFAULT_RATIO, PREVIEW_PANEL_MIN_CHAT_WIDTH, PREVIEW_PANEL_MIN_WIDTH, previewPanelWidth]
+    [
+      PREVIEW_PANEL_DEFAULT_RATIO,
+      PREVIEW_PANEL_MIN_CHAT_WIDTH,
+      PREVIEW_PANEL_MIN_WIDTH,
+      PREVIEW_PANEL_STACK_BREAKPOINT,
+      previewPanelWidth
+    ]
   );
 
   useEffect(() => {
@@ -322,6 +438,10 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     return 'stopped';
   }, [previewAvailable, previewInstances, previewState]);
 
+  // Disable the composer preview action when preview is already active or unavailable. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+  const previewStartDisabled =
+    !taskGroupId || previewAggregateStatus === 'running' || previewAggregateStatus === 'starting';
+
   // Keep the preview panel visible when previews are active or starting. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const previewPanelOpen = previewAvailable && (previewAggregateStatus !== 'stopped' || previewActionLoading);
 
@@ -348,6 +468,14 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         return t('preview.status.stopped');
     }
   }, [previewAggregateStatus, previewAvailable, previewState, t]);
+
+  const previewToggleIcon = useMemo(
+    () => (
+      // Render the status dot via the icon slot so PageNav can hide labels on small screens. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+      <span className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`} aria-hidden="true" />
+    ),
+    [previewAggregateStatus]
+  );
 
   const activePreviewStatus = activePreviewInstance?.status ?? 'stopped';
   const activePreviewStatusLabel = useMemo(() => {
@@ -383,10 +511,12 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     () => previewDiagnostics?.logs?.slice(-6) ?? [],
     [previewDiagnostics?.logs]
   );
-  // Apply persisted preview panel width when side-by-side layout is active. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  // Track when the preview should use side-by-side sizing so mobile can use CSS layout. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
+  const previewPanelSideBySide = previewLayoutWidth > PREVIEW_PANEL_STACK_BREAKPOINT;
+  // Apply persisted preview panel width only on wide layouts to keep mobile panels compact. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
   const previewPanelStyle = useMemo(
-    () => (previewPanelWidth === null ? undefined : { width: previewPanelWidth }),
-    [previewPanelWidth]
+    () => (previewPanelWidth === null || !previewPanelSideBySide ? undefined : { width: previewPanelWidth }),
+    [previewPanelSideBySide, previewPanelWidth]
   );
 
   const previewIframeSrc = useMemo(() => {
@@ -419,6 +549,240 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     return `${baseUrl}${sep}token=${encodeURIComponent(token)}`;
   }, [activePreviewInstance, activePreviewStatus]);
 
+  // Prefer the user-navigated iframe URL when available. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+  const currentPreviewIframeSrc = useMemo(
+    () => previewIframeOverrideSrc ?? previewIframeSrc,
+    [previewIframeOverrideSrc, previewIframeSrc]
+  );
+
+  const previewIframeOrigin = useMemo(() => {
+    if (!currentPreviewIframeSrc) return '';
+    try {
+      return new URL(currentPreviewIframeSrc).origin;
+    } catch {
+      return '';
+    }
+  }, [currentPreviewIframeSrc]);
+
+  const previewAddressMeta = useMemo(() => {
+    // Derive address-bar metadata for browser chrome cues. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    const value = (previewAddressEditing ? previewAddressInput : previewAddress).trim();
+    if (!value) return { protocol: '', host: '', isSecure: false };
+    try {
+      const url = new URL(value);
+      return { protocol: url.protocol, host: url.host, isSecure: url.protocol === 'https:' };
+    } catch {
+      return { protocol: '', host: '', isSecure: false };
+    }
+  }, [previewAddress, previewAddressEditing, previewAddressInput]);
+
+  useEffect(() => {
+    // Reset iframe navigation overrides when the active preview URL changes. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    if (!previewIframeSrc) {
+      setPreviewIframeOverrideSrc(null);
+      setPreviewAddress('');
+      if (!previewAddressEditing) setPreviewAddressInput('');
+      return;
+    }
+    setPreviewIframeOverrideSrc(null);
+    setPreviewAddress(previewIframeSrc);
+    if (!previewAddressEditing) setPreviewAddressInput(previewIframeSrc);
+  }, [previewAddressEditing, previewIframeSrc]);
+
+  const postPreviewBridgeMessage = useCallback(
+    (payload: Record<string, unknown>) => {
+      if (!previewIframeOrigin) return;
+      const target = previewIframeRef.current?.contentWindow;
+      if (!target) return;
+      target.postMessage(payload, previewIframeOrigin);
+    },
+    [previewIframeOrigin]
+  );
+
+  const normalizePreviewUrl = useCallback(
+    (raw: string) => {
+      // Normalize address bar inputs into absolute iframe URLs. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+      const trimmed = raw.trim();
+      if (!trimmed) return '';
+      if (/^[a-zA-Z][a-zA-Z\\d+.-]*:/.test(trimmed)) {
+        try {
+          return new URL(trimmed).toString();
+        } catch {
+          return '';
+        }
+      }
+      const base = currentPreviewIframeSrc || (typeof window === 'undefined' ? '' : window.location.origin);
+      if (trimmed.startsWith('/') && base) {
+        try {
+          return new URL(trimmed, base).toString();
+        } catch {
+          return '';
+        }
+      }
+      const looksLocal = /^(localhost|127\\.0\\.0\\.1|::1)(:|$)/.test(trimmed);
+      const withScheme = looksLocal || trimmed.includes(':') ? `http://${trimmed}` : `https://${trimmed}`;
+      try {
+        return new URL(withScheme).toString();
+      } catch {
+        return '';
+      }
+    },
+    [currentPreviewIframeSrc]
+  );
+
+  const isPreviewUrlEquivalent = useCallback(
+    // Match preview URLs against targetUrl route rules before auto-navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    (currentUrl: string, targetUrl: string) => matchPreviewTargetUrl(currentUrl, targetUrl),
+    []
+  );
+
+  const resolvePreviewTargetUrl = useCallback((rawTargetUrl: string) => {
+    // Pick the primary navigation target when multiple targetUrl patterns are provided. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    const candidates = splitPreviewTargetUrlCandidates(rawTargetUrl);
+    return candidates[0] ?? rawTargetUrl;
+  }, []);
+
+  const applyPreviewNavigation = useCallback((nextUrl: string, options: { updateInput: boolean }) => {
+    // Update iframe src + address bar state so back/forward history includes auto-navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    setPreviewIframeOverrideSrc(nextUrl);
+    setPreviewAddress(nextUrl);
+    if (options.updateInput) setPreviewAddressInput(nextUrl);
+  }, []);
+
+  const syncPreviewAddress = useCallback(() => {
+    // Sync address bar state after iframe navigation events. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    const frame = previewIframeRef.current;
+    if (!frame) return;
+    let nextAddress = '';
+    try {
+      nextAddress = frame.contentWindow?.location?.href ?? '';
+    } catch {
+      nextAddress = '';
+    }
+    if (!nextAddress) {
+      nextAddress = frame.getAttribute('src') || frame.src || currentPreviewIframeSrc || '';
+    }
+    if (!nextAddress) return;
+    setPreviewAddress(nextAddress);
+    if (!previewAddressEditing) setPreviewAddressInput(nextAddress);
+    if (nextAddress !== currentPreviewIframeSrc) {
+      setPreviewIframeOverrideSrc(nextAddress);
+    }
+  }, [currentPreviewIframeSrc, previewAddressEditing]);
+
+  const handlePreviewNavigate = useCallback(
+    (value?: string) => {
+      // Navigate the iframe to a user-entered address. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+      const nextUrl = normalizePreviewUrl(value ?? previewAddressInput);
+      if (!nextUrl) return;
+      applyPreviewNavigation(nextUrl, { updateInput: true });
+      setPreviewAddressEditing(false);
+    },
+    [applyPreviewNavigation, normalizePreviewUrl, previewAddressInput]
+  );
+
+  const maybeAutoNavigatePreview = useCallback(
+    (rawTargetUrl?: string) => {
+      // Auto-navigate previews when highlight commands include a target URL (unless locked). docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+      if (!rawTargetUrl || previewAutoNavigateLocked || previewAddressEditing) return { didNavigate: false };
+      const currentUrl = previewAddress || currentPreviewIframeSrc;
+      if (currentUrl && isPreviewUrlEquivalent(currentUrl, rawTargetUrl)) return { didNavigate: false };
+      const primaryTargetUrl = resolvePreviewTargetUrl(rawTargetUrl);
+      const nextUrl = normalizePreviewUrl(primaryTargetUrl);
+      if (!nextUrl) return { didNavigate: false };
+      applyPreviewNavigation(nextUrl, { updateInput: !previewAddressEditing });
+      return { didNavigate: true, url: nextUrl };
+    },
+    [
+      applyPreviewNavigation,
+      currentPreviewIframeSrc,
+      isPreviewUrlEquivalent,
+      normalizePreviewUrl,
+      previewAddress,
+      previewAddressEditing,
+      previewAutoNavigateLocked,
+      resolvePreviewTargetUrl
+    ]
+  );
+
+  const flushPendingHighlight = useCallback(() => {
+    // Send any pending highlight once the bridge becomes ready after navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    const pending = pendingPreviewHighlightRef.current;
+    if (!pending) return;
+    pendingPreviewHighlightRef.current = null;
+    postPreviewBridgeMessage({ type: 'hookcode:preview:highlight', ...pending });
+  }, [postPreviewBridgeMessage]);
+
+  const handlePreviewBack = useCallback(() => {
+    // Drive iframe history navigation from the toolbar. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    const target = previewIframeRef.current?.contentWindow;
+    if (!target) return;
+    try {
+      target.history.back();
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handlePreviewForward = useCallback(() => {
+    // Drive iframe forward navigation from the toolbar. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    const target = previewIframeRef.current?.contentWindow;
+    if (!target) return;
+    try {
+      target.history.forward();
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handlePreviewReload = useCallback(() => {
+    // Refresh the iframe document without leaving the preview panel. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    const frame = previewIframeRef.current;
+    if (!frame) return;
+    try {
+      frame.contentWindow?.location.reload();
+      return;
+    } catch {
+      // ignore
+    }
+    if (currentPreviewIframeSrc) {
+      frame.src = currentPreviewIframeSrc;
+    }
+  }, [currentPreviewIframeSrc]);
+
+  const handlePreviewIframeLoad = useCallback(() => {
+    // Trigger a bridge handshake when the preview iframe finishes loading. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    syncPreviewAddress(); // Keep address bar in sync with iframe navigations. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    if (!previewIframeOrigin) return;
+    postPreviewBridgeMessage({ type: 'hookcode:preview:ping' });
+  }, [postPreviewBridgeMessage, previewIframeOrigin, syncPreviewAddress]);
+
+  useEffect(() => {
+    // Keep bridge readiness ref in sync for SSE highlight forwarding. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    previewBridgeReadyRef.current = previewBridgeReady;
+  }, [previewBridgeReady]);
+
+  useEffect(() => {
+    // Reset bridge readiness whenever the iframe origin changes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    previewBridgeReadyRef.current = false;
+    setPreviewBridgeReady(false);
+  }, [previewIframeOrigin]);
+
+  useEffect(() => {
+    // Listen for bridge handshake responses from the preview iframe. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!previewIframeOrigin) return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== previewIframeOrigin) return;
+      const payload = event.data as { type?: string } | null;
+      if (!payload || payload.type !== 'hookcode:preview:pong') return;
+      previewBridgeReadyRef.current = true;
+      setPreviewBridgeReady(true);
+      flushPendingHighlight();
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [flushPendingHighlight, previewIframeOrigin]);
+
   // Format preview log timestamps for the log viewer. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const formatPreviewLogTime = useCallback(
     (value: string) => {
@@ -440,6 +804,13 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     setTaskPagingPinnedToLatest(true);
     setTaskHiddenCount(0);
   }, [taskGroupId]);
+
+  useEffect(() => {
+    // Refresh chat-level skill selections when the active task group changes. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    if (!taskGroupId) return;
+    void refreshSkillSelection();
+    void refreshSkillsCatalog();
+  }, [refreshSkillSelection, refreshSkillsCatalog, taskGroupId]);
 
   const groupTitle = useMemo(() => {
     if (!group) return '';
@@ -530,6 +901,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         groupRequestInFlightRef.current = false;
         groupRef.current = null;
         setGroup(null);
+        setGroupMissing(false);
         setTasks([]);
         setTaskDetailsById({});
         return;
@@ -541,6 +913,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
 
       const requestSeq = (groupRequestSeqRef.current += 1);
       groupRequestInFlightRef.current = true;
+      setGroupMissing(false);
 
       try {
         const [g, taskList] = await Promise.all([fetchTaskGroup(targetGroupId), fetchTaskGroupTasks(targetGroupId, { limit: 50 })]);
@@ -548,6 +921,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         setGroup(g);
         // UX: keep `groupRef` in sync immediately so refresh-mode decisions are reliable even before effects run.
         groupRef.current = g;
+        setGroupMissing(false);
         setTasks(taskList);
         if (g?.repoId) setRepoId(g.repoId);
       } catch (err) {
@@ -556,6 +930,15 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         const error = err as any;
         const status = error?.response?.status as number | undefined;
         const isNetworkFailure = !error?.response;
+        if (status === 404) {
+          // Surface missing groups as empty states instead of blocking skeletons. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+          groupRef.current = null;
+          setGroup(null);
+          setGroupMissing(true);
+          setTasks([]);
+          setTaskDetailsById({});
+          return;
+        }
         // Preserve the last snapshot on transient refresh failures to prevent UI resets. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126
         const shouldPreserveSnapshot = Boolean(groupRef.current) && (isNetworkFailure || (status !== undefined && status >= 500));
         const shouldThrottleNotice = mode === 'refreshing';
@@ -631,23 +1014,33 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     }
   }, [message, previewAggregateStatus, refreshPreviewStatus, taskGroupId, t]);
 
-  // Confirm preview start via modal so manual dependency reinstall is available. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const handlePreviewStart = useCallback(async () => {
-    if (!taskGroupId) return;
-    setPreviewActionLoading(true);
-    try {
-      await startTaskGroupPreview(taskGroupId);
-      await refreshPreviewStatus({ silent: true });
-      setPreviewStartModalOpen(false);
-    } catch (err) {
-      console.error(err);
-      message.error(t('preview.toggleFailed'));
-    } finally {
-      setPreviewActionLoading(false);
-    }
-  }, [message, refreshPreviewStatus, taskGroupId, t]);
+  // Centralize preview start behavior so composer actions can reuse it. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+  const startPreview = useCallback(
+    async ({ closeModal }: { closeModal?: boolean } = {}) => {
+      if (!taskGroupId) return false;
+      setPreviewActionLoading(true);
+      try {
+        await startTaskGroupPreview(taskGroupId);
+        await refreshPreviewStatus({ silent: true });
+        if (closeModal) setPreviewStartModalOpen(false);
+        return true;
+      } catch (err) {
+        console.error(err);
+        message.error(t('preview.toggleFailed'));
+        return false;
+      } finally {
+        setPreviewActionLoading(false);
+      }
+    },
+    [message, refreshPreviewStatus, taskGroupId, t]
+  );
 
-  // Allow users to manually reinstall preview dependencies from the start dialog. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  // Confirm preview start via modal so manual dependency reinstall is available. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+  const handlePreviewStart = useCallback(async () => {
+    await startPreview({ closeModal: true });
+  }, [startPreview]);
+
+  // Allow users to manually reinstall preview dependencies from the start dialog. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
   const handlePreviewReinstall = useCallback(async () => {
     if (!taskGroupId) return;
     setPreviewInstallLoading(true);
@@ -658,32 +1051,78 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       } else {
         message.success(t('preview.deps.reinstallSuccess'));
       }
-      // Refresh preview availability after dependency installs so retries don't require a reload. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+      // Refresh preview availability after dependency installs so retries don't require a reload. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
       await refreshPreviewStatus({ silent: true });
+      // Auto-start preview after dependencies finish installing. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+      await startPreview({ closeModal: true });
     } catch (err) {
       console.error(err);
       message.error(t('preview.deps.reinstallFailed'));
     } finally {
       setPreviewInstallLoading(false);
     }
-  }, [message, refreshPreviewStatus, taskGroupId, t]);
+  }, [message, refreshPreviewStatus, startPreview, taskGroupId, t]);
 
   // Provide share/open controls for preview URLs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const handleOpenPreviewWindow = useCallback(() => {
-    if (!previewIframeSrc) return;
-    window.open(previewIframeSrc, '_blank', 'noopener,noreferrer');
-  }, [previewIframeSrc]);
+    // Use the current iframe URL for preview share actions. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    if (!currentPreviewIframeSrc) return;
+    window.open(currentPreviewIframeSrc, '_blank', 'noopener,noreferrer');
+  }, [currentPreviewIframeSrc]);
 
   const handleCopyPreviewLink = useCallback(async () => {
-    if (!previewIframeSrc) return;
+    // Copy the current iframe URL (including manual navigation). docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
+    if (!currentPreviewIframeSrc) return;
     try {
-      await navigator.clipboard.writeText(previewIframeSrc);
+      await navigator.clipboard.writeText(currentPreviewIframeSrc);
       message.success(t('preview.copyLinkSuccess'));
     } catch (err) {
       console.error(err);
       message.error(t('preview.copyLinkFailed'));
     }
-  }, [message, previewIframeSrc, t]);
+  }, [currentPreviewIframeSrc, message, t]);
+
+  useEffect(() => {
+    // Sync preview visibility to the backend so hidden previews can be auto-stopped. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    if (!taskGroupId || !previewPanelOpen) return;
+    let disposed = false;
+
+    const report = (visible: boolean) => {
+      if (disposed) return;
+      void setTaskGroupPreviewVisibility(taskGroupId, visible);
+    };
+
+    const handleVisibility = () => {
+      report(document.visibilityState === 'visible');
+    };
+
+    const handleHidden = () => {
+      report(false);
+    };
+
+    handleVisibility();
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+    window.addEventListener('pageshow', handleVisibility);
+    window.addEventListener('blur', handleHidden);
+    window.addEventListener('pagehide', handleHidden);
+    return () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+      window.removeEventListener('pageshow', handleVisibility);
+      window.removeEventListener('blur', handleHidden);
+      window.removeEventListener('pagehide', handleHidden);
+      report(false);
+    };
+  }, [previewPanelOpen, taskGroupId]);
+
+  const handleComposerPreviewStart = useCallback(() => {
+    // Route composer preview actions through the same start modal. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+    if (!taskGroupId) return;
+    setComposerActionsOpen(false);
+    setPreviewStartModalOpen(true);
+  }, [taskGroupId]);
 
   useEffect(() => {
     // Maintain a live SSE connection when the preview logs modal is open. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -746,6 +1185,51 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       previewLogStreamRef.current = null;
     };
   }, [activePreviewInstance?.name, previewLogsOpen, taskGroupId, PREVIEW_LOG_TAIL, PREVIEW_LOG_MAX]);
+
+  useEffect(() => {
+    // Subscribe to preview highlight commands and forward to the iframe bridge. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    if (!taskGroupId || !previewPanelOpen) {
+      previewHighlightStreamRef.current?.close();
+      previewHighlightStreamRef.current = null;
+      return;
+    }
+    const topic = `preview-highlight:${taskGroupId}`;
+    const source = createAuthedEventSource('/events/stream', { topics: topic });
+    previewHighlightStreamRef.current = source;
+
+    const handleHighlight = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data || '{}') as PreviewHighlightEvent;
+        if (!payload?.command || !payload.instanceName) return;
+        if (activePreviewInstance?.name && payload.instanceName !== activePreviewInstance.name) return;
+        // Auto-navigate to the target URL before highlighting when allowed. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+        const navigation = maybeAutoNavigatePreview(payload.command.targetUrl);
+        if (navigation.didNavigate) {
+          pendingPreviewHighlightRef.current = payload.command;
+          return;
+        }
+        if (!previewBridgeReadyRef.current) {
+          pendingPreviewHighlightRef.current = payload.command;
+          postPreviewBridgeMessage({ type: 'hookcode:preview:ping' });
+          return;
+        }
+        postPreviewBridgeMessage({ type: 'hookcode:preview:highlight', ...payload.command });
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    source.addEventListener('preview.highlight', handleHighlight);
+    source.onerror = () => {
+      // Keep the latest iframe bridge state even if SSE reconnects. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    };
+
+    return () => {
+      source.removeEventListener('preview.highlight', handleHighlight);
+      source.close();
+      previewHighlightStreamRef.current = null;
+    };
+  }, [activePreviewInstance?.name, maybeAutoNavigatePreview, postPreviewBridgeMessage, previewPanelOpen, taskGroupId]);
 
   useEffect(() => {
     void refreshRepos();
@@ -884,10 +1368,39 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     [chatTimeWindow, message, refreshGroupDetail, repoId, robotId, sending, t, taskGroupId]
   );
 
+  // Pause/resume active task-group executions from the composer control. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const handleControlTask = useCallback(async () => {
+    if (!controlTask || !controlMode) return;
+    if (!canControlTask) {
+      message.warning(t('tasks.empty.noPermission'));
+      return;
+    }
+    if (controlLoading) return;
+    setControlLoading(true);
+    try {
+      if (controlMode === 'pause') {
+        await pauseTask(controlTask.id);
+        message.success(t('toast.task.pauseSuccess'));
+      } else {
+        await resumeTask(controlTask.id);
+        message.success(t('toast.task.resumeSuccess'));
+      }
+      if (taskGroupId) {
+        await refreshGroupDetail(taskGroupId, { mode: 'refreshing' });
+      }
+    } catch (err) {
+      console.error(err);
+      message.error(controlMode === 'pause' ? t('toast.task.pauseFailed') : t('toast.task.resumeFailed'));
+    } finally {
+      setControlLoading(false);
+    }
+  }, [canControlTask, controlLoading, controlMode, controlTask, message, refreshGroupDetail, t, taskGroupId]);
+
   const canRunChatInGroup = Boolean(
     !taskGroupId || group?.kind === 'chat' || group?.kind === 'issue' || group?.kind === 'merge_request' || group?.kind === 'commit'
   );
-  const canSend = Boolean(repoId && robotId && draft.trim()) && canRunChatInGroup;
+  // Disable send while pause/resume controls are active. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const canSend = Boolean(repoId && robotId && draft.trim()) && canRunChatInGroup && !controlMode;
 
   const openTask = useCallback((task: Task) => {
     window.location.hash = buildTaskHash(task.id);
@@ -913,7 +1426,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   }, [pinnedHiddenCount, taskHiddenCount, taskPagingPinnedToLatest]);
 
   // Use group-id readiness to gate blocking UI states so stale loading flags cannot mask loaded content. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
-  const isGroupReady = !taskGroupId || group?.id === taskGroupId;
+  // Treat missing groups as ready to show empty-state messaging. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const isGroupReady = !taskGroupId || group?.id === taskGroupId || groupMissing;
   const isGroupBlocking = Boolean(taskGroupId) && !isGroupReady;
 
   const handleChatScroll = useCallback(() => {
@@ -1010,7 +1524,11 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   }, [isGroupBlocking, taskGroupId]);
 
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const isCentered = !taskGroupId || (orderedTasks.length === 0 && !isGroupBlocking);
+  // Separate new-group vs empty-group states so existing groups show a proper empty timeline. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203
+  const isNewGroup = !taskGroupId;
+  // Consider missing groups as empty to avoid dialog-only views. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const isEmptyGroup = Boolean(taskGroupId) && !isGroupBlocking && (groupMissing || orderedTasks.length === 0);
+  const isCentered = isNewGroup;
   const composerMode: 'centered' | 'inline' = isCentered ? 'centered' : 'inline';
   const composerTextAreaAutoSize = useMemo(
     () =>
@@ -1020,6 +1538,72 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         : // UX (Chat / Task group): default to a single-line input like modern messengers; expand only when users add new lines.
           { minRows: 1, maxRows: 8 },
     [composerMode]
+  );
+
+  // Derive pause/resume vs send button behavior based on active task status. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const composerActionLabel = controlMode === 'pause' ? t('chat.form.pause') : controlMode === 'resume' ? t('chat.form.resume') : t('chat.form.send');
+  const composerActionIcon =
+    controlMode === 'pause' ? <PauseCircleOutlined /> : controlMode === 'resume' ? <PlayCircleOutlined /> : <SendOutlined />;
+  const composerActionLoading = controlMode ? controlLoading : sending;
+  const composerActionDisabled = controlMode ? !canControlTask : !canSend;
+  const skillModeLabel = useMemo(() => {
+    // Map task-group skill mode labels for the composer actions menu. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    if (!skillSelection) return t('common.loading');
+    if (skillSelection.mode === 'custom') return t('skills.selection.mode.custom');
+    if (skillSelection.mode === 'repo_default') return t('skills.selection.mode.repoDefault');
+    return t('skills.selection.mode.all');
+  }, [skillSelection, t]);
+  const handleComposerAction = () => {
+    if (controlMode) {
+      void handleControlTask();
+      return;
+    }
+    void handleSend(draft);
+  };
+
+  // Build the composer actions popover content with timer + preview actions. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+  const composerActionsContent = (
+    <div className="hc-composer-actions">
+      {/* Group time-window configuration in the composer actions popover. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt */}
+      <div className="hc-composer-action-block">
+        <Typography.Text type="secondary" className="hc-composer-action-title">
+          {t('chat.form.timeWindow')}
+        </Typography.Text>
+        <TimeWindowPicker
+          value={chatTimeWindow}
+          onChange={setChatTimeWindow}
+          disabled={!canRunChatInGroup}
+          size="small"
+          showTimezoneHint={false}
+        />
+      </div>
+      <div className="hc-composer-action-divider" aria-hidden="true" />
+      <Button
+        size="small"
+        icon={<PlayCircleOutlined />}
+        disabled={previewStartDisabled}
+        onClick={handleComposerPreviewStart}
+      >
+        {t('preview.action.start')}
+      </Button>
+      <div className="hc-composer-action-divider" aria-hidden="true" />
+      <div className="hc-composer-action-block">
+        <Typography.Text type="secondary" className="hc-composer-action-title">
+          {t('skills.selection.taskGroup.title')}
+        </Typography.Text>
+        <Button
+          size="small"
+          icon={<ToolOutlined />}
+          disabled={!taskGroupId}
+          onClick={() => setSkillSelectionOpen(true)}
+        >
+          {t('skills.selection.action.configure')}
+        </Button>
+        <Typography.Text type="secondary" className="hc-composer-action-hint">
+          {skillModeLabel}
+        </Typography.Text>
+      </div>
+    </div>
   );
 
   const composerNode = (
@@ -1041,6 +1625,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                // Prevent sending while pause/resume controls are active. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+                if (controlMode) return;
                 void handleSend(draft);
               }
             }}
@@ -1048,26 +1634,20 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         </div>
 
         <div className="hc-composer-footer">
-          {/* Keep the time-window icon on the far left for a compact composer. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
+          {/* Replace the time-window icon with an actions popover for composer utilities. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt */}
           <div className="hc-composer-footer-left">
             <Popover
               trigger="click"
               placement="bottomLeft"
-              content={
-                <TimeWindowPicker
-                  value={chatTimeWindow}
-                  onChange={setChatTimeWindow}
-                  disabled={!canRunChatInGroup}
-                  size="small"
-                  showTimezoneHint={false}
-                />
-              }
+              open={composerActionsOpen}
+              onOpenChange={setComposerActionsOpen}
+              content={composerActionsContent}
             >
               <Button
                 size="small"
                 type="text"
-                aria-label={t('chat.form.timeWindow')}
-                title={t('chat.form.timeWindow')}
+                aria-label={t('chat.form.actions')}
+                title={t('chat.form.actions')}
                 disabled={!canRunChatInGroup}
                 icon={<ClockCircleOutlined />}
                 className={chatTimeWindowLabel ? 'hc-timewindow-toggle is-active' : 'hc-timewindow-toggle'}
@@ -1119,12 +1699,12 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
             <Button
               type="primary"
               shape="round"
-              icon={<SendOutlined />}
-              loading={sending}
-              disabled={!canSend}
-              onClick={() => void handleSend(draft)}
+              icon={composerActionIcon}
+              loading={composerActionLoading}
+              disabled={composerActionDisabled}
+              onClick={handleComposerAction}
             >
-              {t('chat.form.send')}
+              {composerActionLabel}
             </Button>
           </div>
         </div>
@@ -1154,27 +1734,26 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               <Popover content={previewAggregateStatusLabel}>
                 {/* Allow preview retries even when availability is stale. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
                 <Button
+                  // Keep the preview label visible on mobile headers so the action is discoverable. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+                  className="hc-nav-action--keepLabel"
+                  icon={previewToggleIcon}
                   onClick={handlePreviewToggle}
                   loading={previewActionLoading || previewAggregateStatus === 'starting'}
                   disabled={previewLoading || previewActionLoading}
                 >
-                  <span
-                    className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
-                    aria-hidden="true"
-                  />
-                  <span style={{ marginLeft: 8 }}>
-                    {previewAggregateStatus === 'running' || previewAggregateStatus === 'starting'
-                      ? t('preview.action.stop')
-                      : t('preview.action.start')}
-                  </span>
+                  {previewAggregateStatus === 'running' || previewAggregateStatus === 'starting'
+                    ? t('preview.action.stop')
+                    : t('preview.action.start')}
                 </Button>
               </Popover>
             )}
-            <Button icon={<UnorderedListOutlined />} onClick={() => openTaskGroupList()}>
+            {/* <Button icon={<UnorderedListOutlined />} onClick={() => openTaskGroupList()}>
               {t('taskGroups.page.viewAll')}
-            </Button>
+            </Button> */}
           </Space>
         }
+        // Provide the mobile nav toggle so chat can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        navToggle={navToggle}
         userPanel={userPanel}
       />
 
@@ -1189,30 +1768,49 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               // Render skeleton chat items while the active task group is blocking on data. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
               <ChatTimelineSkeleton testId="hc-chat-group-skeleton" ariaLabel={t('common.loading')} />
             ) : isCentered ? (
-              <div className="hc-chat-centered-view">
-                <div className="hc-chat-hero">
-                  <Typography.Title level={2} style={{ marginTop: 0, marginBottom: 12 }}>
+              <div className="hc-welcome-container">
+                <div className="hc-welcome-hero">
+                  <h1 className="hc-welcome-title">
                     {t('chat.welcome.title')}
-                  </Typography.Title>
-                  <Typography.Paragraph type="secondary" style={{ fontSize: 16 }}>
+                  </h1>
+                  <p className="hc-welcome-desc">
                     {t('chat.welcome.desc')}
-                  </Typography.Paragraph>
+                  </p>
                 </div>
                 {composerNode}
               </div>
             ) : (
               <div className="hc-chat-timeline">
-                {/* Animate the most recent message to create a smooth transition into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */}
-                {visibleTasks.map((task) => (
-                  <TaskConversationItem
-                    key={task.id}
-                    task={task}
-                    entering={task.id === recentTaskId}
-                    taskDetail={taskDetailsById[task.id] ?? null}
-                    onOpenTask={openTask}
-                    taskLogsEnabled={effectiveTaskLogsEnabled}
-                  />
-                ))}
+                {isEmptyGroup ? (
+                  // Render a friendly empty state when a task group has no tasks. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203
+                  <div className="hc-chat-empty">
+                    {/* Expand empty/missing task-group messaging to avoid dialog-only views. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
+                    <Space direction="vertical" size={8} align="center">
+                      <Typography.Text type="secondary">
+                        {groupMissing ? t('chat.page.missingGroup') : t('chat.page.emptyGroup')}
+                      </Typography.Text>
+                      <Typography.Text type="secondary">
+                        {groupMissing ? t('chat.page.missingGroupHint') : t('chat.page.emptyGroupHint')}
+                      </Typography.Text>
+                      <Button size="small" onClick={() => openTaskGroupList()}>
+                        {t('taskGroups.page.viewAll')}
+                      </Button>
+                    </Space>
+                  </div>
+                ) : (
+                  // Animate the most recent message to create a smooth transition into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
+                  visibleTasks.map((task) => (
+                    <TaskConversationItem
+                      key={task.id}
+                      task={task}
+                      entering={task.id === recentTaskId}
+                      taskDetail={taskDetailsById[task.id] ?? null}
+                      onOpenTask={openTask}
+                      taskLogsEnabled={effectiveTaskLogsEnabled}
+                      onSuggestionClick={handleSuggestionClick}
+                    />
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -1239,61 +1837,154 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               <span className="hc-preview-divider-handle" aria-hidden="true" />
             </div>
             <aside className="hc-preview-panel" style={previewPanelStyle}>
-              {/* Render multi-instance preview tabs with logs/share controls. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+              {/* Refactor preview header to a more modern, browser-like compact layout. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
               <div className="hc-preview-header">
-                <div className="hc-preview-header-main">
-                  <Typography.Text strong>{t('preview.panel.title')}</Typography.Text>
-                  <Space size={6}>
-                    <span
-                      className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
-                      aria-hidden="true"
-                    />
-                    <Typography.Text type="secondary">{previewAggregateStatusLabel}</Typography.Text>
-                  </Space>
+                {/* Row 1: Instance tabs and status. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
+                <div className="hc-preview-header-top">
+                  <div className="hc-preview-tabs">
+                    {previewInstances.length > 0 ? (
+                      previewInstances.map((instance) => (
+                        <button
+                          key={instance.name}
+                          type="button"
+                          className={`hc-preview-tab${instance.name === activePreviewName ? ' hc-preview-tab--active' : ''}`}
+                          onClick={() => setActivePreviewName(instance.name)}
+                        >
+                          <span
+                            className={`hc-preview-status-dot hc-preview-status-dot--${instance.status}`}
+                            aria-hidden="true"
+                          />
+                          <span className="hc-preview-tab-name">{instance.name}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="hc-preview-tab hc-preview-tab--active">
+                        <span
+                          className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
+                          aria-hidden="true"
+                        />
+                        <span className="hc-preview-tab-name">{t('preview.panel.title')}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="hc-preview-header-actions">
+                    <Tooltip title={t('preview.logs.open')}>
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<FileTextOutlined />}
+                        disabled={!activePreviewInstance}
+                        onClick={() => setPreviewLogsOpen(true)}
+                      />
+                    </Tooltip>
+                    <Tooltip title={t('preview.action.openWindow')}>
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<ExportOutlined />}
+                        disabled={!currentPreviewIframeSrc}
+                        onClick={handleOpenPreviewWindow}
+                      />
+                    </Tooltip>
+                    <Tooltip title={t('preview.action.copyLink')}>
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<CopyOutlined />}
+                        disabled={!currentPreviewIframeSrc}
+                        onClick={handleCopyPreviewLink}
+                      />
+                    </Tooltip>
+                  </div>
                 </div>
-                <div className="hc-preview-header-actions">
-                  <Tooltip title={t('preview.logs.open')}>
+
+                {/* Row 2: Navigation and Address Bar. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
+                <div className="hc-preview-header-toolbar">
+                  <div className="hc-preview-header-nav">
                     <Button
                       size="small"
-                      icon={<FileTextOutlined />}
-                      disabled={!activePreviewInstance}
-                      onClick={() => setPreviewLogsOpen(true)}
+                      type="text"
+                      icon={<ArrowLeftOutlined />}
+                      aria-label={t('preview.browser.back')}
+                      disabled={!currentPreviewIframeSrc}
+                      onClick={handlePreviewBack}
                     />
-                  </Tooltip>
-                  <Tooltip title={t('preview.action.openWindow')}>
-                    <Button size="small" icon={<ExportOutlined />} disabled={!previewIframeSrc} onClick={handleOpenPreviewWindow} />
-                  </Tooltip>
-                  <Tooltip title={t('preview.action.copyLink')}>
-                    <Button size="small" icon={<CopyOutlined />} disabled={!previewIframeSrc} onClick={handleCopyPreviewLink} />
-                  </Tooltip>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<ArrowRightOutlined />}
+                      aria-label={t('preview.browser.forward')}
+                      disabled={!currentPreviewIframeSrc}
+                      onClick={handlePreviewForward}
+                    />
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<ReloadOutlined />}
+                      aria-label={t('preview.browser.refresh')}
+                      disabled={!currentPreviewIframeSrc}
+                      onClick={handlePreviewReload}
+                    />
+                  </div>
+
+                  <Input
+                    size="small"
+                    className="hc-preview-header-browser-input"
+                    value={previewAddressInput}
+                    placeholder={t('preview.browser.placeholder')}
+                    aria-label={t('preview.browser.placeholder')}
+                    prefix={
+                      <span
+                        className={`hc-preview-header-browser-prefix${
+                          previewAddressMeta.isSecure ? ' hc-preview-header-browser-prefix--secure' : ''
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {previewAddressMeta.isSecure ? <LockOutlined /> : <GlobalOutlined />}
+                      </span>
+                    }
+                    suffix={
+                      /* Toggle preview auto-navigation lock inside the address bar as a suffix action. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
+                      <Tooltip title={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}>
+                        <Button
+                          size="small"
+                          type="text"
+                          className="hc-preview-header-browser-lock"
+                          icon={previewAutoNavigateLocked ? <LockOutlined /> : <UnlockOutlined />}
+                          aria-label={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}
+                          onClick={() => setPreviewAutoNavigateLocked((prev) => !prev)}
+                        />
+                      </Tooltip>
+                    }
+                    title={previewAddressInput || previewAddress}
+                    disabled={!currentPreviewIframeSrc}
+                    onChange={(event) => setPreviewAddressInput(event.target.value)}
+                    onFocus={() => setPreviewAddressEditing(true)}
+                    onBlur={() => {
+                      setPreviewAddressEditing(false);
+                      setPreviewAddressInput(previewAddress || currentPreviewIframeSrc);
+                    }}
+                    onPressEnter={() => handlePreviewNavigate()}
+                  />
                 </div>
               </div>
-              {previewInstances.length > 0 && (
-                <div className="hc-preview-tabs">
-                  {previewInstances.map((instance) => (
-                    <button
-                      key={instance.name}
-                      type="button"
-                      className={`hc-preview-tab${instance.name === activePreviewName ? ' hc-preview-tab--active' : ''}`}
-                      onClick={() => setActivePreviewName(instance.name)}
-                    >
-                      <span
-                        className={`hc-preview-status-dot hc-preview-status-dot--${instance.status}`}
-                        aria-hidden="true"
-                      />
-                      <span className="hc-preview-tab-name">{instance.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
               <div className="hc-preview-body">
                 {activePreviewStatus === 'running' && previewIframeSrc ? (
-                  <iframe
-                    className="hc-preview-iframe"
-                    title={activePreviewInstance?.name ?? 'preview'}
-                    src={previewIframeSrc}
-                    loading="lazy"
-                  />
+                  <>
+                    {/* Sandbox the iframe so navigation stays inside the preview panel. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
+                    {/* Wrap the iframe in a browser-style frame for depth and rounded corners. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
+                    <div className="hc-preview-iframe-shell">
+                      <iframe
+                        className="hc-preview-iframe"
+                        title={activePreviewInstance?.name ?? 'preview'}
+                        src={currentPreviewIframeSrc}
+                        sandbox="allow-scripts allow-same-origin allow-forms"
+                        loading="lazy"
+                        ref={previewIframeRef}
+                        onLoad={handlePreviewIframeLoad}
+                      />
+                    </div>
+                  </>
                 ) : (
                   <div className="hc-preview-placeholder">
                     <Typography.Text type="secondary">{previewPlaceholderText}</Typography.Text>
@@ -1377,6 +2068,28 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         <Typography.Paragraph type="secondary">
           {t('preview.start.desc')}
         </Typography.Paragraph>
+      </Modal>
+
+      {/* Provide task-group skill overrides inside a dedicated modal. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+      <Modal
+        open={skillSelectionOpen}
+        title={t('skills.selection.taskGroup.title')}
+        onCancel={() => setSkillSelectionOpen(false)}
+        footer={null}
+        width={760}
+      >
+        <SkillSelectionPanel
+          scope="task_group"
+          skills={skillsCatalog}
+          selection={skillSelection}
+          loading={skillSelectionLoading || skillsCatalogLoading}
+          saving={skillSelectionSaving}
+          onRefresh={() => {
+            void refreshSkillSelection();
+            void refreshSkillsCatalog();
+          }}
+          onChange={saveSkillSelection}
+        />
       </Modal>
 
       {/* Preview log modal is driven by SSE when open. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}

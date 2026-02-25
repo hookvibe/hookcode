@@ -6,13 +6,17 @@ import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { DashboardSidebarResponseDto } from './dto/dashboard-swagger.dto';
 import { TaskService } from './task.service';
+import { PreviewService } from './preview.service';
 
 @AuthScopeGroup('tasks') // Scope dashboard APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('dashboard')
 @ApiTags('Dashboard')
 @ApiBearerAuth('bearerAuth')
 export class DashboardController {
-  constructor(private readonly taskService: TaskService) {}
+  constructor(
+    private readonly taskService: TaskService,
+    private readonly previewService: PreviewService
+  ) {}
 
   private attachTaskPermissions(tasks: any[]): any[] {
     return tasks.map((t) => ({
@@ -109,6 +113,13 @@ export class DashboardController {
         );
       };
 
+      // Annotate task-group sidebar rows with preview activity state. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+      const previewActiveIds = this.previewService.getActiveTaskGroupIds();
+      const decoratedTaskGroups = taskGroups.map((group) => ({
+        ...group,
+        previewActive: previewActiveIds.has(group.id)
+      }));
+
       return {
         stats,
         tasksByStatus: {
@@ -117,7 +128,7 @@ export class DashboardController {
           success: sanitize(success as any[]),
           failed: sanitize(failed as any[])
         },
-        taskGroups
+        taskGroups: decoratedTaskGroups
       };
     } catch (err) {
       if (err instanceof HttpException) throw err;

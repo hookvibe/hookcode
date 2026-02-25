@@ -1,13 +1,15 @@
 import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { App, Button, Card, Empty, Input, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import type { Task, TaskStatus, TaskStatusStats } from '../api';
+import type { Task, TaskStatusStats } from '../api';
 import { executeTaskNow, fetchTaskStats, fetchTasks, retryTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildTaskHash, buildTasksHash } from '../router';
 import { clampText, getTaskTitle, queuedHintText, statusTag } from '../utils/task';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
+import { getStatusSummaryKey, normalizeStatusFilter, type StatusFilter, type StatusSummaryKey } from './tasks/taskFilters';
+import { formatTaskTimestamp } from './tasks/formatters';
 
 /**
  * TasksPage:
@@ -24,23 +26,10 @@ export interface TasksPageProps {
   status?: string;
   repoId?: string;
   userPanel?: ReactNode;
+  navToggle?: PageNavMenuAction;
 }
 
-type StatusFilter = 'all' | TaskStatus | 'success';
-type StatusSummaryKey = 'all' | 'queued' | 'processing' | 'success' | 'failed';
-
-const normalizeStatusFilter = (value: string | undefined): StatusFilter => {
-  const raw = String(value ?? '').trim();
-  if (!raw || raw === 'all') return 'all';
-  if (raw === 'success') return 'success';
-  if (raw === 'queued' || raw === 'processing' || raw === 'succeeded' || raw === 'failed' || raw === 'commented')
-    return raw;
-  // Compatibility: allow Home sidebar status keys.
-  if (raw === 'completed') return 'success';
-  return 'all';
-};
-
-export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => {
+export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -59,14 +48,10 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     return trimmed || undefined;
   }, [repoId]);
 
-  const statusSummaryKey = useMemo<StatusSummaryKey>(() => {
-    // Group terminal success-like statuses under `success` for summary/UI selection. 3iz4jx8bsy7q7d6b3jr3
-    if (statusFilter === 'queued') return 'queued';
-    if (statusFilter === 'processing') return 'processing';
-    if (statusFilter === 'failed') return 'failed';
-    if (statusFilter === 'all') return 'all';
-    return 'success';
-  }, [statusFilter]);
+  const statusSummaryKey = useMemo<StatusSummaryKey>(
+    () => getStatusSummaryKey(statusFilter),
+    [statusFilter]
+  ); // Use shared filter helpers to keep the page module smaller. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -191,16 +176,6 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     await Promise.all([refresh(), refreshStats()]);
   }, [refresh, refreshStats]);
 
-  const formatTime = useCallback(
-    (iso: string): string => {
-      try {
-        return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
-      } catch {
-        return iso;
-      }
-    },
-    [locale]
-  );
 
   const activeStatusText = useMemo(() => {
     // Provide a single user-visible status label for the active filter (including the virtual `success`). 3iz4jx8bsy7q7d6b3jr3
@@ -208,6 +183,8 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     if (statusFilter === 'success') return t('tasks.filter.success');
     if (statusFilter === 'queued') return t('task.status.queued');
     if (statusFilter === 'processing') return t('task.status.processing');
+    // Surface paused filter labels for stop/resume workflows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    if (statusFilter === 'paused') return t('task.status.paused');
     if (statusFilter === 'succeeded') return t('task.status.succeeded');
     if (statusFilter === 'failed') return t('task.status.failed');
     if (statusFilter === 'commented') return t('task.status.commented');
@@ -218,6 +195,8 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
     // Align filter tag colors with `statusTag()` so the UI stays consistent across task views. 3iz4jx8bsy7q7d6b3jr3
     if (statusFilter === 'queued') return 'blue';
     if (statusFilter === 'processing') return 'gold';
+    // Align paused tag color with statusTag mapping. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    if (statusFilter === 'paused') return 'orange';
     if (statusFilter === 'failed') return 'red';
     if (statusFilter === 'commented') return 'purple';
     if (statusFilter === 'succeeded' || statusFilter === 'success') return 'green';
@@ -229,6 +208,8 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
       { key: 'all', label: t('tasks.filter.all'), count: stats?.total ?? undefined },
       { key: 'queued', label: t('task.status.queued'), count: stats?.queued ?? undefined },
       { key: 'processing', label: t('task.status.processing'), count: stats?.processing ?? undefined },
+      // Add paused counts to the summary strip for quick navigation. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      { key: 'paused', label: t('task.status.paused'), count: stats?.paused ?? undefined },
       { key: 'success', label: t('tasks.filter.success'), count: stats?.success ?? undefined },
       { key: 'failed', label: t('task.status.failed'), count: stats?.failed ?? undefined }
     ];
@@ -256,6 +237,8 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
             {t('common.refresh')}
           </Button>
         }
+        // Provide the mobile nav toggle so Tasks can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        navToggle={navToggle}
         userPanel={userPanel}
       />
 
@@ -380,7 +363,10 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel }) => 
                     {/* Group task meta details for shared card styling. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
                     <Space size={12} wrap className="hc-card-meta">
                       <Typography.Text type="secondary">{task.repo?.name ?? task.repoId ?? '-'}</Typography.Text>
-                      <Typography.Text type="secondary">{formatTime(task.updatedAt)}</Typography.Text>
+                      <Typography.Text type="secondary">
+                        {formatTaskTimestamp(locale, task.updatedAt)}
+                      </Typography.Text>
+                      {/* Format timestamps via shared helper to keep the page component smaller. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */}
                       <Typography.Text type="secondary">{task.id}</Typography.Text>
                     </Space>
 

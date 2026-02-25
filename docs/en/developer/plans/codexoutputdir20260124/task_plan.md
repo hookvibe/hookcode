@@ -10,7 +10,7 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Move Codex/LLM output artifacts (.codex-output, claude output, gemini output) to a fixed safe directory outside the repo, organized by task ID, to avoid Git pollution.
+Route provider output artifacts (codex/claude/gemini) into each task-group root under `backend/src/agent/build/task-groups`, removing `HOOKCODE_TASK_OUTPUT_DIR` configuration.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
@@ -30,15 +30,14 @@ Complete
 ### Phase 2: Planning & Structure
 {/* WHAT: Decide how you'll approach the problem and what structure you'll use. WHY: Good planning prevents rework. Document decisions so you remember why you chose them. */}
 - [x] Define technical approach
-- [x] Create project structure if needed
 - [x] Document decisions with rationale
 - **Status:** complete
 
 ### Phase 3: Implementation
 {/* WHAT: Actually build/create/write the solution. WHY: This is where the work happens. Break into smaller sub-tasks if needed. */}
-- [x] Execute the plan step by step
-- [x] Write code to files before executing
-- [x] Test incrementally
+- [x] Update task output path to use task-group root
+- [x] Add task-group root override and adjust docs/tests
+- [x] Update tests and run full suite
 - **Status:** complete
 
 ### Phase 4: Testing & Verification
@@ -52,19 +51,20 @@ Complete
 {/* WHAT: Final review and handoff to user. WHY: Ensures nothing is forgotten and deliverables are complete. */}
 - [x] Review all output files
 - [x] Ensure deliverables are complete
-- [x] Deliver to user
+- [x] Update changelog entry
 - **Status:** complete
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
-1. Where is the output path configured for Codex/Claude/Gemini artifacts in this repo? → `backend/src/agent/agent.ts` (output file names) + `backend/src/modelProviders/*.ts` (absolute path support).
-2. What fixed external directory and task-id mapping should we enforce? → `HOOKCODE_TASK_OUTPUT_DIR` (default `~/.hookcode/task-outputs`) + `<taskId>/<output file>`.
+1. Where should provider output files live now that task groups are standardized? → Under the task-group root at `backend/src/agent/build/task-groups/<taskGroupId>/`.
+2. Which config/doc references to `HOOKCODE_TASK_OUTPUT_DIR` need removal? → `backend/.env.example`, `backend/src/utils/taskOutputPath.ts`, unit tests, and changelog entry.
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
 | Decision | Rationale |
 |----------|-----------|
-| Introduce `HOOKCODE_TASK_OUTPUT_DIR` with default `~/.hookcode/task-outputs` and store outputs under `<taskId>/` | Ensures outputs stay outside repo while remaining stable and task-scoped. |
+| Place provider output files directly in each task-group root under `backend/src/agent/build/task-groups` and remove `HOOKCODE_TASK_OUTPUT_DIR`. | Task groups are already isolated; keeping outputs there avoids repo pollution without extra config. |
+| Add `HOOKCODE_TASK_GROUPS_ROOT` (relative to `HOOKCODE_BUILD_ROOT` unless absolute). | Enables a stable task-group root override without hardcoded absolute paths. |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}

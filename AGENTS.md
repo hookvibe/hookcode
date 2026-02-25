@@ -14,7 +14,7 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 
 ## Working workflow
 
-<!-- Enforce planning-with-files workflow on every invocation for traceability. 0lldjnbw5qxdhw4wwftz -->
+<!-- Enforce file-context-planning workflow on every invocation for traceability. 0lldjnbw5qxdhw4wwftz -->
 <!-- Add doc-sync and release versioning rules to the working workflow. docs/en/developer/plans/docsworkflowapi20260121/task_plan.md docsworkflowapi20260121 -->
 
 1. Determine the active session (NON-NEGOTIABLE)
@@ -23,9 +23,9 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
      - This is a completely new, unrelated task, OR
      - The previous session is explicitly marked as complete and the user requests a new feature.
    - To start a new session:
-     - Start a `planning-with-files` 
+     - Start a `file-context-planning` 
      - Decide the `SESSION_HASH` (use user-provided hash; otherwise generate one).
-     - Run `bash .codex/skills/planning-with-files/scripts/init-session.sh "<SESSION_HASH>" "<SESSION_TITLE>"` (or run without args to auto-generate a hash).
+     - Run `bash .codex/skills/file-context-planning/scripts/init-session.sh "<SESSION_HASH>" "<SESSION_TITLE>"` (or run without args to auto-generate a hash).
    - The only source of truth for the plan is: `docs/en/developer/plans/<SESSION_HASH>/`
 2. Before ANY implementation, fill the session docs
    - Update `docs/en/developer/plans/<SESSION_HASH>/task_plan.md` (goal, phases, key questions).
@@ -41,7 +41,7 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 <!-- Require a full test-suite run after adding tests during build. docs/en/developer/plans/testfix20260131/task_plan.md testfix20260131 -->
 6. Add or update test cases, run tests, and record results in `docs/en/developer/plans/<SESSION_HASH>/progress.md`; after writing tests during build, run the full test suite to verify the outcome
 7. Delivery checklist (NON-NEGOTIABLE)
-   - Ensure all phases are complete (optional helper: `bash .codex/skills/planning-with-files/scripts/check-complete.sh <SESSION_HASH>`).
+   - Ensure all phases are complete (optional helper: `bash .codex/skills/file-context-planning/scripts/check-complete.sh <SESSION_HASH>`).
    - Update `docs/en/change-log/0.0.0.md` (Unreleased placeholder) with: `SESSION_HASH` + one-line summary + relative link to the plan.
    - Versioning: the release version is `package.json#version` (current: `0.0.1`); when releasing, rename `docs/en/change-log/0.0.0.md` → `docs/en/change-log/<version>.md` and recreate a fresh `0.0.0.md`.
    <!-- Keep changelog entries clean by avoiding redundant HTML comment lines. l290bb7v758opd6uxu6r -->
@@ -101,6 +101,8 @@ Required content checklist (as applicable):
 
 - Avoid overthinking; prioritize high-quality, practical code changes.
 - Avoid copy-pasting utilities across files. Before adding a helper (env parsing, query parsing, etc.), search the repo and reuse an existing implementation; otherwise, extract it into a shared module (e.g. `backend/src/utils/*`, `frontend/src/utils/*`) and add unit tests.
+<!-- Require splitting long files into responsibility-focused modules. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202 -->
+- When a file grows large (roughly 400+ lines) or mixes multiple responsibilities, split it into smaller modules by functional purpose; keep stable barrel re-exports when needed and update any doc links if paths change.
 - Do not revert or delete changes you did not make in this conversation. It is normal to have unrelated changes in the working tree; do not touch or destroy them. If they affect your changes, make your changes compatible on top of them.
 - When changing backend code, check whether frontend code also needs updates.
 - The project is usually run via `dev` scripts; you do not need to run them unless requested.

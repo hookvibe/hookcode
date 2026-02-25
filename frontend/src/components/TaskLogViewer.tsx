@@ -1,39 +1,14 @@
 import { FC, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Alert, Button, Space, Switch, Tag, Tooltip, Typography, message } from 'antd';
-import { CopyOutlined, DeleteOutlined, PauseOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { clearTaskLogs } from '../api';
 import { useT } from '../i18n';
 import { createAuthedEventSource } from '../utils/sse';
 import { ExecutionTimeline } from './execution/ExecutionTimeline';
-import { applyExecutionLogLine, buildExecutionTimeline, createEmptyTimeline, type ExecutionTimelineState } from '../utils/executionLog';
-
-/**
- * Live task log viewer (SSE/EventSource).
- *
- * Business context:
- * - Module: Frontend Chat / Tasks / Logs.
- * - Purpose: show real-time execution logs (dialog-style) for tasks and task groups.
- * - Note: ThoughtChain is replaced with a custom dialog layout. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
- *
- * Backend endpoint:
- * - `GET /api/tasks/:id/logs/stream` (SSE, supports `?token=` via `AllowQueryToken`).
- *
- * Pitfalls:
- * - Browser `EventSource` cannot set custom headers, so auth is passed via query `token`.
- * - The backend may disable logs globally; handle 404 / error states gracefully.
- *
- * Change record:
- * - 2026-01-11: Migrated from the legacy frontend to power the new chat-style views.
- */
-// Reuse the shared SSE helper to keep EventSource URL building consistent across pages. kxthpiu4eqrmu0c6bboa
-
-interface StreamInitPayload {
-  logs: string[];
-}
-
-interface StreamLogPayload {
-  line: string;
-}
+import { createEmptyTimeline, type ExecutionTimelineState } from '../utils/executionLog';
+import { TaskLogViewerFlat } from './taskLogViewer/TaskLogViewerFlat';
+import { TaskLogViewerHeader } from './taskLogViewer/TaskLogViewerHeader';
+import { MAX_LOG_LINES } from './taskLogViewer/constants';
+import { timelineReducer, type ViewerMode } from './taskLogViewer/timeline';
+import type { StreamInitPayload, StreamLogPayload } from './taskLogViewer/types';
 
 interface Props {
   taskId: string;
@@ -44,38 +19,14 @@ interface Props {
     pause?: boolean;
     reconnect?: boolean;
   };
-  /**
-   * Controlled paused state (useful when moving the Pause/Resume button to an external UI).
-   * - When provided, the component no longer manages its own paused state.
-   */
+  emptyMessage?: string;
+  emptyHint?: string;
   paused?: boolean;
   onPausedChange?: (paused: boolean) => void;
-  /**
-   * External reconnect counter: when it changes, the SSE connection is re-established.
-   */
   reconnectKey?: number;
-  /**
-   * External scroll-to-focus trigger: when `focusKey` changes, the component tries to scroll to the last log line that contains `focusText`.
-   */
   focusText?: string;
   focusKey?: number;
 }
-
-const MAX_LINES = 2000;
-
-type ViewerMode = 'timeline' | 'raw';
-
-type TimelineAction =
-  | { type: 'reset'; lines: string[] }
-  | { type: 'append'; line: string }
-  | { type: 'clear' };
-
-const timelineReducer = (state: ExecutionTimelineState, action: TimelineAction): ExecutionTimelineState => {
-  if (action.type === 'reset') return buildExecutionTimeline(action.lines);
-  if (action.type === 'append') return applyExecutionLogLine(state, action.line);
-  if (action.type === 'clear') return createEmptyTimeline();
-  return state;
-};
 
 export const TaskLogViewer: FC<Props> = ({
   taskId,
@@ -83,6 +34,8 @@ export const TaskLogViewer: FC<Props> = ({
   canManage = true,
   variant = 'panel',
   controls,
+  emptyMessage,
+  emptyHint,
   paused: pausedProp,
   onPausedChange,
   reconnectKey,
@@ -90,26 +43,25 @@ export const TaskLogViewer: FC<Props> = ({
   focusKey
 }) => {
   const t = useT();
-  const [messageApi, messageContextHolder] = message.useMessage();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
-  const scrollTargetRef = useRef<HTMLElement | Window | null>(null); // Cache the nearest scroll container so log updates do not scroll-jump between multiple viewer instances. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
+  const scrollTargetRef = useRef<HTMLElement | Window | null>(null);
   const pausedRef = useRef(false);
   const focusedKeyRef = useRef<number | null>(null);
-  const autoScrollRef = useRef(true); // Keep the latest auto-scroll state for scheduled scroll updates. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
+  const autoScrollRef = useRef(true);
 
   const showPauseButton = controls?.pause !== false;
   const showReconnectButton = controls?.reconnect !== false;
 
   const [logs, setLogs] = useState<string[]>([]);
-  const [mode, setMode] = useState<ViewerMode>('timeline'); // Prefer structured JSONL rendering (fallback to raw logs). yjlphd6rbkrq521ny796
+  const [mode, setMode] = useState<ViewerMode>('timeline');
   const [connecting, setConnecting] = useState(true);
   const [pausedInternal, setPausedInternal] = useState(false);
   const paused = pausedProp ?? pausedInternal;
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState(0);
   const [clearing, setClearing] = useState(false);
-  const [showReasoning, setShowReasoning] = useState(true); // Default to showing reasoning in dialog-style logs for task execution clarity. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128
+  const [showReasoning, setShowReasoning] = useState(true);
   const [wrapDiffLines, setWrapDiffLines] = useState(true);
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [timeline, dispatchTimeline] = useReducer(timelineReducer, undefined, () => createEmptyTimeline());
@@ -130,21 +82,23 @@ export const TaskLogViewer: FC<Props> = ({
   );
 
   const lines = useMemo(() => logs.join('\n'), [logs]);
-  const buildLineId = useCallback((idx: number) => `task-log-${taskId}-${idx}`, [taskId]); // Keep stable ids for raw log mode. yjlphd6rbkrq521ny796
+  const buildLineId = useCallback((idx: number) => `task-log-${taskId}-${idx}`, [taskId]);
 
   const copyAll = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(lines);
-      messageApi.success(t('logViewer.copySuccess'));
+      // messageApi.success(t('logViewer.copySuccess'));
+      console.log('Copied to clipboard');
     } catch {
-      messageApi.error(t('logViewer.copyFailed'));
+      // messageApi.error(t('logViewer.copyFailed'));
+      console.error('Failed to copy');
     }
-  }, [lines, messageApi, t]);
+  }, [lines, t]);
 
   const clear = useCallback(async () => {
     if (!taskId || clearing) return;
     if (!canManage) {
-      messageApi.warning(t('logViewer.clearNotAllowed'));
+      console.warn(t('logViewer.clearNotAllowed'));
       return;
     }
     setClearing(true);
@@ -153,13 +107,14 @@ export const TaskLogViewer: FC<Props> = ({
       setLogs([]);
       dispatchTimeline({ type: 'clear' });
       setSession((v) => v + 1);
-      messageApi.success(t('logViewer.clearSuccess'));
+      // messageApi.success(t('logViewer.clearSuccess'));
     } catch {
-      messageApi.error(t('logViewer.clearFailed'));
+      // messageApi.error(t('logViewer.clearFailed'));
+      console.error('Failed to clear logs');
     } finally {
       setClearing(false);
     }
-  }, [canManage, clearing, messageApi, t, taskId]);
+  }, [canManage, clearing, t, taskId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -195,12 +150,10 @@ export const TaskLogViewer: FC<Props> = ({
     };
 
     const onScroll = () => {
-      // Track "at bottom" state in a ref so scroll listeners don't trigger re-renders for every scroll event. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
       autoScrollRef.current = isAtBottom();
     };
     const opts: AddEventListenerOptions = { passive: true };
 
-    // Avoid nested scroll regions: track auto-scroll against the nearest scroll container. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5
     if (target === window) window.addEventListener('scroll', onScroll, opts);
     else target.addEventListener('scroll', onScroll, opts);
 
@@ -220,7 +173,6 @@ export const TaskLogViewer: FC<Props> = ({
         : (cb: FrameRequestCallback) => window.setTimeout(cb, 0);
 
     schedule(() => {
-      // Keep the outer scroll container pinned to the bottom for streaming logs to avoid "bouncing" between multiple TaskLogViewer instances. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
       if (!autoScrollRef.current) return;
       const target = scrollTargetRef.current;
       if (target === window) {
@@ -236,7 +188,6 @@ export const TaskLogViewer: FC<Props> = ({
         return;
       }
 
-      // Fallback: if the scroll target cannot be resolved yet, scroll the log end marker into view. docs/en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan.md xyaw6rrnebdb2uyuuv4a
       const end = endRef.current as any;
       if (!end || typeof end.scrollIntoView !== 'function') return;
       try {
@@ -248,7 +199,6 @@ export const TaskLogViewer: FC<Props> = ({
   }, [logs.length]);
 
   useEffect(() => {
-    // Focus helpers remain raw-log only; the structured timeline does not have per-line anchors. yjlphd6rbkrq521ny796
     if (mode !== 'raw') return;
     if (!focusText || focusKey === undefined || focusKey === null) return;
     if (focusedKeyRef.current === focusKey) return;
@@ -312,7 +262,7 @@ export const TaskLogViewer: FC<Props> = ({
         try {
           const payload = JSON.parse((ev as MessageEvent).data) as StreamInitPayload;
           const next = Array.isArray(payload.logs) ? payload.logs.filter((v) => typeof v === 'string') : [];
-          const sliced = next.slice(-MAX_LINES);
+          const sliced = next.slice(-MAX_LOG_LINES);
           setLogs(sliced);
           dispatchTimeline({ type: 'reset', lines: sliced });
         } catch (err) {
@@ -326,7 +276,7 @@ export const TaskLogViewer: FC<Props> = ({
         try {
           const payload = JSON.parse((ev as MessageEvent).data) as StreamLogPayload;
           if (!payload?.line) return;
-          setLogs((prev) => [...prev, payload.line].slice(-MAX_LINES));
+          setLogs((prev) => [...prev, payload.line].slice(-MAX_LOG_LINES));
           dispatchTimeline({ type: 'append', line: payload.line });
         } catch (err) {
           console.warn('[log] parse failed', err);
@@ -343,91 +293,58 @@ export const TaskLogViewer: FC<Props> = ({
     };
   }, [taskId, tail, session, reconnectKey, t]);
 
+  const resolvedEmptyMessage = emptyMessage ?? t('logViewer.empty');
+
   if (variant === 'flat') {
-    // Render realtime logs as a flat, structured timeline (no toolbar + no inner scroll). docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121
     return (
-      <div ref={rootRef}>
-        {messageContextHolder}
-        {error ? <Alert type="warning" showIcon message={error} style={{ marginBottom: 8 }} /> : null}
-        {timeline.items.length ? (
-          <>
-            {/* Show reasoning in flat dialog logs to surface Codex text by default. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
-            <ExecutionTimeline items={timeline.items} showReasoning={showReasoning} wrapDiffLines={true} showLineNumbers={true} />
-          </>
-        ) : logs.length ? (
-          <pre className="hc-task-code-block hc-task-code-block--expanded">{lines}</pre>
-        ) : (
-          <div className="hc-exec-empty">
-            <Typography.Text type="secondary">{t('logViewer.empty')}</Typography.Text>
-          </div>
-        )}
-        <div ref={endRef} />
-      </div>
+      <TaskLogViewerFlat
+        t={t}
+        error={error}
+        timeline={timeline}
+        logs={logs}
+        lines={lines}
+        showReasoning={showReasoning}
+        emptyMessage={resolvedEmptyMessage}
+        emptyHint={emptyHint}
+        rootRef={rootRef}
+        endRef={endRef}
+        messageContextHolder={null} // Removed message context
+      />
     );
   }
 
   return (
     <div className="log-viewer" ref={rootRef}>
-      {messageContextHolder}
-      <div className="log-viewer__header">
-        <Space size={8} wrap>
-          <Typography.Text className="log-viewer__title">{t('execViewer.title')}</Typography.Text>
-          <Tag color={connecting ? 'processing' : error ? 'red' : 'green'} style={{ marginRight: 0 }}>
-            {connecting ? t('logViewer.state.connecting') : error ? t('logViewer.state.error') : t('logViewer.state.live')}
-          </Tag>
-          <Typography.Text type="secondary">{t('logViewer.lines', { count: logs.length })}</Typography.Text>
-        </Space>
-        <Space size={8} wrap>
-          {showPauseButton ? (
-            <Button
-              size="small"
-              icon={paused ? <PlayCircleOutlined /> : <PauseOutlined />}
-              onClick={() => setPaused(!paused)}
-            >
-              {paused ? t('logViewer.actions.resume') : t('logViewer.actions.pause')}
-            </Button>
-          ) : null}
-          {showReconnectButton ? (
-            <Button size="small" icon={<ReloadOutlined />} onClick={() => setSession((v) => v + 1)}>
-              {t('logViewer.actions.reconnect')}
-            </Button>
-          ) : null}
-          <Button size="small" onClick={() => setMode((v) => (v === 'timeline' ? 'raw' : 'timeline'))}>
-            {mode === 'timeline' ? t('execViewer.actions.showRaw') : t('execViewer.actions.showTimeline')}
-          </Button>
-          {mode === 'timeline' ? (
-            <>
-              <Tooltip title={t('execViewer.toggles.reasoning')}>
-                <Switch size="small" checked={showReasoning} onChange={setShowReasoning} />
-              </Tooltip>
-              <Tooltip title={t('execViewer.toggles.wrapDiff')}>
-                <Switch size="small" checked={wrapDiffLines} onChange={setWrapDiffLines} />
-              </Tooltip>
-              <Tooltip title={t('execViewer.toggles.lineNumbers')}>
-                <Switch size="small" checked={showLineNumbers} onChange={setShowLineNumbers} />
-              </Tooltip>
-            </>
-          ) : null}
-          <Button size="small" icon={<CopyOutlined />} onClick={() => void copyAll()}>
-            {t('logViewer.actions.copy')}
-          </Button>
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => void clear()}
-            loading={clearing}
-          >
-            {t('logViewer.actions.clear')}
-          </Button>
-        </Space>
-      </div>
+      <TaskLogViewerHeader
+        t={t}
+        connecting={connecting}
+        error={error}
+        logsCount={logs.length}
+        showPauseButton={showPauseButton}
+        showReconnectButton={showReconnectButton}
+        paused={paused}
+        onTogglePaused={() => setPaused(!paused)}
+        onReconnect={() => setSession((v) => v + 1)}
+        mode={mode}
+        onToggleMode={() => setMode((v) => (v === 'timeline' ? 'raw' : 'timeline'))}
+        showReasoning={showReasoning}
+        onToggleShowReasoning={setShowReasoning}
+        wrapDiffLines={wrapDiffLines}
+        onToggleWrapDiffLines={setWrapDiffLines}
+        showLineNumbers={showLineNumbers}
+        onToggleShowLineNumbers={setShowLineNumbers}
+        onCopy={() => void copyAll()}
+        onClear={() => void clear()}
+        clearing={clearing}
+      />
 
       {error ? (
-        <Alert type="warning" showIcon message={error} style={{ marginBottom: 8 }} />
+        <div className="log-error">
+           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+           <span>{error}</span>
+        </div>
       ) : null}
 
-      {/* Remove the inner fixed-height scroller; the outer page/container should own scrolling. docs/en/developer/plans/djr800k3pf1hl98me7z5/task_plan.md djr800k3pf1hl98me7z5 */}
       <div className="log-viewer__body">
         {mode === 'raw' ? (
           logs.length ? (
@@ -440,11 +357,19 @@ export const TaskLogViewer: FC<Props> = ({
             </pre>
           ) : (
             <div className="log-viewer__empty">
-              <Typography.Text type="secondary">{t('logViewer.empty')}</Typography.Text>
+              <span className="text-secondary">{resolvedEmptyMessage}</span>
+              {emptyHint ? <span className="text-secondary">{emptyHint}</span> : null}
             </div>
           )
         ) : (
-          <ExecutionTimeline items={timeline.items} showReasoning={showReasoning} wrapDiffLines={wrapDiffLines} showLineNumbers={showLineNumbers} />
+          <ExecutionTimeline
+            items={timeline.items}
+            showReasoning={showReasoning}
+            wrapDiffLines={wrapDiffLines}
+            showLineNumbers={showLineNumbers}
+            emptyMessage={resolvedEmptyMessage}
+            emptyHint={emptyHint}
+          />
         )}
         <div ref={endRef} />
       </div>

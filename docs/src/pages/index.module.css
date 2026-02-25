@@ -1,4 +1,4 @@
-/* Center the glass hero layout for the docs landing page. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Center the flat hero layout for the docs landing page. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .main {
   min-height: 70vh;
   padding: 6rem 1.5rem 5rem;
@@ -8,18 +8,16 @@
   position: relative;
 }
 
-/* Build the hero card as a layered glass panel with depth. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Build the hero card as a flat neutral panel with clean borders. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .hero {
   max-width: 760px;
   margin: 0 auto;
   text-align: center;
   padding: 3rem 2.5rem;
-  border: 1px solid var(--glass-border-strong);
-  background: var(--glass-surface-strong);
+  border: 1px solid var(--ifm-toc-border-color);
+  background: var(--ifm-background-surface-color);
   border-radius: 28px;
-  box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--ifm-navbar-shadow);
   position: relative;
   overflow: hidden;
   display: flex;
@@ -28,23 +26,13 @@
   animation: hero-float 500ms ease-out both;
 }
 
-/* Add a luminous glass sheen overlay for the hero surface. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
-.hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.75), rgba(59, 130, 246, 0.12));
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-/* Ensure hero content sits above decorative overlays. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Keep hero content layered above the card surface for clean stacking. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .hero > * {
   position: relative;
   z-index: 1;
 }
 
-/* Tune the hero heading for balanced line breaks. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Tune the hero heading for balanced line breaks. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .hero h1 {
   font-size: clamp(1.8rem, 1.3rem + 1.2vw, 2.4rem);
   line-height: 1.2;
@@ -52,7 +40,7 @@
   text-wrap: balance;
 }
 
-/* Keep the tagline airy and readable on glass surfaces. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Keep the tagline airy and readable on the flat hero surface. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .tagline {
   margin: 0.35rem auto 0;
   max-width: 34rem;
@@ -61,7 +49,7 @@
   color: var(--ifm-color-content-secondary);
 }
 
-/* Arrange CTA buttons with a soft staggered entrance. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Arrange CTA buttons with a soft staggered entrance. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 .buttons {
   margin-top: 1.6rem;
   display: grid;
@@ -74,7 +62,7 @@
   animation: buttons-rise 480ms ease-out 120ms both;
 }
 
-/* Define the primary hero entrance animation. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Define the primary hero entrance animation. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 @keyframes hero-float {
   0% {
     transform: translateY(18px) scale(0.98);
@@ -86,7 +74,7 @@
   }
 }
 
-/* Define the staggered CTA reveal motion. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Define the staggered CTA reveal motion. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 @keyframes buttons-rise {
   0% {
     transform: translateY(14px);
@@ -98,7 +86,7 @@
   }
 }
 
-/* Tighten spacing for smaller screens without losing glass depth. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Tighten spacing for smaller screens while keeping the flat hero layout. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 @media (max-width: 640px) {
   .main {
     padding: 4.5rem 1.25rem 4rem;
@@ -113,7 +101,7 @@
   }
 }
 
-/* Respect reduced motion preferences for hero animations. docs/en/developer/plans/glassdocs20260126/task_plan.md glassdocs20260126 */
+/* Respect reduced motion preferences for hero animations. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
 @media (prefers-reduced-motion: reduce) {
   .hero,
   .buttons {

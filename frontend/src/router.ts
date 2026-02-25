@@ -18,7 +18,8 @@ export type RoutePage =
   | 'repos'
   | 'repo'
   | 'archive'
-  | 'login';
+  | 'login'
+  | 'skills';
 
 export interface RouteState {
   page: RoutePage;
@@ -92,6 +93,11 @@ export const parseRoute = (hash: string): RouteState => {
     return state;
   }
 
+  if (parts[0] === 'skills') {
+    // Route to the skills registry page for built-in/extra skill management. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    return { page: 'skills' };
+  }
+
   if (parts[0] === 'login') return { page: 'login' };
 
   // Fallback: keep unknown hashes safe by sending users to Home.
@@ -124,3 +130,5 @@ export const buildArchiveHash = (options?: { tab?: 'repos' | 'tasks' }): string 
   const tab = String(options?.tab ?? '').trim();
   return tab ? `#/archive?tab=${encodeURIComponent(tab)}` : '#/archive';
 };
+
+export const buildSkillsHash = (): string => '#/skills'; // Add a stable route for the skills registry page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225

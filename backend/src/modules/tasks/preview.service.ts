@@ -8,10 +8,10 @@ import path from 'path';
 import type { DependencyResult, HookcodeConfig, PreviewInstanceConfig } from '../../types/dependency';
 import { installDependencies, DependencyInstallerError } from '../../agent/dependencyInstaller';
 import {
+  buildTaskGroupRootDir,
   buildTaskGroupWorkspaceDir,
   getRepoSlug,
-  runCommandCapture,
-  TASK_GROUP_WORKSPACE_ROOT
+  runCommandCapture
 } from '../../agent/agent';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
 import { resolvePreviewEnv } from '../../utils/previewEnv';
@@ -37,6 +37,7 @@ const PREVIEW_LOG_BUFFER_MAX = 500;
 const PREVIEW_DIAGNOSTIC_LOG_TAIL = 80;
 const PREVIEW_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const PREVIEW_IDLE_POLL_MS = 60 * 1000;
+const PREVIEW_HIDDEN_TIMEOUT_MS = 30 * 60 * 1000;
 const PREVIEW_CONFIG_RELOAD_DEBOUNCE_MS = 750;
 
 // Capture preview-specific error codes for controller mapping. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -90,6 +91,8 @@ export class PreviewService implements OnModuleDestroy {
   // Maintain per-group config watchers and idle timers for Phase 3 hot reload/cleanup. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   private readonly configWatchers = new Map<string, fs.FSWatcher>();
   private readonly configReloadTimers = new Map<string, NodeJS.Timeout>();
+  // Track per-group hidden timers to auto-stop previews after long hides. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+  private readonly hiddenTimers = new Map<string, NodeJS.Timeout>();
   private readonly idleTimer: NodeJS.Timeout;
 
   constructor(
@@ -200,6 +203,17 @@ export class PreviewService implements OnModuleDestroy {
     return { available: true, instances };
   }
 
+  getActiveTaskGroupIds(): Set<string> {
+    // Surface active preview groups so list endpoints can mark sidebar indicators. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    const active = new Set<string>();
+    for (const [groupId, runtime] of this.groups.entries()) {
+      if (runtime.instances.some((instance) => instance.status === 'running' || instance.status === 'starting')) {
+        active.add(groupId);
+      }
+    }
+    return active;
+  }
+
   async startPreview(taskGroupId: string): Promise<PreviewStatusSnapshot> {
     // Start preview dev servers for the task group if configured. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const existing = this.startLocks.get(taskGroupId);
@@ -231,6 +245,7 @@ export class PreviewService implements OnModuleDestroy {
     const runtime = this.groups.get(taskGroupId);
     if (!runtime) return;
 
+    this.clearHiddenTimer(taskGroupId);
     this.clearConfigWatcher(taskGroupId);
     this.clearConfigReloadTimer(taskGroupId);
     await Promise.all(runtime.instances.map((instance) => this.stopInstance(taskGroupId, instance)));
@@ -259,10 +274,25 @@ export class PreviewService implements OnModuleDestroy {
     }
   }
 
+  markPreviewVisibility(taskGroupId: string, visible: boolean): void {
+    // Schedule preview shutdown when the UI hides previews for too long. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    const runtime = this.groups.get(taskGroupId);
+    if (!runtime) return;
+    if (visible) {
+      this.clearHiddenTimer(taskGroupId);
+      runtime.instances.forEach((instance) => {
+        instance.lastAccessAt = Date.now();
+      });
+      return;
+    }
+    this.scheduleHiddenStop(taskGroupId, runtime);
+  }
+
   async onModuleDestroy(): Promise<void> {
     // Ensure preview child processes are terminated when the module shuts down. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     clearInterval(this.idleTimer);
     this.clearAllConfigReloadTimers();
+    this.clearAllHiddenTimers();
     const groupIds = Array.from(this.groups.keys());
     await Promise.all(groupIds.map((groupId) => this.stopPreview(groupId)));
   }
@@ -295,6 +325,8 @@ export class PreviewService implements OnModuleDestroy {
     };
     this.groups.set(taskGroupId, runtime);
     this.ensureConfigWatcher(taskGroupId, runtime.configPath);
+    // Start the hidden-timeout timer until the UI reports visibility. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    this.scheduleHiddenStop(taskGroupId, runtime);
 
     return {
       available: true,
@@ -490,6 +522,36 @@ export class PreviewService implements OnModuleDestroy {
         await this.stopPreview(groupId);
       })
     );
+  }
+
+  private scheduleHiddenStop(taskGroupId: string, runtime: PreviewGroupRuntime): void {
+    // Start or reset the hidden timer so previews stop after long UI hides. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    this.clearHiddenTimer(taskGroupId);
+    const timer = setTimeout(() => {
+      this.hiddenTimers.delete(taskGroupId);
+      runtime.instances.forEach((instance) => {
+        this.appendSystemLog(taskGroupId, instance, 'hidden timeout reached, stopping preview');
+      });
+      void this.stopPreview(taskGroupId);
+    }, PREVIEW_HIDDEN_TIMEOUT_MS);
+    timer.unref?.();
+    this.hiddenTimers.set(taskGroupId, timer);
+  }
+
+  private clearHiddenTimer(taskGroupId: string): void {
+    // Prevent stale hidden timers from firing after previews are resumed/stopped. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    const existing = this.hiddenTimers.get(taskGroupId);
+    if (!existing) return;
+    clearTimeout(existing);
+    this.hiddenTimers.delete(taskGroupId);
+  }
+
+  private clearAllHiddenTimers(): void {
+    // Clear all hidden timers during shutdown to avoid leaking handles. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    for (const timer of this.hiddenTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.hiddenTimers.clear();
   }
 
   private resolveConfigPath(workspaceDir: string): string {
@@ -801,22 +863,24 @@ export class PreviewService implements OnModuleDestroy {
       }
     }
 
-    const fallbackDir = await this.findWorkspaceByPrefix(taskGroupId, lastProvider ?? providerFallback ?? undefined);
+    // Fall back to the task-group root layout when payload data is incomplete. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const fallbackDir = await this.findWorkspaceByGroupRoot(taskGroupId);
     if (fallbackDir) return fallbackDir;
 
     throw new PreviewServiceError('task group workspace missing', 'workspace_missing');
   }
 
-  private async findWorkspaceByPrefix(taskGroupId: string, provider?: string): Promise<string | null> {
-    // Fallback to an existing workspace directory when task payloads lack repo metadata. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    const prefix = provider ? `${taskGroupId}__${provider}__` : `${taskGroupId}__`;
+  private async findWorkspaceByGroupRoot(taskGroupId: string): Promise<string | null> {
+    // Fallback to an existing repo directory under the task-group root when metadata is missing. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const groupRoot = buildTaskGroupRootDir({ taskGroupId, taskId: taskGroupId });
     try {
-      const entries = await readdir(TASK_GROUP_WORKSPACE_ROOT, { withFileTypes: true });
-      const candidates = entries.filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix));
+      const entries = await readdir(groupRoot, { withFileTypes: true });
+      // Ignore tooling directories like .codex when selecting repo roots. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+      const candidates = entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'));
       if (candidates.length === 0) return null;
       let selected: { dir: string; mtime: number } | null = null;
       for (const entry of candidates) {
-        const dir = path.join(TASK_GROUP_WORKSPACE_ROOT, entry.name);
+        const dir = path.join(groupRoot, entry.name);
         const stats = await stat(dir);
         const mtime = Number(stats.mtimeMs ?? stats.mtime.getTime());
         if (!selected || mtime > selected.mtime) {

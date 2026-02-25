@@ -1,16 +1,21 @@
-import { Controller, Get, HttpException, InternalServerErrorException, NotFoundException, Param, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, InternalServerErrorException, NotFoundException, Param, Post, Query, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiConflictResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { parsePositiveInt } from '../../utils/parse';
 import { PreviewLogStream } from './preview-log-stream.service';
+import { PreviewHighlightService } from './preview-highlight.service';
 import { PreviewService, PreviewServiceError } from './preview.service';
 import {
   PreviewStartResponseDto,
   PreviewStatusResponseDto,
   PreviewStopResponseDto,
-  PreviewDependencyInstallResponseDto
+  PreviewDependencyInstallResponseDto,
+  PreviewHighlightRequestDto,
+  PreviewHighlightResponseDto,
+  PreviewVisibilityRequestDto,
+  PreviewVisibilityResponseDto
 } from './dto/task-group-preview.dto';
 
 @AuthScopeGroup('tasks') // Scope task-group preview APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
@@ -19,10 +24,11 @@ import {
 @ApiBearerAuth('bearerAuth')
 // Provide TaskGroup preview control endpoints for dev server orchestration. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export class TaskGroupPreviewController {
-  // Include preview log stream for SSE log endpoints. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  // Include preview log and highlight services for SSE and bridge commands. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   constructor(
     private readonly previewService: PreviewService,
-    private readonly previewLogStream: PreviewLogStream
+    private readonly previewLogStream: PreviewLogStream,
+    private readonly previewHighlight: PreviewHighlightService
   ) {}
 
   @Post(':id/preview/start')
@@ -93,6 +99,61 @@ export class TaskGroupPreviewController {
     } catch (err) {
       this.handleError(err, '[task-groups] preview status failed');
     }
+  }
+
+  @Post(':id/preview/visibility')
+  @ApiOperation({
+    summary: 'Set TaskGroup preview visibility',
+    description: 'Report whether the preview is currently visible in the UI.',
+    operationId: 'task_groups_preview_visibility'
+  })
+  @ApiOkResponse({ description: 'OK', type: PreviewVisibilityResponseDto })
+  async visibility(@Param('id') id: string, @Body() body: PreviewVisibilityRequestDto): Promise<PreviewVisibilityResponseDto> {
+    // Accept visibility updates to drive hidden preview shutdown timers. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+    try {
+      this.previewService.markPreviewVisibility(id, body.visible);
+      return { success: true };
+    } catch (err) {
+      this.handleError(err, '[task-groups] preview visibility failed');
+    }
+  }
+
+  // Send highlight commands to the preview iframe bridge via SSE. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+  @Post(':id/preview/:instanceName/highlight')
+  @ApiOperation({
+    summary: 'Highlight preview DOM element',
+    description: 'Send a DOM highlight command to the preview iframe bridge (requires bridge script).',
+    operationId: 'task_groups_preview_highlight'
+  })
+  @ApiOkResponse({ description: 'OK', type: PreviewHighlightResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async highlight(
+    @Param('id') id: string,
+    @Param('instanceName') instanceName: string,
+    @Body() body: PreviewHighlightRequestDto
+  ): Promise<PreviewHighlightResponseDto> {
+    const target = this.previewService.getProxyTarget(id, instanceName);
+    if (!target) {
+      throw new NotFoundException({ error: 'Preview instance not found' });
+    }
+    if (target.status !== 'running' && target.status !== 'starting') {
+      throw new HttpException({ error: 'Preview instance not running', code: 'preview_not_running' }, 409);
+    }
+    const result = this.previewHighlight.publishHighlight(id, instanceName, {
+      selector: body.selector,
+      padding: body.padding,
+      color: body.color,
+      mode: body.mode,
+      scrollIntoView: body.scrollIntoView,
+      // Forward optional bubble payload to the preview bridge. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+      bubble: body.bubble,
+      // Forward optional target URLs for preview auto-navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+      targetUrl: body.targetUrl,
+      requestId: body.requestId
+    });
+    // Echo the target URL in the response so clients can reconcile navigation hints. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+    return { success: true, requestId: result.requestId, subscribers: result.subscribers, targetUrl: body.targetUrl };
   }
 
   // Stream preview instance logs via SSE for live debugging. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as

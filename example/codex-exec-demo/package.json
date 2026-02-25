@@ -1,0 +1,14 @@
+{
+  "name": "codex-exec-demo",
+  "version": "1.0.0",
+  "description": "Codex SDK JSON Output Demo",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@openai/codex-sdk": "^0.93.0"
+  }
+}

@@ -128,6 +128,9 @@ Each entry declares:
 - `workdir`: optional relative path for multi-subproject installs (e.g., `backend`, `frontend`)
 
 {/* Explain multi-subproject installs via workdir. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
+<!-- Clarify repo-relative paths inside the task-group workspace. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+Install commands run from the repository root inside the task-group workspace, so `workdir` is relative to `<repo-name>/`.
+
 ### Multi-subproject installs
 
 If your repository has multiple projects (e.g., `backend` + `frontend`), declare multiple runtime entries and set `workdir` for each:

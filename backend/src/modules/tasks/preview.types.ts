@@ -32,6 +32,49 @@ export interface PreviewLogEntry {
   message: string;
 }
 
+// Describe highlight commands sent to preview bridge scripts. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export type PreviewHighlightMode = 'outline' | 'mask';
+
+// Describe optional bubble tooltip settings for preview highlights. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+export type PreviewHighlightBubblePlacement = 'top' | 'right' | 'bottom' | 'left' | 'auto';
+export type PreviewHighlightBubbleAlign = 'start' | 'center' | 'end';
+export type PreviewHighlightBubbleTheme = 'dark' | 'light';
+
+export interface PreviewHighlightBubble {
+  text: string;
+  placement?: PreviewHighlightBubblePlacement;
+  align?: PreviewHighlightBubbleAlign;
+  offset?: number;
+  maxWidth?: number;
+  theme?: PreviewHighlightBubbleTheme;
+  background?: string;
+  textColor?: string;
+  borderColor?: string;
+  radius?: number;
+  arrow?: boolean;
+}
+
+export interface PreviewHighlightCommand {
+  selector: string;
+  padding?: number;
+  color?: string;
+  mode?: PreviewHighlightMode;
+  scrollIntoView?: boolean;
+  // Forward optional bubble tooltip payload to the preview bridge. docs/en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan.md jemhyxnaw3lt4qbxtr48
+  bubble?: PreviewHighlightBubble;
+  // Optionally tell the preview UI which URL to navigate to before highlighting. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  targetUrl?: string;
+  requestId?: string;
+}
+
+// Publish preview highlight events over SSE for the frontend bridge. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+export interface PreviewHighlightEvent {
+  taskGroupId: string;
+  instanceName: string;
+  command: PreviewHighlightCommand;
+  issuedAt: string;
+}
+
 // Describe per-instance preview config for repo-level discovery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export interface RepoPreviewInstanceSummary {
   name: string;

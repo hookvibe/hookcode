@@ -1,0 +1,315 @@
+/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* =============================================================================
+ * Task detail full-width layout
+ * - Business context: Frontend Chat / Tasks / Task detail.
+ * - Purpose: remove the global max-width constraint and introduce summary strip + sidebar/workflow layout.
+ * - Change record: 2026-01-17 - Redesign the task detail page layout. tdlayout20260117k8p3
+ * ========================================================================== */
+
+.hc-task-detail-page .hc-page__body {
+  /* Layout intent: this page is a split-pane layout and should use the full available width. */
+  align-items: stretch;
+}
+
+.hc-task-detail-page .hc-page__body > * {
+  /* Override `.hc-page__body > * { max-width: var(--hc-page-max) }` for this page only. */
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.hc-task-summary-strip {
+  padding: 0 18px 14px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-task-summary-strip__scroller {
+  /* Show all summary cards without horizontal scrolling by allowing responsive wrapping. tdstripwrap20260117b5m7 */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  align-items: stretch; /* Keep summary cards equal-height per row. tdsummaryequalh20260117v2n9 */
+  gap: 12px;
+}
+
+.hc-task-summary-strip__card {
+  height: 100%; /* Ensure each summary card fills the grid row height for visual consistency. tdsummaryequalh20260117v2n9 */
+  min-width: 0;
+}
+
+.hc-task-detail-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hc-task-detail-sidebar {
+  flex: 0 0 clamp(280px, 30%, 420px);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  min-width: 0;
+  /* Animate sidebar width shifts when collapsing/expanding. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+  transition: flex-basis 200ms ease, width 200ms ease;
+}
+
+.hc-task-detail-sidebar__toggle {
+  /* Keep the collapse toggle visible even when the sidebar content is hidden. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.hc-task-detail-sidebar__toggle-btn.ant-btn {
+  min-width: 32px;
+  padding: 0 8px;
+}
+
+.hc-task-detail-sidebar__content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Collapse the task detail sidebar into a compact rail when toggled. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+.hc-task-detail-sidebar--collapsed {
+  flex: 0 0 44px;
+  width: 44px;
+}
+
+.hc-task-detail-sidebar--collapsed .hc-task-detail-sidebar__toggle {
+  justify-content: center;
+}
+
+.hc-task-detail-sidebar--collapsed .hc-task-detail-sidebar__content {
+  display: none;
+}
+
+.hc-task-detail-workflow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Keep the task detail panel switcher visible while scrolling long logs/results. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+.hc-task-detail-panel-switcher {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  overflow: visible;
+  padding-bottom: 10px;
+}
+
+.hc-task-detail-panel-content {
+  margin-top: 12px;
+}
+
+/* Redesign task detail step tabs with explicit numbering and a pointer highlight. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+.hc-task-detail-step-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.hc-task-detail-step-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-surface);
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+}
+
+.hc-task-detail-step-tab:hover {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft-hover);
+}
+
+.hc-task-detail-step-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-task-detail-step-tab.is-active {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--hc-accent-border);
+}
+
+.hc-task-detail-step-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 9px solid var(--hc-accent-soft);
+  filter: drop-shadow(0 1px 0 var(--hc-accent-border));
+}
+
+.hc-task-detail-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-elevated);
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text);
+  flex: 0 0 auto;
+}
+
+.hc-task-detail-step-tab.is-active .hc-task-detail-step-index {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft-hover);
+}
+
+.hc-task-detail-step-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hc-task-code-block {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Expand task detail code blocks to remove inner scrolling. docs/en/developer/plans/taskdetailui20260121/task_plan.md taskdetailui20260121 */
+.hc-task-code-block--expanded {
+  max-height: none;
+  overflow: visible;
+}
+
+/* Style the structured JSON viewer to replace raw payload <pre> blocks. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128 */
+.hc-json-viewer {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.hc-json-viewer .ant-tree,
+.hc-json-viewer .ant-tree-list-holder {
+  background: transparent;
+}
+
+.hc-json-viewer .ant-tree-node-content-wrapper {
+  padding: 2px 6px;
+}
+
+.hc-json-viewer__row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.hc-json-viewer__key {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.hc-json-viewer__separator {
+  color: var(--text);
+  opacity: 0.6;
+}
+
+.hc-json-viewer__summary {
+  color: var(--text);
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.hc-json-viewer__value--string,
+.hc-json-viewer__value--number,
+.hc-json-viewer__value--boolean,
+.hc-json-viewer__value--other {
+  color: var(--text);
+}
+
+.hc-json-viewer__value--null,
+.hc-json-viewer__value--undefined {
+  color: var(--text);
+  opacity: 0.6;
+}
+
+@media (max-width: 1200px) {
+  .hc-task-summary-strip {
+    padding: 0 14px 12px;
+  }
+
+  .hc-task-detail-layout {
+    flex-direction: column;
+  }
+
+  .hc-task-detail-sidebar {
+    flex: 0 0 auto;
+    position: static;
+    width: 100%;
+  }
+
+  /* Keep collapsed sidebar full-width on stacked mobile layouts. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */
+  .hc-task-detail-sidebar--collapsed {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+}
+
+.hc-inner-card {
+  background: transparent !important;
+  border-color: var(--hc-border) !important;
+  border-radius: 10px;
+}
+
+.hc-list {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+}
+
+.hc-list__item {
+  cursor: pointer;
+}
+
+.hc-list__item:hover {
+  background: var(--hc-hover);
+}
+
+.hc-empty {
+  padding: 48px 0;
+  display: flex;
+  justify-content: center;
+}
+

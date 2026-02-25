@@ -19,6 +19,7 @@ import { RuntimeService } from './services/runtimeService';
 import { OpenApiSpecStore } from './modules/openapi/openapi-spec.store';
 import { PreviewWsProxyService } from './modules/tasks/preview-ws-proxy.service';
 import { PreviewHostProxyService } from './modules/tasks/preview-host-proxy.service';
+import { HttpErrorMessageFilter } from './modules/common/filters/http-error-message.filter';
 
 dotenv.config();
 
@@ -118,6 +119,8 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
       transform: true
     })
   );
+  // Register a global HttpException message fallback for code-only error payloads. docs/en/developer/plans/im5mpw0g5827wu95w4ki/task_plan.md im5mpw0g5827wu95w4ki
+  app.useGlobalFilters(new HttpErrorMessageFilter());
 
   // Custom JSON parser:
   // - Keep raw body for GitHub signature verification (X-Hub-Signature-256).

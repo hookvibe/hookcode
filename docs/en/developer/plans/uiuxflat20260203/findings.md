@@ -1,0 +1,48 @@
+# Findings
+{/* Track discoveries and constraints here. Update after every 2 information-gathering actions. */}
+
+## 2026-02-03
+- The ui-ux-pro-max design-system search recommends glassmorphism and Inter, but this conflicts with the request to remove non-essential gradients; we will treat it as a baseline and override with flat neutrals.
+- Planning init script indicates docs/docs.json is absent (likely Docusaurus), so docs navigation updates should avoid Mintlify sync steps.
+- User requirements: simplify style, remove gradients where non-essential, enforce light (white/gray) and dark (black/gray) palettes, and remove the panel setting for style color.
+- Gradient usage appears in both docs (`docs/src/pages/index.module.css`, `docs/src/css/custom/buttons.css`, `docs/src/css/custom/background.css`) and frontend styles (`frontend/src/styles/tokens.css`, `page-nav.css`, `cards.css`, `repo-detail-activity.css`, `preview-shell.css`).
+- Accent color selection is wired through `frontend/src/theme/accent.ts`, `frontend/src/App.tsx`, and the settings UI in `frontend/src/components/UserPanelPopover.tsx`, with translations in `frontend/src/i18n/messages/*/ui.ts`.
+- `frontend/src/styles/tokens.css` defines gradient app backgrounds for both light/dark via `--hc-app-bg` radial gradients and accent-driven tokens.
+- `frontend/src/components/UserPanelPopover.tsx` renders the accent selection dropdown under settings; this is the "style color" control to remove.
+- Docs landing page (`docs/src/pages/index.module.css`) uses glassmorphism with gradient overlays and blur that must be flattened to solid surfaces.
+- Docs background CSS (`docs/src/css/custom/background.css`) already sets a solid `background-color`, but still leaves `.main-wrapper` transparent for the prior glass treatment.
+- Docs theme tokens (`docs/src/css/custom/tokens.css`) define glass-specific surfaces, blue primary accents, and translucent backgrounds that need conversion to neutral light/dark grays.
+- Docs button styling (`docs/src/css/custom/buttons.css`) uses gradient primary background and glass surfaces, which must become solid fills.
+- `frontend/src/styles/base.css` sets `body` background to `--hc-app-bg`, which currently uses accent-tinted gradients.
+- `frontend/src/styles/page-nav.css` applies gradient backgrounds for primary buttons that should be flattened to solid fills.
+- Card styles (`frontend/src/styles/cards.css`) use glass blur and radial/linear gradients for sheen; these need flattening to solid surfaces.
+- Repo activity bars (`frontend/src/styles/repo-detail-activity.css`) use a vertical gradient fill based on `--accent`.
+- `frontend/src/styles/preview-shell.css` uses linear-gradient backgrounds for preview panel and header chrome that should be flattened.
+- `frontend/src/styles/settings.css` uses a gradient background for the system theme preview card; may need a non-gradient split to comply with "no gradients" request.
+- `frontend/src/theme/accent.ts` defines multiple accent presets and stores selection under `hookcode-accent`; default is blue.
+- `frontend/src/App.tsx` applies accent presets to CSS variables and Ant Design tokens and persists them to localStorage; removing the UI will require either fixing the accent or simplifying this state.
+- Re-read task plan and progress to align upcoming design decisions with the flat neutral palette goal.
+- `frontend/src/pages/AppShell.tsx` threads `accentPreset` and `onAccentPresetChange` through to `UserPanelPopover` via props.
+- `frontend/src/components/UserPanelPopover.tsx` imports `ACCENT_PRESET_OPTIONS` and uses `accentPreset` props to render the settings accent dropdown.
+- User panel tests (`frontend/src/tests/userPanelPopover.test.tsx`) provide `accentPreset` props; removing accent selection will require test updates.
+- i18n strings include accent labels (`panel.settings.accentTitle`, `settings.accent.*`) that can be removed or deprecated when the setting is dropped.
+- Accent preset usage is limited to App/AppShell/UserPanelPopover/tests; removing the preset flow will mainly touch these files plus `frontend/src/theme/accent.ts`.
+- `frontend/src/styles/page-layout.css` and `sidebar-shell.css` still reference gradient-era blur/backdrop styling; should be adjusted for flat solid backgrounds.
+- `frontend/src/styles/user-panel.css` already uses solid surfaces but the header comment references "soft glass"; should be updated to reflect flat neutral styling.
+- `UserPanelPopoverProps` currently requires `accentPreset` and `onAccentPresetChange`, and the settings render uses `accentOptions` near line ~900.
+- The accent preset options block (`accentOptions` useMemo) builds the dropdown list and will be removed alongside the setting UI.
+- i18n settings descriptions still mention accent in both en-US and zh-CN; these strings will be updated alongside removal of the accent setting.
+- No remaining code references to `accentPreset` or accent setting i18n keys after updates; only a legacy comment in `page-nav.css` still mentions gradients and needs updating.
+- Legacy accent helpers (`ACCENT_STORAGE_KEY`, preset resolvers) are no longer referenced; only `NEUTRAL_ACCENT` remains in use.
+- Remaining backdrop filters live in `frontend/src/styles/composer.css` and `frontend/src/styles/preview-shell.css` (header browser control), which should be flattened to solid surfaces.
+- Docs styles still apply `backdrop-filter` in code/content/surfaces/openapi CSS modules; these should be removed to fully drop glass effects.
+- `docs/src/css/custom/code.css` and `docs/src/css/custom/content.css` still reference glass styling, blur, and blue-tinted table headers that should be neutralized.
+- `docs/src/css/custom/surfaces.css` and `docs/src/css/custom/openapi.css` still apply glass blur and colored accents (method chips, inputs) that should be flattened to neutral solids.
+- After updates, docs styles no longer use `backdrop-filter`; remaining "gradient" references are only token variables set to `none`.
+- All legacy glassdocs plan references in docs comments have been removed; remaining "glass" mentions are variable names retained for token compatibility.
+- Frontend styles no longer use actual gradients or backdrop filters; only a comment in `settings.css` references gradients for the split theme preview.
+- AppShell tests may require prop updates due to removed accent props; confirm call sites in `frontend/src/tests/appShell.test.tsx`.
+- `frontend/src/tests/appShell.test.tsx` uses a `renderApp` helper; its AppShell props need updating to match the new signature without accent props.
+- Frontend tests no longer assert accent UI; only the new neutral-accent comment remains in `userPanelPopover.test.tsx`.
+- Docs CSS no longer contains blue/green accent hexes; only the OpenAPI error text remains red for status signaling.
+- The working tree contains many unrelated changes (pre-existing) including preview-bridge deletions and other frontend files; avoid touching them while making UI updates.

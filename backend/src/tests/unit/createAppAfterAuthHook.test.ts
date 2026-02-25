@@ -28,6 +28,8 @@ describe('bootstrapHttpServer', () => {
     const app = {
       enableCors: jest.fn(),
       useGlobalPipes: jest.fn(),
+      // Stub global filter registration for bootstrap coverage. docs/en/developer/plans/im5mpw0g5827wu95w4ki/task_plan.md im5mpw0g5827wu95w4ki
+      useGlobalFilters: jest.fn(),
       use: jest.fn(),
       setGlobalPrefix: jest.fn(),
       init: jest.fn().mockResolvedValue(undefined),

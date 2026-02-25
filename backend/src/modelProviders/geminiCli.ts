@@ -306,6 +306,7 @@ const extractResult = (parsed: unknown): GeminiCliOutputResult | null => {
 
 export const runGeminiCliExecWithCli = async (params: {
   repoDir: string;
+  workspaceDir?: string;
   promptFile: string;
   model: string;
   sandbox: 'read-only' | 'workspace-write';
@@ -371,8 +372,10 @@ export const runGeminiCliExecWithCli = async (params: {
       ...(resumeSessionId ? ['--resume', resumeSessionId] : [])
     ];
 
+    const workingDir = params.workspaceDir ?? params.repoDir;
     const child = spawnFn(process.execPath, args, {
-      cwd: params.repoDir,
+      // Run Gemini CLI from the task-group root when provided; fall back to repo root. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+      cwd: workingDir,
       env: mergedEnv,
       stdio: ['pipe', 'pipe', 'pipe']
     });

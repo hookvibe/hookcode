@@ -1,0 +1,172 @@
+/* Split global styles into modular files for maintainability. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* =============================================================================
+   * Modern Clean Theme (Light)
+   * High contrast, minimal borders, clean typography.
+   * ========================================================================== */
+
+  /* Base Colors */
+  --bg: #ffffff;
+  --text: #171717; /* Neutral 900 */
+  --text-secondary: #737373; /* Neutral 500 */
+  --text-tertiary: #a3a3a3; /* Neutral 400 */
+  
+  /* Surfaces */
+  --card-bg: #ffffff;
+  --surface-hover: #f5f5f5; /* Neutral 100 */
+  --surface-active: #e5e5e5; /* Neutral 200 */
+  
+  /* Borders */
+  --border: #e5e5e5; /* Neutral 200 */
+  --border-hover: #d4d4d4; /* Neutral 300 */
+  
+  /* Layout */
+  --page-padding: 24px;
+  --hc-page-max: 1200px; /* Slightly wider for modern feel */
+
+  /* HookCode Semantic Variables */
+  --hc-app-bg: var(--bg);
+  --hc-content-bg: transparent;
+  --hc-sider-bg: #f9f9f9; /* Very subtle gray for sidebar to distinguish from content */
+  --hc-surface: #ffffff;
+  --hc-surface-elevated: #ffffff;
+  --hc-hover: var(--surface-hover);
+  --hc-border: var(--border);
+
+  /* Form Controls */
+  --hc-control-bg: #ffffff;
+  --hc-control-bg-hover: #f9f9f9;
+  --hc-control-bg-disabled: #f5f5f5;
+  --hc-control-placeholder: var(--text-tertiary);
+  --hc-control-icon: var(--text-secondary);
+  --hc-control-border: var(--border);
+
+  /* User Panel */
+  --hc-panel-bg: #ffffff;
+
+  /* Scrollbars */
+  --hc-scrollbar-track: transparent;
+  --hc-scrollbar-thumb: #d4d4d4;
+  --hc-scrollbar-thumb-hover: #a3a3a3;
+
+  /* Shadows (Softer, more diffuse) */
+  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --hc-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --hc-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+  /* Accents (Neutral/Monochrome by default, can be tinted) */
+  --accent: #171717; /* Black accent for light mode */
+  --accent-hover: #404040;
+  --accent-active: #000000;
+  
+  --hc-accent-soft: #f5f5f5;
+  --hc-accent-soft-hover: #e5e5e5;
+  --hc-accent-border: #d4d4d4;
+  --hc-focus-ring: 0 0 0 2px rgba(23, 23, 23, 0.1);
+
+  /* Chat Specific */
+  --hc-bubble-user-bg: #f5f5f5;
+  --hc-bubble-assistant-bg: #ffffff;
+  --hc-code-bg: #f9f9f9;
+  --hc-top-right-safe: 120px;
+
+  /* Execution Colors (Keep distinct) */
+  --hc-exec-accent: #f97316; /* Orange 500 */
+  --hc-exec-accent-soft: #ffedd5; /* Orange 100 */
+  --hc-exec-rail: #e5e5e5;
+  --hc-exec-work-bg: #f5f5f5;
+  --hc-exec-role-bg: #fafafa;
+
+  /* Native Integration */
+  color-scheme: light;
+  color: var(--text);
+  background-color: var(--bg);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+:root[data-theme='dark'] {
+  /* =============================================================================
+   * Modern Clean Theme (Dark)
+   * Deep blacks, subtle borders, high legibility.
+   * ========================================================================== */
+
+  /* Base Colors */
+  --bg: #0a0a0a; /* Almost black */
+  --text: #ededed; /* Neutral 100 */
+  --text-secondary: #a3a3a3; /* Neutral 400 */
+  --text-tertiary: #525252; /* Neutral 600 */
+
+  /* Surfaces */
+  --card-bg: #0a0a0a;
+  --surface-hover: #1f1f1f; /* Neutral 900 */
+  --surface-active: #262626; /* Neutral 800 */
+
+  /* Borders */
+  --border: #262626; /* Neutral 800 */
+  --border-hover: #404040; /* Neutral 700 */
+
+  /* HookCode Semantic Variables */
+  --hc-app-bg: var(--bg);
+  --hc-content-bg: transparent;
+  --hc-sider-bg: #000000; /* Pure black sidebar */
+  --hc-surface: #0a0a0a;
+  --hc-surface-elevated: #171717;
+  --hc-hover: var(--surface-hover);
+  --hc-border: var(--border);
+
+  /* Form Controls */
+  --hc-control-bg: #171717;
+  --hc-control-bg-hover: #262626;
+  --hc-control-bg-disabled: #0f0f0f;
+  --hc-control-placeholder: var(--text-tertiary);
+  --hc-control-icon: var(--text-secondary);
+  --hc-control-border: var(--border);
+
+  /* User Panel */
+  --hc-panel-bg: #171717;
+
+  /* Scrollbars */
+  --hc-scrollbar-track: transparent;
+  --hc-scrollbar-thumb: #404040;
+  --hc-scrollbar-thumb-hover: #525252;
+
+  /* Shadows */
+  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --hc-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  --hc-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+
+  /* Accents */
+  --accent: #ffffff; /* White accent for dark mode */
+  --accent-hover: #e5e5e5;
+  --accent-active: #d4d4d4;
+
+  --hc-accent-soft: #171717;
+  --hc-accent-soft-hover: #262626;
+  --hc-accent-border: #404040;
+  --hc-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.15);
+
+  /* Chat Specific */
+  --hc-bubble-user-bg: #262626;
+  --hc-bubble-assistant-bg: #0a0a0a;
+  --hc-code-bg: #171717;
+
+  /* Execution Colors */
+  --hc-exec-accent: #f97316;
+  --hc-exec-accent-soft: rgba(249, 115, 22, 0.15);
+  --hc-exec-rail: #262626;
+  --hc-exec-work-bg: #171717;
+  --hc-exec-role-bg: #0f0f0f;
+
+  /* Native Integration */
+  color-scheme: dark;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --hc-top-right-safe: 56px;
+  }
+}

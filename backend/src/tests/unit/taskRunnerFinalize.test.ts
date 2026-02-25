@@ -7,17 +7,28 @@ jest.mock('../../agent/agent', () => {
     logs: string[];
     logsSeq: number;
     providerCommentUrl?: string;
+    // Expose abort markers for pause/resume TaskRunner coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    aborted?: boolean;
     // Mirror AgentExecutionError shape to include git status payloads. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
     gitStatus?: unknown;
     constructor(
       message: string,
-      params: { logs: string[]; logsSeq: number; providerCommentUrl?: string; gitStatus?: unknown; cause?: unknown }
+      params: {
+        logs: string[];
+        logsSeq: number;
+        providerCommentUrl?: string;
+        gitStatus?: unknown;
+        cause?: unknown;
+        aborted?: boolean;
+      }
     ) {
       super(message);
       this.name = 'AgentExecutionError';
       this.logs = params.logs;
       this.logsSeq = params.logsSeq;
       this.providerCommentUrl = params.providerCommentUrl;
+      // Keep abort flag aligned with pause/resume error handling. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      this.aborted = params.aborted;
       this.gitStatus = params.gitStatus;
       if (params.cause !== undefined) {
         (this as any).cause = params.cause;
@@ -197,5 +208,52 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     await taskRunner.trigger();
 
     expect(events).toEqual(['start:t4', 'finish:t4:failed:boom']);
+  });
+
+  // Simulate pause polling to ensure TaskRunner finalizes with paused status. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  test('marks task paused when control polling requests abort', async () => {
+    const task = {
+      id: 't_pause',
+      eventType: 'commit',
+      status: 'processing',
+      payload: {},
+      retries: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    } as any;
+
+    const agentService = {
+      callAgent: jest.fn((_: any, options: { signal?: AbortSignal }) => {
+        // Reject on AbortSignal so the TaskRunner can finalize paused tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+        return new Promise((_, reject) => {
+          const err = new AgentExecutionError('aborted', { logs: [], logsSeq: 0, aborted: true });
+          if (options?.signal?.aborted) {
+            reject(err);
+            return;
+          }
+          options?.signal?.addEventListener('abort', () => reject(err));
+        });
+      })
+    };
+
+    const taskService = {
+      takeNextQueued: jest.fn().mockResolvedValueOnce(task).mockResolvedValueOnce(undefined),
+      getTaskControlState: jest.fn().mockResolvedValue({ status: 'paused', archivedAt: null }),
+      patchResult: jest.fn().mockResolvedValue({ ...task, status: 'processing' } as any)
+    };
+
+    const taskRunner = new TaskRunner(taskService as any, agentService as any);
+    const promise = taskRunner.trigger();
+
+    await Promise.resolve();
+    await Promise.resolve();
+    await promise;
+
+    expect(taskService.getTaskControlState).toHaveBeenCalled();
+    expect(taskService.patchResult).toHaveBeenLastCalledWith(
+      't_pause',
+      expect.objectContaining({ message: 'Task paused by user.' }),
+      'paused'
+    );
   });
 });

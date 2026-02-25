@@ -5,7 +5,7 @@ import type { RepoAutomationConfig, RepoProvider, Repository } from '../api';
 import { createRepo, fetchRepo, listRepos } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildRepoHash } from '../router';
-import { PageNav } from '../components/nav/PageNav';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 import { parseRepoUrl } from '../utils/repoUrl';
 
@@ -47,9 +47,10 @@ const summarizeAutomation = (config?: RepoAutomationConfig | null) => {
 
 export interface ReposPageProps {
   userPanel?: ReactNode;
+  navToggle?: PageNavMenuAction;
 }
 
-export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
+export const ReposPage: FC<ReposPageProps> = ({ userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -164,6 +165,8 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
             {t('repos.page.create')}
           </Button>
         }
+        // Provide the mobile nav toggle so the header can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
+        navToggle={navToggle}
         userPanel={userPanel}
       />
 
@@ -173,81 +176,85 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel }) => {
         </div>
 
         {filtered.length ? (
-          <div className="hc-card-list">
-            {/* Switch repo list to a responsive grid with segmented card sections. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
-            <div className="hc-card-grid">
-              {filtered.map((repo) => {
-                const summary = repoSummaryById[repo.id];
-                const robotsText =
-                  !summary || summary.loading
-                    ? '…'
-                    : 'error' in summary
-                      ? '—'
-                      : t('repos.page.meta.robots', { enabled: summary.robotsEnabled, total: summary.robotsTotal });
-                const triggersText =
-                  !summary || summary.loading
-                    ? '…'
-                    : 'error' in summary
-                      ? '—'
-                      : t('repos.page.meta.triggers', { enabled: summary.triggersEnabled, total: summary.triggersTotal });
+          <div className="hc-card-grid-modern">
+            {filtered.map((repo) => {
+              const summary = repoSummaryById[repo.id];
+              const robotsText =
+                !summary || summary.loading
+                  ? '…'
+                  : 'error' in summary
+                    ? '—'
+                    : t('repos.page.meta.robots', { enabled: summary.robotsEnabled, total: summary.robotsTotal });
+              const triggersText =
+                !summary || summary.loading
+                  ? '…'
+                  : 'error' in summary
+                    ? '—'
+                    : t('repos.page.meta.triggers', { enabled: summary.triggersEnabled, total: summary.triggersTotal });
 
-                return (
-                  <Card
-                    key={repo.id}
-                    size="small"
-                    hoverable
-                    className="hc-repo-card"
-                    // Refresh repo card padding to match the new glassmorphism scale. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
-                    styles={{ body: { padding: 14 } }}
-                    onClick={() => openRepo(repo)}
-                  >
-                    {/* Segment repo card content into clear blocks for the grid layout. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
-                    <div className="hc-card-structure">
-                      <div className="hc-card-header">
-                        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                          <Typography.Text strong style={{ minWidth: 0 }}>
-                            {repo.name || repo.id}
-                          </Typography.Text>
-                          <Space size={6} wrap>
-                            <Tag color={repo.provider === 'github' ? 'geekblue' : 'orange'}>{providerLabel(repo.provider)}</Tag>
-                            <Tag color={repo.enabled ? 'green' : 'red'}>
-                              {repo.enabled ? t('common.enabled') : t('common.disabled')}
-                            </Tag>
-                          </Space>
-                        </Space>
+              return (
+                <div
+                  key={repo.id}
+                  className="hc-modern-card"
+                  onClick={() => openRepo(repo)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openRepo(repo);
+                    }
+                  }}
+                >
+                  <div className="hc-modern-card__header">
+                    <div className="hc-modern-card__title-group">
+                      <div className="hc-modern-card__title" title={repo.name || repo.id}>
+                        {repo.name || repo.id}
                       </div>
-
-                      <div className="hc-card-divider" />
-
-                      {/* Structure repo meta rows for shared card styling. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
-                      <Space size={10} wrap className="hc-card-meta">
-                        <Typography.Text type="secondary">{repo.id}</Typography.Text>
-                        <Typography.Text type="secondary">{formatTime(repo.updatedAt)}</Typography.Text>
-                        <Tag color="geekblue">{robotsText}</Tag>
-                        <Tag color="purple">{triggersText}</Tag>
-                      </Space>
-
-                      <div className="hc-card-divider" />
-
-                      {/* Keep the repo card CTA aligned for the updated card layout. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
-                      <div className="hc-card-actions">
-                        <Button
-                          size="small"
-                          icon={<SettingOutlined />}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            openRepo(repo);
-                          }}
-                        >
-                          {t('common.manage')}
-                        </Button>
+                      <div className="hc-modern-card__subtitle" title={repo.id}>
+                        {repo.id}
                       </div>
                     </div>
-                  </Card>
-                );
-              })}
-            </div>
+                    <div className="hc-modern-card__badges">
+                      <Tag color={repo.provider === 'github' ? 'geekblue' : 'orange'} style={{ margin: 0 }}>
+                        {providerLabel(repo.provider)}
+                      </Tag>
+                      <Tag color={repo.enabled ? 'green' : 'red'} style={{ margin: 0 }}>
+                        {repo.enabled ? t('common.enabled') : t('common.disabled')}
+                      </Tag>
+                    </div>
+                  </div>
+
+                  <div className="hc-modern-card__divider" />
+
+                  <div className="hc-modern-card__meta-row">
+                    <div className="hc-modern-card__meta-item">
+                      <Tag color="geekblue" style={{ margin: 0 }}>{robotsText}</Tag>
+                    </div>
+                    <div className="hc-modern-card__meta-item">
+                      <Tag color="purple" style={{ margin: 0 }}>{triggersText}</Tag>
+                    </div>
+                    <div className="hc-modern-card__meta-item" style={{ marginLeft: 'auto' }}>
+                      {formatTime(repo.updatedAt)}
+                    </div>
+                  </div>
+
+                  <div className="hc-modern-card__actions">
+                    <Button
+                      size="small"
+                      icon={<SettingOutlined />}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openRepo(repo);
+                      }}
+                    >
+                      {t('common.manage')}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : loading ? (
           // Use skeleton cards instead of an Empty+icon while the repo list is loading. ro3ln7zex8d0wyynfj0m

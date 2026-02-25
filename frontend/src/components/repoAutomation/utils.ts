@@ -94,3 +94,25 @@ export const findClause = (rule: AutomationRule, pred: (c: AutomationClause) => 
   return [...all, ...any].find(pred);
 };
 
+// Share trigger rule string normalization helpers across automation UI modules. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+export const toLowerTrim = (value: unknown): string => String(value ?? '').trim().toLowerCase();
+
+export const normalizeMentionHandle = (value: unknown): string => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const noAt = raw.startsWith('@') ? raw.slice(1).trim() : raw;
+  if (!noAt) return '';
+  const lower = noAt.toLowerCase();
+  return lower
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '');
+};
+
+export const extractInValues = (clause?: AutomationClause): string[] => {
+  if (!clause) return [];
+  if (Array.isArray(clause.values)) return clause.values.filter(Boolean);
+  if (typeof clause.value === 'string' && clause.value.trim()) return [clause.value.trim()];
+  return [];
+};

@@ -1,11 +1,14 @@
-import { Controller, Get, HttpException, InternalServerErrorException, NotFoundException, Param, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Get, HttpException, InternalServerErrorException, NotFoundException, Param, Patch, Query } from '@nestjs/common';
+import { ApiBadRequestResponse, ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { normalizeString, parsePositiveInt } from '../../utils/parse';
 import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { TaskService } from './task.service';
+import { PreviewService } from './preview.service';
 import { GetTaskGroupResponseDto, ListTaskGroupsResponseDto, ListTasksByGroupResponseDto } from './dto/task-groups-swagger.dto';
+import { SkillsService } from '../skills/skills.service';
+import { SkillSelectionPatchDto, SkillSelectionResponseDto } from '../skills/dto/skill-selection.dto';
 
 const normalizeArchiveScope = (value: unknown): 'active' | 'archived' | 'all' => {
   // Keep query parsing tolerant so the Archive page can use `archived=1` while default behavior stays "active only". qnp1mtxhzikhbi0xspbc
@@ -21,7 +24,11 @@ const normalizeArchiveScope = (value: unknown): 'active' | 'archived' | 'all' =>
 @ApiTags('Task Groups')
 @ApiBearerAuth('bearerAuth')
 export class TaskGroupsController {
-  constructor(private readonly taskService: TaskService) {}
+  constructor(
+    private readonly taskService: TaskService,
+    private readonly previewService: PreviewService,
+    private readonly skillsService: SkillsService
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -54,7 +61,14 @@ export class TaskGroupsController {
         includeMeta: true
       });
 
-      return { taskGroups };
+      // Attach preview activity to task-group list rows for sidebar indicators. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+      const previewActiveIds = this.previewService.getActiveTaskGroupIds();
+      const decorated = taskGroups.map((group) => ({
+        ...group,
+        previewActive: previewActiveIds.has(group.id)
+      }));
+
+      return { taskGroups: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[task-groups] list failed', err);
@@ -77,11 +91,67 @@ export class TaskGroupsController {
       if (!taskGroup) {
         throw new NotFoundException({ error: 'Task group not found' });
       }
-      return { taskGroup };
+      // Decorate single task-group payloads with preview activity state. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+      const previewActiveIds = this.previewService.getActiveTaskGroupIds();
+      return { taskGroup: { ...taskGroup, previewActive: previewActiveIds.has(taskGroup.id) } };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[task-groups] get failed', err);
       throw new InternalServerErrorException({ error: 'Failed to fetch task group' });
+    }
+  }
+
+  @Get(':id/skills')
+  @ApiOperation({
+    summary: 'Get task group skills',
+    description: 'Get task-group skill selection with repo-default inheritance.',
+    operationId: 'task_groups_skills_get'
+  })
+  @ApiOkResponse({ description: 'OK', type: SkillSelectionResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async getSkills(@Param('id') id: string) {
+    try {
+      // Surface task-group skill selections for the chat composer UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+      const selection = await this.skillsService.resolveTaskGroupSkillSelection(id);
+      if (!selection) {
+        throw new NotFoundException({ error: 'Task group not found' });
+      }
+      return { selection };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[task-groups] skills get failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch task group skills' });
+    }
+  }
+
+  @Patch(':id/skills')
+  @ApiOperation({
+    summary: 'Update task group skills',
+    description: 'Update task-group skill selection overrides.',
+    operationId: 'task_groups_skills_update'
+  })
+  @ApiOkResponse({ description: 'OK', type: SkillSelectionResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async updateSkills(@Param('id') id: string, @Body() body: SkillSelectionPatchDto) {
+    try {
+      // Persist task-group skill overrides for conversation-level control. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+      const selectionRaw = body?.selection;
+      const selection = selectionRaw === null ? null : Array.isArray(selectionRaw) ? selectionRaw : undefined;
+      if (selection === undefined) {
+        throw new BadRequestException({ error: 'selection is required' });
+      }
+      const updated = await this.skillsService.updateTaskGroupSkillSelection(id, selection);
+      if (!updated) {
+        throw new NotFoundException({ error: 'Task group not found' });
+      }
+      return { selection: updated };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[task-groups] skills update failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to update task group skills' });
     }
   }
 

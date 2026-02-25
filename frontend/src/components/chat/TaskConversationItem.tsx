@@ -5,7 +5,15 @@ import type { Task } from '../../api';
 import { useT } from '../../i18n';
 import { MarkdownViewer } from '../MarkdownViewer';
 import { TaskLogViewer } from '../TaskLogViewer';
-import { clampText, extractTaskResultText, extractTaskUserText, getTaskTitle, isTerminalStatus, statusTag } from '../../utils/task';
+import {
+  clampText,
+  extractTaskResultSuggestions,
+  extractTaskResultText,
+  extractTaskUserText,
+  getTaskTitle,
+  isTerminalStatus,
+  statusTag
+} from '../../utils/task';
 import { LogViewerSkeleton } from '../skeletons/LogViewerSkeleton';
 import { TaskGitStatusPanel } from '../tasks/TaskGitStatusPanel';
 
@@ -27,11 +35,19 @@ interface Props {
   taskDetail?: Task | null;
   onOpenTask?: (task: Task) => void;
   taskLogsEnabled?: boolean | null;
+  onSuggestionClick?: (suggestion: string, task: Task) => void;
   // Mark the newest chat item so it can animate in-place during task-group creation. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
   entering?: boolean;
 }
 
-export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, taskLogsEnabled, entering }) => {
+export const TaskConversationItem: FC<Props> = ({
+  task,
+  taskDetail,
+  onOpenTask,
+  taskLogsEnabled,
+  onSuggestionClick,
+  entering
+}) => {
   const t = useT();
 
   const mergedTask = taskDetail ?? task;
@@ -39,7 +55,22 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
   const userText = useMemo(() => extractTaskUserText(task) || t('chat.message.userTextFallback'), [t, task]);
   const title = useMemo(() => getTaskTitle(mergedTask), [mergedTask]);
   const resultText = useMemo(() => extractTaskResultText(mergedTask), [mergedTask]);
+  // Derive next-action suggestions from structured task output for chat follow-ups. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const nextActions = useMemo(() => extractTaskResultSuggestions(mergedTask), [mergedTask]);
   const showResult = isTerminalStatus(task.status);
+  // Provide stage hints when logs have not started yet. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const emptyLogMessage = useMemo(() => {
+    if (mergedTask.status === 'queued') return t('logViewer.empty.queued.title');
+    if (mergedTask.status === 'processing') return t('logViewer.empty.processing.title');
+    if (mergedTask.status === 'paused') return t('logViewer.empty.paused.title');
+    return undefined;
+  }, [mergedTask.status, t]);
+  const emptyLogHint = useMemo(() => {
+    if (mergedTask.status === 'queued') return t('logViewer.empty.queued.hint');
+    if (mergedTask.status === 'processing') return t('logViewer.empty.processing.hint');
+    if (mergedTask.status === 'paused') return t('logViewer.empty.paused.hint');
+    return undefined;
+  }, [mergedTask.status, t]);
   // Attach an entry animation class when a new task should transition into view. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
   const rootClassName = `hc-chat-item${entering ? ' hc-chat-item--enter' : ''}`;
 
@@ -95,7 +126,14 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
               <LogViewerSkeleton lines={8} ariaLabel={t('common.loading')} />
             </>
           ) : (
-            <TaskLogViewer taskId={task.id} canManage={Boolean(task.permissions?.canManage)} tail={400} variant="flat" />
+            <TaskLogViewer
+              taskId={task.id}
+              canManage={Boolean(task.permissions?.canManage)}
+              tail={400}
+              variant="flat"
+              emptyMessage={emptyLogMessage}
+              emptyHint={emptyLogHint}
+            />
           )}
         </Card>
       </div>
@@ -108,6 +146,24 @@ export const TaskConversationItem: FC<Props> = ({ task, taskDetail, onOpenTask, 
           ) : (
             <Typography.Text type="secondary">{t('chat.message.resultEmpty')}</Typography.Text>
           )}
+        </div>
+      ) : null}
+
+      {showResult && nextActions.length ? (
+        <div className="hc-chat-item__assistant">
+          {/* Render next-action suggestions and wire clicks to the chat composer. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
+          <div className="hc-chat-suggestions">
+            {nextActions.map((suggestion, index) => (
+              <Button
+                key={`${suggestion}-${index}`}
+                size="small"
+                onClick={() => onSuggestionClick?.(suggestion, task)}
+                className="hc-chat-suggestion"
+              >
+                {suggestion}
+              </Button>
+            ))}
+          </div>
         </div>
       ) : null}
 

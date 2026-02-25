@@ -230,6 +230,61 @@
 - Tests:
   - `pnpm --filter hookcode-backend test -- previewHost`
   - `pnpm --filter hookcode-frontend test -- taskGroupChatPage`
+
+<!-- Log Phase 24 highlight bridge implementation and test results. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+<!-- Log Phase 25 highlight skill packaging and script coverage. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 25: Preview Highlight Skill + Scripts
+- **Status:** complete
+- **Started:** 2026-02-01 21:40
+- **Completed:** 2026-02-01 22:15
+- Actions taken:
+  - Initialized the hookcode-preview-highlight skill skeleton with scripts + references.
+  - Added JS request scripts for preview status/start/install/highlight/stop with shared env loader.
+  - Documented highlight parameters, bridge requirements, and troubleshooting guidance.
+  - Narrowed skill env usage to base URL, PAT, task group, and instance defaults; highlight options are CLI-only.
+  - Added .env.example with Chinese comments for skill configuration.
+- Files created/modified:
+  - .codex/skills/hookcode-preview-highlight/SKILL.md
+  - .codex/skills/hookcode-preview-highlight/.env.example
+  - .codex/skills/hookcode-preview-highlight/scripts/_shared.mjs
+  - .codex/skills/hookcode-preview-highlight/scripts/preview_status.mjs
+  - .codex/skills/hookcode-preview-highlight/scripts/preview_start.mjs
+  - .codex/skills/hookcode-preview-highlight/scripts/preview_dependencies_install.mjs
+  - .codex/skills/hookcode-preview-highlight/scripts/preview_highlight.mjs
+  - .codex/skills/hookcode-preview-highlight/scripts/preview_stop.mjs
+  - .codex/skills/hookcode-preview-highlight/references/highlight-protocol.md
+- Tests:
+  - `HOOKCODE_API_BASE_URL=http://127.0.0.1:4000 HOOKCODE_PAT=redacted node .codex/skills/hookcode-preview-highlight/scripts/preview_highlight.mjs --task-group test-task --selector .page-kicker --dry-run` (passed)
+
+<!-- Log Phase 24 highlight bridge implementation and test results. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+### Phase 24: Preview Highlight Bridge + API
+- **Status:** complete
+- **Started:** 2026-01-31 18:05
+- **Completed:** 2026-01-31 18:45
+- Actions taken:
+  - Added preview highlight command types, publish service, and API endpoint in the TaskGroup preview controller.
+  - Added frontend SSE subscription + postMessage bridge handshake forwarding for highlight events.
+  - Added shared bridge script under `shared/preview-bridge.js` for user integration.
+  - Updated preview user docs to describe the bridge and highlight API.
+  - Added backend + frontend tests for highlight publishing and forwarding.
+- Files created/modified:
+  - backend/src/modules/tasks/preview-highlight.service.ts
+  - backend/src/modules/tasks/task-group-preview.controller.ts
+  - backend/src/modules/tasks/preview.types.ts
+  - backend/src/modules/tasks/dto/task-group-preview.dto.ts
+  - backend/src/modules/tasks/tasks.module.ts
+  - backend/src/tests/unit/previewHighlightService.test.ts
+  - frontend/src/api.ts
+  - frontend/src/pages/TaskGroupChatPage.tsx
+  - frontend/src/tests/taskGroupChatPage.test.tsx
+  - shared/preview-bridge.js
+  - docs/en/user-docs/preview.md
+  - docs/en/change-log/0.0.0.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
+  - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/findings.md
+- Tests:
+  - `pnpm --filter hookcode-backend test` (failed: previewPortPool + previewWsProxy tests; EPERM on listen)
+  - `pnpm --filter hookcode-frontend test` (passed; rerun after bridge readiness fix)
   - Manually verified pnpm install succeeds inside the task-group workspace.
 - Files created/modified:
   - backend/src/agent/agent.ts

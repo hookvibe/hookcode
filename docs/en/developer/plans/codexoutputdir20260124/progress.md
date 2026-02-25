@@ -7,6 +7,50 @@
 - **Session Title:** Relocate Codex output directory
 - **Session Hash:** codexoutputdir20260124
 
+## Session: 2026-02-05
+### Phase 1: Requirements & Discovery
+- **Status:** complete
+- Actions taken:
+  - Reviewed current task output path utility and task-group workspace roots.
+  - Confirmed `HOOKCODE_TASK_OUTPUT_DIR` references for removal.
+- Files created/modified:
+  - docs/en/developer/plans/codexoutputdir20260124/task_plan.md
+  - docs/en/developer/plans/codexoutputdir20260124/findings.md
+
+### Phase 2: Planning & Structure
+- **Status:** complete
+- Actions taken:
+  - Chose task-group root for provider output artifacts.
+- Files created/modified:
+  - docs/en/developer/plans/codexoutputdir20260124/task_plan.md
+  - docs/en/developer/plans/codexoutputdir20260124/findings.md
+
+### Phase 3: Implementation
+- **Status:** complete
+- Actions taken:
+  - Updated provider output path builder to use task-group root.
+  - Added task-group root override via HOOKCODE_TASK_GROUPS_ROOT in agent workspace resolution.
+  - Removed HOOKCODE_TASK_OUTPUT_DIR from backend env example.
+  - Updated unit tests for task-group output paths and task-group root overrides.
+- Files created/modified:
+  - backend/src/utils/taskOutputPath.ts
+  - backend/src/agent/agent.ts
+  - backend/src/tests/unit/taskOutputPath.test.ts
+  - backend/src/tests/unit/buildRootResolution.test.ts
+  - backend/.env.example
+
+### Phase 4: Testing & Verification
+- **Status:** complete
+- Actions taken:
+  - Ran full test suite and backend build.
+- Files created/modified:
+  - None
+
+### Phase 5: Delivery
+- **Status:** complete
+- Actions taken:
+  - Updated changelog entry for this session.
+
 ## Session: 2026-01-24
 {/* WHAT: The date of this work session. WHY: Helps track when work happened, useful for resuming after time gaps. EXAMPLE: 2026-01-15 */}
 
@@ -68,6 +112,8 @@
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | backend unit tests | `pnpm -C backend test -- --runTestsByPath src/tests/unit/taskOutputPath.test.ts` | Pass | Pass | ✅ |
+| full test suite | `pnpm test` | Pass | Pass (Jest warning: worker process did not exit cleanly) | ✅ |
+| backend build | `pnpm --filter hookcode-backend build` | Pass | Pass | ✅ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}

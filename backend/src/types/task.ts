@@ -3,7 +3,8 @@ import type { RobotPermission } from './repoRobot';
 import type { DependencyResult } from './dependency';
 import type { TimeWindowSource } from './timeWindow';
 
-export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
+// Add a paused state for mid-run stop/resume flows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+export type TaskStatus = 'queued' | 'processing' | 'paused' | 'succeeded' | 'failed' | 'commented';
 
 /**
  * Internal event types (extensible):

@@ -1,0 +1,743 @@
+/* Skills page styling aligned with the shared console theme. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+
+/* Align Skills page surfaces and typography with global theme tokens. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills {
+  position: relative;
+  min-height: 100%;
+  color: var(--text);
+  background: var(--hc-app-bg);
+  --hc-skills-grid-line: rgba(23, 23, 23, 0.05);
+  --hc-skills-terminal-bg: var(--hc-surface-elevated);
+  --hc-skills-terminal-border: var(--hc-border);
+}
+
+/* Tune Skills page accent variables for dark mode readability. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+:root[data-theme='dark'] .hc-skills {
+  --hc-skills-grid-line: rgba(255, 255, 255, 0.06);
+  --hc-skills-terminal-bg: #0f0f0f;
+  --hc-skills-terminal-border: var(--hc-border);
+}
+
+/* Increase vertical spacing for the marketplace-style Skills layout. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__body {
+  position: relative;
+  padding: 24px var(--page-padding) 48px;
+  max-width: var(--hc-page-max);
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* Match the hero panel styling to the shared card surface while adding a marketplace grid. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 32px;
+  padding: 32px;
+  background: linear-gradient(160deg, var(--hc-surface) 0%, var(--hc-surface-elevated) 100%);
+  border: 1px solid var(--hc-border);
+  border-radius: 20px;
+  box-shadow: var(--hc-shadow-sm);
+  overflow: hidden;
+}
+
+.hc-skills__hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Keep hero copy content aligned for the marketplace headline section. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Add a subtle grid pattern behind the hero content. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--hc-skills-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hc-skills-grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.hc-skills__hero-kicker {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  color: var(--text-tertiary);
+}
+
+.hc-skills__hero-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.hc-skills__hero-stat {
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--hc-surface-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hc-skills__hero-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.hc-skills__hero-stat-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.hc-skills__hero-title {
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+.hc-skills__hero-desc {
+  color: var(--text-secondary);
+  max-width: 420px;
+  display: block;
+}
+
+/* Align hero search input and CTA buttons in a single row. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__hero-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.hc-skills__search {
+  flex: 1 1 260px;
+}
+
+.hc-skills__hero-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hc-skills__hero-cta.ant-btn-primary {
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-skills__hero-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* Build the CLI-style preview card to mirror SkillsMP layout. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__hero-terminal {
+  position: relative;
+  z-index: 1;
+  border-radius: 18px;
+  border: 1px solid var(--hc-skills-terminal-border);
+  background: var(--hc-skills-terminal-bg);
+  box-shadow: var(--hc-shadow-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hc-skills__terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hc-border);
+  background: color-mix(in srgb, var(--hc-surface) 80%, transparent);
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.hc-skills__terminal-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.hc-skills__terminal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hc-border);
+}
+
+.hc-skills__terminal-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.hc-skills__terminal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.hc-skills__terminal-line {
+  display: block;
+  line-height: 1.6;
+}
+
+.hc-skills__terminal-prompt {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.hc-skills__terminal-section {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--text-tertiary);
+}
+
+.hc-skills__terminal-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hc-skills__terminal-tag {
+  border: 1px solid var(--hc-border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--hc-surface);
+}
+
+.hc-skills__terminal-empty {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.hc-skills__sections {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.hc-skills__section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hc-skills__section-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hc-skills__section-title {
+  color: var(--text);
+}
+
+.hc-skills__section-meta {
+  color: var(--text-secondary);
+}
+
+.hc-skills__upload {
+  border-radius: 999px;
+}
+
+.hc-skills__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin-top: 16px;
+}
+
+/* Use shared card styling for skill entries. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__card {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--hc-shadow-sm);
+  transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+
+.hc-skills__card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--hc-shadow-md);
+  transform: translateY(-1px);
+}
+
+.hc-skills__card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.hc-skills__card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hc-skills__card-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-skills__card-slug {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.hc-skills__card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Normalize tag chips to the neutral console palette. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hc-skills__tag {
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.hc-skills__tag--built-in {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft);
+  color: var(--text);
+}
+
+.hc-skills__tag--extra {
+  border-color: var(--hc-border);
+  background: var(--hc-surface-elevated);
+  color: var(--text-secondary);
+}
+
+.hc-skills__tag--version {
+  background: transparent;
+  border-color: var(--hc-border);
+  color: var(--text-tertiary);
+}
+
+.hc-skills__tag--enabled {
+  border-color: var(--hc-accent-border);
+  background: color-mix(in srgb, var(--hc-accent-soft) 70%, transparent);
+  color: var(--text);
+}
+
+.hc-skills__tag--disabled {
+  border-color: var(--hc-border);
+  background: var(--hc-surface);
+  color: var(--text-tertiary);
+}
+
+.hc-skills__tag--prompt-on {
+  border-color: var(--hc-accent-border);
+  background: color-mix(in srgb, var(--hc-accent-soft) 65%, transparent);
+  color: var(--text);
+}
+
+.hc-skills__tag--prompt-off {
+  border-color: var(--hc-border);
+  background: var(--hc-surface);
+  color: var(--text-tertiary);
+}
+
+/* Align inline action button styling with neutral console controls. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__prompt-toggle {
+  background: transparent;
+  border: 1px solid var(--hc-border);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 200ms ease, color 200ms ease, background-color 200ms ease, box-shadow 200ms ease;
+}
+
+.hc-skills__prompt-toggle:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
+  background: var(--hc-hover);
+}
+
+.hc-skills__prompt-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-skills__card-desc {
+  color: var(--text-secondary);
+  margin-bottom: 0;
+}
+
+/* Tag rows and chips for skill classification. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.hc-skills__tag-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+}
+
+.hc-skills__tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hc-skills__tag-chip {
+  margin: 0;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface);
+  color: var(--text-secondary);
+}
+
+.hc-skills__tag-empty {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.hc-skills__toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.hc-skills__toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+}
+
+.hc-skills__toggle-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.hc-skills__toggle--readonly {
+  color: var(--text-tertiary);
+}
+
+.hc-skills__toggle-readonly {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Use the elevated surface for prompt text previews. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__prompt-block {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--hc-surface-elevated);
+  border: 1px solid var(--hc-border);
+}
+
+.hc-skills__prompt-title {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+  color: var(--text-tertiary);
+}
+
+.hc-skills__prompt-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.hc-skills__prompt-empty {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+/* Add a category browsing strip inspired by the SkillsMP layout. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__categories {
+  padding: 20px 24px;
+  border-radius: 16px;
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hc-skills__category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hc-skills__category-title {
+  margin: 0;
+}
+
+.hc-skills__category-desc {
+  display: block;
+  color: var(--text-secondary);
+}
+
+.hc-skills__category-clear {
+  border: 1px solid var(--hc-border);
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 200ms ease, color 200ms ease, background-color 200ms ease;
+}
+
+.hc-skills__category-clear:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
+  background: var(--hc-hover);
+}
+
+.hc-skills__category-active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-skills__category-active-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-tertiary);
+}
+
+.hc-skills__category-active-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hc-skills__category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.hc-skills__category-card {
+  border: 1px solid var(--hc-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: var(--hc-surface-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+
+.hc-skills__category-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--hc-shadow-sm);
+  transform: translateY(-1px);
+}
+
+.hc-skills__category-card.is-active {
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+.hc-skills__category-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-skills__category-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.hc-skills__category-count {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.hc-skills__category-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.hc-skills__category-empty {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* Tag editor styling for extra skill management. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__tag-editor {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin-top: 14px;
+  align-items: center;
+}
+
+.hc-skills__tag-save {
+  border-color: var(--hc-border);
+  color: var(--text-secondary);
+}
+
+.hc-skills__empty {
+  padding: 24px;
+  background: var(--hc-surface);
+  border-radius: 12px;
+  border: 1px dashed var(--hc-border);
+}
+
+/* Upload modal styling for extra skill bundles. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+.hc-skills__upload-modal .ant-upload-drag {
+  border-radius: 12px;
+  background: var(--hc-surface);
+  border: 1px dashed var(--hc-border);
+}
+
+.hc-skills__upload-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+}
+
+.hc-skills__upload-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-skills__upload-desc {
+  font-size: 12px;
+}
+
+.hc-skills__upload-tip {
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+.hc-skills .ant-empty-description {
+  color: var(--text-secondary);
+}
+
+@media (max-width: 1024px) {
+  .hc-skills__hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hc-skills__hero-terminal {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .hc-skills__body {
+    padding: 20px 16px 40px;
+  }
+
+  .hc-skills__hero {
+    padding: 16px;
+  }
+
+  .hc-skills__hero-search {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hc-skills__hero-buttons {
+    width: 100%;
+  }
+
+  .hc-skills__hero-buttons .ant-btn {
+    width: 100%;
+  }
+
+  .hc-skills__categories {
+    padding: 16px;
+  }
+
+  .hc-skills__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-skills *,
+  .hc-skills *::before,
+  .hc-skills *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

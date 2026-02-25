@@ -1,0 +1,209 @@
+// Split TaskGroupChatPage composer tests into a focused spec file. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { renderTaskGroupChatPage, setupTaskGroupChatMocks } from './taskGroupChatPageTestUtils';
+import * as api from '../api';
+
+describe('TaskGroupChatPage composer', () => {
+  beforeEach(() => {
+    setupTaskGroupChatMocks();
+  });
+
+  test('submits a new chat task group and updates hash route', async () => {
+    const ui = userEvent.setup();
+    renderTaskGroupChatPage();
+
+    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
+
+    const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
+    await ui.type(textarea, 'Hello from test');
+
+    const sendButton = screen.getByRole('button', { name: /Send/i });
+    await ui.click(sendButton);
+
+    await waitFor(() =>
+      expect(api.executeChat).toHaveBeenCalledWith({
+        repoId: 'r1',
+        robotId: 'bot1',
+        text: 'Hello from test',
+        taskGroupId: undefined,
+        // Include timeWindow to match the chat payload shape. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
+        timeWindow: null
+      })
+    );
+
+    expect(window.location.hash).toBe('#/task-groups/g_new');
+    expect(textarea).toHaveValue('');
+  });
+
+  test('replaces the send button with pause when a task is processing', async () => {
+    const ui = userEvent.setup();
+    const now = '2026-01-11T00:00:00.000Z';
+
+    // Ensure the composer renders pause controls for processing tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([
+      {
+        id: 't_run',
+        eventType: 'chat',
+        status: 'processing',
+        retries: 0,
+        createdAt: now,
+        updatedAt: now,
+        permissions: { canManage: true }
+      } as any
+    ]);
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    // Match the accessible name that includes the AntD icon label. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    const pauseButton = await screen.findByRole('button', { name: /Pause/ });
+    await ui.click(pauseButton);
+
+    await waitFor(() => expect(api.pauseTask).toHaveBeenCalledWith('t_run'));
+  });
+
+  // Validate provider labels appear in robot picker text. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+  test('shows bound AI provider in the robot selector', async () => {
+    renderTaskGroupChatPage();
+
+    await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
+
+    const robotSelect = await screen.findByLabelText('Robot');
+    await waitFor(() => {
+      const selectRoot = robotSelect.closest('.ant-select');
+      expect(selectRoot).toHaveTextContent('Robot 1 / codex');
+    });
+  });
+
+  test('appends next-action suggestions into the chat composer', async () => {
+    // Verify suggestion buttons feed the chat composer draft for follow-up prompts. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const ui = userEvent.setup();
+    const now = '2026-01-11T00:00:00.000Z';
+    const outputText = JSON.stringify({
+      output: 'Result text',
+      next_actions: ['Action 1', 'Action 2', 'Action 3']
+    });
+
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([
+      {
+        id: 't_done',
+        eventType: 'chat',
+        status: 'succeeded',
+        retries: 0,
+        createdAt: now,
+        updatedAt: now
+      } as any
+    ]);
+    vi.mocked(api.fetchTask).mockResolvedValue({
+      id: 't_done',
+      eventType: 'chat',
+      status: 'succeeded',
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+      result: { outputText }
+    } as any);
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    const suggestion = await screen.findByRole('button', { name: 'Action 1' });
+    const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
+
+    await ui.click(suggestion);
+    expect(textarea).toHaveValue('Action 1');
+  });
+
+  test('renders composer actions popover with time window and preview start', async () => {
+    // Ensure the composer actions popover exposes time window + preview shortcuts. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+    const ui = userEvent.setup();
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    const actionsButton = screen.getByRole('button', { name: 'Composer actions' });
+    await ui.click(actionsButton);
+
+    expect(screen.getByText('Execution window')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start preview' })).toBeInTheDocument();
+  });
+
+  test('opens the skill selection modal from composer actions', async () => {
+    // Ensure task-group skill overrides are reachable from the composer actions menu. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    const ui = userEvent.setup();
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    // Wait for task group load so the actions popover is enabled. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    await waitFor(() => expect(api.fetchTaskGroup).toHaveBeenCalled());
+    const actionsButton = await screen.findByRole('button', { name: 'Composer actions' });
+    await waitFor(() => expect(actionsButton).toBeEnabled());
+    await ui.click(actionsButton);
+
+    // Confirm the actions popover is visible before locating the skills control. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    expect(await screen.findByText('Execution window')).toBeInTheDocument();
+    const skillsButton = await screen.findByRole('button', { name: /Configure skills/i });
+    await ui.click(skillsButton);
+
+    // Assert the modal title inside the dialog to avoid duplicate inline labels. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Task group skills', { selector: '.ant-modal-title' })).toBeInTheDocument();
+  });
+
+  test('opens the preview start modal from the composer actions popover', async () => {
+    // Verify the preview start modal opens from the composer actions menu. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
+    const ui = userEvent.setup();
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    const actionsButton = screen.getByRole('button', { name: 'Composer actions' });
+    await ui.click(actionsButton);
+
+    const startButton = screen.getByRole('button', { name: 'Start preview' });
+    await ui.click(startButton);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Start preview', { selector: '.ant-modal-title' })).toBeInTheDocument();
+  });
+
+  test('does not submit when robot is missing (Enter-to-send)', async () => {
+    const ui = userEvent.setup();
+
+    vi.mocked(api.listRepoRobots).mockResolvedValue([]);
+    renderTaskGroupChatPage();
+
+    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
+
+    const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
+    await ui.type(textarea, 'Hello{enter}');
+
+    expect(api.executeChat).not.toHaveBeenCalled();
+  });
+
+  test('disables sender controls for unsupported task group kinds', async () => {
+    vi.mocked(api.fetchTaskGroup).mockResolvedValueOnce({
+      id: 'g_task',
+      kind: 'task',
+      bindingKey: 'b1',
+      title: 'Group task',
+      repoId: 'r1',
+      robotId: 'bot1',
+      createdAt: '',
+      updatedAt: '2026-01-11T00:00:00.000Z'
+    } as any);
+
+    renderTaskGroupChatPage({ taskGroupId: 'g_task' });
+
+    const repoSelect = await screen.findByLabelText('Repository');
+    const robotSelect = await screen.findByLabelText('Robot');
+    const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
+
+    // AntD Select uses nested inputs; assert on the closest Select wrapper for the disabled state.
+    expect(repoSelect.closest('.ant-select')).toHaveClass('ant-select-disabled');
+    expect(robotSelect.closest('.ant-select')).toHaveClass('ant-select-disabled');
+    expect(textarea).toBeDisabled();
+    expect(screen.getByText('This task group does not support manual chat messages')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Send/i })).toBeDisabled();
+  });
+});

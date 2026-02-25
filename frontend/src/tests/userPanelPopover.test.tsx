@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
 import { UserPanelPopover } from '../components/UserPanelPopover';
+import * as api from '../api';
 
 vi.mock('../api', () => {
   return {
@@ -75,12 +76,8 @@ const renderPopover = (props?: { token?: string }) => {
   if (props?.token) window.localStorage.setItem('hookcode-token', props.token);
   return render(
     <AntdApp>
-      <UserPanelPopover
-        themePreference="dark"
-        onThemePreferenceChange={() => {}}
-        accentPreset="blue"
-        onAccentPresetChange={() => {}}
-      />
+      {/* Keep the test render aligned with fixed neutral accent settings. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */}
+      <UserPanelPopover themePreference="dark" onThemePreferenceChange={() => {}} />
     </AntdApp>
   );
 };
@@ -117,8 +114,8 @@ describe('UserPanelPopover', () => {
 
     // Settings content should be visible; auth-only nav items are disabled.
     expect(await screen.findByText('Language')).toBeInTheDocument();
-    // UX regression guard (2026-01-13): the user panel should always render in compact density mode.
-    expect(document.querySelector('.hc-user-panel')).toHaveAttribute('data-density', 'compact');
+    // Keep the regression guard aligned with the modern panel layout classes. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    expect(document.querySelector('.hc-modern-panel-layout')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Me' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
   });
@@ -129,8 +126,8 @@ describe('UserPanelPopover', () => {
 
     await ui.click(screen.getByRole('button', { name: /Panel/i }));
 
-    // UX regression guard (2026-01-13): the user panel should always render in compact density mode.
-    expect(document.querySelector('.hc-user-panel')).toHaveAttribute('data-density', 'compact');
+    // Keep the regression guard aligned with the modern panel layout classes. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    expect(document.querySelector('.hc-modern-panel-layout')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Me' })).not.toBeDisabled();
 
     await ui.click(screen.getByRole('button', { name: 'Credentials' }));
@@ -164,14 +161,14 @@ describe('UserPanelPopover', () => {
     const modelTitles = await screen.findAllByText('Model provider credentials');
     expect(modelTitles.length).toBeGreaterThan(0);
 
-    // Open the model-provider add flow from its card header. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
-    const modelCard = screen
+    // Open the model-provider add flow from the updated section header layout. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    const modelSection = screen
       .getAllByText('Model provider credentials')
-      .map((node) => node.closest('.ant-card'))
-      .find((card): card is HTMLElement => Boolean(card));
-    expect(modelCard).toBeTruthy();
+      .map((node) => node.closest('.hc-panel-section'))
+      .find((section): section is HTMLElement => Boolean(section));
+    expect(modelSection).toBeTruthy();
 
-    await ui.click(within(modelCard as HTMLElement).getByRole('button', { name: /Add/i }));
+    await ui.click(within(modelSection as HTMLElement).getByRole('button', { name: /Add/i }));
     expect(await screen.findByText('Add credential profile')).toBeInTheDocument();
 
     // Modal structure note:
@@ -226,5 +223,41 @@ describe('UserPanelPopover', () => {
 
     await ui.click(screen.getByRole('button', { name: 'Request PAT' }));
     expect(await screen.findByText('Request API token')).toBeInTheDocument();
+  });
+
+  test('filters task-group tokens from the panel PAT list', async () => {
+    // Ensure auto-generated task-group PATs stay out of the panel list. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchMyApiTokens).mockResolvedValueOnce([
+      {
+        id: 'pat-manual',
+        name: 'Manual token',
+        tokenPrefix: 'hcpat_abcd',
+        tokenLast4: 'wxyz',
+        scopes: [{ group: 'tasks', level: 'read' }],
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        revokedAt: null,
+        lastUsedAt: null
+      },
+      {
+        id: 'pat-auto',
+        name: 'task-group-123e4567-e89b-12d3-a456-426614174000',
+        tokenPrefix: 'hcpat_auto',
+        tokenLast4: '0000',
+        scopes: [{ group: 'tasks', level: 'write' }],
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        revokedAt: null,
+        lastUsedAt: null
+      }
+    ]);
+
+    renderPopover({ token: 't' });
+    await ui.click(screen.getByRole('button', { name: /Panel/i }));
+    await ui.click(screen.getByRole('button', { name: 'Credentials' }));
+
+    expect(await screen.findByText('Manual token')).toBeInTheDocument();
+    expect(screen.queryByText('task-group-123e4567-e89b-12d3-a456-426614174000')).not.toBeInTheDocument();
   });
 });

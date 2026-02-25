@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
-import { mkdir, rm, writeFile, stat, readFile, chmod } from 'fs/promises';
+import { mkdir, rm, writeFile, stat, readFile, chmod, rename, copyFile, cp, readdir } from 'fs/promises';
+import { homedir } from 'os';
 import path from 'path';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import type { Task, TaskGitStatusSnapshot, TaskGitStatusWorkingTree, TaskResult } from '../types/task';
@@ -36,6 +37,8 @@ import {
 import { isTaskLogsDbEnabled } from '../config/features';
 import { isTruthy } from '../utils/env';
 import type { UserModelCredentials } from '../modules/users/user.service';
+import type { UserApiTokenService } from '../modules/users/user-api-token.service';
+import { hasPatScope } from '../modules/auth/patScopes';
 import {
   getGitCloneAuth as resolveGitCloneAuth,
   inferRobotRepoProviderCredentialSource,
@@ -50,6 +53,7 @@ import type { RepoRobotService } from '../modules/repositories/repo-robot.servic
 import type { TaskService } from '../modules/tasks/task.service';
 import type { TaskLogStream } from '../modules/tasks/task-log-stream.service';
 import type { UserService } from '../modules/users/user.service';
+import type { SkillsService } from '../modules/skills/skills.service';
 import {
   getGithubRepoSlugFromPayload,
   getGitlabProjectIdFromPayload,
@@ -61,6 +65,7 @@ import { getTaskConsoleUrl } from '../utils/taskConsoleUrl';
 import { buildTaskOutputFilePath } from '../utils/taskOutputPath';
 // Keep git workflow helpers and config keys centralized for hook guard logic. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
 import { canTokenPushToUpstream, GIT_CONFIG_KEYS, normalizeGitRemoteUrl, toRepoWebUrl } from '../utils/gitWorkflow';
+import { resolveAgentExampleTemplateDir } from '../utils/agentTemplatePaths';
 import { ensureGithubForkRepo, ensureGitlabForkProject, resolveRepoWorkflowMode } from '../services/repoWorkflowMode';
 // Pull git status helpers to report repo changes after write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAheadBehind } from '../utils/gitStatus';
@@ -97,8 +102,17 @@ const resolveBuildRoot = (): string => {
 // Resolve the build root deterministically to prevent preview workspace mismatches. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 // Export agent workspace root for shared git operations. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 export const BUILD_ROOT = resolveBuildRoot();
+const resolveTaskGroupWorkspaceRoot = (buildRoot: string): string => {
+  // Allow overriding the task-group root relative to the build root. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
+  const raw = (process.env.HOOKCODE_TASK_GROUPS_ROOT ?? '').trim();
+  if (!raw) return path.join(buildRoot, 'task-groups');
+  // Expand "~" to the current user home before absolute/relative resolution. docs/en/developer/plans/codexoutputdirfix20260205/task_plan.md codexoutputdirfix20260205
+  const expanded = raw === '~' ? homedir() : raw.startsWith('~/') || raw.startsWith('~\\') ? path.join(homedir(), raw.slice(2)) : raw;
+  if (path.isAbsolute(expanded)) return expanded;
+  return path.join(buildRoot, expanded);
+};
 // Centralize task-group workspace root so each group maps to a single checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
-export const TASK_GROUP_WORKSPACE_ROOT = path.join(BUILD_ROOT, 'task-groups');
+export const TASK_GROUP_WORKSPACE_ROOT = resolveTaskGroupWorkspaceRoot(BUILD_ROOT);
 const MAX_LOG_LINES = 1000;
 
 let taskService: TaskService;
@@ -106,8 +120,10 @@ let taskLogStream: TaskLogStream;
 let repositoryService: RepositoryService;
 let repoRobotService: RepoRobotService;
 let userService: UserService;
+let userApiTokenService: UserApiTokenService;
 let runtimeService: RuntimeService;
 let hookcodeConfigService: HookcodeConfigService;
+let skillsService: SkillsService;
 
 export const setAgentServices = (services: {
   taskService: TaskService;
@@ -115,8 +131,10 @@ export const setAgentServices = (services: {
   repositoryService: RepositoryService;
   repoRobotService: RepoRobotService;
   userService: UserService;
+  userApiTokenService: UserApiTokenService;
   runtimeService: RuntimeService;
   hookcodeConfigService: HookcodeConfigService;
+  skillsService: SkillsService;
 }) => {
   // Inject runtime/config services so dependency installs run inside the agent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   taskService = services.taskService;
@@ -124,12 +142,25 @@ export const setAgentServices = (services: {
   repositoryService = services.repositoryService;
   repoRobotService = services.repoRobotService;
   userService = services.userService;
+  userApiTokenService = services.userApiTokenService;
   runtimeService = services.runtimeService;
   hookcodeConfigService = services.hookcodeConfigService;
+  skillsService = services.skillsService; // Provide skill registry access for prompt injection. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
 };
 
 const assertAgentServicesReady = () => {
-  if (!taskService || !taskLogStream || !repositoryService || !repoRobotService || !userService || !runtimeService || !hookcodeConfigService) {
+  // Require skills registry wiring before running task-group prompts. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  if (
+    !taskService ||
+    !taskLogStream ||
+    !repositoryService ||
+    !repoRobotService ||
+    !userService ||
+    !userApiTokenService ||
+    !runtimeService ||
+    !hookcodeConfigService ||
+    !skillsService
+  ) {
     throw new Error('[agent] services are not initialized (missing setAgentServices call)');
   }
 };
@@ -177,17 +208,454 @@ const buildRuntimeMissingMessage = (language: string): string => {
   ].join('\n');
 };
 
-// Build task-group workspace paths with a taskId fallback when group ids are missing. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+const sanitizeRepoFolderName = (raw: string): string => {
+  // Ensure task-group repo subfolder names are stable and filesystem-safe. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const cleaned = raw.replace(/[\\/]/g, '_').trim();
+  if (!cleaned || cleaned === '.' || cleaned === '..') return 'repo';
+  return cleaned;
+};
+
+const deriveRepoFolderName = (repoSlug: string): string => {
+  // Derive the repo folder name from the slug tail (org__repo → repo). docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const normalized = safeTrim(repoSlug);
+  if (!normalized) return 'repo';
+  const segments = normalized.split('__').filter(Boolean);
+  const tail = segments.length > 0 ? segments[segments.length - 1] : normalized;
+  return sanitizeRepoFolderName(tail);
+};
+
+// Map task-group ids to workspace roots for shared artifacts. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+export const buildTaskGroupRootDir = (params: { taskGroupId?: string | null; taskId: string }): string => {
+  const workspaceKey = safeTrim(params.taskGroupId) || safeTrim(params.taskId) || 'task';
+  return path.join(TASK_GROUP_WORKSPACE_ROOT, workspaceKey);
+};
+
+// Build task-group repo paths under the task-group root with a taskId fallback. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
 export const buildTaskGroupWorkspaceDir = (params: {
   taskGroupId?: string | null;
   taskId: string;
   provider: RepoProvider;
   repoSlug: string;
 }): string => {
-  const workspaceKey = safeTrim(params.taskGroupId) || safeTrim(params.taskId) || 'task';
-  const providerKey = safeTrim(params.provider) || 'repo';
-  const slugKey = safeTrim(params.repoSlug) || 'repo';
-  return path.join(TASK_GROUP_WORKSPACE_ROOT, `${workspaceKey}__${providerKey}__${slugKey}`);
+  const rootDir = buildTaskGroupRootDir({ taskGroupId: params.taskGroupId, taskId: params.taskId });
+  const repoFolder = deriveRepoFolderName(params.repoSlug);
+  return path.join(rootDir, repoFolder);
+};
+
+// Define the default Codex output schema with result text + next actions for frontend suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+const DEFAULT_CODEX_OUTPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    output: { type: 'string', description: 'Primary assistant output (markdown).' },
+    next_actions: {
+      type: 'array',
+      items: { type: 'string' },
+      minItems: 3,
+      maxItems: 3,
+      description: 'Three suggested next actions for the user to run next.'
+    }
+  },
+  required: ['output', 'next_actions'],
+  additionalProperties: false
+} as const;
+
+// Persist the default Codex schema as JSON so task-group workspaces always have a usable baseline. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+const DEFAULT_CODEX_SCHEMA_CONTENTS = `${JSON.stringify(DEFAULT_CODEX_OUTPUT_SCHEMA, null, 2)}\n`;
+
+const buildCodexSchemaContents = (): string => {
+  // Provide a stable default codex-schema.json payload for task-group initialization. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  return DEFAULT_CODEX_SCHEMA_CONTENTS;
+};
+
+const ensurePlaceholderFile = async (filePath: string, contents: string): Promise<void> => {
+  // Create task-group placeholder files only when missing to preserve user edits. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  try {
+    await stat(filePath);
+  } catch (err: any) {
+    if (err?.code !== 'ENOENT') throw err;
+    await writeFile(filePath, contents, 'utf8');
+  }
+};
+
+const readCodexOutputSchema = async (params: {
+  taskGroupDir: string;
+  appendLog: (line: string) => Promise<void>;
+}): Promise<unknown | undefined> => {
+  // Load codex-schema.json for TurnOptions.outputSchema without breaking runs on invalid JSON. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const schemaPath = path.join(params.taskGroupDir, 'codex-schema.json');
+  try {
+    const raw = await readFile(schemaPath, 'utf8');
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      await params.appendLog('codex-schema.json must be a JSON object; skipping outputSchema.');
+      return undefined;
+    }
+    // Log successful codex-schema loads for structured-output troubleshooting. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    await params.appendLog('Loaded codex-schema.json for outputSchema from task-group root.');
+    return parsed;
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return undefined;
+    await params.appendLog(`Failed to parse codex-schema.json; skipping outputSchema: ${err?.message || err}`);
+    return undefined;
+  }
+};
+
+const ensureTaskGroupTemplateDir = async (params: {
+  taskGroupDir: string;
+  templateName: string;
+  requiredSubdirs?: string[];
+}): Promise<void> => {
+  // Seed task-group template folders from the example workspace when available. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  const destination = path.join(params.taskGroupDir, params.templateName);
+  if (!existsSync(destination)) {
+    const template = resolveAgentExampleTemplateDir(params.templateName);
+    if (template) {
+      await cp(template, destination, { recursive: true });
+    } else {
+      await mkdir(destination, { recursive: true });
+    }
+  }
+  for (const subdir of params.requiredSubdirs ?? []) {
+    await mkdir(path.join(destination, subdir), { recursive: true });
+  }
+};
+
+const ensureTaskGroupCodexDir = async (taskGroupDir: string): Promise<void> => {
+  // Seed task-group .codex folders for Codex runs using the shared template helper. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  await ensureTaskGroupTemplateDir({ taskGroupDir, templateName: '.codex', requiredSubdirs: ['skills'] });
+};
+
+const ensureTaskGroupClaudeDir = async (taskGroupDir: string): Promise<void> => {
+  // Seed task-group .claude folders for Claude Code runs. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  await ensureTaskGroupTemplateDir({ taskGroupDir, templateName: '.claude', requiredSubdirs: ['skills'] });
+};
+
+const ensureTaskGroupGeminiDir = async (taskGroupDir: string): Promise<void> => {
+  // Seed task-group .gemini folders for Gemini CLI runs. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  await ensureTaskGroupTemplateDir({ taskGroupDir, templateName: '.gemini', requiredSubdirs: ['skills'] });
+};
+
+const writeFileIfChanged = async (filePath: string, contents: string): Promise<void> => {
+  // Keep generated task-group files in sync without clobbering identical content. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  try {
+    const existing = await readFile(filePath, 'utf8');
+    if (existing === contents) return;
+  } catch (err: any) {
+    if (err?.code !== 'ENOENT') throw err;
+  }
+  await writeFile(filePath, contents, 'utf8');
+};
+
+const normalizeHostBaseUrl = (raw: string): string => {
+  // Normalize API base URLs to host roots for task-group env generation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+  try {
+    const url = new URL(candidate);
+    return url.origin;
+  } catch {
+    return trimmed.replace(/\/+$/, '').replace(/\/api$/i, '');
+  }
+};
+
+const resolveTaskGroupApiBaseUrl = (): string => {
+  // Derive the backend host root from runtime server config. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const explicit = normalizeHostBaseUrl(
+    safeTrim(process.env.HOOKCODE_API_BASE_URL) ||
+      safeTrim(process.env.OPENAPI_BASE_URL) ||
+      safeTrim(process.env.ADMIN_TOOLS_API_BASE_URL)
+  );
+  if (explicit) return explicit;
+  const host = safeTrim(process.env.HOST) || '127.0.0.1';
+  const port = Number(process.env.PORT) || 4000;
+  return `http://${host}:${port}`;
+};
+
+// Expose API base URL resolution for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+export const __test__resolveTaskGroupApiBaseUrl = resolveTaskGroupApiBaseUrl;
+// Expose codex-schema defaults/parsing for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+export const __test__buildCodexSchemaContents = buildCodexSchemaContents;
+export const __test__readCodexOutputSchema = readCodexOutputSchema;
+// Expose template directory seeding for unit coverage of provider workspace setup. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+export const __test__ensureTaskGroupTemplateDir = ensureTaskGroupTemplateDir;
+// Expose workspace prompt prefix builder for unit coverage. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+export const __test__buildTaskGroupWorkspacePromptPrefix = buildTaskGroupWorkspacePromptPrefix;
+
+const parseEnvContent = (content: string): Record<string, string> => {
+  // Parse simple KEY=VALUE env content to reuse PATs when present. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const values: Record<string, string> = {};
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const raw = trimmed.startsWith('export ') ? trimmed.slice(7) : trimmed;
+    const idx = raw.indexOf('=');
+    if (idx === -1) continue;
+    const key = raw.slice(0, idx).trim();
+    let value = raw.slice(idx + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (key) values[key] = value;
+  }
+  return values;
+};
+
+const readEnvFileValues = async (filePath: string): Promise<Record<string, string>> => {
+  try {
+    const content = await readFile(filePath, 'utf8');
+    return parseEnvContent(content);
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return {};
+    throw err;
+  }
+};
+
+const listSkillDirectories = async (skillsRoot: string): Promise<string[]> => {
+  // Collect top-level skill directories for env sync under task-group .codex. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  try {
+    const entries = await readdir(skillsRoot, { withFileTypes: true });
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => path.join(skillsRoot, entry.name));
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return [];
+    throw err;
+  }
+};
+
+const syncTaskGroupSkillEnvFiles = async (params: { taskGroupDir: string; envContents: string }): Promise<void> => {
+  // Duplicate the task-group .env into each skill folder for consistent API access. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  const skillRoots = ['.codex', '.claude', '.gemini'];
+  for (const root of skillRoots) {
+    const skillsRoot = path.join(params.taskGroupDir, root, 'skills');
+    const skillDirs = await listSkillDirectories(skillsRoot);
+    for (const skillDir of skillDirs) {
+      await writeFileIfChanged(path.join(skillDir, '.env'), params.envContents);
+    }
+  }
+};
+
+const syncTaskGroupExtraSkills = async (taskGroupDir: string, taskGroupId: string): Promise<void> => {
+  // Seed selected extra skills into the task-group workspace before env syncing. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  try {
+    const selection = await skillsService.resolveTaskGroupSkillSelection(taskGroupId);
+    await skillsService.syncExtraSkillsToTaskGroup(taskGroupDir, selection?.effective ?? null);
+  } catch (err: any) {
+    console.warn('[agent] failed to sync extra skills (continuing)', err);
+  }
+};
+
+const syncTaskGroupBuiltInSkills = async (taskGroupDir: string): Promise<void> => {
+  // Ensure built-in skills are available in provider-specific task-group folders. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  try {
+    await skillsService.syncBuiltInSkillsToTaskGroup(taskGroupDir);
+  } catch (err: any) {
+    console.warn('[agent] failed to sync built-in skills (continuing)', err);
+  }
+};
+
+const buildSkillPromptPrefix = async (appendLog: (line: string) => Promise<void>, taskGroupId: string | null): Promise<string> => {
+  // Prepend enabled skill prompt text without blocking task execution on registry failures. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  const resolvedTaskGroupId = safeTrim(taskGroupId);
+  if (!resolvedTaskGroupId) return '';
+  try {
+    const selection = await skillsService.resolveTaskGroupSkillSelection(resolvedTaskGroupId);
+    return await skillsService.buildPromptPrefix(selection?.effective ?? null);
+  } catch (err: any) {
+    await appendLog('Failed to load skill prompt text; continuing without skill prefix.');
+    return '';
+  }
+};
+
+// Expose skill env syncing for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+export const __test__syncTaskGroupSkillEnvFiles = syncTaskGroupSkillEnvFiles;
+
+const resolvePatOwnerUserId = async (): Promise<string> => {
+  // Select a user account to own the auto-issued PAT (default to first user). docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const existing = await userService.getDefaultUserCredentialsRaw();
+  if (existing?.userId) return existing.userId;
+  await userService.ensureBootstrapUser();
+  const fallback = await userService.getDefaultUserCredentialsRaw();
+  if (fallback?.userId) return fallback.userId;
+  throw new Error('No users available to issue a PAT');
+};
+
+const ensureTaskGroupPat = async (params: { taskGroupId: string; existingPat?: string }): Promise<string> => {
+  // Reuse a valid PAT from the task-group .env or issue a new one via UserApiTokenService. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const existing = safeTrim(params.existingPat);
+  if (existing) {
+    const verified = await userApiTokenService.verifyToken(existing);
+    if (verified && hasPatScope(verified.auth.scopes, 'tasks', 'write')) return existing;
+  }
+  const ownerId = await resolvePatOwnerUserId();
+  const name = `task-group-${params.taskGroupId}`;
+  const result = await userApiTokenService.createToken(ownerId, {
+    name,
+    // Require tasks:write so task-group PATs can call preview highlight APIs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    scopes: [{ group: 'tasks', level: 'write' }],
+    expiresInDays: 0
+  });
+  return result.token;
+};
+
+// Expose PAT reuse/rotation logic for unit coverage. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+export const __test__ensureTaskGroupPat = ensureTaskGroupPat;
+
+const resolveTaskGroupEnvValues = async (params: { taskGroupId: string; existingPat?: string }) => {
+  // Build task-group env values from runtime API base + auto-issued PAT. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const taskGroupId = safeTrim(params.taskGroupId);
+  if (!taskGroupId) throw new Error('taskGroupId is required to build task-group .env');
+  const apiBaseUrl = resolveTaskGroupApiBaseUrl();
+  const pat = await ensureTaskGroupPat({ taskGroupId, existingPat: params.existingPat });
+  return { apiBaseUrl, pat, taskGroupId };
+};
+
+export const buildTaskGroupEnvFileContents = (params: { apiBaseUrl: string; pat: string; taskGroupId: string }): string => {
+  // Emit the task-group .env contents with explicit API + PAT settings. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  return [
+    '# Provide base URL and PAT values for task-group API access.',
+    '# Backend API base URL (e.g. https://hookcode.example.com)',
+    `HOOKCODE_API_BASE_URL=${params.apiBaseUrl}`,
+    '# Personal access token (PAT) for Authorization: Bearer <PAT>',
+    `HOOKCODE_PAT=${params.pat}`,
+    '# Task group id for scoping API requests.',
+    `HOOKCODE_TASK_GROUP_ID=${params.taskGroupId}`,
+    ''
+  ].join('\n');
+};
+
+const buildTaskGroupAgentGuidanceContent = (params: { envFileContents: string; repoFolderName: string }): string => {
+  // Provide guidance that sets the task-group root as cwd while scoping edits to the repo folder. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  const repoFolder = safeTrim(params.repoFolderName) || 'repo';
+  const repoLabel = `<<${repoFolder}>>`;
+  // Add target URL guidance with route matching rules for auto-navigating previews. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
+  return [
+    '# Task Group Workspace Rules',
+    '',
+    'Your working directory is the task-group root for this task.',
+    `The git-cloned repository lives in the folder named ${repoLabel} under the task-group root.`,
+    `Operate only inside the git-cloned repository folder ${repoLabel} for this task group.`,
+    `Do not modify files outside ${repoLabel} up to the task-group root.`,
+    '',
+    'If a skill requires HookCode API access, use the following .env configuration:',
+    'Use a long-lived PAT (no expiry preferred) for this workspace.',
+    '',
+    '## Web Project Modifications',
+    '',
+    '<IMPORTANT>',
+    'When modifying web project content (frontend or any preview-enabled project):',
+    '1. Use hookcode-preview-highlight skill to show users what was changed',
+    '2. Read skill: `.codex/skills/hookcode-preview-highlight/SKILL.md`',
+    '3. After making changes, highlight the modified DOM elements:',
+    '   - Send highlight commands with specific CSS selectors',
+    '   - Include bubble tooltips explaining what was changed',
+    '   - Use appropriate colors (e.g., blue for additions, yellow for modifications)',
+    '4. If changes apply to a specific route, include `targetUrl` (supports :param/*/**/|| patterns) so the preview can auto-navigate or confirm the current route (users may lock auto-navigation).',
+    '5. Inform users about the exact location of changes in the UI',
+    '</IMPORTANT>',
+    '',
+    '```env',
+    params.envFileContents,
+    '```',
+    ''
+  ].join('\n');
+};
+
+function buildTaskGroupWorkspacePromptPrefix(params: { taskGroupDir: string; repoFolderName: string }): string {
+  // Surface task-group cwd and repo folder expectations in the provider prompt. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  const repoFolder = safeTrim(params.repoFolderName) || 'repo';
+  const workspaceRoot = safeTrim(params.taskGroupDir) || '<task-group-root>';
+  return [
+    'TASK GROUP WORKSPACE CONTEXT',
+    `Workspace root (cwd): ${workspaceRoot}`,
+    `Repository folder: ${repoFolder}`,
+    'Always treat the workspace root as the current working directory.',
+    `When accessing repo files, include the repository folder in paths (for example, "${repoFolder}/README.md").`,
+    ''
+  ].join('\n');
+}
+
+export const buildTaskGroupAgentsContent = (params: { envFileContents: string; repoFolderName: string }): string => {
+  // Build AGENTS.md guidance for Codex task-group workspaces. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  return buildTaskGroupAgentGuidanceContent(params);
+};
+
+export const buildTaskGroupClaudeContent = (params: { envFileContents: string; repoFolderName: string }): string => {
+  // Build CLAUDE.md guidance for Claude Code task-group workspaces. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  return buildTaskGroupAgentGuidanceContent(params);
+};
+
+export const buildTaskGroupGeminiContent = (params: { envFileContents: string; repoFolderName: string }): string => {
+  // Build GEMINI.md guidance for Gemini CLI task-group workspaces. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  return buildTaskGroupAgentGuidanceContent(params);
+};
+
+const ensureTaskGroupLayout = async (params: {
+  taskGroupDir: string;
+  taskGroupId: string;
+  repoFolderName: string;
+}): Promise<void> => {
+  // Initialize the task-group root with required placeholders and env/agent templates. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  await mkdir(params.taskGroupDir, { recursive: true });
+  // Ensure template directories are present for Codex, Claude Code, and Gemini CLI execution. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  await ensureTaskGroupCodexDir(params.taskGroupDir);
+  await ensureTaskGroupClaudeDir(params.taskGroupDir);
+  await ensureTaskGroupGeminiDir(params.taskGroupDir);
+  // Seed codex-schema.json with the default structured output schema used by Codex runs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  await ensurePlaceholderFile(path.join(params.taskGroupDir, 'codex-schema.json'), buildCodexSchemaContents());
+  const existingEnv = await readEnvFileValues(path.join(params.taskGroupDir, '.env'));
+  const envValues = await resolveTaskGroupEnvValues({
+    taskGroupId: params.taskGroupId,
+    existingPat: existingEnv.HOOKCODE_PAT
+  });
+  const envContents = buildTaskGroupEnvFileContents(envValues);
+  await writeFileIfChanged(path.join(params.taskGroupDir, '.env'), envContents);
+  const agentsContents = buildTaskGroupAgentsContent({
+    envFileContents: envContents,
+    repoFolderName: params.repoFolderName
+  });
+  await writeFileIfChanged(path.join(params.taskGroupDir, 'AGENTS.md'), agentsContents);
+  // Mirror task-group guidance into Claude/Gemini instruction files for their CLIs. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+  const claudeContents = buildTaskGroupClaudeContent({
+    envFileContents: envContents,
+    repoFolderName: params.repoFolderName
+  });
+  await writeFileIfChanged(path.join(params.taskGroupDir, 'CLAUDE.md'), claudeContents);
+  const geminiContents = buildTaskGroupGeminiContent({
+    envFileContents: envContents,
+    repoFolderName: params.repoFolderName
+  });
+  await writeFileIfChanged(path.join(params.taskGroupDir, 'GEMINI.md'), geminiContents);
+  // Seed built-in skills before copying env files into skill folders. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  await syncTaskGroupBuiltInSkills(params.taskGroupDir);
+  // Add enabled extra skills before copying env files into skill folders. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+  await syncTaskGroupExtraSkills(params.taskGroupDir, params.taskGroupId);
+  await syncTaskGroupSkillEnvFiles({ taskGroupDir: params.taskGroupDir, envContents });
+};
+
+const moveTaskOutputToGroupRoot = async (params: {
+  taskGroupDir: string;
+  fileName: string;
+  sourcePath: string;
+  appendLog: (line: string) => Promise<void>;
+}): Promise<void> => {
+  // Ensure provider output files land in the task-group root after execution. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+  const destination = path.join(params.taskGroupDir, params.fileName);
+  if (path.resolve(destination) === path.resolve(params.sourcePath)) return;
+  try {
+    await rm(destination, { force: true });
+    await rename(params.sourcePath, destination);
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return;
+    if (err?.code === 'EXDEV') {
+      await copyFile(params.sourcePath, destination);
+      await rm(params.sourcePath, { force: true });
+      return;
+    }
+    await params.appendLog(`Failed to move output file to task-group root: ${err?.message || err}`);
+  }
 };
 
 const pickCredentialProfile = (
@@ -444,18 +912,27 @@ export class AgentExecutionError extends Error {
   readonly logs: string[];
   readonly logsSeq: number;
   readonly providerCommentUrl?: string;
+  readonly aborted?: boolean; // Flag abort-driven exits for pause/stop handling. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   // Attach git status snapshot for failed tasks to preserve change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   readonly gitStatus?: TaskResult['gitStatus'];
 
   constructor(
     message: string,
-    params: { logs: string[]; logsSeq: number; providerCommentUrl?: string; gitStatus?: TaskResult['gitStatus']; cause?: unknown }
+    params: {
+      logs: string[];
+      logsSeq: number;
+      providerCommentUrl?: string;
+      gitStatus?: TaskResult['gitStatus'];
+      cause?: unknown;
+      aborted?: boolean;
+    }
   ) {
     super(message);
     this.name = 'AgentExecutionError';
     this.logs = params.logs;
     this.logsSeq = params.logsSeq;
     this.providerCommentUrl = params.providerCommentUrl;
+    this.aborted = params.aborted;
     this.gitStatus = params.gitStatus;
     if (params.cause !== undefined) {
       (this as any).cause = params.cause;
@@ -549,7 +1026,8 @@ export const resolveExecution = async (
 
 // Return git status alongside logs so downstream services can persist change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 async function callAgent(
-  task: Task
+  task: Task,
+  options?: { signal?: AbortSignal }
 ): Promise<{ logs: string[]; logsSeq: number; providerCommentUrl?: string; outputText?: string; gitStatus?: TaskResult['gitStatus'] }> {
   assertAgentServicesReady();
 
@@ -568,6 +1046,8 @@ async function callAgent(
   let threadIdBound = false;
   // Track whether this run is allowed to mutate repos before collecting git status. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   let writeEnabled = false;
+  // Honor pause/stop signals from the task runner. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+  const abortSignal = options?.signal;
 
   let persistLogsDisabled = false;
   let lastPersistErrorAt = 0;
@@ -712,7 +1192,19 @@ async function callAgent(
     if (!taskGroupId) {
       taskGroupId = await taskService.ensureTaskGroupId(task);
     }
-    const resumeThreadId = taskGroupId ? await taskService.getTaskGroupThreadId(taskGroupId) : null;
+    // Only resume model threads when the task group already has prior tasks. docs/en/developer/plans/taskgroup-resume-thread-20260203/task_plan.md taskgroup-resume-thread-20260203
+    let hasPriorTaskGroupTask = false;
+    let resumeThreadId: string | null = null;
+    if (taskGroupId) {
+      try {
+        hasPriorTaskGroupTask = await taskService.hasPriorTaskGroupTask(taskGroupId, task.id);
+      } catch (err: any) {
+        console.warn('[agent] failed to check task group history for resume (continuing)', err);
+      }
+      if (hasPriorTaskGroupTask) {
+        resumeThreadId = await taskService.getTaskGroupThreadId(taskGroupId);
+      }
+    }
     execution = await resolveExecution(task, payload, appendLog);
     // Flag write-enabled runs for git change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
     writeEnabled = execution.robot.permission === 'write';
@@ -727,7 +1219,11 @@ async function callAgent(
     });
     const checkoutRef = checkout.ref;
     // Keep repoDir in outer scope so failure handlers can still inspect git state. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-    // Bind the workspace to task group ids so each group has a dedicated repo checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+    // Bind task-group artifacts to a stable root directory for shared execution context. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const taskGroupDir = buildTaskGroupRootDir({ taskGroupId, taskId: task.id });
+    // Bind the workspace to task group ids so each group has a dedicated repo checkout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    // Capture the repo folder name for AGENTS guidance output. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const repoFolderName = deriveRepoFolderName(repoSlug);
     repoDir = buildTaskGroupWorkspaceDir({ taskGroupId, taskId: task.id, provider: execution.provider, repoSlug });
 
     if (!repoUrl) {
@@ -735,8 +1231,12 @@ async function callAgent(
       throw new Error('missing repo url');
     }
 
-    // Ensure the task-group workspace root exists before clone/pull operations. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
-    await mkdir(TASK_GROUP_WORKSPACE_ROOT, { recursive: true });
+    // Ensure the task-group root layout exists before clone/pull operations. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    await ensureTaskGroupLayout({
+      taskGroupDir,
+      taskGroupId: safeTrim(taskGroupId) || task.id,
+      repoFolderName
+    });
 
     await appendLog(`Preparing work directory ${repoDir}`);
     if (checkoutRef) {
@@ -768,8 +1268,23 @@ async function callAgent(
       await appendLog('Workspace directory exists without git metadata; recreating workspace');
       await rm(repoDir, { recursive: true, force: true });
     }
-    // Only allow git network sync during the first task-group workspace initialization. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
-    const allowNetworkPull = !workspaceReady;
+    let hasTaskGroupLogs = false;
+    if (taskGroupId && !workspaceReady) {
+      try {
+        hasTaskGroupLogs = await taskService.hasTaskGroupLogs(taskGroupId);
+      } catch (err: any) {
+        console.warn('[agent] failed to check task group logs (continuing)', err);
+      }
+      if (hasTaskGroupLogs) {
+        await appendLog(
+          'Existing task-group logs were found, but this worker has no workspace for the group. A new environment will be used for execution due to the environment change.'
+        );
+      }
+    }
+    // Reuse the previously computed task-group history check for workspace decisions. docs/en/developer/plans/taskgroup-resume-thread-20260203/task_plan.md taskgroup-resume-thread-20260203
+    const reuseWorkspace = workspaceReady && hasPriorTaskGroupTask;
+    // Only allow git network sync when the task-group workspace is initialized on this worker. docs/en/developer/plans/taskgroup-worker-env-20260203/task_plan.md taskgroup-worker-env-20260203
+    const allowNetworkPull = !reuseWorkspace;
 
     // Build git proxy flags from GIT_HTTP_PROXY env var for network operations. gitproxyfix20260127
     const gitProxyFlags = buildGitProxyFlags();
@@ -837,10 +1352,14 @@ async function callAgent(
         throw err;
       }
     } else {
+      // Keep workspace reuse logs aligned with whether network pulls are skipped on this worker. docs/en/developer/plans/taskgroup-worker-env-20260203/task_plan.md taskgroup-worker-env-20260203
+      const reuseCommand = reuseWorkspace
+        ? `Reuse task group workspace (skip git pull): ${repoDir} (${workspaceLabel})`
+        : `Reuse task group workspace: ${repoDir} (${workspaceLabel})`;
       await appendThoughtChainCommand({
         id: workspaceItemId,
         status: 'completed',
-        command: `Reuse task group workspace (skip git pull): ${repoDir} (${workspaceLabel})`
+        command: reuseCommand
       });
     }
 
@@ -1147,7 +1666,12 @@ exit 0
     }
 
     // Apply robot overrides and run dependency installs before model execution. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
-    if (hookcodeConfig?.dependency && robotDependencyConfig?.enabled === false) {
+    if (hookcodeConfig?.dependency && reuseWorkspace) {
+      // Skip dependency installs when reusing the same worker's task-group workspace. docs/en/developer/plans/taskgroup-worker-env-20260203/task_plan.md taskgroup-worker-env-20260203
+      await appendLog('Skipping dependency installation because this task group already has a prepared workspace on this worker.');
+      dependencyResult = { status: 'skipped', steps: [], totalDuration: 0 };
+      await taskService.updateDependencyResult(task.id, dependencyResult);
+    } else if (hookcodeConfig?.dependency && robotDependencyConfig?.enabled === false) {
       await appendLog('Dependency installation disabled by robot configuration');
       dependencyResult = { status: 'skipped', steps: [], totalDuration: 0 };
       await taskService.updateDependencyResult(task.id, dependencyResult);
@@ -1201,6 +1725,16 @@ exit 0
       }
     }
 
+    // Resolve provider selection before building prompts to allow provider-specific context. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+    const modelProvider = safeTrim(execution.robot.modelProvider).toLowerCase() || CODEX_PROVIDER_KEY;
+    const isCodexProvider = modelProvider === CODEX_PROVIDER_KEY;
+    const isClaudeCodeProvider = modelProvider === CLAUDE_CODE_PROVIDER_KEY;
+    const isGeminiCliProvider = modelProvider === GEMINI_CLI_PROVIDER_KEY;
+    if (!isCodexProvider && !isClaudeCodeProvider && !isGeminiCliProvider) {
+      await appendLog(`Unsupported model provider: ${modelProvider}`);
+      throw new Error(`unsupported model provider: ${modelProvider}`);
+    }
+
     // Build prompt based on robot type.
     const promptCtx = await buildPrompt({
       task,
@@ -1213,29 +1747,25 @@ exit 0
       github: execution.github
     });
     const promptFile = path.join(repoDir, '.codex_prompt.txt');
-    await writeFile(promptFile, promptCtx.body, 'utf8');
+    // Prepend enabled skill prompt text before the main task prompt. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    const skillPromptPrefix = await buildSkillPromptPrefix(appendLog, taskGroupId);
+    const promptBase = `${skillPromptPrefix}${promptCtx.body}`;
+    // Prepend workspace-root guidance for Claude Code so cwd expectations are explicit. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
+    const promptBody = isClaudeCodeProvider
+      ? `${buildTaskGroupWorkspacePromptPrefix({ taskGroupDir, repoFolderName })}${promptBase}`
+      : promptBase;
+    await writeFile(promptFile, promptBody, 'utf8');
 
     // Run the selected model provider (default: codex).
-    const modelProvider = safeTrim(execution.robot.modelProvider).toLowerCase() || CODEX_PROVIDER_KEY;
-    const isCodexProvider = modelProvider === CODEX_PROVIDER_KEY;
-    const isClaudeCodeProvider = modelProvider === CLAUDE_CODE_PROVIDER_KEY;
-    const isGeminiCliProvider = modelProvider === GEMINI_CLI_PROVIDER_KEY;
-    if (!isCodexProvider && !isClaudeCodeProvider && !isGeminiCliProvider) {
-      await appendLog(`Unsupported model provider: ${modelProvider}`);
-      throw new Error(`unsupported model provider: ${modelProvider}`);
-    }
 
     const outputLastMessageFileName = isClaudeCodeProvider
       ? 'claude-output.txt'
       : isGeminiCliProvider
         ? 'gemini-output.txt'
         : 'codex-output.txt';
-    // Store provider outputs under a task-scoped directory outside the repo to avoid git pollution. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
-    const outputSelection = buildTaskOutputFilePath({ taskId: task.id, fileName: outputLastMessageFileName, repoDir });
+    // Store provider outputs in the task-group root to keep artifacts alongside the group workspace. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
+    const outputSelection = buildTaskOutputFilePath({ taskGroupDir, fileName: outputLastMessageFileName });
     const outputLastMessageFile = outputSelection.filePath;
-    if (outputSelection.selection.source === 'repo-conflict') {
-      await appendLog('Configured task output dir points inside the repo; falling back to safe default output root.');
-    }
     await mkdir(outputSelection.dir, { recursive: true });
     await rm(outputLastMessageFile, { force: true });
 
@@ -1319,9 +1849,14 @@ exit 0
         throw new Error(credentialBack);
       }
 
+      // Load the task-group Codex schema so turns can emit structured output + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+      const outputSchema = await readCodexOutputSchema({ taskGroupDir, appendLog });
+
+      // Execute providers from the task-group root to match the new workspace layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
       // Change record: avoid noisy debug `console.error` logs; rely on structured logs + per-task appendLog instead.
       const res = await runCodexExecWithSdk({
         repoDir,
+        workspaceDir: taskGroupDir,
         promptFile,
         model: codexCfg!.model,
         sandbox: codexCfg!.sandbox,
@@ -1330,7 +1865,9 @@ exit 0
         resumeThreadId: resumeThreadId || undefined,
         apiKey,
         apiBaseUrl: apiBaseUrl || undefined,
+        outputSchema,
         outputLastMessageFile,
+        signal: abortSignal,
         env: {
           ...(sandboxMode === 'workspace-write'
             ? {
@@ -1382,8 +1919,10 @@ exit 0
         throw new Error(credentialBack);
       }
 
+      // Execute providers from the task-group root to match the new workspace layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
       const res = await runClaudeCodeExecWithSdk({
         repoDir,
+        workspaceDir: taskGroupDir,
         promptFile,
         model: claudeCfg!.model,
         sandbox: claudeCfg!.sandbox,
@@ -1392,6 +1931,7 @@ exit 0
         apiKey,
         apiBaseUrl: apiBaseUrl || undefined,
         outputLastMessageFile,
+        signal: abortSignal,
         env: {
           ...(sandboxMode === 'workspace-write'
             ? {
@@ -1446,8 +1986,10 @@ exit 0
       const geminiScopeId = taskGroupId ? taskGroupId : task.id;
       const geminiHomeDir = path.join(BUILD_ROOT, '.gemini_cli_home', `${execution.provider}__${repoSlug}`, geminiScopeId);
 
+      // Execute providers from the task-group root to match the new workspace layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
       const res = await runGeminiCliExecWithCli({
         repoDir,
+        workspaceDir: taskGroupDir,
         promptFile,
         model: geminiCfg!.model,
         sandbox: geminiCfg!.sandbox,
@@ -1457,6 +1999,7 @@ exit 0
         apiBaseUrl: apiBaseUrl || undefined,
         outputLastMessageFile,
         geminiHomeDir,
+        signal: abortSignal,
         env: {
           ...(sandboxMode === 'workspace-write'
             ? {
@@ -1475,6 +2018,13 @@ exit 0
     }
 
     console.log('[agent] model exec completed', { taskId: task.id, provider: modelProvider, threadId });
+    // Move provider output artifacts into the task-group root for consistent discovery. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    await moveTaskOutputToGroupRoot({
+      taskGroupDir,
+      fileName: outputLastMessageFileName,
+      sourcePath: outputLastMessageFile,
+      appendLog
+    });
 
     // Bind the thread ID to the task group for future resumption.
     if (threadId && taskGroupId) {
@@ -1538,6 +2088,19 @@ exit 0
 
     return { logs, logsSeq, providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
   } catch (err: any) {
+    // Short-circuit aborts so pause/stop does not post failure comments. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    if (abortSignal?.aborted) {
+      await appendLog('Execution aborted by user request.');
+      const safeMessage = redactSensitiveText(err?.message || 'Task execution aborted');
+      throw new AgentExecutionError(safeMessage, {
+        logs,
+        logsSeq,
+        gitStatus,
+        cause: err,
+        aborted: true
+      });
+    }
+
     const payload: any = task.payload ?? {};
     const consoleUrl = getTaskConsoleUrl(task.id);
     const details = buildGitlabLogDetails(logs);
