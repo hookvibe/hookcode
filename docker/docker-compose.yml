@@ -13,7 +13,6 @@ services:
       dockerfile: backend/Dockerfile
       args:
         PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR}
-        TASK_LOGS_ENABLE: true
     env_file:
       # Single Docker deployment env file shared by frontend(build) + backend/worker(runtime).
       - ./.env
