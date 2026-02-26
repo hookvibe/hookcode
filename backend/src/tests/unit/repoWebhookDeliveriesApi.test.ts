@@ -4,6 +4,8 @@ import { Test } from '@nestjs/testing';
 import { RepositoriesController } from '../../modules/repositories/repositories.controller';
 import { HttpException } from '@nestjs/common';
 import { RepoAutomationService } from '../../modules/repositories/repo-automation.service';
+import { RepoAccessService } from '../../modules/repositories/repo-access.service'; // Provide RepoAccessService mock for RBAC checks in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+import { RepoMemberService } from '../../modules/repositories/repo-member.service'; // Provide RepoMemberService mock for repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
 import { RepoRobotService } from '../../modules/repositories/repo-robot.service';
 import { RepoWebhookDeliveryService } from '../../modules/repositories/repo-webhook-delivery.service';
 import { RepositoryService } from '../../modules/repositories/repository.service';
@@ -17,12 +19,15 @@ describe('Repo webhook deliveries API', () => {
   const previewService = {};
   // Provide a stable SkillsService mock to satisfy controller DI across tests. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   const skillsService = {};
+  // Provide a request user for RBAC-protected endpoints in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const req = { user: { id: 'u1', username: 'u1', roles: [] } } as any;
   test('returns 404 when repo is missing', async () => {
     const repoWebhookDeliveryService = {
       listDeliveries: jest.fn(),
       getDelivery: jest.fn()
     };
     const repositoryService = { getById: jest.fn().mockResolvedValue(null) };
+    const repoAccessService = { requireRepoRead: jest.fn() }; // Stub repo access checks for webhook delivery tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
 
     const moduleRef = await Test.createTestingModule({
       controllers: [RepositoriesController],
@@ -31,6 +36,8 @@ describe('Repo webhook deliveries API', () => {
         { provide: RepoRobotService, useValue: {} },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: repoWebhookDeliveryService },
+        { provide: RepoAccessService, useValue: repoAccessService }, // Inject RepoAccessService mock for RBAC guard coverage. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+        { provide: RepoMemberService, useValue: {} }, // Inject RepoMemberService mock to satisfy repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
@@ -40,13 +47,14 @@ describe('Repo webhook deliveries API', () => {
     const controller = moduleRef.get(RepositoriesController);
 
     try {
-      await controller.listWebhookDeliveries('r1', '50', undefined);
+      await controller.listWebhookDeliveries(req, 'r1', '50', undefined);
       throw new Error('expected listWebhookDeliveries to throw');
     } catch (err) {
       expect(err).toBeInstanceOf(HttpException);
       expect((err as HttpException).getStatus()).toBe(404);
     }
     expect(repoWebhookDeliveryService.listDeliveries).not.toHaveBeenCalled();
+    expect(repoAccessService.requireRepoRead).not.toHaveBeenCalled();
     await moduleRef.close();
   });
 
@@ -81,6 +89,7 @@ describe('Repo webhook deliveries API', () => {
       }),
       getDelivery: jest.fn()
     };
+    const repoAccessService = { requireRepoRead: jest.fn().mockResolvedValue(undefined) }; // Stub repo access checks for list deliveries. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
 
     const moduleRef = await Test.createTestingModule({
       controllers: [RepositoriesController],
@@ -89,6 +98,8 @@ describe('Repo webhook deliveries API', () => {
         { provide: RepoRobotService, useValue: {} },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: repoWebhookDeliveryService },
+        { provide: RepoAccessService, useValue: repoAccessService }, // Inject RepoAccessService mock for RBAC guard coverage. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+        { provide: RepoMemberService, useValue: {} }, // Inject RepoMemberService mock to satisfy repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
@@ -97,9 +108,10 @@ describe('Repo webhook deliveries API', () => {
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
 
-    const result = await controller.listWebhookDeliveries('r1', '50', undefined);
+    const result = await controller.listWebhookDeliveries(req, 'r1', '50', undefined);
 
     expect(repoWebhookDeliveryService.listDeliveries).toHaveBeenCalledWith('r1', expect.any(Object));
+    expect(repoAccessService.requireRepoRead).toHaveBeenCalledWith(req.user, 'r1');
     expect(result).toEqual(expect.objectContaining({ deliveries: expect.any(Array) }));
     await moduleRef.close();
   });
@@ -132,6 +144,7 @@ describe('Repo webhook deliveries API', () => {
         createdAt: new Date().toISOString()
       })
     };
+    const repoAccessService = { requireRepoRead: jest.fn().mockResolvedValue(undefined) }; // Stub repo access checks for delivery detail. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
 
     const moduleRef = await Test.createTestingModule({
       controllers: [RepositoriesController],
@@ -140,6 +153,8 @@ describe('Repo webhook deliveries API', () => {
         { provide: RepoRobotService, useValue: {} },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: repoWebhookDeliveryService },
+        { provide: RepoAccessService, useValue: repoAccessService }, // Inject RepoAccessService mock for RBAC guard coverage. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+        { provide: RepoMemberService, useValue: {} }, // Inject RepoMemberService mock to satisfy repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
@@ -148,9 +163,10 @@ describe('Repo webhook deliveries API', () => {
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
 
-    const result = await controller.getWebhookDelivery('r1', 'd1');
+    const result = await controller.getWebhookDelivery(req, 'r1', 'd1');
 
     expect(repoWebhookDeliveryService.getDelivery).toHaveBeenCalledWith('r1', 'd1');
+    expect(repoAccessService.requireRepoRead).toHaveBeenCalledWith(req.user, 'r1');
     expect(result).toEqual(expect.objectContaining({ delivery: expect.any(Object) }));
     await moduleRef.close();
   });

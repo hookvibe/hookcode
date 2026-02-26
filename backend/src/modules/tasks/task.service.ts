@@ -792,6 +792,7 @@ export class TaskService {
     kind?: TaskGroup['kind'];
     archived?: 'active' | 'archived' | 'all';
     includeMeta?: boolean;
+    allowedRepoIds?: string[];
   }): Promise<TaskGroupWithMeta[]> {
     const take = clampLimit(options?.limit, 50);
     const where: Record<string, any> = {};
@@ -805,6 +806,11 @@ export class TaskService {
 
     if (options?.repoId && !isUuidLike(options.repoId)) return [];
     if (options?.robotId && !isUuidLike(options.robotId)) return [];
+    // Apply repo access filters for non-admin list views. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    if (options?.allowedRepoIds && !options.repoId) {
+      if (options.allowedRepoIds.length === 0) return [];
+      where.repoId = { in: options.allowedRepoIds };
+    }
 
     const rows = await db.taskGroup.findMany({
       where,

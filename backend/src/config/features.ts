@@ -1,23 +1,17 @@
 import { isTruthy } from '../utils/env';
 
-// Split task logs persistence vs user visibility to support "persist but hidden" deployments (e.g. CI). nykx5svtlgh050cstyht
+// Read task log persistence toggle only from TASK_LOGS_DB_ENABLED to avoid legacy drift. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225
 export const isTaskLogsDbEnabled = (): boolean => {
   if (process.env.TASK_LOGS_DB_ENABLED !== undefined) {
     return isTruthy(process.env.TASK_LOGS_DB_ENABLED, true);
   }
-  if (process.env.TASK_LOGS_ENABLED !== undefined) {
-    return isTruthy(process.env.TASK_LOGS_ENABLED, true);
-  }
   return true;
 };
 
-// Gate user-facing logs APIs/UI independently from DB persistence while keeping legacy env compatible. nykx5svtlgh050cstyht
+// Read task log visibility toggle only from TASK_LOGS_VISIBLE_ENABLED to keep configuration explicit. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225
 export const isTaskLogsVisibleEnabled = (): boolean => {
   if (process.env.TASK_LOGS_VISIBLE_ENABLED !== undefined) {
     return isTruthy(process.env.TASK_LOGS_VISIBLE_ENABLED, true);
-  }
-  if (process.env.TASK_LOGS_ENABLED !== undefined) {
-    return isTruthy(process.env.TASK_LOGS_ENABLED, true);
   }
   return true;
 };

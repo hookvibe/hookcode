@@ -367,17 +367,21 @@ export class RepositoryService {
     };
   }
 
-  async listAll(): Promise<Repository[]> {
+  async listAll(options?: { userId?: string; isAdmin?: boolean }): Promise<Repository[]> {
     // Default to listing active (non-archived) repos for backward compatible UI behavior. qnp1mtxhzikhbi0xspbc
-    return this.listByArchiveScope('active');
+    return this.listByArchiveScope('active', options);
   }
 
-  async listByArchiveScope(scope: ArchiveScope): Promise<Repository[]> {
+  async listByArchiveScope(scope: ArchiveScope, options?: { userId?: string; isAdmin?: boolean }): Promise<Repository[]> {
     // Archive listing is used by both the normal Repos page and the dedicated Archive area. qnp1mtxhzikhbi0xspbc
     const archivedScope: ArchiveScope = scope ?? 'active';
     const where: Prisma.RepositoryWhereInput = {};
     if (archivedScope === 'active') where.archivedAt = null;
     if (archivedScope === 'archived') where.archivedAt = { not: null };
+    if (options?.userId && !options.isAdmin) {
+      // Apply membership filter for private repo access. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+      where.members = { some: { userId: options.userId } };
+    }
 
     const rows = await db.repository.findMany({
       where,
@@ -461,6 +465,26 @@ export class RepositoryService {
         tasksRestored: tasksResult.count ?? 0,
         taskGroupsRestored: groupsResult.count ?? 0
       };
+    });
+  }
+
+  async deleteRepo(id: string): Promise<Repository | null> {
+    // Delete repo plus related tasks/groups to avoid orphaned data. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    const repoId = String(id ?? '').trim();
+    return db.$transaction(async (tx) => {
+      const existing = await tx.repository.findUnique({ where: { id: repoId } });
+      if (!existing) return null;
+
+      await tx.task.deleteMany({ where: { repoId } });
+      await tx.taskGroup.deleteMany({ where: { repoId } });
+      await tx.repoMember.deleteMany({ where: { repoId } });
+      await tx.repoMemberInvite.deleteMany({ where: { repoId } });
+      await tx.repoRobot.deleteMany({ where: { repoId } });
+      await tx.repoAutomationConfig.deleteMany({ where: { repoId } });
+      await tx.repoWebhookDelivery.deleteMany({ where: { repoId } });
+
+      const deleted = await tx.repository.delete({ where: { id: repoId } });
+      return recordToRepository(deleted);
     });
   }
 

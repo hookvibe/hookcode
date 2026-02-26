@@ -673,8 +673,8 @@ describe('AppShell (frontend-chat migration)', () => {
     renderApp();
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
 
-    await ui.type(screen.getByLabelText('Username'), 'u');
-    await ui.type(screen.getByLabelText('Password'), 'p');
+    await ui.type(screen.getByLabelText(/Username/i), 'u');
+    await ui.type(screen.getByLabelText(/Password/i), 'p');
     await ui.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(window.location.hash).toBe('#/'));
@@ -693,8 +693,8 @@ describe('AppShell (frontend-chat migration)', () => {
     renderApp();
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
 
-    await ui.type(screen.getByLabelText('Username'), 'u');
-    await ui.type(screen.getByLabelText('Password'), 'p');
+    await ui.type(screen.getByLabelText(/Username/i), 'u');
+    await ui.type(screen.getByLabelText(/Password/i), 'p');
     await ui.click(screen.getByRole('button', { name: 'Sign in' }));
 
     expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();

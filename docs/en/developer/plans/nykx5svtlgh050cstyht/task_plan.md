@@ -10,7 +10,8 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Split `TASK_LOGS_ENABLED` into two independent toggles: (1) whether task logs are persisted to DB, and (2) whether task logs are visible to users; defaults are enabled, but in CI we persist to DB while hiding from users.
+<!-- Rephrase goal without the removed legacy toggle name. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+Maintain two independent task log toggles: (1) whether task logs are persisted to DB, and (2) whether task logs are visible to users; defaults are enabled, but in CI we persist to DB while hiding from users.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
@@ -57,7 +58,8 @@ Phase 5
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
 1. What are the existing code paths for "write task logs" vs "read/show task logs" (backend + frontend)?
-2. What naming + precedence rules should we use for new env vars (and do we keep `TASK_LOGS_ENABLED` as a legacy alias)?
+<!-- Remove legacy alias question now that the fallback is dropped. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+2. What naming + precedence rules should we use for the task log env vars?
 3. Which environments define CI behavior today (e.g. `.env.ci`, CI workflow env), and where should we set `visible=false`?
 
 ## Decisions Made
@@ -66,7 +68,7 @@ Phase 5
 |----------|-----------|
 | Use `TASK_LOGS_DB_ENABLED` + `TASK_LOGS_VISIBLE_ENABLED` env vars (defaults: true) | Separates persistence from user-facing exposure while keeping local/dev behavior simple. |
 | Visibility is effectively `DB && VISIBLE` | Prevents "visible but no logs captured" footguns, and matches intended use cases (CI: persist=true, visible=false). |
-| Keep `TASK_LOGS_ENABLED` as a legacy alias when new vars are unset | Avoids breaking existing deployments/configs while migrating examples and CI. |
+<!-- Remove legacy alias decision to match current config policy. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}

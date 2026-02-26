@@ -10,6 +10,15 @@ import type {
 } from './models';
 
 export type RepoProvider = 'gitlab' | 'github';
+export type RepoRole = 'owner' | 'maintainer' | 'member';
+
+export interface RepoPermissions {
+  canRead: boolean;
+  canManage: boolean;
+  canDelete: boolean;
+  canManageMembers: boolean;
+  canManageTasks: boolean;
+} // Mirror backend repo permission flags for UI gating. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
 
 export interface RepositoryBranch {
   name: string;
@@ -31,7 +40,35 @@ export interface Repository {
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
+  // Include RBAC context for repo pages. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  myRole?: RepoRole | null;
+  permissions?: RepoPermissions;
 }
+
+export interface RepoMember {
+  id: string;
+  userId: string;
+  username: string;
+  displayName?: string;
+  email?: string;
+  role: RepoRole;
+  createdAt: string;
+  updatedAt: string;
+} // Repo member list entries for member management UI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+
+export interface RepoInvite {
+  id: string;
+  repoId: string;
+  email: string;
+  role: RepoRole;
+  invitedByUserId: string;
+  invitedUserId?: string;
+  acceptedAt?: string | null;
+  revokedAt?: string | null;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+} // Repo invite rows for pending invite management. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
 
 export type RobotPermission = 'read' | 'write';
 

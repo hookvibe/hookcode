@@ -16,6 +16,7 @@ Repository APIs manage:
 - Repo-scoped credentials (repo provider tokens + model provider API keys)
 - Robots under a repository (create/edit/test/delete)
 - Automation configuration (rules/actions)
+- Repo member management + invite acceptance
 - Provider metadata/activity and webhook delivery troubleshooting
 
 <OpenApiProvider>
@@ -34,6 +35,9 @@ Repository APIs manage:
 
 ### PATCH `/api/repos/:id`
 <OpenApiOperation operationId="repos_patch" />
+
+### DELETE `/api/repos/:id`
+<OpenApiOperation operationId="repos_delete" />
 
 ### POST `/api/repos/:id/archive`
 <OpenApiOperation operationId="repos_archive" />
@@ -70,6 +74,28 @@ Repository APIs manage:
 
 ### DELETE `/api/repos/:id/robots/:robotId`
 <OpenApiOperation operationId="repos_delete_robot" />
+
+<!-- Document repo member + invite operations. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+### GET `/api/repos/:id/members`
+<OpenApiOperation operationId="repos_list_members" />
+
+### PATCH `/api/repos/:id/members/:userId`
+<OpenApiOperation operationId="repos_update_member_role" />
+
+### DELETE `/api/repos/:id/members/:userId`
+<OpenApiOperation operationId="repos_remove_member" />
+
+### GET `/api/repos/:id/invites`
+<OpenApiOperation operationId="repos_list_invites" />
+
+### POST `/api/repos/:id/invites`
+<OpenApiOperation operationId="repos_create_invite" />
+
+### DELETE `/api/repos/:id/invites/:inviteId`
+<OpenApiOperation operationId="repos_revoke_invite" />
+
+### POST `/api/repos/invites/accept`
+<OpenApiOperation operationId="repos_accept_invite" />
 
 ### GET `/api/repos/:id/automation`
 <OpenApiOperation operationId="repos_get_automation" />

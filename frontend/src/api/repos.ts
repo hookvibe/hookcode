@@ -4,9 +4,12 @@ import type {
   ModelProvider,
   RepoAutomationConfig,
   RepoCredentialProfile,
+  RepoInvite,
+  RepoMember,
   RepoProvider,
   RepoProviderActivity,
   RepoProviderVisibility,
+  RepoRole,
   RepoRobot,
   RepoScopedCredentialsPublic,
   RepoWebhookDeliveryDetail,
@@ -21,6 +24,14 @@ export const listRepos = async (options?: { archived?: ArchiveScope }): Promise<
   // Cache repo lists briefly to dedupe repeated navigation between repo pages. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   const data = await getCached<{ repos: Repository[] }>('/repos', { params: options, cacheTtlMs: 5000 });
   return data.repos;
+};
+
+export const deleteRepo = async (repoId: string): Promise<Repository> => {
+  const { data } = await api.delete<{ repo: Repository }>(`/repos/${repoId}`);
+  // Refresh repo/task caches after deleting a repository. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  invalidateRepoCaches();
+  invalidateTaskCaches();
+  return data.repo;
 };
 
 export const archiveRepo = async (
@@ -348,4 +359,37 @@ export const deleteRepoCredentialProfile = async (repoId: string, profileId: str
   await api.delete(`/repos/${repoId}/credential-profiles/${profileId}`);
   // Refresh repo caches after profile removal so lists update immediately. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   invalidateRepoCaches();
+};
+
+// Add repo member/invite APIs for RBAC management UI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+export const listRepoMembers = async (repoId: string): Promise<RepoMember[]> => {
+  const data = await getCached<{ members: RepoMember[] }>(`/repos/${repoId}/members`, { cacheTtlMs: 5000 });
+  return data.members;
+};
+
+export const updateRepoMemberRole = async (repoId: string, userId: string, role: RepoRole): Promise<void> => {
+  await api.patch(`/repos/${repoId}/members/${userId}`, { role });
+};
+
+export const removeRepoMember = async (repoId: string, userId: string): Promise<void> => {
+  await api.delete(`/repos/${repoId}/members/${userId}`);
+};
+
+export const listRepoInvites = async (repoId: string): Promise<RepoInvite[]> => {
+  const data = await getCached<{ invites: RepoInvite[] }>(`/repos/${repoId}/invites`, { cacheTtlMs: 5000 });
+  return data.invites;
+};
+
+export const createRepoInvite = async (repoId: string, params: { email: string; role: RepoRole }): Promise<RepoInvite> => {
+  const { data } = await api.post<{ invite: RepoInvite }>(`/repos/${repoId}/invites`, params);
+  return data.invite;
+};
+
+export const revokeRepoInvite = async (repoId: string, inviteId: string): Promise<void> => {
+  await api.delete(`/repos/${repoId}/invites/${inviteId}`);
+};
+
+export const acceptRepoInvite = async (params: { email: string; token: string }): Promise<{ repoId: string }> => {
+  const { data } = await api.post<{ repoId: string }>(`/repos/invites/accept`, params);
+  return data;
 };

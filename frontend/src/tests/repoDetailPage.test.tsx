@@ -19,6 +19,13 @@ vi.mock('../api', () => {
         externalId: '',
         apiBaseUrl: '',
         enabled: true,
+        permissions: {
+          canRead: true,
+          canManage: true,
+          canDelete: true,
+          canManageMembers: false,
+          canManageTasks: true
+        },
         createdAt: '2026-01-11T00:00:00.000Z',
         updatedAt: '2026-01-11T00:00:00.000Z'
       },
@@ -215,6 +222,13 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
         externalId: '',
         apiBaseUrl: '',
         enabled: true,
+        permissions: {
+          canRead: true,
+          canManage: true,
+          canDelete: true,
+          canManageMembers: false,
+          canManageTasks: true
+        },
         createdAt: '2026-01-11T00:00:00.000Z',
         updatedAt: '2026-01-11T00:00:00.000Z'
       },
@@ -361,6 +375,13 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
         externalId: '',
         apiBaseUrl: '',
         enabled: true,
+        permissions: {
+          canRead: true,
+          canManage: true,
+          canDelete: true,
+          canManageMembers: false,
+          canManageTasks: true
+        },
         archivedAt: '2026-01-20T00:00:00.000Z',
         createdAt: '2026-01-11T00:00:00.000Z',
         updatedAt: '2026-01-11T00:00:00.000Z'

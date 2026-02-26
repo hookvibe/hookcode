@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpException, InternalServerErrorException, NotFoundException, Param, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpException, InternalServerErrorException, NotFoundException, Param, Post, Query, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiBearerAuth, ApiConflictResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
@@ -7,6 +7,8 @@ import { parsePositiveInt } from '../../utils/parse';
 import { PreviewLogStream } from './preview-log-stream.service';
 import { PreviewHighlightService } from './preview-highlight.service';
 import { PreviewService, PreviewServiceError } from './preview.service';
+import { TaskService } from './task.service';
+import { RepoAccessService } from '../repositories/repo-access.service';
 import {
   PreviewStartResponseDto,
   PreviewStatusResponseDto,
@@ -28,8 +30,30 @@ export class TaskGroupPreviewController {
   constructor(
     private readonly previewService: PreviewService,
     private readonly previewLogStream: PreviewLogStream,
-    private readonly previewHighlight: PreviewHighlightService
+    private readonly previewHighlight: PreviewHighlightService,
+    private readonly taskService: TaskService,
+    private readonly repoAccessService: RepoAccessService
   ) {}
+
+  // Enforce repo RBAC for task-group preview endpoints. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  private async requireGroupAccess(req: Request, groupId: string, mode: 'read' | 'manage') {
+    const user = req.user;
+    if (!user) throw new UnauthorizedException({ error: 'Unauthorized' });
+    const group = await this.taskService.getTaskGroup(groupId);
+    if (!group) throw new NotFoundException({ error: 'Task group not found' });
+    if (!group.repoId) {
+      if (!this.repoAccessService.isAdmin(user)) {
+        throw new ForbiddenException({ error: 'Forbidden', code: 'REPO_ACCESS_DENIED' });
+      }
+      return group;
+    }
+    if (mode === 'manage') {
+      await this.repoAccessService.requireRepoManage(user, String(group.repoId));
+    } else {
+      await this.repoAccessService.requireRepoRead(user, String(group.repoId));
+    }
+    return group;
+  }
 
   @Post(':id/preview/start')
   @ApiOperation({
@@ -40,8 +64,9 @@ export class TaskGroupPreviewController {
   @ApiOkResponse({ description: 'OK', type: PreviewStartResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async start(@Param('id') id: string): Promise<PreviewStartResponseDto> {
+  async start(@Req() req: Request, @Param('id') id: string): Promise<PreviewStartResponseDto> {
     try {
+      await this.requireGroupAccess(req, id, 'manage');
       const snapshot = await this.previewService.startPreview(id);
       return { success: true, instances: snapshot.instances };
     } catch (err) {
@@ -59,8 +84,9 @@ export class TaskGroupPreviewController {
   @ApiOkResponse({ description: 'OK', type: PreviewDependencyInstallResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async installDependencies(@Param('id') id: string): Promise<PreviewDependencyInstallResponseDto> {
+  async installDependencies(@Req() req: Request, @Param('id') id: string): Promise<PreviewDependencyInstallResponseDto> {
     try {
+      await this.requireGroupAccess(req, id, 'manage');
       const result = await this.previewService.installPreviewDependencies(id);
       return { success: true, result };
     } catch (err) {
@@ -76,8 +102,9 @@ export class TaskGroupPreviewController {
   })
   @ApiOkResponse({ description: 'OK', type: PreviewStopResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async stop(@Param('id') id: string): Promise<PreviewStopResponseDto> {
+  async stop(@Req() req: Request, @Param('id') id: string): Promise<PreviewStopResponseDto> {
     try {
+      await this.requireGroupAccess(req, id, 'manage');
       await this.previewService.stopPreview(id);
       return { success: true };
     } catch (err) {
@@ -93,8 +120,9 @@ export class TaskGroupPreviewController {
   })
   @ApiOkResponse({ description: 'OK', type: PreviewStatusResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async status(@Param('id') id: string): Promise<PreviewStatusResponseDto> {
+  async status(@Req() req: Request, @Param('id') id: string): Promise<PreviewStatusResponseDto> {
     try {
+      await this.requireGroupAccess(req, id, 'read');
       return await this.previewService.getStatus(id);
     } catch (err) {
       this.handleError(err, '[task-groups] preview status failed');
@@ -108,9 +136,14 @@ export class TaskGroupPreviewController {
     operationId: 'task_groups_preview_visibility'
   })
   @ApiOkResponse({ description: 'OK', type: PreviewVisibilityResponseDto })
-  async visibility(@Param('id') id: string, @Body() body: PreviewVisibilityRequestDto): Promise<PreviewVisibilityResponseDto> {
+  async visibility(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: PreviewVisibilityRequestDto
+  ): Promise<PreviewVisibilityResponseDto> {
     // Accept visibility updates to drive hidden preview shutdown timers. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
     try {
+      await this.requireGroupAccess(req, id, 'manage');
       this.previewService.markPreviewVisibility(id, body.visible);
       return { success: true };
     } catch (err) {
@@ -129,10 +162,12 @@ export class TaskGroupPreviewController {
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async highlight(
+    @Req() req: Request,
     @Param('id') id: string,
     @Param('instanceName') instanceName: string,
     @Body() body: PreviewHighlightRequestDto
   ): Promise<PreviewHighlightResponseDto> {
+    await this.requireGroupAccess(req, id, 'manage');
     const target = this.previewService.getProxyTarget(id, instanceName);
     if (!target) {
       throw new NotFoundException({ error: 'Preview instance not found' });
@@ -174,6 +209,7 @@ export class TaskGroupPreviewController {
     @Query('tail') tailRaw?: string
   ) {
     try {
+      await this.requireGroupAccess(req, id, 'read');
       const tail = parsePositiveInt(tailRaw, 200);
       const snapshot = await this.previewService.getLogSnapshot(id, instanceName, { tail });
       // Count log stream connections as preview activity to prevent idle shutdown. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as

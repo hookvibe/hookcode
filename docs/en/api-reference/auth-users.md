@@ -24,6 +24,13 @@ These endpoints cover:
 ### POST `/api/auth/login`
 <OpenApiOperation operationId="auth_login" />
 
+<!-- Document registration + verification endpoints. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+### POST `/api/auth/register`
+<OpenApiOperation operationId="auth_register" />
+
+### POST `/api/auth/verify-email`
+<OpenApiOperation operationId="auth_verify_email" />
+
 ### GET `/api/auth/me`
 <OpenApiOperation operationId="auth_me" />
 

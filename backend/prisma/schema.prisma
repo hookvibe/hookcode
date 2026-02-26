@@ -94,16 +94,27 @@ model User {
   id               String   @id @db.Uuid
   username         String
   usernameLower    String   @unique @map("username_lower")
+  /// Track login email + verification status for registration flow. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  email            String?  @map("email")
+  emailLower       String?  @unique @map("email_lower")
   displayName      String?  @map("display_name")
   modelCredentials Json?    @map("model_credentials_json") @db.JsonB
   passwordHash     String   @map("password_hash")
   passwordSalt     String   @map("password_salt")
   disabled         Boolean  @default(false)
+  /// Store roles for global RBAC checks (e.g., admin). docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  emailVerifiedAt  DateTime? @map("email_verified_at") @db.Timestamptz(6)
+  roles            String[] @default([]) @map("roles")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   /// Link PAT records back to the owning account. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
   apiTokens        UserApiToken[]
+  /// Link repo membership and invite relationships to users. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  repoMemberships  RepoMember[]
+  repoInvitesSent  RepoMemberInvite[] @relation("RepoMemberInviteInvitedBy")
+  repoInvitesReceived RepoMemberInvite[] @relation("RepoMemberInviteInvitedUser")
+  emailVerificationTokens EmailVerificationToken[]
 
   @@map("users")
 }
@@ -149,12 +160,77 @@ model Repository {
   updatedAt              DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   robots           RepoRobot[]
+  /// Attach repo members and pending invites for RBAC controls. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  members          RepoMember[]
+  invites          RepoMemberInvite[]
   automationConfig RepoAutomationConfig?
   webhookDeliveries RepoWebhookDelivery[]
 
   @@map("repositories")
   @@unique([provider, externalId], map: "repositories_provider_external_unique")
   @@index([archivedAt], map: "repositories_archived_at_idx")
+}
+
+/// Store per-repo membership roles for RBAC enforcement. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+model RepoMember {
+  id        String   @id @db.Uuid
+  repoId    String   @map("repo_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  role      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  repo Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("repo_members")
+  @@unique([repoId, userId], map: "repo_members_repo_user_unique")
+  @@index([userId], map: "repo_members_user_id_idx")
+}
+
+/// Persist repo member invites until accepted/revoked. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+model RepoMemberInvite {
+  id              String    @id @db.Uuid
+  repoId          String    @map("repo_id") @db.Uuid
+  email           String
+  emailLower      String    @map("email_lower")
+  role            String
+  tokenHash       String    @map("token_hash")
+  invitedByUserId String    @map("invited_by_user_id") @db.Uuid
+  invitedUserId   String?   @map("invited_user_id") @db.Uuid
+  acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  repo Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  invitedBy User @relation("RepoMemberInviteInvitedBy", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  invitedUser User? @relation("RepoMemberInviteInvitedUser", fields: [invitedUserId], references: [id], onDelete: SetNull)
+
+  @@map("repo_member_invites")
+  @@index([repoId], map: "repo_member_invites_repo_id_idx")
+  @@index([emailLower], map: "repo_member_invites_email_idx")
+  @@index([tokenHash], map: "repo_member_invites_token_hash_idx")
+}
+
+/// Track email verification tokens for registration. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+model EmailVerificationToken {
+  id         String    @id @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  email      String
+  emailLower String    @map("email_lower")
+  tokenHash  String    @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt     DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
+  @@index([userId], map: "email_verification_tokens_user_id_idx")
+  @@index([emailLower], map: "email_verification_tokens_email_idx")
+  @@unique([tokenHash], map: "email_verification_tokens_token_hash_unique")
 }
 
 model RepoWebhookDelivery {

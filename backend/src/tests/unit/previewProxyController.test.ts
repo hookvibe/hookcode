@@ -2,8 +2,12 @@ import { PreviewProxyController } from '../../modules/tasks/preview-proxy.contro
 
 // Validate preview proxy prefix derivation for HTML rewrites. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 describe('PreviewProxyController', () => {
+  // Provide stub dependencies for PreviewProxyController unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const previewService = {} as any;
+  const taskService = {} as any;
+  const repoAccessService = {} as any;
   test('derives prefix from originalUrl with api base', () => {
-    const controller = new PreviewProxyController({} as any);
+    const controller = new PreviewProxyController(previewService, taskService, repoAccessService);
     const req = {
       originalUrl: '/api/preview/group-1/app/@vite/client',
       url: '/group-1/app/@vite/client'
@@ -13,7 +17,7 @@ describe('PreviewProxyController', () => {
   });
 
   test('falls back to url when originalUrl is missing', () => {
-    const controller = new PreviewProxyController({} as any);
+    const controller = new PreviewProxyController(previewService, taskService, repoAccessService);
     const req = {
       url: '/preview/group-2/app/'
     } as any;
@@ -22,7 +26,7 @@ describe('PreviewProxyController', () => {
   });
 
   test('strips api preview prefix from asset paths', () => {
-    const controller = new PreviewProxyController({} as any);
+    const controller = new PreviewProxyController(previewService, taskService, repoAccessService);
     const path = (controller as any).stripPreviewPrefix(
       '/api/preview/group-1/app/src/main.tsx',
       '/api/preview/group-1/app',
@@ -33,7 +37,7 @@ describe('PreviewProxyController', () => {
   });
 
   test('falls back to instance prefix stripping when api prefix missing', () => {
-    const controller = new PreviewProxyController({} as any);
+    const controller = new PreviewProxyController(previewService, taskService, repoAccessService);
     const path = (controller as any).stripPreviewPrefix(
       '/group-2/app/@vite/client',
       '/api/preview/group-2/app',
@@ -44,21 +48,21 @@ describe('PreviewProxyController', () => {
   });
 
   test('rewrites inline module paths with preview prefix', () => {
-    const controller = new PreviewProxyController({} as any);
+    const controller = new PreviewProxyController(previewService, taskService, repoAccessService);
     const html = 'import "/@react-refresh";';
     const rewritten = (controller as any).rewritePreviewText(html, '/api/preview/group-3/app');
     expect(rewritten).toBe('import "/api/preview/group-3/app/@react-refresh";');
   });
 
   test('avoids double prefixing preview paths', () => {
-    const controller = new PreviewProxyController({} as any);
+    const controller = new PreviewProxyController(previewService, taskService, repoAccessService);
     const html = 'import "/api/preview/group-3/app/@vite/client";';
     const rewritten = (controller as any).rewritePreviewText(html, '/api/preview/group-3/app');
     expect(rewritten).toBe('import "/api/preview/group-3/app/@vite/client";');
   });
 
   test('avoids double prefixing base href', () => {
-    const controller = new PreviewProxyController({} as any);
+    const controller = new PreviewProxyController(previewService, taskService, repoAccessService);
     const html = '<head></head>';
     const rewritten = (controller as any).rewritePreviewHtml(html, '/api/preview/group-4/app');
     expect(rewritten).toContain('<base href="/api/preview/group-4/app/" />');

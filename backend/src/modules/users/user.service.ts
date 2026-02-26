@@ -33,10 +33,18 @@ const normalizeUsername = (input: string): string => input.trim();
 
 const normalizeUsernameLower = (input: string): string => normalizeUsername(input).toLowerCase();
 
+const normalizeEmail = (input: string): string => input.trim();
+
+const normalizeEmailLower = (input: string): string => normalizeEmail(input).toLowerCase();
+
 const userRecordToUser = (row: UserBaseRow): User => ({
   id: String(row.id),
   username: String(row.username),
+  // Attach email + roles for RBAC-aware responses. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  email: row.email ?? undefined,
   displayName: row.displayName ?? undefined,
+  emailVerifiedAt: row.emailVerifiedAt ? toIso(row.emailVerifiedAt) : undefined,
+  roles: Array.isArray(row.roles) ? row.roles.filter(Boolean).map(String) : [],
   disabled: Boolean(row.disabled),
   createdAt: toIso(row.createdAt),
   updatedAt: toIso(row.updatedAt)
@@ -270,7 +278,10 @@ const toPublicUserModelCredentials = (raw: unknown): UserModelCredentialsPublic 
 export interface CreateUserInput {
   username: string;
   password: string;
+  email?: string | null;
   displayName?: string;
+  roles?: string[];
+  emailVerifiedAt?: string | null;
 }
 
 export interface UpdateUserInput {
@@ -368,22 +379,49 @@ export class UserService {
     return row ? userRecordToUser(row) : null;
   }
 
+  async getByEmail(email: string): Promise<User | null> {
+    const emailLower = normalizeEmailLower(email);
+    if (!emailLower) return null;
+    const row = await db.user.findUnique({ where: { emailLower }, select: userBaseSelect });
+    return row ? userRecordToUser(row) : null;
+  }
+
   async getRecordByUsername(username: string): Promise<UserRecord | null> {
     const usernameLower = normalizeUsernameLower(username);
     const row = await db.user.findUnique({ where: { usernameLower }, select: userRecordSelect });
     return row ? userRecordToUserRecord(row) : null;
   }
 
+  async getRecordByLogin(login: string): Promise<UserRecord | null> {
+    // Support login by username or email for the registration flow. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    const normalized = normalizeUsername(login);
+    if (!normalized) return null;
+    const usernameLower = normalizeUsernameLower(normalized);
+    const emailLower = normalizeEmailLower(normalized);
+    const row = await db.user.findFirst({
+      where: {
+        OR: [{ usernameLower }, { emailLower }]
+      },
+      select: userRecordSelect
+    });
+    return row ? userRecordToUserRecord(row) : null;
+  }
+
   async createUser(input: CreateUserInput): Promise<User> {
     const username = normalizeUsername(input.username);
     const usernameLower = normalizeUsernameLower(input.username);
+    const email = input.email ? normalizeEmail(input.email) : '';
+    const emailLower = email ? normalizeEmailLower(email) : '';
     if (!username) throw new Error('username is required');
     if (!input.password) throw new Error('password is required');
+    if (input.email !== undefined && !email) throw new Error('email is required');
 
     const salt = createSalt();
     const passwordHash = deriveHash(input.password, salt);
     const now = new Date();
     const id = randomUUID();
+    const roles = Array.isArray(input.roles) ? input.roles.filter(Boolean).map(String) : [];
+    const emailVerifiedAt = input.emailVerifiedAt ? new Date(input.emailVerifiedAt) : null;
 
     try {
       const row = await db.user.create({
@@ -391,10 +429,14 @@ export class UserService {
           id,
           username,
           usernameLower,
+          email: email || null,
+          emailLower: emailLower || null,
           displayName: input.displayName ?? null,
           passwordHash,
           passwordSalt: salt,
           disabled: false,
+          emailVerifiedAt,
+          roles,
           createdAt: now,
           updatedAt: now
         },
@@ -403,7 +445,8 @@ export class UserService {
       return userRecordToUser(row);
     } catch (err) {
       if (isUniqueError(err)) {
-        throw new Error('username already exists');
+        // Keep the error message stable for registration UX. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+        throw new Error(email ? 'username or email already exists' : 'username already exists');
       }
       throw err;
     }
@@ -656,7 +699,7 @@ export class UserService {
         reason: 'not_found' | 'disabled' | 'invalid_password';
       }
   > {
-    const record = await this.getRecordByUsername(username);
+    const record = await this.getRecordByLogin(username);
     if (!record) return { ok: false, reason: 'not_found' };
     if (record.disabled) return { ok: false, reason: 'disabled' };
     const computed = deriveHash(password, record.passwordSalt);
@@ -696,7 +739,9 @@ export class UserService {
       await this.createUser({
         username,
         password,
-        displayName: 'Owner'
+        displayName: 'Owner',
+        // Bootstrap users should default to admin for system setup. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+        roles: ['admin']
       });
       console.log(`[user] initialized bootstrap user: ${username}`);
     } catch (err) {

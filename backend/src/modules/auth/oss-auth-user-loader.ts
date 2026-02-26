@@ -14,7 +14,10 @@ export class OssAuthUserLoader implements AuthUserLoader {
       id: user.id,
       username: user.username,
       displayName: user.displayName,
-      roles: []
+      // Propagate email + roles for RBAC enforcement. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+      email: user.email,
+      emailVerifiedAt: user.emailVerifiedAt,
+      roles: user.roles ?? []
     };
   }
 }

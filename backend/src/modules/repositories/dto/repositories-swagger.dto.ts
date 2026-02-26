@@ -17,6 +17,24 @@ export class RepositoryBranchSwaggerDto {
   isDefault?: boolean;
 }
 
+// Describe repo permission flags for UI gating. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+export class RepoPermissionsSwaggerDto {
+  @ApiProperty()
+  canRead!: boolean;
+
+  @ApiProperty()
+  canManage!: boolean;
+
+  @ApiProperty()
+  canDelete!: boolean;
+
+  @ApiProperty()
+  canManageMembers!: boolean;
+
+  @ApiProperty()
+  canManageTasks!: boolean;
+}
+
 export class RepositorySwaggerDto {
   @ApiProperty()
   id!: string;
@@ -48,6 +66,73 @@ export class RepositorySwaggerDto {
 
   @ApiProperty()
   enabled!: boolean;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string;
+
+  @ApiPropertyOptional({ enum: ['owner', 'maintainer', 'member'], nullable: true })
+  myRole?: 'owner' | 'maintainer' | 'member' | null;
+
+  @ApiPropertyOptional({ type: RepoPermissionsSwaggerDto })
+  permissions?: RepoPermissionsSwaggerDto;
+}
+
+export class RepoMemberSwaggerDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  userId!: string;
+
+  @ApiProperty()
+  username!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  displayName?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  email?: string | null;
+
+  @ApiProperty({ enum: ['owner', 'maintainer', 'member'] })
+  role!: 'owner' | 'maintainer' | 'member';
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string;
+}
+
+export class RepoInviteSwaggerDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  repoId!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty({ enum: ['owner', 'maintainer', 'member'] })
+  role!: 'owner' | 'maintainer' | 'member';
+
+  @ApiProperty()
+  invitedByUserId!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  invitedUserId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, format: 'date-time' })
+  acceptedAt?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, format: 'date-time' })
+  revokedAt?: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  expiresAt!: string;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
@@ -326,6 +411,31 @@ export class UnarchiveRepositoryResponseDto {
 
   @ApiProperty()
   taskGroupsRestored!: number;
+}
+
+export class DeleteRepositoryResponseDto {
+  @ApiProperty({ type: RepositorySwaggerDto })
+  repo!: RepositorySwaggerDto;
+}
+
+export class ListRepoMembersResponseDto {
+  @ApiProperty({ type: RepoMemberSwaggerDto, isArray: true })
+  members!: RepoMemberSwaggerDto[];
+}
+
+export class ListRepoInvitesResponseDto {
+  @ApiProperty({ type: RepoInviteSwaggerDto, isArray: true })
+  invites!: RepoInviteSwaggerDto[];
+}
+
+export class CreateRepoInviteResponseDto {
+  @ApiProperty({ type: RepoInviteSwaggerDto })
+  invite!: RepoInviteSwaggerDto;
+}
+
+export class AcceptRepoInviteResponseDto {
+  @ApiProperty()
+  repoId!: string;
 }
 
 export class ListRepoRobotsResponseDto {

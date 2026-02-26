@@ -5,6 +5,8 @@ import { TasksController } from '../../modules/tasks/tasks.controller';
 
 describe('TasksController.volumeByDay', () => {
   const repoId = '00000000-0000-0000-0000-000000000001';
+  // Provide a request user for RBAC-protected endpoints in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const req = { user: { id: 'u1', username: 'u1', roles: [] } } as any;
 
   test('parses UTC day range and calls TaskService with an exclusive end boundary', async () => {
     const taskService: any = {
@@ -12,9 +14,10 @@ describe('TasksController.volumeByDay', () => {
     };
 
     // Provide a TaskGitPushService stub to satisfy the controller constructor. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
-    const controller = new TasksController(taskService, {} as any, {} as any, {} as any);
+    const repoAccessService = { requireRepoRead: jest.fn().mockResolvedValue(undefined) }; // Stub repo access checks for volume-by-day tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    const controller = new TasksController(taskService, {} as any, {} as any, {} as any, repoAccessService as any);
     // Keep API parity with the new `archived` query param added to volumeByDay. qnp1mtxhzikhbi0xspbc
-    const res = await controller.volumeByDay(repoId, '2026-01-01', '2026-01-02', undefined, undefined, undefined);
+    const res = await controller.volumeByDay(req, repoId, '2026-01-01', '2026-01-02', undefined, undefined, undefined);
 
     expect(taskService.getTaskVolumeByDay).toHaveBeenCalledTimes(1);
     const args = (taskService.getTaskVolumeByDay as jest.Mock).mock.calls[0][0];
@@ -27,12 +30,15 @@ describe('TasksController.volumeByDay', () => {
   test('rejects invalid date inputs', async () => {
     const taskService: any = { getTaskVolumeByDay: jest.fn() };
     // Provide a TaskGitPushService stub to satisfy the controller constructor. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
-    const controller = new TasksController(taskService, {} as any, {} as any, {} as any);
+    const repoAccessService = { requireRepoRead: jest.fn().mockResolvedValue(undefined) }; // Stub repo access checks for volume-by-day tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    const controller = new TasksController(taskService, {} as any, {} as any, {} as any, repoAccessService as any);
 
     await expect(
-      controller.volumeByDay(repoId, '2026-99-01', '2026-01-02', undefined, undefined, undefined)
+      controller.volumeByDay(req, repoId, '2026-99-01', '2026-01-02', undefined, undefined, undefined)
     ).rejects.toBeInstanceOf(BadRequestException);
-    await expect(controller.volumeByDay(repoId, '2026-01-01', 'bad', undefined, undefined, undefined)).rejects.toBeInstanceOf(
+    await expect(
+      controller.volumeByDay(req, repoId, '2026-01-01', 'bad', undefined, undefined, undefined)
+    ).rejects.toBeInstanceOf(
       BadRequestException
     );
   });

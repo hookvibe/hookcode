@@ -32,6 +32,9 @@ import type {
   RepoRobot,
   RepoScopedCredentialsPublic,
   RepoPreviewConfigResponse,
+  RepoInvite,
+  RepoMember,
+  RepoRole,
   Repository,
   SkillSelectionKey,
   SkillSelectionState,
@@ -45,6 +48,8 @@ import type {
 import {
   archiveRepo,
   createRepoRobot,
+  createRepoInvite,
+  deleteRepo,
   deleteRepoRobot,
   fetchMyApiTokens,
   fetchMyModelCredentials,
@@ -53,19 +58,25 @@ import {
   fetchRepoPreviewConfig,
   fetchTaskGroups,
   listMyModelProviderModels,
+  listRepoInvites,
+  listRepoMembers,
   listRepoModelProviderModels,
+  removeRepoMember,
   revokeMyApiToken,
+  revokeRepoInvite,
   unarchiveRepo,
   testRepoRobot,
   testRepoRobotWorkflow, // Add workflow-mode test API to validate direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
   updateRepo,
   updateRepoAutomation,
+  updateRepoMemberRole,
   updateRepoRobot,
   updateRepoSkillSelection
 } from '../api';
 import { supportedLocales, useLocale, useT } from '../i18n';
 import { buildReposHash, buildTaskHash } from '../router';
 import { getPrevHashForBack, isInAppHash } from '../navHistory';
+import { getStoredUser } from '../auth';
 import { RepoAutomationPanel } from '../components/repoAutomation/RepoAutomationPanel';
 import { RepoBranchesCard } from '../components/repos/RepoBranchesCard';
 import { RepoWebhookDeliveriesPanel } from '../components/repos/RepoWebhookDeliveriesPanel';
@@ -285,8 +296,25 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
   const [credentialsSaving, setCredentialsSaving] = useState(false);
   const [repoArchiving, setRepoArchiving] = useState(false);
   const [repoUnarchiving, setRepoUnarchiving] = useState(false);
+  const [repoDeleting, setRepoDeleting] = useState(false);
+  // Track repo member and invite data for RBAC management UI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const [members, setMembers] = useState<RepoMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [memberUpdatingId, setMemberUpdatingId] = useState<string | null>(null);
+  const [memberRemovingId, setMemberRemovingId] = useState<string | null>(null);
+  const [invites, setInvites] = useState<RepoInvite[]>([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [inviteRevokingId, setInviteRevokingId] = useState<string | null>(null);
+  const [inviteForm] = Form.useForm<{ email: string; role: RepoRole }>();
 
   const repoArchived = Boolean(repo?.archivedAt); // Disable edits when repo is archived (archive area is read-only). qnp1mtxhzikhbi0xspbc
+  const currentUserId = getStoredUser()?.id ?? '';
+  // Derive repo permission flags for UI gating. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const canManageRepo = Boolean(repo?.permissions?.canManage);
+  const canDeleteRepo = Boolean(repo?.permissions?.canDelete);
+  const canManageMembers = Boolean(repo?.permissions?.canManageMembers);
+  const repoReadOnly = repoArchived || !canManageRepo;
 
   const [repoProviderProfilesPage, setRepoProviderProfilesPage] = useState(1);
   // Track unified model profile pagination state for the merged list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
@@ -419,6 +447,28 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     if (!value) return '-';
     return formatTime(value);
   }, [formatTime]);
+
+  // Build role options for member/invite management. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const roleOptions = useMemo(
+    () => [
+      { value: 'owner' as RepoRole, label: t('repos.members.role.owner'), disabled: !canDeleteRepo },
+      { value: 'maintainer' as RepoRole, label: t('repos.members.role.maintainer') },
+      { value: 'member' as RepoRole, label: t('repos.members.role.member') }
+    ],
+    [canDeleteRepo, t]
+  );
+
+  // Derive invite status tags for the invite list. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const resolveInviteStatus = useCallback(
+    (invite: RepoInvite): { key: string; color: string } => {
+      if (invite.revokedAt) return { key: 'revoked', color: 'red' };
+      if (invite.acceptedAt) return { key: 'accepted', color: 'green' };
+      const expiresAt = invite.expiresAt ? new Date(invite.expiresAt).getTime() : 0;
+      if (expiresAt && expiresAt <= Date.now()) return { key: 'expired', color: 'orange' };
+      return { key: 'pending', color: 'blue' };
+    },
+    []
+  );
 
   const refreshPreviewConfig = useCallback(async () => {
     // Load repo preview configuration metadata for the dashboard card. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -573,7 +623,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
   }, [webhookSecret]);
 
   const handleSaveBasic = useCallback(async () => {
-    if (!repoId || basicSaving || repoArchived) return;
+    // Block basic repo saves when repo is read-only or user lacks manage rights. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    if (!repoId || basicSaving || repoReadOnly) return;
     const values = await basicForm.validateFields();
     setBasicSaving(true);
     try {
@@ -591,11 +642,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     } finally {
       setBasicSaving(false);
     }
-  }, [basicForm, basicSaving, message, refresh, repo?.name, repoArchived, repoId, t]);
+  }, [basicForm, basicSaving, message, refresh, repo?.name, repoId, repoReadOnly, t]);
 
   // Archive/unarchive controls live in the repo basic panel to keep the Archive area discoverable. qnp1mtxhzikhbi0xspbc
   const handleArchiveRepo = useCallback(async () => {
     if (!repoId || repoArchiving) return;
+    // Enforce manage permission before archiving. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    if (!canManageRepo) {
+      message.error(t('repos.permissions.manageRequired'));
+      return;
+    }
     setRepoArchiving(true);
     try {
       await archiveRepo(repoId);
@@ -607,10 +663,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     } finally {
       setRepoArchiving(false);
     }
-  }, [message, refresh, repoArchiving, repoId, t]);
+  }, [canManageRepo, message, refresh, repoArchiving, repoId, t]);
 
   const handleUnarchiveRepo = useCallback(async () => {
     if (!repoId || repoUnarchiving) return;
+    // Enforce manage permission before unarchiving. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    if (!canManageRepo) {
+      message.error(t('repos.permissions.manageRequired'));
+      return;
+    }
     setRepoUnarchiving(true);
     try {
       await unarchiveRepo(repoId);
@@ -622,13 +683,151 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     } finally {
       setRepoUnarchiving(false);
     }
-  }, [message, refresh, repoId, repoUnarchiving, t]);
+  }, [canManageRepo, message, refresh, repoId, repoUnarchiving, t]);
+
+  // Delete repo with RBAC gating for owner/admin only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const handleDeleteRepo = useCallback(async () => {
+    if (!repoId || repoDeleting) return;
+    if (!canDeleteRepo) {
+      message.error(t('repos.permissions.deleteRequired'));
+      return;
+    }
+    setRepoDeleting(true);
+    try {
+      await deleteRepo(repoId);
+      message.success(t('toast.repos.deleteSuccess'));
+      window.location.hash = buildReposHash();
+    } catch (err: any) {
+      console.error(err);
+      message.error(err?.response?.data?.error || t('toast.repos.deleteFailed'));
+    } finally {
+      setRepoDeleting(false);
+    }
+  }, [canDeleteRepo, message, repoDeleting, repoId, t]);
+
+  // Load/manage repo members and invites for the members panel. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const refreshMembers = useCallback(async () => {
+    if (!repoId || !canManageMembers) return;
+    setMembersLoading(true);
+    try {
+      const data = await listRepoMembers(repoId);
+      setMembers(data);
+    } catch (err: any) {
+      console.error(err);
+      message.error(err?.response?.data?.error || t('toast.repos.membersFetchFailed'));
+      setMembers([]);
+    } finally {
+      setMembersLoading(false);
+    }
+  }, [canManageMembers, message, repoId, t]);
+
+  const refreshInvites = useCallback(async () => {
+    if (!repoId || !canManageMembers) return;
+    setInvitesLoading(true);
+    try {
+      const data = await listRepoInvites(repoId);
+      setInvites(data);
+    } catch (err: any) {
+      console.error(err);
+      message.error(err?.response?.data?.error || t('toast.repos.invitesFetchFailed'));
+      setInvites([]);
+    } finally {
+      setInvitesLoading(false);
+    }
+  }, [canManageMembers, message, repoId, t]);
+
+  useEffect(() => {
+    // Fetch members + invites when the repo or permissions change. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    if (!canManageMembers) return;
+    void refreshMembers();
+    void refreshInvites();
+  }, [canManageMembers, refreshInvites, refreshMembers]);
+
+  const handleInviteSubmit = useCallback(async () => {
+    if (!repoId || inviteSubmitting) return;
+    // Require manage-members permission before sending invites. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    if (!canManageMembers) return;
+    try {
+      const values = await inviteForm.validateFields();
+      setInviteSubmitting(true);
+      await createRepoInvite(repoId, { email: values.email, role: values.role });
+      message.success(t('toast.repos.inviteSent'));
+      inviteForm.resetFields();
+      await refreshInvites();
+    } catch (err: any) {
+      console.error(err);
+      message.error(err?.response?.data?.error || t('toast.repos.inviteSendFailed'));
+    } finally {
+      setInviteSubmitting(false);
+    }
+  }, [canManageMembers, inviteForm, inviteSubmitting, message, refreshInvites, repoId, t]);
+
+  const handleUpdateMemberRole = useCallback(
+    async (member: RepoMember, role: RepoRole) => {
+      if (!repoId || memberUpdatingId) return;
+      // Require manage-members permission before role changes. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+      if (!canManageMembers) return;
+      setMemberUpdatingId(member.userId);
+      try {
+        await updateRepoMemberRole(repoId, member.userId, role);
+        message.success(t('toast.repos.memberUpdated'));
+        await refreshMembers();
+      } catch (err: any) {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.repos.memberUpdateFailed'));
+      } finally {
+        setMemberUpdatingId(null);
+      }
+    },
+    [canManageMembers, memberUpdatingId, message, refreshMembers, repoId, t]
+  );
+
+  const handleRemoveMember = useCallback(
+    async (member: RepoMember) => {
+      if (!repoId || memberRemovingId) return;
+      // Require manage-members permission before removing members. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+      if (!canManageMembers) return;
+      setMemberRemovingId(member.userId);
+      try {
+        await removeRepoMember(repoId, member.userId);
+        message.success(t('toast.repos.memberRemoved'));
+        await refreshMembers();
+      } catch (err: any) {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.repos.memberRemoveFailed'));
+      } finally {
+        setMemberRemovingId(null);
+      }
+    },
+    [canManageMembers, memberRemovingId, message, refreshMembers, repoId, t]
+  );
+
+  const handleRevokeInvite = useCallback(
+    async (invite: RepoInvite) => {
+      if (!repoId || inviteRevokingId) return;
+      // Require manage-members permission before revoking invites. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+      if (!canManageMembers) return;
+      setInviteRevokingId(invite.id);
+      try {
+        await revokeRepoInvite(repoId, invite.id);
+        message.success(t('toast.repos.inviteRevoked'));
+        await refreshInvites();
+      } catch (err: any) {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.repos.inviteRevokeFailed'));
+      } finally {
+        setInviteRevokingId(null);
+      }
+    },
+    [canManageMembers, inviteRevokingId, message, refreshInvites, repoId, t]
+  );
 
   const patchRepoScopedCredentials = useCallback(
     async (patch: Parameters<typeof updateRepo>[1]) => {
       // Business context: repo-scoped credentials (repo token + model provider keys) live on the repository record
       // and can contain multiple profiles, which robots can reference by `credentialProfileId`.
-      if (!repoId || credentialsSaving) return null;
+      // Block credential mutations when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+      if (!repoId || credentialsSaving || repoReadOnly) return null;
       setCredentialsSaving(true);
       try {
         const updated = await updateRepo(repoId, patch);
@@ -646,7 +845,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
         setCredentialsSaving(false);
       }
     },
-    [credentialsSaving, message, repoId, t]
+    [credentialsSaving, message, repoId, repoReadOnly, t]
   );
 
   const startEditRepoProviderProfile = useCallback(
@@ -1079,14 +1278,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
   );
 
   const openCreateRobot = useCallback(() => {
-    // Block robot creation for archived repos in the UI (backend enforces this too). qnp1mtxhzikhbi0xspbc
-    if (repoArchived) return;
+    // Block robot creation when the repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    if (repoReadOnly) return;
     setEditingRobot(null);
     setRobotChangingToken(false);
     setRobotChangingModelApiKey(false);
     setRobotModalOpen(true);
     robotForm.setFieldsValue(buildRobotInitialValues(null));
-  }, [buildRobotInitialValues, repoArchived, robotForm]);
+  }, [buildRobotInitialValues, repoReadOnly, robotForm]);
 
   const openEditRobot = useCallback(
     (robot: RepoRobot) => {
@@ -1101,7 +1300,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
 
   const handleSubmitRobot = useCallback(
     async (values: RobotFormValues) => {
-      if (!repo || repoArchived) return; // Block robot mutations when repo is archived (view-only). qnp1mtxhzikhbi0xspbc
+      // Block robot mutations when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+      if (!repo || repoReadOnly) return;
       // Allow configuring robots without requiring webhook verification (webhooks are optional). 58w1q3n5nr58flmempxe
 
       setRobotSubmitting(true);
@@ -1308,7 +1508,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
       editingRobot,
       message,
       repo,
-      repoArchived,
+      repoReadOnly,
       repoScopedCredentials,
       robotChangingModelApiKey,
       robotChangingToken,
@@ -1319,7 +1519,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
 
   const handleTestRobot = useCallback(
     async (robot: RepoRobot) => {
-      if (!repo || repoArchived) return; // Block robot activation tests for archived repos (view-only). qnp1mtxhzikhbi0xspbc
+      if (!repo || repoReadOnly) return; // Block robot activation tests for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
       // Allow robot activation tests even when webhooks are not configured yet. 58w1q3n5nr58flmempxe
       setRobotTestingId(robot.id);
       try {
@@ -1337,13 +1537,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
         setRobotTestingId(null);
       }
     },
-    [message, repo, repoArchived, t]
+    [message, repo, repoReadOnly, t]
   );
 
   const handleTestRobotWorkflow = useCallback(
     async () => {
       // Validate the selected repo workflow mode using the saved robot credentials. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
-      if (!repo || repoArchived) return; // Block workflow checks for archived repos to keep view-only state. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      if (!repo || repoReadOnly) return; // Block workflow checks for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
       if (!editingRobot?.id) {
         message.warning(t('repos.robotForm.workflowMode.saveRequired'));
         return;
@@ -1366,12 +1566,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
         setRobotWorkflowTestingId(null);
       }
     },
-    [editingRobot, message, repo, repoArchived, robotForm, t]
+    [editingRobot, message, repo, repoReadOnly, robotForm, t]
   );
 
   const handleToggleRobotEnabled = useCallback(
     async (robot: RepoRobot) => {
-      if (!repo || repoArchived) return; // Block enable/disable mutations for archived repos (view-only). qnp1mtxhzikhbi0xspbc
+      if (!repo || repoReadOnly) return; // Block enable/disable mutations for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
       // Allow enabling/disabling robots without requiring webhook verification. 58w1q3n5nr58flmempxe
       setRobotTogglingId(robot.id);
       try {
@@ -1385,12 +1585,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
         setRobotTogglingId(null);
       }
     },
-    [message, repo, repoArchived, t]
+    [message, repo, repoReadOnly, t]
   );
 
   const handleDeleteRobot = useCallback(
     async (robot: RepoRobot) => {
-      if (!repo || repoArchived) return; // Block robot deletion for archived repos (view-only). qnp1mtxhzikhbi0xspbc
+      if (!repo || repoReadOnly) return; // Block robot deletion for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
       // Allow deleting robots without requiring webhook verification. 58w1q3n5nr58flmempxe
 
       setRobotDeletingId(robot.id);
@@ -1415,7 +1615,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
         setRobotDeletingId(null);
       }
     },
-    [message, repo, repoArchived, t]
+    [message, repo, repoReadOnly, t]
   );
 
   // Provide section-based navigation for the repo detail dashboard without using tab switching. u55e45ffi8jng44erdzp
@@ -1519,8 +1719,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
 
 	        <div className="hc-page__body">
           {repo ? (
-            // Skip onboarding wizard for archived repositories to keep archived repos strictly read-only. qnp1mtxhzikhbi0xspbc
-            onboardingOpen && !repoArchived ? (
+            // Skip onboarding wizard for read-only repositories to avoid exposing edit flows. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+            onboardingOpen && !repoReadOnly ? (
               <RepoOnboardingWizard
                 repo={repo}
                 robots={robotsSorted}
@@ -1561,7 +1761,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                             style={{ marginBottom: 12 }}
                           />
                         ) : null}
-                        <Form form={basicForm} layout="vertical" requiredMark={false} disabled={repoArchived}>
+                        {/* Disable basic edits when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                        <Form form={basicForm} layout="vertical" requiredMark={false} disabled={repoReadOnly}>
                           <Form.Item label={t('common.name')} name="name" rules={[{ required: true, message: t('repos.form.nameRequired') }]}>
                             <Input />
                           </Form.Item>
@@ -1580,6 +1781,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                             {t('repos.detail.openedFromTask', { taskId: fromTaskId })}
                           </Typography.Paragraph>
                         ) : null}
+                        {/* Gate repo actions when user lacks manage rights. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
                           {repoArchived ? (
                             <Popconfirm
@@ -1589,7 +1791,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                               cancelText={t('common.cancel')}
                               onConfirm={() => void handleUnarchiveRepo()}
                             >
-                              <Button type="primary" loading={repoUnarchiving} disabled={loading}>
+                              <Button type="primary" loading={repoUnarchiving} disabled={loading || !canManageRepo}>
                                 {t('common.restore')}
                               </Button>
                             </Popconfirm>
@@ -1602,7 +1804,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                                 cancelText={t('common.cancel')}
                                 onConfirm={() => void handleArchiveRepo()}
                               >
-                                <Button danger loading={repoArchiving} disabled={loading}>
+                                <Button danger loading={repoArchiving} disabled={loading || !canManageRepo}>
                                   {t('repos.detail.archive')}
                                 </Button>
                               </Popconfirm>
@@ -1611,7 +1813,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                                 icon={<SaveOutlined />}
                                 onClick={() => void handleSaveBasic()}
                                 loading={basicSaving}
-                                disabled={loading}
+                                disabled={loading || repoReadOnly}
                               >
                                 {t('common.save')}
                               </Button>
@@ -1625,8 +1827,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                     key: 'branches',
                     label: t('repos.detail.tabs.branches'),
                     children: (
-                      // Render branches as read-only when the repository is archived. qnp1mtxhzikhbi0xspbc
-                      <RepoBranchesCard repo={repo} onSaved={(next) => setRepo(next)} readOnly={repoArchived} />
+                      <>
+                        {/* Render branches as read-only when the repository is archived. qnp1mtxhzikhbi0xspbc */}
+                        {/* Gate branch edits when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                        <RepoBranchesCard repo={repo} onSaved={(next) => setRepo(next)} readOnly={repoReadOnly} />
+                      </>
                     )
                   },
                   {
@@ -1648,7 +1853,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                               className="hc-card"
                               extra={
                                 // Disable credential mutations for archived repos (archive is view-only). qnp1mtxhzikhbi0xspbc
-                                <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving || repoArchived}>
+                                // Disable credential mutations for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+                                <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving || repoReadOnly}>
                                   {t('panel.credentials.profile.add')}
                                 </Button>
                               }
@@ -1686,10 +1892,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                                               <Typography.Text type="secondary">{p.cloneUsername || '-'}</Typography.Text>
                                             </Space>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                              <Button size="small" onClick={() => startEditRepoProviderProfile(p)} disabled={credentialsSaving || repoArchived}>
+                                              {/* Disable credential actions for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                                              <Button size="small" onClick={() => startEditRepoProviderProfile(p)} disabled={credentialsSaving || repoReadOnly}>
                                                 {t('common.manage')}
                                               </Button>
-                                              <Button size="small" danger onClick={() => removeRepoProviderProfile(p.id)} disabled={credentialsSaving || repoArchived}>
+                                              <Button size="small" danger onClick={() => removeRepoProviderProfile(p.id)} disabled={credentialsSaving || repoReadOnly}>
                                                 {t('panel.credentials.profile.remove')}
                                               </Button>
                                             </div>
@@ -1731,7 +1938,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                                 <>
                                   {/* Use a single add entry point for the unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
                                   {/* Disable model credential mutations for archived repos (archive is view-only). qnp1mtxhzikhbi0xspbc */}
-                                  <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={credentialsSaving || repoArchived}>
+                                  {/* Disable model credential mutations for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                                  <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={credentialsSaving || repoReadOnly}>
                                     {t('panel.credentials.profile.add')}
                                   </Button>
                                 </>
@@ -1768,14 +1976,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                                               <Typography.Text type="secondary">{profile.apiBaseUrl || '-'}</Typography.Text>
                                             </Space>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                              <Button size="small" onClick={() => startEditModelProfile(provider, profile)} disabled={credentialsSaving || repoArchived}>
+                                              {/* Disable model credential actions for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                                              <Button size="small" onClick={() => startEditModelProfile(provider, profile)} disabled={credentialsSaving || repoReadOnly}>
                                                 {t('common.manage')}
                                               </Button>
                                               <Button
                                                 size="small"
                                                 danger
                                                 onClick={() => removeModelProviderProfile(provider, profile.id)}
-                                                disabled={credentialsSaving || repoArchived}
+                                                disabled={credentialsSaving || repoReadOnly}
                                               >
                                                 {t('panel.credentials.profile.remove')}
                                               </Button>
@@ -1816,8 +2025,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                         title={t('repos.robots.title')}
                         className="hc-card"
                         extra={
-                          // Hide the create button for archived repositories to keep robot config immutable. qnp1mtxhzikhbi0xspbc
-                          repoArchived ? null : (
+                          // Hide the create button for read-only repositories. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+                          repoReadOnly ? null : (
                             <Button icon={<PlusOutlined />} onClick={openCreateRobot}>
                               {t('repos.robots.createRobot')}
                             </Button>
@@ -1903,11 +2112,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                                 width: 300,
                                 render: (_: any, r: RepoRobot) => (
                                   <Space size={8} wrap style={{ minWidth: 0 }}>
-                                    {/* Hide robot write actions for archived repositories (view-only). qnp1mtxhzikhbi0xspbc */}
+                                    {/* Hide robot write actions for read-only repositories. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
                                     <Button size="small" onClick={() => openEditRobot(r)}>
-                                      {repoArchived ? t('common.view') : t('common.edit')}
+                                      {repoReadOnly ? t('common.view') : t('common.edit')}
                                     </Button>
-                                    {!repoArchived ? (
+                                    {!repoReadOnly ? (
                                       <>
                                         <Button
                                           size="small"
@@ -1959,7 +2168,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                           repo={repo}
                           robots={robotsSorted}
                           value={automationConfig ?? defaultAutomationConfig()}
-                          readOnly={repoArchived} // Propagate repo archive state so automation becomes view-only. qnp1mtxhzikhbi0xspbc
+                          readOnly={repoReadOnly} // Gate automation edits for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
                           onChange={(next) => setAutomationConfig(next)}
                           onSave={async (next) => {
                             // Allow saving automation config even before webhook verification. 58w1q3n5nr58flmempxe
@@ -2099,11 +2308,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                                             cancelText={t('common.cancel')}
                                             onConfirm={() => void revokeRepoTaskGroupToken(tokenItem)}
                                           >
+                                            {/* Block token revokes when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
                                             <Button
                                               size="small"
                                               danger
                                               loading={repoTaskGroupTokenRevokingId === tokenItem.id}
-                                              disabled={isRevoked || repoArchived}
+                                              disabled={isRevoked || repoReadOnly}
                                             >
                                               {t('panel.apiTokens.revoke')}
                                             </Button>
@@ -2218,13 +2428,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                         {/* Region 2.8: repo-level skill defaults for task-group inheritance. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
                         <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
                           <Card size="small" title={t('skills.selection.repo.title')} className="hc-card">
+                            {/* Disable skill selection edits for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
                             <SkillSelectionPanel
                               scope="repo"
                               skills={skillsCatalog}
                               selection={skillSelection}
                               loading={skillSelectionLoading || skillsCatalogLoading}
                               saving={skillSelectionSaving}
-                              disabled={repoArchived}
+                              disabled={repoReadOnly}
                               onRefresh={() => {
                                 void refreshSkillSelection();
                                 void refreshSkillsCatalog();
@@ -2252,6 +2463,230 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
 	                          {section('automation')}
 	                        </div>
 	                      </div>
+
+                      {canManageMembers ? (
+                        <div className="hc-repo-dashboard__region">
+                          {/* Region 5.5: repo member + invite management. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                          <Row gutter={[12, 12]}>
+                            <Col xs={24} lg={12} style={{ display: 'flex' }}>
+                              <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
+                                <Card
+                                  size="small"
+                                  title={t('repos.members.title')}
+                                  className="hc-card"
+                                  extra={
+                                    <Button
+                                      size="small"
+                                      icon={<ReloadOutlined />}
+                                      onClick={() => void refreshMembers()}
+                                      disabled={membersLoading}
+                                    >
+                                      {t('common.refresh')}
+                                    </Button>
+                                  }
+                                >
+                                  <ScrollableTable<RepoMember>
+                                    rowKey="id"
+                                    dataSource={members}
+                                    loading={membersLoading}
+                                    pagination={{ pageSize: 8, showSizeChanger: false, hideOnSinglePage: true }}
+                                    locale={{ emptyText: t('repos.members.empty') }}
+                                    columns={[
+                                      {
+                                        title: t('repos.members.column.user'),
+                                        key: 'user',
+                                        render: (_: any, member: RepoMember) => (
+                                          <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                                            <Typography.Text strong>{member.displayName || member.username}</Typography.Text>
+                                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                              {member.username}
+                                            </Typography.Text>
+                                          </Space>
+                                        )
+                                      },
+                                      {
+                                        title: t('repos.members.column.email'),
+                                        dataIndex: 'email',
+                                        render: (value: string) => <Typography.Text type="secondary">{value || '-'}</Typography.Text>
+                                      },
+                                      {
+                                        title: t('repos.members.column.role'),
+                                        key: 'role',
+                                        render: (_: any, member: RepoMember) => {
+                                          // Prevent non-owners from changing/removing owner roles. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+                                          const isOwner = member.role === 'owner';
+                                          const roleDisabled = repoReadOnly || memberUpdatingId === member.userId || (isOwner && !canDeleteRepo);
+                                          return (
+                                            <Select
+                                              value={member.role}
+                                              options={roleOptions}
+                                              size="small"
+                                              loading={memberUpdatingId === member.userId}
+                                              disabled={roleDisabled}
+                                              onChange={(value) => void handleUpdateMemberRole(member, value as RepoRole)}
+                                            />
+                                          );
+                                        }
+                                      },
+                                      {
+                                        title: t('common.actions'),
+                                        key: 'actions',
+                                        render: (_: any, member: RepoMember) => {
+                                          const isOwner = member.role === 'owner';
+                                          const isSelf = member.userId === currentUserId;
+                                          const removeDisabled =
+                                            repoReadOnly ||
+                                            memberRemovingId === member.userId ||
+                                            isSelf ||
+                                            (isOwner && !canDeleteRepo);
+                                          return (
+                                            <Popconfirm
+                                              title={t('repos.members.removeConfirmTitle')}
+                                              description={t('repos.members.removeConfirmDesc')}
+                                              okText={t('common.delete')}
+                                              cancelText={t('common.cancel')}
+                                              onConfirm={() => void handleRemoveMember(member)}
+                                              disabled={removeDisabled}
+                                            >
+                                              <Button size="small" danger disabled={removeDisabled} loading={memberRemovingId === member.userId}>
+                                                {t('common.delete')}
+                                              </Button>
+                                            </Popconfirm>
+                                          );
+                                        }
+                                      }
+                                    ]}
+                                  />
+                                </Card>
+                              </div>
+                            </Col>
+
+                            <Col xs={24} lg={12} style={{ display: 'flex' }}>
+                              <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
+                                <Card
+                                  size="small"
+                                  title={t('repos.invites.title')}
+                                  className="hc-card"
+                                  extra={
+                                    <Button
+                                      size="small"
+                                      icon={<ReloadOutlined />}
+                                      onClick={() => void refreshInvites()}
+                                      disabled={invitesLoading}
+                                    >
+                                      {t('common.refresh')}
+                                    </Button>
+                                  }
+                                >
+                                  {/* Disable invite creation when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                                  <Form
+                                    form={inviteForm}
+                                    layout="vertical"
+                                    requiredMark={false}
+                                    initialValues={{ role: 'member' as RepoRole }}
+                                    onFinish={() => void handleInviteSubmit()}
+                                    disabled={repoReadOnly || inviteSubmitting}
+                                  >
+                                    <Row gutter={12}>
+                                      <Col xs={24} md={16}>
+                                        <Form.Item
+                                          name="email"
+                                          label={t('repos.invites.email')}
+                                          rules={[
+                                            { required: true, message: t('repos.invites.validation.emailRequired') },
+                                            { type: 'email', message: t('repos.invites.validation.emailInvalid') }
+                                          ]}
+                                        >
+                                          <Input placeholder={t('repos.invites.emailPlaceholder')} />
+                                        </Form.Item>
+                                      </Col>
+                                      <Col xs={24} md={8}>
+                                        <Form.Item
+                                          name="role"
+                                          label={t('repos.invites.role')}
+                                          rules={[{ required: true, message: t('repos.invites.validation.roleRequired') }]}
+                                        >
+                                          <Select options={roleOptions} />
+                                        </Form.Item>
+                                      </Col>
+                                    </Row>
+                                    <Button type="primary" loading={inviteSubmitting} onClick={() => inviteForm.submit()}>
+                                      {t('repos.invites.send')}
+                                    </Button>
+                                  </Form>
+
+                                  <Divider style={{ margin: '16px 0' }} />
+
+                                  <ScrollableTable<RepoInvite>
+                                    rowKey="id"
+                                    dataSource={invites}
+                                    loading={invitesLoading}
+                                    pagination={{ pageSize: 6, showSizeChanger: false, hideOnSinglePage: true }}
+                                    locale={{ emptyText: t('repos.invites.empty') }}
+                                    columns={[
+                                      {
+                                        title: t('repos.invites.column.email'),
+                                        dataIndex: 'email',
+                                        render: (value: string) => <Typography.Text>{value}</Typography.Text>
+                                      },
+                                      {
+                                        title: t('repos.invites.column.role'),
+                                        dataIndex: 'role',
+                                        render: (value: RepoRole) => (
+                                          <Tag color="blue">{t(`repos.members.role.${value}` as const)}</Tag>
+                                        )
+                                      },
+                                      {
+                                        title: t('repos.invites.column.status'),
+                                        key: 'status',
+                                        render: (_: any, invite: RepoInvite) => {
+                                          const status = resolveInviteStatus(invite);
+                                          return <Tag color={status.color}>{t(`repos.invites.status.${status.key}`)}</Tag>;
+                                        }
+                                      },
+                                      {
+                                        title: t('repos.invites.column.expiresAt'),
+                                        dataIndex: 'expiresAt',
+                                        render: (value: string) => <Typography.Text type="secondary">{formatTime(value)}</Typography.Text>
+                                      },
+                                      {
+                                        title: t('common.actions'),
+                                        key: 'actions',
+                                        render: (_: any, invite: RepoInvite) => {
+                                          const status = resolveInviteStatus(invite);
+                                          const revokeDisabled = repoReadOnly || status.key !== 'pending';
+                                          return (
+                                            <>
+                                              {/* Only allow revoking active invites. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                                              <Popconfirm
+                                                title={t('repos.invites.revokeConfirmTitle')}
+                                                description={t('repos.invites.revokeConfirmDesc')}
+                                                okText={t('common.delete')}
+                                                cancelText={t('common.cancel')}
+                                                onConfirm={() => void handleRevokeInvite(invite)}
+                                                disabled={revokeDisabled}
+                                              >
+                                                <Button
+                                                  size="small"
+                                                  danger
+                                                  disabled={revokeDisabled}
+                                                  loading={inviteRevokingId === invite.id}
+                                                >
+                                                  {t('repos.invites.revoke')}
+                                                </Button>
+                                              </Popconfirm>
+                                            </>
+                                          );
+                                        }
+                                      }
+                                    ]}
+                                  />
+                                </Card>
+                              </div>
+                            </Col>
+                          </Row>
+                        </div>
+                      ) : null}
 
                       <div className="hc-repo-dashboard__region">
                         {/* Region 6: webhook records (config + activity + deliveries) in a single row. u55e45ffi8jng44erdzp */}
@@ -2288,6 +2723,30 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                           </Col>
                         </Row>
                       </div>
+
+                      {canDeleteRepo ? (
+                        <div className="hc-repo-dashboard__region">
+                          {/* Region 6.5: danger zone actions for repo owners. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                          <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
+                            <Card size="small" title={t('repos.danger.title')} className="hc-card">
+                              <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                                <Typography.Text type="secondary">{t('repos.danger.desc')}</Typography.Text>
+                                <Popconfirm
+                                  title={t('repos.danger.confirmTitle')}
+                                  description={t('repos.danger.confirmDesc')}
+                                  okText={t('common.delete')}
+                                  cancelText={t('common.cancel')}
+                                  onConfirm={() => void handleDeleteRepo()}
+                                >
+                                  <Button danger loading={repoDeleting} disabled={repoDeleting}>
+                                    {t('repos.danger.delete')}
+                                  </Button>
+                                </Popconfirm>
+                              </Space>
+                            </Card>
+                          </div>
+                        </div>
+                      ) : null}
 
                       <div className="hc-repo-dashboard__region">
                         {/* Place task-group API tokens at the bottom of the repo detail dashboard. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215 */}
@@ -2381,7 +2840,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                 <Switch
                   checked={repoProviderSetDefault}
                   onChange={(checked) => setRepoProviderSetDefault(checked)}
-                  disabled={credentialsSaving || repoArchived}
+                  disabled={credentialsSaving || repoReadOnly}
                 />
                 {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -2471,9 +2930,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
               <Input placeholder={t('panel.credentials.codexApiBaseUrlPlaceholder')} />
             </Form.Item>
 
+            {/* Disable model catalog actions for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
             <Form.Item label={t('modelCatalog.title')}>
               <ModelProviderModelsButton
-                disabled={modelProfileSubmitting || repoArchived}
+                disabled={modelProfileSubmitting || repoReadOnly}
                 buttonProps={{ size: 'small' }}
                 loadModels={async ({ forceRefresh }) => {
                   // Fetch models using either repo-stored credentials (keep mode) or the in-form apiKey (set mode). b8fucnmey62u0muyn7i0
@@ -2495,12 +2955,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
               />
             </Form.Item>
 
+            {/* Disable default profile toggles for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
             <Form.Item label={t('panel.credentials.profile.setDefault')}>
               <Space direction="vertical" size={4} style={{ width: '100%' }}>
                 <Switch
                   checked={modelProfileSetDefault}
                   onChange={(checked) => setModelProfileSetDefault(checked)}
-                  disabled={modelProfileSubmitting || repoArchived}
+                  disabled={modelProfileSubmitting || repoReadOnly}
                 />
                 {/* Let users toggle the default profile directly inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -2522,17 +2983,17 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
         }
         onCancel={() => setRobotModalOpen(false)}
         okText={t('common.save')}
-        cancelText={repoArchived ? t('common.close') : t('common.cancel')}
+        cancelText={repoReadOnly ? t('common.close') : t('common.cancel')}
         confirmLoading={robotSubmitting}
-        onOk={repoArchived ? undefined : () => void robotForm.submit()} // Prevent robot mutations when repo is archived (view-only). qnp1mtxhzikhbi0xspbc
+        onOk={repoReadOnly ? undefined : () => void robotForm.submit()} // Prevent robot mutations when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         drawerWidth="min(980px, 92vw)"
         >
-          {/* Disable the robot editor form when repo is archived to support view-only inspection. qnp1mtxhzikhbi0xspbc */}
+          {/* Disable the robot editor form when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
           <Form<RobotFormValues>
             form={robotForm}
             layout="vertical"
             requiredMark={false}
-            disabled={robotSubmitting || repoArchived}
+            disabled={robotSubmitting || repoReadOnly}
             onFinish={(values) => void handleSubmitRobot(values)}
             initialValues={buildRobotInitialValues(editingRobot)}
           >
@@ -2728,7 +3189,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
 
             {/* Provide robot-level scheduling controls for time-window execution. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
             <Form.Item label={t('repos.robotForm.timeWindow')} name="timeWindow">
-              <TimeWindowPicker disabled={repoArchived} size="middle" />
+              {/* Disable scheduling edits when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+              <TimeWindowPicker disabled={repoReadOnly} size="middle" />
             </Form.Item>
 
             <Form.Item shouldUpdate noStyle>
@@ -2961,8 +3423,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                       <Col xs={24} md={12}>
                         <Form.Item label={t('repos.robotForm.model')} name={['modelProviderConfig', 'model']} rules={[{ required: true, message: t('panel.validation.required') }]}>
                           {/* Use the bound picker field so model clicks update the form value. docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md b8fucnmey62u0muyn7i0 */}
+                          {/* Disable model picker when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
                           <ModelPickerField
-                            pickerDisabled={repoArchived || (source === 'robot' && apiKeyDisabled)}
+                            pickerDisabled={repoReadOnly || (source === 'robot' && apiKeyDisabled)}
                             loadModels={async ({ forceRefresh }) => {
                               // Load models based on the selected credential source so robot config avoids hardcoded model ids. b8fucnmey62u0muyn7i0
                               const credentialSource = normalizeCredentialSource(watchedModelCredentialSource);

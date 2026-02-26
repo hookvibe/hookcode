@@ -32,6 +32,8 @@ import {
 import type { Request } from 'express';
 import { AuthScopeGroup } from '../auth/auth.decorator';
 import { RepoAutomationService, findRobotAutomationUsages, RepoAutomationConfigValidationError } from './repo-automation.service';
+import { RepoAccessService, type RepoRole } from './repo-access.service';
+import { RepoMemberService } from './repo-member.service';
 import { RepoRobotService } from './repo-robot.service';
 import { RepoWebhookDeliveryService } from './repo-webhook-delivery.service';
 import { RepositoryService, type ArchiveScope } from './repository.service';
@@ -52,21 +54,29 @@ import { UpdateRepositoryDto } from './dto/update-repository.dto';
 import { CreateRepoRobotDto } from './dto/create-repo-robot.dto';
 import { UpdateRepoRobotDto } from './dto/update-repo-robot.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
+import { AcceptRepoInviteDto, CreateRepoInviteDto, UpdateRepoMemberDto } from './dto/repo-members.dto';
 import { parsePositiveInt } from '../../utils/parse';
 import { TtlCache } from '../../utils/ttlCache';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
+import { OkResponseDto } from '../common/dto/basic-response.dto';
+import { isAuthEnabled } from '../../auth/authService'; // Honor auth-disabled mode for repo access enforcement. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
 import {
   ArchiveRepositoryResponseDto,
   AutomationConfigResponseDto,
   CreateRepoRobotResponseDto,
   CreateRepositoryResponseDto,
+  DeleteRepositoryResponseDto,
   DeleteRobotResponseDto,
   GetRepoWebhookDeliveryResponseDto,
   GetRepositoryResponseDto,
+  ListRepoInvitesResponseDto,
+  ListRepoMembersResponseDto,
   ListRepoRobotsResponseDto,
   RepoProviderActivityResponseDto,
   ListRepoWebhookDeliveriesResponseDto,
   ListRepositoriesResponseDto,
+  CreateRepoInviteResponseDto,
+  AcceptRepoInviteResponseDto,
   TestRobotResponseDto,
   TestRobotWorkflowResponseDto,
   UnarchiveRepositoryResponseDto,
@@ -178,6 +188,24 @@ const assertRepoWritable = (repo: Repository): void => {
   });
 };
 
+const normalizeRepoMemberRole = (value: unknown, fallback?: RepoRole): RepoRole => {
+  // Validate repo member role inputs to avoid persisting invalid RBAC values. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (!raw && fallback) return fallback;
+  if (raw === 'owner' || raw === 'maintainer' || raw === 'member') return raw;
+  throw new BadRequestException({ error: 'role must be owner, maintainer, or member' });
+};
+
+// Centralize auth checks for repo RBAC. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+const ensureRequestUser = (req: Request) => {
+  if (req.user) return req.user;
+  if (!isAuthEnabled()) {
+    // Provide a synthetic admin user when auth is disabled to keep repo APIs usable. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    return { id: 'system', username: 'system', roles: ['admin'] };
+  }
+  throw new UnauthorizedException({ error: 'Unauthorized' });
+};
+
 @AuthScopeGroup('repos') // Scope repository APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('repos')
 @ApiTags('Repos')
@@ -186,6 +214,8 @@ export class RepositoriesController {
   // Inject preview service to expose repo preview config endpoints. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   constructor(
     private readonly repositoryService: RepositoryService,
+    private readonly repoAccessService: RepoAccessService,
+    private readonly repoMemberService: RepoMemberService,
     private readonly repoRobotService: RepoRobotService,
     private readonly repoAutomationService: RepoAutomationService,
     private readonly repoWebhookDeliveryService: RepoWebhookDeliveryService,
@@ -193,6 +223,57 @@ export class RepositoriesController {
     private readonly previewService: PreviewService,
     private readonly skillsService: SkillsService
   ) {}
+
+  // Attach repo-level permissions for UI actions. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  private async attachRepoPermissions(repos: Repository[], user: { id: string; roles?: string[] }) {
+    const isAdmin = this.repoAccessService.isAdmin(user);
+    if (isAdmin) {
+      return repos.map((repo) => ({
+        ...repo,
+        myRole: 'owner',
+        permissions: this.repoAccessService.buildRepoPermissions('owner', true)
+      }));
+    }
+
+    const repoIds = repos.map((repo) => repo.id);
+    const memberships = repoIds.length
+      ? await db.repoMember.findMany({
+          where: { userId: user.id, repoId: { in: repoIds } },
+          select: { repoId: true, role: true }
+        })
+      : [];
+    const roleMap = new Map<string, RepoRole>(
+      memberships.map((row) => [String(row.repoId), row.role as RepoRole])
+    );
+
+    return repos.map((repo) => {
+      const role = roleMap.get(repo.id) ?? null;
+      return {
+        ...repo,
+        myRole: role,
+        permissions: this.repoAccessService.buildRepoPermissions(role, false)
+      };
+    });
+  }
+
+  // Enforce per-repo RBAC for read/manage/owner access. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  private async requireRepoRead(req: Request, repoId: string) {
+    const user = ensureRequestUser(req);
+    await this.repoAccessService.requireRepoRead(user, repoId);
+    return user;
+  }
+
+  private async requireRepoManage(req: Request, repoId: string) {
+    const user = ensureRequestUser(req);
+    await this.repoAccessService.requireRepoManage(user, repoId);
+    return user;
+  }
+
+  private async requireRepoOwner(req: Request, repoId: string) {
+    const user = ensureRequestUser(req);
+    await this.repoAccessService.requireRepoOwner(user, repoId);
+    return user;
+  }
 
   @Get()
   @ApiOperation({
@@ -202,11 +283,15 @@ export class RepositoriesController {
   })
   @ApiOkResponse({ description: 'OK', type: ListRepositoriesResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
-  async list(@Query('archived') archivedRaw: string | undefined) {
+  async list(@Req() req: Request, @Query('archived') archivedRaw: string | undefined) {
     try {
+      const user = ensureRequestUser(req);
       const scope = normalizeArchiveScope(archivedRaw);
-      const repos = await this.repositoryService.listByArchiveScope(scope);
-      return { repos };
+      const repos = await this.repositoryService.listByArchiveScope(scope, {
+        userId: user.id,
+        isAdmin: this.repoAccessService.isAdmin(user)
+      });
+      return { repos: await this.attachRepoPermissions(repos, user) };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[repos] list failed', err);
@@ -265,7 +350,9 @@ export class RepositoriesController {
                 }))
             : undefined;
 
-      const created = await this.repositoryService.createRepository(req.user ?? null, {
+      const user = ensureRequestUser(req);
+      const authEnabled = isAuthEnabled();
+      const created = await this.repositoryService.createRepository(authEnabled ? user : null, {
         provider,
         name,
         externalId,
@@ -273,12 +360,17 @@ export class RepositoriesController {
         webhookSecret,
         branches
       });
+      // Seed repo owner membership only when auth is enabled to avoid FK errors in anonymous mode. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+      if (authEnabled) {
+        await this.repoMemberService.addMember({ repoId: created.repo.id, userId: user.id, role: 'owner' });
+      }
 
       // Use a relative webhook path; the frontend can prefix with current origin / VITE_API_BASE_URL.
       const webhookPath = `/api/webhook/${created.repo.provider}/${created.repo.id}`;
+      const [decorated] = await this.attachRepoPermissions([created.repo], user);
 
       return {
-        repo: created.repo,
+        repo: decorated,
         webhookSecret: created.webhookSecret,
         webhookPath
       };
@@ -305,11 +397,13 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: GetRepositoryResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async get(@Param('id') id: string) {
+  async get(@Req() req: Request, @Param('id') id: string) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoRead(user, repoId);
 
       // Parallelize repo detail hydration to reduce initial repo dashboard latency. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
       const [robots, automationConfig, repoSecretRow, repoScopedCredentialsRow] = await Promise.all([
@@ -322,7 +416,8 @@ export class RepositoriesController {
       const webhookSecret = repoSecretRow?.webhookSecret ?? null;
       const repoScopedCredentials = repoScopedCredentialsRow?.public ?? undefined;
 
-      return { repo, robots, automationConfig, webhookSecret, webhookPath, repoScopedCredentials };
+      const [decorated] = await this.attachRepoPermissions([repo], user);
+      return { repo: decorated, robots, automationConfig, webhookSecret, webhookPath, repoScopedCredentials };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get failed', err);
@@ -339,8 +434,10 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: SkillSelectionResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async getSkillDefaults(@Param('id') id: string) {
+  async getSkillDefaults(@Req() req: Request, @Param('id') id: string) {
     try {
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoRead(user, id);
       // Surface repo-level skill defaults for the console UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
       const selection = await this.skillsService.resolveRepoSkillSelection(id);
       if (!selection) throw new NotFoundException({ error: 'Repo not found' });
@@ -362,8 +459,10 @@ export class RepositoriesController {
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async updateSkillDefaults(@Param('id') id: string, @Body() body: SkillSelectionPatchDto) {
+  async updateSkillDefaults(@Req() req: Request, @Param('id') id: string, @Body() body: SkillSelectionPatchDto) {
     try {
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoManage(user, id);
       // Persist repo default skill selections for new task groups. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
       const selectionRaw = body?.selection;
       const selection = selectionRaw === null ? null : Array.isArray(selectionRaw) ? selectionRaw : undefined;
@@ -389,10 +488,12 @@ export class RepositoriesController {
   })
   @ApiOkResponse({ description: 'OK', type: RepoPreviewConfigResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async previewConfig(@Param('id') id: string): Promise<RepoPreviewConfigResponseDto> {
+  async previewConfig(@Req() req: Request, @Param('id') id: string): Promise<RepoPreviewConfigResponseDto> {
     try {
+      const user = ensureRequestUser(req);
       const repo = await this.repositoryService.getById(id);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoRead(user, id);
 
       return await this.previewService.getRepoPreviewConfig(id);
     } catch (err) {
@@ -413,6 +514,8 @@ export class RepositoriesController {
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async archive(@Req() req: Request, @Param('id') id: string) {
     try {
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoManage(user, id);
       const result = await this.repositoryService.archiveRepo(id, req.user ?? null);
       if (!result) throw new NotFoundException({ error: 'Repo not found' });
       return result;
@@ -434,6 +537,8 @@ export class RepositoriesController {
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async unarchive(@Req() req: Request, @Param('id') id: string) {
     try {
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoManage(user, id);
       const result = await this.repositoryService.unarchiveRepo(id, req.user ?? null);
       if (!result) throw new NotFoundException({ error: 'Repo not found' });
       return result;
@@ -441,6 +546,32 @@ export class RepositoriesController {
       if (err instanceof HttpException) throw err;
       console.error('[repos] unarchive failed', err);
       throw new InternalServerErrorException({ error: 'Failed to unarchive repo' });
+    }
+  }
+
+  @Delete(':id')
+  // Allow repo owners/admins to remove repositories. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  @ApiOperation({
+    summary: 'Delete repository',
+    description: 'Delete a repository and related data.',
+    operationId: 'repos_delete'
+  })
+  @ApiOkResponse({ description: 'OK', type: DeleteRepositoryResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async delete(@Req() req: Request, @Param('id') id: string) {
+    try {
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoOwner(user, id);
+      const deleted = await this.repositoryService.deleteRepo(id);
+      if (!deleted) throw new NotFoundException({ error: 'Repo not found' });
+      const [decorated] = await this.attachRepoPermissions([deleted], user);
+      return { repo: decorated };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] delete failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to delete repo' });
     }
   }
 
@@ -461,10 +592,12 @@ export class RepositoriesController {
     @Query('credentialProfileId') credentialProfileIdRaw: string | undefined
   ) {
     try {
+      const user = ensureRequestUser(req);
       // Provide provider visibility metadata to drive the repo onboarding wizard. 58w1q3n5nr58flmempxe
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoRead(user, repoId);
 
       const repoIdentity = (repo.externalId ?? '').trim() || (repo.name ?? '').trim();
       if (!repoIdentity) {
@@ -589,10 +722,12 @@ export class RepositoriesController {
     @Query('limit') limitRaw: string | undefined
   ) {
     try {
+      const user = ensureRequestUser(req);
       // Provide recent provider activity for the repo detail dashboard row (commits/merges/issues). kzxac35mxk0fg358i7zs
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoRead(user, repoId);
 
       const repoIdentity = (repo.externalId ?? '').trim() || (repo.name ?? '').trim();
       if (!repoIdentity) {
@@ -782,14 +917,17 @@ export class RepositoriesController {
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async listWebhookDeliveries(
+    @Req() req: Request,
     @Param('id') id: string,
     @Query('limit') limitRaw: string | undefined,
     @Query('cursor') cursorRaw: string | undefined
   ) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoRead(user, repoId);
 
       const limit = parsePositiveInt(limitRaw, 50);
       const cursor = typeof cursorRaw === 'string' ? cursorRaw.trim() : '';
@@ -817,13 +955,16 @@ export class RepositoriesController {
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async getWebhookDelivery(
+    @Req() req: Request,
     @Param('id') id: string,
     @Param('deliveryId') deliveryId: string
   ) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoRead(user, repoId);
 
       const normalizedDeliveryId = String(deliveryId ?? '').trim();
       if (!normalizedDeliveryId) throw new BadRequestException({ error: 'deliveryId is required' });
@@ -850,11 +991,13 @@ export class RepositoriesController {
   @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async patch(@Param('id') id: string, @Body() body: UpdateRepositoryDto) {
+  async patch(@Req() req: Request, @Param('id') id: string, @Body() body: UpdateRepositoryDto) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoManage(user, repoId);
       assertRepoWritable(repo); // Block mutations for archived repos; the Archive area is view-only. qnp1mtxhzikhbi0xspbc
 
       const name = typeof body?.name === 'string' ? body.name : undefined;
@@ -916,9 +1059,10 @@ export class RepositoriesController {
       if (!updated) throw new NotFoundException({ error: 'Repo not found' });
 
       const repoScopedCredentials = (await this.repositoryService.getRepoScopedCredentials(repoId))?.public ?? undefined;
+      const [decorated] = await this.attachRepoPermissions([updated.repo], user);
 
       return {
-        repo: updated.repo,
+        repo: decorated,
         webhookSecret: updated.webhookSecret,
         repoScopedCredentials
       };
@@ -954,11 +1098,12 @@ export class RepositoriesController {
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async listRepoModelProviderModels(@Param('id') id: string, @Req() req: Request, @Body() body: ModelProviderModelsRequestDto) {
     try {
-      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      const user = ensureRequestUser(req);
 
       const repoId = String(id ?? '').trim();
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoManage(user, repoId);
 
       const provider = normalizeSupportedModelProviderKey(body?.provider);
       const profileId = typeof body?.profileId === 'string' ? body.profileId.trim() : '';
@@ -1013,11 +1158,13 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: ListRepoRobotsResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async listRobots(@Param('id') id: string) {
+  async listRobots(@Req() req: Request, @Param('id') id: string) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoRead(user, repoId);
 
       const robots = await this.repoRobotService.listByRepo(repoId);
       return { robots };
@@ -1042,9 +1189,11 @@ export class RepositoriesController {
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async createRobot(@Param('id') id: string, @Req() req: Request, @Body() body: CreateRepoRobotDto) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoManage(user, repoId);
       assertRepoWritable(repo); // Block robot creation for archived repos to keep archived config immutable. qnp1mtxhzikhbi0xspbc
       // Allow configuring robots without requiring webhook verification (webhooks are optional). 58w1q3n5nr58flmempxe
 
@@ -1113,8 +1262,7 @@ export class RepositoriesController {
       };
 
       const loadUserCredentials = async () => {
-        if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
-        return await this.userService.getModelCredentialsRaw(req.user.id);
+        return await this.userService.getModelCredentialsRaw(user.id);
       };
 
       // Repo provider credential validation by scope.
@@ -1252,9 +1400,11 @@ export class RepositoriesController {
     @Body() body: UpdateRepoRobotDto
   ) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoManage(user, repoId);
       assertRepoWritable(repo); // Block robot updates for archived repos to enforce read-only archive behavior. qnp1mtxhzikhbi0xspbc
       // Keep robot updates available before webhook verification to support manual chat workflows. 58w1q3n5nr58flmempxe
 
@@ -1355,8 +1505,7 @@ export class RepositoriesController {
         }
 
         if (source === 'user') {
-          if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
-          const rawCredentials = await this.userService.getModelCredentialsRaw(req.user.id);
+          const rawCredentials = await this.userService.getModelCredentialsRaw(user.id);
           const providerCredentials = repo.provider === 'github' ? rawCredentials?.github : rawCredentials?.gitlab;
           const profile = (providerCredentials?.profiles ?? []).find((p) => p.id === profileId);
           if (!profile) {
@@ -1406,8 +1555,7 @@ export class RepositoriesController {
         }
 
         if (credentialSource === 'user') {
-          if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
-          const rawCredentials = await this.userService.getModelCredentialsRaw(req.user.id);
+          const rawCredentials = await this.userService.getModelCredentialsRaw(user.id);
           const providerCredentials = (rawCredentials as any)?.[providerKey] as any;
           const profile = Array.isArray(providerCredentials?.profiles)
             ? providerCredentials.profiles.find((p: any) => p && p.id === profileId)
@@ -1508,9 +1656,11 @@ export class RepositoriesController {
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   async testRobot(@Param('id') id: string, @Param('robotId') robotId: string, @Req() req: Request) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoManage(user, repoId);
       assertRepoWritable(repo); // Block robot activation tests for archived repos to keep archived state stable. qnp1mtxhzikhbi0xspbc
       // Support robot token activation tests without depending on webhook verification. 58w1q3n5nr58flmempxe
 
@@ -1519,7 +1669,7 @@ export class RepositoriesController {
         throw new NotFoundException({ error: 'Robot not found' });
       }
 
-      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+      const userCredentials = await this.userService.getModelCredentialsRaw(user.id);
       const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
       const source = inferRobotRepoProviderCredentialSource(existing);
       const token = resolveRobotProviderToken({
@@ -1707,9 +1857,11 @@ export class RepositoriesController {
     // Validate robot workflow mode by checking direct access or fork availability. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
     let resolvedMode: 'auto' | 'direct' | 'fork' = 'auto';
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoManage(user, repoId);
       assertRepoWritable(repo); // Block workflow tests for archived repos to keep archived state stable. qnp1mtxhzikhbi0xspbc
 
       const existing = await this.repoRobotService.getByIdWithToken(robotId);
@@ -1721,7 +1873,7 @@ export class RepositoriesController {
         body?.mode === undefined ? undefined : normalizeRepoWorkflowModeInput(body?.mode);
       resolvedMode = resolveRepoWorkflowMode(requestedMode ?? existing.repoWorkflowMode);
 
-      const userCredentials = req.user ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
+      const userCredentials = await this.userService.getModelCredentialsRaw(user.id);
       const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
       const source = inferRobotRepoProviderCredentialSource(existing);
       const token = resolveRobotProviderToken({
@@ -1825,11 +1977,13 @@ export class RepositoriesController {
   @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async deleteRobot(@Param('id') id: string, @Param('robotId') robotId: string) {
+  async deleteRobot(@Req() req: Request, @Param('id') id: string, @Param('robotId') robotId: string) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoManage(user, repoId);
       assertRepoWritable(repo); // Block robot deletion for archived repos to prevent modifying archived configuration. qnp1mtxhzikhbi0xspbc
       // Permit robot deletion even when webhooks are not configured yet. 58w1q3n5nr58flmempxe
 
@@ -1858,6 +2012,199 @@ export class RepositoriesController {
     }
   }
 
+  @Get(':id/members')
+  // Repo member and invite management endpoints. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  @ApiOperation({
+    summary: 'List repo members',
+    description: 'List members for a repository.',
+    operationId: 'repos_list_members'
+  })
+  @ApiOkResponse({ description: 'OK', type: ListRepoMembersResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async listMembers(@Req() req: Request, @Param('id') id: string) {
+    try {
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoManage(user, id);
+      const members = await this.repoMemberService.listMembers(id);
+      return { members };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] list members failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch repo members' });
+    }
+  }
+
+  @Patch(':id/members/:userId')
+  @ApiOperation({
+    summary: 'Update repo member role',
+    description: 'Update a repository member role.',
+    operationId: 'repos_update_member_role'
+  })
+  @ApiOkResponse({ description: 'OK', type: OkResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async updateMemberRole(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Body() body: UpdateRepoMemberDto
+  ) {
+    try {
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoManage(user, id);
+      const role = normalizeRepoMemberRole(body?.role);
+      if (role === 'owner') {
+        await this.repoAccessService.requireRepoOwner(user, id);
+      }
+      await this.repoMemberService.updateMemberRole({ repoId: id, userId, role: role as any });
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] update member role failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to update member role' });
+    }
+  }
+
+  @Delete(':id/members/:userId')
+  @ApiOperation({
+    summary: 'Remove repo member',
+    description: 'Remove a repository member.',
+    operationId: 'repos_remove_member'
+  })
+  @ApiOkResponse({ description: 'OK', type: OkResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async removeMember(@Req() req: Request, @Param('id') id: string, @Param('userId') userId: string) {
+    try {
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoManage(user, id);
+      const existing = await db.repoMember.findUnique({ where: { repoId_userId: { repoId: id, userId } } });
+      if (!existing) throw new NotFoundException({ error: 'Member not found' });
+      if (String(existing.role ?? '').toLowerCase() === 'owner') {
+        await this.repoAccessService.requireRepoOwner(user, id);
+      }
+      await this.repoMemberService.removeMember({ repoId: id, userId });
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] remove member failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to remove member' });
+    }
+  }
+
+  @Get(':id/invites')
+  @ApiOperation({
+    summary: 'List repo invites',
+    description: 'List pending invites for a repository.',
+    operationId: 'repos_list_invites'
+  })
+  @ApiOkResponse({ description: 'OK', type: ListRepoInvitesResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
+  async listInvites(@Req() req: Request, @Param('id') id: string) {
+    try {
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoManage(user, id);
+      const invites = await this.repoMemberService.listInvites(id);
+      return { invites };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] list invites failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch repo invites' });
+    }
+  }
+
+  @Post(':id/invites')
+  @ApiOperation({
+    summary: 'Create repo invite',
+    description: 'Invite a user to a repository.',
+    operationId: 'repos_create_invite'
+  })
+  @ApiOkResponse({ description: 'OK', type: CreateRepoInviteResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  async createInvite(@Req() req: Request, @Param('id') id: string, @Body() body: CreateRepoInviteDto) {
+    try {
+      if (!isAuthEnabled()) {
+        // Disable invite flows when auth is turned off to avoid invalid user references. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+        throw new BadRequestException({ error: 'Auth is disabled' });
+      }
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoManage(user, id);
+      const roleRaw = normalizeRepoMemberRole(body?.role, 'member');
+      if (roleRaw === 'owner') {
+        await this.repoAccessService.requireRepoOwner(user, id);
+      }
+      const invite = await this.repoMemberService.createInvite({
+        repoId: id,
+        invitedByUserId: user.id,
+        email: String(body?.email ?? '').trim(),
+        role: roleRaw as any
+      });
+      return { invite };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] create invite failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to create invite' });
+    }
+  }
+
+  @Delete(':id/invites/:inviteId')
+  @ApiOperation({
+    summary: 'Revoke repo invite',
+    description: 'Revoke a pending repository invite.',
+    operationId: 'repos_revoke_invite'
+  })
+  @ApiOkResponse({ description: 'OK', type: OkResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async revokeInvite(@Req() req: Request, @Param('id') id: string, @Param('inviteId') inviteId: string) {
+    try {
+      const user = ensureRequestUser(req);
+      await this.repoAccessService.requireRepoManage(user, id);
+      await this.repoMemberService.revokeInvite({ repoId: id, inviteId });
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] revoke invite failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to revoke invite' });
+    }
+  }
+
+  @Post('invites/accept')
+  @ApiOperation({
+    summary: 'Accept repo invite',
+    description: 'Accept a repository invite using a token.',
+    operationId: 'repos_accept_invite'
+  })
+  @ApiOkResponse({ description: 'OK', type: AcceptRepoInviteResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  async acceptInvite(@Req() req: Request, @Body() body: AcceptRepoInviteDto) {
+    try {
+      if (!isAuthEnabled()) {
+        // Invite acceptance depends on authenticated users. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+        throw new BadRequestException({ error: 'Auth is disabled' });
+      }
+      const user = ensureRequestUser(req);
+      const email = String(body?.email ?? '').trim();
+      const token = String(body?.token ?? '').trim();
+      if (!email || !token) throw new BadRequestException({ error: 'email and token are required' });
+      const repoId = await this.repoMemberService.acceptInvite({ token, email, userId: user.id });
+      return { repoId };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] accept invite failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to accept invite' });
+    }
+  }
+
   @Get(':id/automation')
   @ApiOperation({
     summary: 'Get automation config',
@@ -1867,11 +2214,13 @@ export class RepositoriesController {
   @ApiOkResponse({ description: 'OK', type: AutomationConfigResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async getAutomation(@Param('id') id: string) {
+  async getAutomation(@Req() req: Request, @Param('id') id: string) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoRead(user, repoId);
 
       const config = await this.repoAutomationService.getConfig(repoId);
       return { config };
@@ -1894,11 +2243,13 @@ export class RepositoriesController {
   @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async updateAutomation(@Param('id') id: string, @Body() body: UpdateAutomationDto) {
+  async updateAutomation(@Req() req: Request, @Param('id') id: string, @Body() body: UpdateAutomationDto) {
     try {
+      const user = ensureRequestUser(req);
       const repoId = id;
       const repo = await this.repositoryService.getById(repoId);
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoManage(user, repoId);
       assertRepoWritable(repo); // Block automation updates for archived repos (automation is view-only in Archive). qnp1mtxhzikhbi0xspbc
       // Allow editing automation rules before webhooks are enabled so users can pre-configure triggers. 58w1q3n5nr58flmempxe
 
