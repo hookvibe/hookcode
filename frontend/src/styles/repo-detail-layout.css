@@ -1,4 +1,4 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Repo Detail Layout — modernized dashboard with glass surfaces. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 /* =============================================================================
  * Repo Detail Layout (Dashboard)
  * ========================================================================== */
@@ -30,8 +30,9 @@
  * ========================================================================== */
 
 .hc-repo-summary-strip {
-  padding: 0 0 14px; /* Keep KPI strip aligned with page body padding (strip now renders inside `.hc-page__body`). u55e45ffi8jng44erdzp */
-  border-bottom: 1px solid var(--hc-border);
+  /* KPI summary strip with bottom divider. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--border);
 }
 
 /* Keep dashboard regions visually stable by reserving space for empty/minimal modules. u55e45ffi8jng44erdzp */
@@ -119,8 +120,8 @@
 }
 
 .hc-provider-activity-item {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--hc-border);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .hc-provider-activity-item:last-child {
@@ -137,7 +138,7 @@
 
 @media (min-width: 768px) {
   .hc-provider-activity-column--divider {
-    border-left: 1px solid var(--hc-border);
+    border-left: 1px solid var(--border);
     padding-left: 16px;
   }
 }
@@ -194,9 +195,10 @@
 }
 
 .hc-repo-summary-strip__card--interactive:hover {
+  /* Accent-tinted hover for interactive summary tiles. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
   background: var(--hc-accent-soft-hover);
   border-color: var(--hc-accent-border);
-  box-shadow: var(--hc-shadow-sm);
+  box-shadow: var(--hc-shadow-md);
 }
 
 .hc-repo-summary-strip__card--interactive:focus-visible {

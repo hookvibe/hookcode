@@ -12,9 +12,10 @@
 }
 
 /* Tune Skills page accent variables for dark mode readability. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+/* Monochrome dark mode variables for Skills page. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 :root[data-theme='dark'] .hc-skills {
-  --hc-skills-grid-line: rgba(255, 255, 255, 0.06);
-  --hc-skills-terminal-bg: #0f0f0f;
+  --hc-skills-grid-line: #1e1e1e;
+  --hc-skills-terminal-bg: #0c0c0c;
   --hc-skills-terminal-border: var(--hc-border);
 }
 

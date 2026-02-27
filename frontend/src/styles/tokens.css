@@ -1,82 +1,90 @@
-/* Split global styles into modular files for maintainability. */
+/* Modernized design tokens — monochrome B&W, glass-morphism surfaces, high-contrast dark mode. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
   /* =============================================================================
-   * Modern Clean Theme (Light)
-   * High contrast, minimal borders, clean typography.
+   * Modern B&W Theme (Light) — clean whites, black accents, frosted surfaces.
+   * docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301
    * ========================================================================== */
 
   /* Base Colors */
-  --bg: #ffffff;
-  --text: #171717; /* Neutral 900 */
-  --text-secondary: #737373; /* Neutral 500 */
-  --text-tertiary: #a3a3a3; /* Neutral 400 */
-  
-  /* Surfaces */
-  --card-bg: #ffffff;
-  --surface-hover: #f5f5f5; /* Neutral 100 */
-  --surface-active: #e5e5e5; /* Neutral 200 */
-  
+  --bg: #fafafa;
+  --text: #0a0a0a;
+  --text-secondary: #6b6b6b;
+  --text-tertiary: #a0a0a0;
+
+  /* Surfaces — layered whites for visual depth. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  --card-bg: rgba(255, 255, 255, 0.72);
+  --surface-hover: #f4f4f4;
+  --surface-active: #e8e8e8;
+
   /* Borders */
-  --border: #e5e5e5; /* Neutral 200 */
-  --border-hover: #d4d4d4; /* Neutral 300 */
-  
+  --border: rgba(0, 0, 0, 0.08);
+  --border-hover: rgba(0, 0, 0, 0.15);
+
   /* Layout */
   --page-padding: 24px;
-  --hc-page-max: 1200px; /* Slightly wider for modern feel */
+  --hc-page-max: 1200px;
 
   /* HookCode Semantic Variables */
   --hc-app-bg: var(--bg);
   --hc-content-bg: transparent;
-  --hc-sider-bg: #f9f9f9; /* Very subtle gray for sidebar to distinguish from content */
-  --hc-surface: #ffffff;
+  --hc-sider-bg: rgba(255, 255, 255, 0.6);
+  --hc-surface: rgba(255, 255, 255, 0.72);
   --hc-surface-elevated: #ffffff;
   --hc-hover: var(--surface-hover);
   --hc-border: var(--border);
 
   /* Form Controls */
-  --hc-control-bg: #ffffff;
-  --hc-control-bg-hover: #f9f9f9;
-  --hc-control-bg-disabled: #f5f5f5;
+  --hc-control-bg: rgba(255, 255, 255, 0.85);
+  --hc-control-bg-hover: rgba(255, 255, 255, 1);
+  --hc-control-bg-disabled: #f4f4f4;
   --hc-control-placeholder: var(--text-tertiary);
   --hc-control-icon: var(--text-secondary);
-  --hc-control-border: var(--border);
+  --hc-control-border: rgba(0, 0, 0, 0.1);
 
   /* User Panel */
-  --hc-panel-bg: #ffffff;
+  --hc-panel-bg: rgba(255, 255, 255, 0.8);
 
   /* Scrollbars */
   --hc-scrollbar-track: transparent;
-  --hc-scrollbar-thumb: #d4d4d4;
-  --hc-scrollbar-thumb-hover: #a3a3a3;
+  --hc-scrollbar-thumb: #d0d0d0;
+  --hc-scrollbar-thumb-hover: #a0a0a0;
 
-  /* Shadows (Softer, more diffuse) */
-  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --hc-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --hc-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  /* Shadows — modern layered shadow stack. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --hc-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+  --hc-shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.08);
 
-  /* Accents (Neutral/Monochrome by default, can be tinted) */
-  --accent: #171717; /* Black accent for light mode */
-  --accent-hover: #404040;
+  /* Brand Accent — monochrome black on light. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  --accent: #0a0a0a;
+  --accent-hover: #262626;
   --accent-active: #000000;
-  
-  --hc-accent-soft: #f5f5f5;
-  --hc-accent-soft-hover: #e5e5e5;
-  --hc-accent-border: #d4d4d4;
-  --hc-focus-ring: 0 0 0 2px rgba(23, 23, 23, 0.1);
+
+  --hc-accent-soft: rgba(0, 0, 0, 0.05);
+  --hc-accent-soft-hover: rgba(0, 0, 0, 0.08);
+  --hc-accent-border: rgba(0, 0, 0, 0.15);
+  --hc-focus-ring: 0 0 0 3px rgba(0, 0, 0, 0.08);
+
+  /* Accent gradient — subtle dark gradient for primary buttons. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  --hc-accent-gradient: linear-gradient(135deg, #171717 0%, #0a0a0a 100%);
+
+  /* Glass-morphism utilities. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  --hc-glass-bg: rgba(255, 255, 255, 0.6);
+  --hc-glass-border: rgba(255, 255, 255, 0.3);
+  --hc-glass-blur: 16px;
 
   /* Chat Specific */
-  --hc-bubble-user-bg: #f5f5f5;
-  --hc-bubble-assistant-bg: #ffffff;
-  --hc-code-bg: #f9f9f9;
+  --hc-bubble-user-bg: #f0f0f0;
+  --hc-bubble-assistant-bg: rgba(255, 255, 255, 0.8);
+  --hc-code-bg: #f4f4f4;
   --hc-top-right-safe: 120px;
 
-  /* Execution Colors (Keep distinct) */
-  --hc-exec-accent: #f97316; /* Orange 500 */
-  --hc-exec-accent-soft: #ffedd5; /* Orange 100 */
-  --hc-exec-rail: #e5e5e5;
-  --hc-exec-work-bg: #f5f5f5;
+  /* Execution Colors */
+  --hc-exec-accent: #f97316;
+  --hc-exec-accent-soft: #fff7ed;
+  --hc-exec-rail: #e8e8e8;
+  --hc-exec-work-bg: #f4f4f4;
   --hc-exec-role-bg: #fafafa;
 
   /* Native Integration */
@@ -90,76 +98,85 @@
 
 :root[data-theme='dark'] {
   /* =============================================================================
-   * Modern Clean Theme (Dark)
-   * Deep blacks, subtle borders, high legibility.
+   * Pure Neutral Dark — zero color tint, pure black/gray only.
+   * Every hex is perfectly neutral (R=G=B), no blue/warm bias whatsoever.
+   * docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301
    * ========================================================================== */
 
-  /* Base Colors */
-  --bg: #0a0a0a; /* Almost black */
-  --text: #ededed; /* Neutral 100 */
-  --text-secondary: #a3a3a3; /* Neutral 400 */
-  --text-tertiary: #525252; /* Neutral 600 */
+  /* Base Colors — pure neutral, no blue tint. */
+  --bg: #020202;
+  --text: #e5e5e5;
+  --text-secondary: #8c8c8c;
+  --text-tertiary: #6b6b6b;
 
-  /* Surfaces */
-  --card-bg: #0a0a0a;
-  --surface-hover: #1f1f1f; /* Neutral 900 */
-  --surface-active: #262626; /* Neutral 800 */
+  /* Surfaces — clean neutral layers: #020202 → #0c0c0c → #161616 → #212121 */
+  --card-bg: #0c0c0c;
+  --surface-hover: #161616;
+  --surface-active: #212121;
 
-  /* Borders */
-  --border: #262626; /* Neutral 800 */
-  --border-hover: #404040; /* Neutral 700 */
+  /* Borders — subtle neutral lines. */
+  --border: #1e1e1e;
+  --border-hover: #2e2e2e;
 
   /* HookCode Semantic Variables */
-  --hc-app-bg: var(--bg);
+  --hc-app-bg: #020202;
   --hc-content-bg: transparent;
-  --hc-sider-bg: #000000; /* Pure black sidebar */
-  --hc-surface: #0a0a0a;
-  --hc-surface-elevated: #171717;
+  --hc-sider-bg: rgba(2, 2, 2, 0.85);
+  --hc-surface: rgba(12, 12, 12, 0.85);
+  --hc-surface-elevated: #161616;
   --hc-hover: var(--surface-hover);
   --hc-border: var(--border);
 
   /* Form Controls */
-  --hc-control-bg: #171717;
-  --hc-control-bg-hover: #262626;
-  --hc-control-bg-disabled: #0f0f0f;
+  --hc-control-bg: #020202;
+  --hc-control-bg-hover: #0c0c0c;
+  --hc-control-bg-disabled: #020202;
   --hc-control-placeholder: var(--text-tertiary);
   --hc-control-icon: var(--text-secondary);
-  --hc-control-border: var(--border);
+  --hc-control-border: #1e1e1e;
 
   /* User Panel */
-  --hc-panel-bg: #171717;
+  --hc-panel-bg: rgba(12, 12, 12, 0.95);
 
   /* Scrollbars */
   --hc-scrollbar-track: transparent;
-  --hc-scrollbar-thumb: #404040;
-  --hc-scrollbar-thumb-hover: #525252;
+  --hc-scrollbar-thumb: #1e1e1e;
+  --hc-scrollbar-thumb-hover: #2e2e2e;
 
   /* Shadows */
-  --hc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --hc-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-  --hc-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --hc-shadow-sm: 0 0 transparent, 0 0 transparent;
+  --hc-shadow-md: 0 3px 6px rgba(0, 0, 0, 0.9), 0 0 0 1px #1e1e1e;
+  --hc-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.9), 0 0 0 1px #1e1e1e;
 
-  /* Accents */
-  --accent: #ffffff; /* White accent for dark mode */
-  --accent-hover: #e5e5e5;
-  --accent-active: #d4d4d4;
+  /* Brand Accent — pure neutral white/gray, no blue tint. */
+  --accent: #f0f0f0;
+  --accent-hover: #cccccc;
+  --accent-active: #b0b0b0;
 
-  --hc-accent-soft: #171717;
-  --hc-accent-soft-hover: #262626;
-  --hc-accent-border: #404040;
-  --hc-focus-ring: 0 0 0 2px rgba(255, 255, 255, 0.15);
+  --hc-accent-soft: rgba(180, 180, 180, 0.1);
+  --hc-accent-soft-hover: rgba(180, 180, 180, 0.18);
+  --hc-accent-border: #2e2e2e;
+  --hc-focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.15);
+
+  /* Accent gradient */
+  --hc-accent-gradient: linear-gradient(135deg, #f0f0f0 0%, #cccccc 100%);
+
+  /* Glass-morphism */
+  --hc-glass-bg: rgba(2, 2, 2, 0.7);
+  --hc-glass-border: #1e1e1e;
+  --hc-glass-blur: 24px;
 
   /* Chat Specific */
-  --hc-bubble-user-bg: #262626;
-  --hc-bubble-assistant-bg: #0a0a0a;
-  --hc-code-bg: #171717;
+  --hc-bubble-user-bg: #161616;
+  --hc-bubble-assistant-bg: transparent;
+  --hc-code-bg: #0c0c0c;
 
   /* Execution Colors */
-  --hc-exec-accent: #f97316;
-  --hc-exec-accent-soft: rgba(249, 115, 22, 0.15);
-  --hc-exec-rail: #262626;
-  --hc-exec-work-bg: #171717;
-  --hc-exec-role-bg: #0f0f0f;
+  --hc-exec-accent: #fb923c;
+  --hc-exec-accent-soft: rgba(249, 115, 22, 0.14);
+  --hc-exec-rail: #161616;
+  --hc-exec-work-bg: #0c0c0c;
+  --hc-exec-role-bg: #020202;
 
   /* Native Integration */
   color-scheme: dark;
