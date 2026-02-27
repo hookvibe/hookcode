@@ -1,11 +1,8 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
-/* =============================================================================
- * Login
- * ========================================================================== */
+/* Login page — glass card on subtle gradient background. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 
 .hc-login {
   height: 100vh;
-  background: var(--hc-content-bg);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -14,8 +11,11 @@
 
 .hc-login__card {
   width: min(420px, 94vw);
-  border-radius: 12px;
-  background: var(--hc-surface);
-  border-color: var(--hc-border);
+  border-radius: 16px;
+  background: var(--hc-glass-bg);
+  backdrop-filter: blur(var(--hc-glass-blur));
+  -webkit-backdrop-filter: blur(var(--hc-glass-blur));
+  border-color: var(--border);
+  box-shadow: var(--hc-shadow-lg);
 }
 

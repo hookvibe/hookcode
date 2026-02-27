@@ -1,4 +1,4 @@
-/* Modern Sidebar Styles - High-End Redesign */
+/* Modern Sidebar — frosted glass with accent-tinted brand action. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 /* Fix sidebar abnormal behavior in collapsed state. docs/en/developer/plans/sidebar-collapsed-fix-20260205/task_plan.md sidebar-collapsed-fix-20260205 */
 
 .hc-modern-sidebar {
@@ -6,7 +6,10 @@
   flex-direction: column;
   width: 260px;
   height: 100vh;
-  background-color: var(--hc-sider-bg); /* Use the slightly tinted sidebar bg */
+  /* Frosted glass sidebar surface. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  background: var(--hc-glass-bg);
+  backdrop-filter: blur(var(--hc-glass-blur));
+  -webkit-backdrop-filter: blur(var(--hc-glass-blur));
   border-right: 1px solid var(--border);
   flex-shrink: 0;
   transition: width 0.3s cubic-bezier(0.2, 0, 0, 1);
@@ -95,10 +98,11 @@
 .hc-sidebar-primary-action {
   width: 100%;
   height: 40px;
-  background-color: var(--accent);
-  color: var(--bg); /* Theme-aware contrast: white in light mode, black in dark mode */
+  /* Monochrome gradient primary action button — inverted text for contrast. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  background: var(--hc-accent-gradient);
+  color: var(--bg);
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 0 16px;
   font-weight: 600;
   font-size: 14px;
@@ -108,7 +112,7 @@
   justify-content: center;
   gap: 10px;
   transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); /* Monochrome shadow for primary action button. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 }
 
 .hc-sidebar-primary-action .hc-nav-icon {

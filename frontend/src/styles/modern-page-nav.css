@@ -1,4 +1,4 @@
-/* Modern PageNav Styles - High-End Redesign */
+/* Modern PageNav Styles — frosted glass nav with refined controls. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 
 .hc-modern-nav {
   height: 64px;
@@ -6,10 +6,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 32px;
-  background-color: var(--bg); /* Seamless blend with page body */
-  /* Remove bottom border for a cleaner "app-like" feel on desktop, 
-     or keep it very subtle if separation is needed. */
-  border-bottom: 1px solid transparent; 
+  /* Glass-morphism nav bar for polished app-like feel. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  background: var(--hc-glass-bg);
+  backdrop-filter: blur(var(--hc-glass-blur));
+  -webkit-backdrop-filter: blur(var(--hc-glass-blur));
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   z-index: 90;
   transition: all 0.2s ease;
@@ -142,23 +143,18 @@
   font-size: 14px;
 }
 
-/* Mobile Responsive */
+/* Mobile Responsive — glass nav on mobile. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 @media (max-width: 768px) {
   .hc-modern-nav {
     padding: 0 16px;
     height: 56px;
-    background-color: rgba(255, 255, 255, 0.8); /* Glass effect base */
-    backdrop-filter: blur(12px);
+    /* Use the glass-bg token for consistent frosted feel across themes. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+    background: var(--hc-glass-bg);
+    backdrop-filter: blur(var(--hc-glass-blur));
+    -webkit-backdrop-filter: blur(var(--hc-glass-blur));
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
-  }
-  
-  /* Dark mode glass adjustment handled by var(--bg) usually, 
-     but for explicit glass we might need theme overrides or just rely on opaque bg.
-     Let's stick to opaque for stability first. */
-  .hc-modern-nav {
-    background-color: var(--bg); 
   }
 
   .hc-modern-nav__toggle {
