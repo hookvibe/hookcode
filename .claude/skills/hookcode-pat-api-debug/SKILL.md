@@ -1,0 +1,59 @@
+---
+name: hookcode-pat-api-debug
+description: Send PAT-authenticated requests to HookCode backend APIs for debugging. Use when you need to call /api endpoints, verify PAT scope behavior, or test responses using a PAT and base URL stored in an env file.
+tags:
+  - api
+  - debug
+  - auth
+---
+<!-- Add tags metadata for built-in skill filtering. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+
+# Hookcode PAT API Debug
+
+<!-- Align this Claude skill's path examples with the .claude directory layout. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 -->
+
+## Overview
+
+Use the bundled Node.js script to call HookCode backend endpoints with `Authorization: Bearer <PAT>`.
+Keep tokens out of logs and prefer `.env` or environment variables for secrets.
+
+## Quick Start
+
+1. Copy `.claude/skills/hookcode-pat-api-debug/.env.example` to `.claude/skills/hookcode-pat-api-debug/.env` and fill in values.
+2. Run a GET request:
+
+```bash
+node .claude/skills/hookcode-pat-api-debug/scripts/pat_request.mjs --path /api/users/me
+```
+
+3. Run a write request with JSON:
+
+```bash
+node .claude/skills/hookcode-pat-api-debug/scripts/pat_request.mjs \
+  --method PATCH \
+  --path /api/users/me \
+  --body '{"displayName":"Debug Name"}'
+```
+
+## CLI Options
+
+- `--path /api/...` Required unless `--url` is provided.
+- `--url https://host/api/...` Full URL override.
+- `--method GET|POST|PATCH|PUT|DELETE` Defaults to `GET` (or `POST` when `--body` is set).
+- `--body '{"key":"value"}'` Send a request body; prefix with `@` to read from file.
+- `--raw` Send body as plain text (skip JSON parsing).
+- `--query key=value` Repeat to append query params.
+- `--header 'Name: Value'` Repeat to add extra headers.
+- `--dry-run` Print the request without sending it (PAT is redacted).
+
+## Notes
+
+- The script reads `.env` from the skill root, then falls back to process env.
+- Required vars: `HOOKCODE_API_BASE_URL`, `HOOKCODE_PAT`.
+- If a local request fails with `fetch failed`, ensure the backend is reachable and that your execution environment allows local network access (e.g., `localhost` or `127.0.0.1`).
+- Avoid copying PATs into chat or logs; rotate tokens after debugging.
+
+## Resources
+
+- `scripts/pat_request.mjs`
+- `.env.example`

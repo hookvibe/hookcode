@@ -1,9 +1,11 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(cat:*)",
-      "Bash(curl:*)",
-      "Bash(ls:*)"
-    ]
+    "allow": ["*"],
+    "deny": [],
+    "defaultMode": "bypassPermissions"
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": false
   }
 }

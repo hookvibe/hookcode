@@ -1,3 +1,4 @@
+// Include NestJS Query decorator for skill list query params. docs/en/developer/plans/apiquery-fix-20260227/task_plan.md apiquery-fix-20260227
 import {
   BadRequestException,
   Body,
@@ -9,6 +10,7 @@ import {
   Patch,
   Post,
   Param,
+  Query,
   UploadedFile,
   UseInterceptors,
   ConflictException

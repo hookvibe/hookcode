@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Get, HttpException, InternalServerErrorException, NotFoundException, Param, Patch, Query, Req, UnauthorizedException } from '@nestjs/common';
-import { ApiBadRequestResponse, ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+// Import Swagger ApiQuery to keep task-group query docs available at runtime. docs/en/developer/plans/apiquery-fix-20260227/task_plan.md apiquery-fix-20260227
+import { ApiBadRequestResponse, ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { normalizeString, parsePositiveInt } from '../../utils/parse';
