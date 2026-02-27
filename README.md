@@ -47,76 +47,143 @@ HookCode is an intelligent code review and automation platform that elegantly tr
 
 # Quick Start
 
-> A publicly accessible server is required to receive the repository's webhook.
+> A publicly accessible server is required to receive repository webhooks.
 
+<!-- Reorganize command-first quick start workflows for Docker and local development clarity. docs/en/developer/plans/readmecmd20260227/task_plan.md readmecmd20260227 -->
 ## Docker Deployment (Recommended)
 
-**Recommended: Use Docker Compose to start all services with one command (database + backend + frontend)**
+Use Docker Compose to run **database + backend + worker + frontend** together.
 
-Docker deployment assets live under `docker/`:
-- Compose file: `docker/docker-compose.yml`
-- Nginx reverse proxy config: `docker/nginx/frontend.conf`
-- Single env file (shared by frontend build + backend runtime): `docker/.env`
+### 1) Prepare environment file
 
-1. Configure environment variables: Copy `docker/.env.example` to `docker/.env` and modify as needed (at minimum, change `AUTH_TOKEN_SECRET` and admin credentials)
-2. Build and start services:
-   ```bash
-   docker compose -f docker/docker-compose.yml up -d --build
-   ```
-3. Access the frontend console: `http://localhost` (or `http://localhost:<HOOKCODE_FRONTEND_PORT>`)
-   - Default admin credentials are in `docker/.env` as `AUTH_ADMIN_USERNAME/AUTH_ADMIN_PASSWORD` (example: `admin/admin`, must be changed in production)
-   - After login, default routes:
-     - Regular user: `#/account`
-     - Admin: `#/admin/users`
-     - Tasks list: `#/tasks`
+```bash
+cp docker/.env.example docker/.env
+```
 
-**Custom Configuration:**
-- **Ports**: Update `HOOKCODE_FRONTEND_PORT/HOOKCODE_BACKEND_PORT/HOOKCODE_DB_PORT` in `docker/.env`
-- **Database Credentials**: Update `DB_USER/DB_PASSWORD/DB_NAME` in `docker/.env`
-- **Cloudflare (single public port)**:
-  - Keep `VITE_API_BASE_URL=/api` in `docker/.env`
-  - Access APIs via `https://<your-domain>/api/...` (do NOT use `:8000`)
-- **CI/CD**: Use secrets or variables in GitHub Actions or GitLab CI to manage sensitive information
+At minimum, update these keys in `docker/.env` before production use:
+- `AUTH_TOKEN_SECRET`
+- `AUTH_ADMIN_USERNAME`
+- `AUTH_ADMIN_PASSWORD`
 
-**Technical Notes:**
-- Both backend and frontend have independent Dockerfiles
-- Docker Compose injects `docker/.env` via `env_file` (not committed to version control)
+### 2) Build and start all services
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build
+```
+
+### 3) Check running status and logs
+
+```bash
+docker compose -f docker/docker-compose.yml ps
+```
+
+```bash
+docker compose -f docker/docker-compose.yml logs -f backend worker frontend
+```
+
+### 4) Daily operations
+
+Restart all services:
+
+```bash
+docker compose -f docker/docker-compose.yml restart
+```
+
+Rebuild and restart only backend after backend code changes:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build backend worker
+```
+
+Rebuild and restart only frontend after frontend code changes:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build frontend
+```
+
+Stop and remove containers:
+
+```bash
+docker compose -f docker/docker-compose.yml down
+```
+
+Stop and remove containers + database volume:
+
+```bash
+docker compose -f docker/docker-compose.yml down -v
+```
+
+### 5) Access and defaults
+
+- Frontend console: `http://localhost` (or `http://localhost:<HOOKCODE_FRONTEND_PORT>`)
+- Backend API: `http://localhost:<HOOKCODE_BACKEND_PORT>`
+- Default admin credentials come from `AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD` in `docker/.env`
+
+### 6) Important behavior in Docker mode
+
+- Frontend and backend run from built artifacts inside containers.
+- **Source code changes on host do not hot-reload automatically.**
+- After source changes, run the corresponding `up -d --build ...` command above.
+
+### Docker configuration notes
+
+- Docker assets are under `docker/`:
+  - Compose file: `docker/docker-compose.yml`
+  - Nginx reverse proxy config: `docker/nginx/frontend.conf`
+  - Shared env file: `docker/.env`
+- Port overrides: `HOOKCODE_FRONTEND_PORT`, `HOOKCODE_BACKEND_PORT`, `HOOKCODE_DB_PORT`
+- DB credentials: `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- Cloudflare single-port routing:
+  - Keep `VITE_API_BASE_URL=/api`
+  - Access API via `https://<your-domain>/api/...` (not `:8000`)
 
 ## Local Development
 
-For source code development or debugging, use the following methods:
+Use local dev commands when you want source-level debugging and hot reload behavior.
 
-1. Install dependencies (recommended to enable corepack for pnpm)
-   ```bash
-   corepack enable
-   pnpm install
-   ```
-2. Start everything (database + backend + frontend)
-   ```bash
-   pnpm dev
-   ```
-   - Console login is enabled: Default credentials are in `backend/.env.example` as `AUTH_ADMIN_USERNAME/AUTH_ADMIN_PASSWORD` (example: `admin/admin`, must change and set `AUTH_TOKEN_SECRET` for production)
-   - Optional email self-registration: Set `AUTH_REGISTER_ENABLED=true` in backend (enabled in example), configure email service (e.g., `EMAIL_PROVIDER=smtp` + `SMTP_*`) and `HOOKCODE_CONSOLE_BASE_URL`. After registration, users receive a verification email and can log in after verification
-   - After login, default routes:
-     - Regular user: `#/account`
-     - Admin: `#/admin/users`
-     - Tasks list: `#/tasks`
-   
-3. **Module-specific Development:**
-   - Start database only:
-     ```bash
-     pnpm dev:db
-     ```
-   - Backend only (default port 4000):
-     ```bash
-     pnpm dev:backend
-     ```
-   - Frontend only (default port 5173):
-     ```bash
-     pnpm dev:frontend
-     ```
+### 1) Install dependencies
 
-4. **Use Remote Database**: Copy `backend/.env.example` to `backend/.env`, keep local frontend/backend ports unchanged, and point the database to your remote Postgres (set `DB_HOST`, `DB_PORT`, etc., or set `DATABASE_URL` directly)
+```bash
+corepack enable
+pnpm install
+```
+
+### 2) Start everything
+
+```bash
+pnpm dev
+```
+
+### 3) Start by module (optional)
+
+Database only:
+
+```bash
+pnpm dev:db
+```
+
+Backend only (default `4000`):
+
+```bash
+pnpm dev:backend
+```
+
+Frontend only (default `5173`):
+
+```bash
+pnpm dev:frontend
+```
+
+### 4) Remote database for local dev (optional)
+
+Copy `backend/.env.example` to `backend/.env`, keep local frontend/backend ports unchanged, and point DB settings to your remote Postgres (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, or `DATABASE_URL`).
+
+### 5) Auth and registration notes
+
+- Login is enabled by default.
+- Default credentials are in `backend/.env.example` (`AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD`).
+- For production, set a strong `AUTH_TOKEN_SECRET`.
+- Optional self-registration requires backend mail-related configuration (`AUTH_REGISTER_ENABLED`, `EMAIL_PROVIDER`, `SMTP_*`, `HOOKCODE_CONSOLE_BASE_URL`).
 
 ## Environment Variables
 
