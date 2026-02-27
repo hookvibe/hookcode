@@ -21,7 +21,7 @@ import {
   CaretDownOutlined
 } from '@ant-design/icons';
 import type { Task, TaskGroup, TaskStatusStats } from '../api';
-import { fetchAuthMe, fetchDashboardSidebar } from '../api';
+import { fetchAuthMe, fetchDashboardSidebar, fetchTaskGroups, fetchTasks } from '../api';
 import { AUTH_CHANGED_EVENT, getToken } from '../auth';
 import { useT } from '../i18n';
 import {
@@ -38,6 +38,7 @@ import {
 import { navigateFromSidebar } from '../navHistory';
 import { clampText, getTaskSidebarPrimaryText, getTaskSidebarSecondaryText } from '../utils/task';
 import { createAuthedEventSource } from '../utils/sse';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 type SidebarTaskSectionKey = 'queued' | 'processing' | 'success' | 'failed';
 
@@ -71,11 +72,30 @@ const defaultTasksByStatus: Record<SidebarTaskSectionKey, Task[]> = {
   failed: []
 };
 
+const defaultTasksByStatusCursor: Record<SidebarTaskSectionKey, string | null> = {
+  // Initialize per-status cursors for sidebar pagination state. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  queued: null,
+  processing: null,
+  success: null,
+  failed: null
+};
+
+const defaultTasksByStatusLoadState: Record<SidebarTaskSectionKey, boolean> = {
+  // Track per-status load-more flags for sidebar pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  queued: false,
+  processing: false,
+  success: false,
+  failed: false
+};
+
 const SIDEBAR_POLL_ACTIVE_MS = 10_000;
 const SIDEBAR_POLL_IDLE_MS = 30_000;
 const SIDEBAR_SSE_RECONNECT_BASE_MS = 2_000;
 const SIDEBAR_SSE_RECONNECT_MAX_MS = 30_000;
 const SIDER_COLLAPSED_STORAGE_KEY = 'hookcode-sider-collapsed';
+const SIDEBAR_TASKS_INITIAL_SIZE = 3; // Keep the sidebar status preview short for fast loads. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+const SIDEBAR_TASKS_PAGE_SIZE = 10; // Append more status tasks per infinite scroll page. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+const SIDEBAR_TASK_GROUPS_PAGE_SIZE = 50; // Align sidebar task-group pagination with existing list size. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 
 const getStoredSiderCollapsed = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -106,6 +126,12 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
   const refreshSidebarQueuedRef = useRef(false);
   const sidebarSseReconnectTimerRef = useRef<number | null>(null);
   const sidebarSseReconnectBackoffRef = useRef<number>(SIDEBAR_SSE_RECONNECT_BASE_MS);
+  const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
+  const taskGroupsLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const queuedLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const processingLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const successLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const failedLoadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const [authToken, setAuthToken] = useState<string | null>(() => getToken());
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
@@ -121,9 +147,15 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
     failed: 0
   });
   const [tasksByStatus, setTasksByStatus] = useState<Record<SidebarTaskSectionKey, Task[]>>(defaultTasksByStatus);
+  const [tasksByStatusNextCursor, setTasksByStatusNextCursor] = useState<Record<SidebarTaskSectionKey, string | null>>(defaultTasksByStatusCursor); // Track cursors for sidebar status pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  const [tasksByStatusLoadingMore, setTasksByStatusLoadingMore] = useState<Record<SidebarTaskSectionKey, boolean>>(defaultTasksByStatusLoadState); // Track load-more spinners per status. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  const [tasksByStatusLoadedExtra, setTasksByStatusLoadedExtra] = useState<Record<SidebarTaskSectionKey, boolean>>(defaultTasksByStatusLoadState); // Track which status lists have extra pages. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [sidebarSseConnected, setSidebarSseConnected] = useState(false);
+  const [taskGroupsNextCursor, setTaskGroupsNextCursor] = useState<string | null>(null); // Track sidebar task-group cursor for load-more paging. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  const [taskGroupsLoadingMore, setTaskGroupsLoadingMore] = useState(false);
+  const [taskGroupsLoadedExtra, setTaskGroupsLoadedExtra] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -152,6 +184,56 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
     void refreshAuthState();
   }, [refreshAuthState]);
 
+  const loadMoreTaskGroups = useCallback(async () => {
+    // Append additional task groups when sidebar infinite scroll reaches the end. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    if (!taskGroupsNextCursor || taskGroupsLoadingMore) return;
+    setTaskGroupsLoadingMore(true);
+    setTaskGroupsLoadedExtra(true);
+    try {
+      const { taskGroups: more, nextCursor } = await fetchTaskGroups({
+        limit: SIDEBAR_TASK_GROUPS_PAGE_SIZE,
+        cursor: taskGroupsNextCursor
+      });
+      setTaskGroups((prev) => {
+        const existing = new Set(prev.map((group) => group.id));
+        return [...prev, ...more.filter((group) => !existing.has(group.id))];
+      });
+      setTaskGroupsNextCursor(nextCursor ?? null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTaskGroupsLoadingMore(false);
+    }
+  }, [taskGroupsLoadingMore, taskGroupsNextCursor]);
+
+  const loadMoreTasksByStatus = useCallback(
+    async (statusKey: SidebarTaskSectionKey) => {
+      // Append additional sidebar tasks for a specific status bucket. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+      const cursor = tasksByStatusNextCursor[statusKey];
+      if (!cursor || tasksByStatusLoadingMore[statusKey]) return;
+      setTasksByStatusLoadingMore((prev) => ({ ...prev, [statusKey]: true }));
+      setTasksByStatusLoadedExtra((prev) => ({ ...prev, [statusKey]: true }));
+      try {
+        const { tasks: more, nextCursor } = await fetchTasks({
+          limit: SIDEBAR_TASKS_PAGE_SIZE,
+          cursor,
+          status: statusKey,
+          includeQueue: false
+        });
+        setTasksByStatus((prev) => {
+          const existing = new Set(prev[statusKey].map((task) => task.id));
+          return { ...prev, [statusKey]: [...prev[statusKey], ...more.filter((task) => !existing.has(task.id))] };
+        });
+        setTasksByStatusNextCursor((prev) => ({ ...prev, [statusKey]: nextCursor ?? null }));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setTasksByStatusLoadingMore((prev) => ({ ...prev, [statusKey]: false }));
+      }
+    },
+    [tasksByStatusLoadingMore, tasksByStatusNextCursor]
+  );
+
   const refreshSidebar = useCallback(async (): Promise<TaskStatusStats | null> => {
     if (refreshSidebarPromiseRef.current) {
       refreshSidebarQueuedRef.current = true;
@@ -163,22 +245,51 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
       if (!canQuery) {
         setTaskStats({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 });
         setTasksByStatus(defaultTasksByStatus);
+        // Reset sidebar status pagination state when auth is unavailable. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+        setTasksByStatusNextCursor(defaultTasksByStatusCursor);
+        setTasksByStatusLoadedExtra(defaultTasksByStatusLoadState);
+        setTasksByStatusLoadingMore(defaultTasksByStatusLoadState);
         setTaskGroups([]);
+        setTaskGroupsNextCursor(null);
+        setTaskGroupsLoadedExtra(false);
         taskSectionAutoInitRef.current = false;
         return null;
       }
 
       setSidebarLoading(true);
       try {
-        const snapshot = await fetchDashboardSidebar({ tasksLimit: 3, taskGroupsLimit: 50 });
+        const snapshot = await fetchDashboardSidebar({ tasksLimit: SIDEBAR_TASKS_INITIAL_SIZE, taskGroupsLimit: SIDEBAR_TASK_GROUPS_PAGE_SIZE });
         const { stats, tasksByStatus, taskGroups: groups } = snapshot;
-        const queued = tasksByStatus.queued.slice(0, 3);
-        const processing = tasksByStatus.processing.slice(0, 3);
-        const success = tasksByStatus.success.slice(0, 3);
-        const failed = tasksByStatus.failed.slice(0, 3);
+        const queued = tasksByStatus.queued.slice(0, SIDEBAR_TASKS_INITIAL_SIZE);
+        const processing = tasksByStatus.processing.slice(0, SIDEBAR_TASKS_INITIAL_SIZE);
+        const success = tasksByStatus.success.slice(0, SIDEBAR_TASKS_INITIAL_SIZE);
+        const failed = tasksByStatus.failed.slice(0, SIDEBAR_TASKS_INITIAL_SIZE);
 
         setTaskStats(stats);
-        setTasksByStatus({ queued, processing, success, failed });
+        setTasksByStatus((prev) => {
+          // Merge the latest status snapshot with any previously loaded pages. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+          const next: Record<SidebarTaskSectionKey, Task[]> = { ...prev };
+          const updates: Record<SidebarTaskSectionKey, Task[]> = { queued, processing, success, failed };
+          (Object.keys(updates) as SidebarTaskSectionKey[]).forEach((key) => {
+            if (!tasksByStatusLoadedExtra[key]) {
+              next[key] = updates[key];
+              return;
+            }
+            const freshIds = new Set(updates[key].map((task) => task.id));
+            next[key] = [...updates[key], ...prev[key].filter((task) => !freshIds.has(task.id))];
+          });
+          return next;
+        });
+        setTasksByStatusNextCursor((prev) => {
+          // Preserve pagination cursors once extra pages are loaded. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+          const next = { ...prev };
+          const snapshotCursors = snapshot.tasksByStatusNextCursor ?? {};
+          (Object.keys(defaultTasksByStatusCursor) as SidebarTaskSectionKey[]).forEach((key) => {
+            if (tasksByStatusLoadedExtra[key]) return;
+            next[key] = snapshotCursors[key] ?? null;
+          });
+          return next;
+        });
         setTaskSectionExpanded((prev) => {
           if (taskSectionAutoInitRef.current) return prev;
           const now = Date.now();
@@ -204,7 +315,15 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
         });
 
         const sorted = [...groups].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-        setTaskGroups(sorted);
+        setTaskGroups((prev) => {
+          if (!taskGroupsLoadedExtra) return sorted;
+          // Merge fresh first-page results into the existing sidebar list when extra pages are loaded. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+          const freshIds = new Set(sorted.map((group) => group.id));
+          return [...sorted, ...prev.filter((group) => !freshIds.has(group.id))];
+        });
+        if (!taskGroupsLoadedExtra) {
+          setTaskGroupsNextCursor(snapshot.taskGroupsNextCursor ?? null);
+        }
         return stats;
       } catch (err) {
         console.error(err);
@@ -220,7 +339,7 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
     });
 
     return refreshSidebarPromiseRef.current;
-  }, [authEnabled, authToken]);
+  }, [authEnabled, authToken, taskGroupsLoadedExtra, tasksByStatusLoadedExtra]);
 
   // SSE and Polling logic omitted for brevity as it's identical to AppShell. 
   // Ideally, this should be a custom hook `useDashboardSidebar` to share logic.
@@ -246,6 +365,66 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
      }
   }, [refreshSidebar]);
 
+  // Trigger sidebar task-group pagination when the scroll sentinel is visible. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  useInfiniteScroll({
+    targetRef: taskGroupsLoadMoreRef,
+    rootRef: sidebarScrollRef,
+    enabled: !siderCollapsed && Boolean(taskGroupsNextCursor) && !taskGroupsLoadingMore && !sidebarLoading,
+    onLoadMore: () => void loadMoreTaskGroups()
+  });
+
+  // Trigger queued task pagination when the status sentinel is visible. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  useInfiniteScroll({
+    targetRef: queuedLoadMoreRef,
+    rootRef: sidebarScrollRef,
+    enabled:
+      !siderCollapsed &&
+      taskSectionExpanded.queued &&
+      Boolean(tasksByStatusNextCursor.queued) &&
+      !tasksByStatusLoadingMore.queued &&
+      !sidebarLoading,
+    onLoadMore: () => void loadMoreTasksByStatus('queued')
+  });
+
+  // Trigger processing task pagination when the status sentinel is visible. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  useInfiniteScroll({
+    targetRef: processingLoadMoreRef,
+    rootRef: sidebarScrollRef,
+    enabled:
+      !siderCollapsed &&
+      taskSectionExpanded.processing &&
+      Boolean(tasksByStatusNextCursor.processing) &&
+      !tasksByStatusLoadingMore.processing &&
+      !sidebarLoading,
+    onLoadMore: () => void loadMoreTasksByStatus('processing')
+  });
+
+  // Trigger success task pagination when the status sentinel is visible. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  useInfiniteScroll({
+    targetRef: successLoadMoreRef,
+    rootRef: sidebarScrollRef,
+    enabled:
+      !siderCollapsed &&
+      taskSectionExpanded.success &&
+      Boolean(tasksByStatusNextCursor.success) &&
+      !tasksByStatusLoadingMore.success &&
+      !sidebarLoading,
+    onLoadMore: () => void loadMoreTasksByStatus('success')
+  });
+
+  // Trigger failed task pagination when the status sentinel is visible. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  useInfiniteScroll({
+    targetRef: failedLoadMoreRef,
+    rootRef: sidebarScrollRef,
+    enabled:
+      !siderCollapsed &&
+      taskSectionExpanded.failed &&
+      Boolean(tasksByStatusNextCursor.failed) &&
+      !tasksByStatusLoadingMore.failed &&
+      !sidebarLoading,
+    onLoadMore: () => void loadMoreTasksByStatus('failed')
+  });
+
 
   const navigate = (hash: string) => {
     navigateFromSidebar(hash);
@@ -266,6 +445,14 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
     const section = TASK_SECTIONS.find((s) => s.key === sectionKey);
     if (!section) return null;
     const items = tasksByStatus[sectionKey] ?? [];
+    const loadMoreRef =
+      sectionKey === 'queued'
+        ? queuedLoadMoreRef
+        : sectionKey === 'processing'
+          ? processingLoadMoreRef
+          : sectionKey === 'success'
+            ? successLoadMoreRef
+            : failedLoadMoreRef;
     const count =
         sectionKey === 'queued' ? taskStats.queued :
         sectionKey === 'processing' ? taskStats.processing :
@@ -327,6 +514,13 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
                         {t('sidebar.tasks.viewAll')}
                     </button>
                 )}
+                {/* Add an infinite-scroll sentinel to load more status tasks. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
+                <div ref={loadMoreRef} data-testid={`hc-sidebar-${sectionKey}-load-more`} />
+                {tasksByStatusLoadingMore[sectionKey] ? (
+                  <div style={{ padding: '6px 12px' }}>
+                    <span className="hc-nav-label">{t('common.loading')}</span>
+                  </div>
+                ) : null}
             </div>
         )}
       </div>
@@ -362,7 +556,7 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
       </div>
 
       {/* Scrollable Content */}
-      <div className="hc-sidebar-content">
+      <div className="hc-sidebar-content" ref={sidebarScrollRef}>
           
           {/* Section: Repos */}
           <div className="hc-sidebar-section">
@@ -435,6 +629,13 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
                         </span>
                     </button>
                 ))}
+                {/* Add a sidebar load-more sentinel for task groups. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227 */}
+                {!siderCollapsed ? <div ref={taskGroupsLoadMoreRef} data-testid="hc-sidebar-taskgroups-load-more" /> : null}
+                {taskGroupsLoadingMore ? (
+                  <div style={{ padding: '6px 12px' }}>
+                    <span className="hc-nav-label">{t('common.loading')}</span>
+                  </div>
+                ) : null}
           </div>
 
       </div>

@@ -39,12 +39,14 @@ export const RepoTaskActivityCard: FC<RepoTaskActivityCardProps> = ({ repoId }) 
     setLoading(true);
     setLoadFailed(false);
     try {
-      const [nextStats, nextTasks] = await Promise.all([
+      const [nextStats, nextTasksResponse] = await Promise.all([
         fetchTaskStats({ repoId }),
         // Fetch a bounded recent window to compute "last task" without loading the full task history. dashtrendline20260119m9v2
         // Reduce repo dashboard task payload and skip queue diagnosis for faster load. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
         fetchTasks({ repoId, limit: 50, includeQueue: false })
       ]);
+      // Unwrap task list payload from paginated response. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+      const nextTasks = nextTasksResponse.tasks;
       setStats(nextStats);
       setRecentTasks(Array.isArray(nextTasks) ? nextTasks : []);
     } catch (err) {

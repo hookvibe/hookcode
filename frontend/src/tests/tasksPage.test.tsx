@@ -11,7 +11,8 @@ vi.mock('../api', () => {
     __esModule: true,
     // Include paused in task stats mocks to match pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 })),
-    fetchTasks: vi.fn(async () => []),
+    // Mock paginated task list responses for infinite scroll coverage. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    fetchTasks: vi.fn(async () => ({ tasks: [] })),
     retryTask: vi.fn(async () => ({ id: 't_alpha', status: 'queued', eventType: 'chat', retries: 1, createdAt: '', updatedAt: '' })),
     executeTaskNow: vi.fn(async () => ({ id: 't_alpha', status: 'queued', eventType: 'chat', retries: 1, createdAt: '', updatedAt: '' }))
   };
@@ -69,26 +70,28 @@ describe('TasksPage (frontend-chat migration)', () => {
 
   test('filters tasks by search and navigates to detail on click', async () => {
     const ui = userEvent.setup();
-    vi.mocked(api.fetchTasks).mockResolvedValueOnce([
-      {
-        id: 't_alpha',
-        eventType: 'chat',
-        title: 'Alpha task',
-        status: 'queued',
-        retries: 0,
-        createdAt: '2026-01-11T00:00:00.000Z',
-        updatedAt: '2026-01-11T00:00:00.000Z'
-      } as any,
-      {
-        id: 't_beta',
-        eventType: 'chat',
-        title: 'Beta task',
-        status: 'queued',
-        retries: 0,
-        createdAt: '2026-01-11T00:00:00.000Z',
-        updatedAt: '2026-01-11T00:00:00.000Z'
-      } as any
-    ]);
+    vi.mocked(api.fetchTasks).mockResolvedValueOnce({
+      tasks: [
+        {
+          id: 't_alpha',
+          eventType: 'chat',
+          title: 'Alpha task',
+          status: 'queued',
+          retries: 0,
+          createdAt: '2026-01-11T00:00:00.000Z',
+          updatedAt: '2026-01-11T00:00:00.000Z'
+        } as any,
+        {
+          id: 't_beta',
+          eventType: 'chat',
+          title: 'Beta task',
+          status: 'queued',
+          retries: 0,
+          createdAt: '2026-01-11T00:00:00.000Z',
+          updatedAt: '2026-01-11T00:00:00.000Z'
+        } as any
+      ]
+    });
 
     renderPage();
 
@@ -109,20 +112,22 @@ describe('TasksPage (frontend-chat migration)', () => {
   test('shows retry button for queued tasks and does not navigate when clicking it', async () => {
     const ui = userEvent.setup();
     vi.mocked(api.fetchTasks)
-      .mockResolvedValueOnce([
-        {
-          id: 't_alpha',
-          eventType: 'chat',
-          title: 'Alpha task',
-          status: 'queued',
-          retries: 0,
-          createdAt: '2026-01-11T00:00:00.000Z',
-          updatedAt: '2026-01-11T00:00:00.000Z',
-          permissions: { canManage: true },
-          queue: { reasonCode: 'no_active_worker', ahead: 0, queuedTotal: 1, processing: 0, staleProcessing: 0, inlineWorkerEnabled: true }
-        } as any
-      ])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce({
+        tasks: [
+          {
+            id: 't_alpha',
+            eventType: 'chat',
+            title: 'Alpha task',
+            status: 'queued',
+            retries: 0,
+            createdAt: '2026-01-11T00:00:00.000Z',
+            updatedAt: '2026-01-11T00:00:00.000Z',
+            permissions: { canManage: true },
+            queue: { reasonCode: 'no_active_worker', ahead: 0, queuedTotal: 1, processing: 0, staleProcessing: 0, inlineWorkerEnabled: true }
+          } as any
+        ]
+      })
+      .mockResolvedValueOnce({ tasks: [] });
 
     renderPage();
 
@@ -138,27 +143,29 @@ describe('TasksPage (frontend-chat migration)', () => {
   test('shows execute-now button for time-window blocked tasks', async () => {
     const ui = userEvent.setup();
     vi.mocked(api.fetchTasks)
-      .mockResolvedValueOnce([
-        {
-          id: 't_beta',
-          eventType: 'chat',
-          title: 'Beta task',
-          status: 'queued',
-          retries: 0,
-          createdAt: '2026-01-11T00:00:00.000Z',
-          updatedAt: '2026-01-11T00:00:00.000Z',
-          permissions: { canManage: true },
-          queue: {
-            reasonCode: 'outside_time_window',
-            ahead: 0,
-            queuedTotal: 1,
-            processing: 0,
-            staleProcessing: 0,
-            inlineWorkerEnabled: true
-          }
-        } as any
-      ])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce({
+        tasks: [
+          {
+            id: 't_beta',
+            eventType: 'chat',
+            title: 'Beta task',
+            status: 'queued',
+            retries: 0,
+            createdAt: '2026-01-11T00:00:00.000Z',
+            updatedAt: '2026-01-11T00:00:00.000Z',
+            permissions: { canManage: true },
+            queue: {
+              reasonCode: 'outside_time_window',
+              ahead: 0,
+              queuedTotal: 1,
+              processing: 0,
+              staleProcessing: 0,
+              inlineWorkerEnabled: true
+            }
+          } as any
+        ]
+      })
+      .mockResolvedValueOnce({ tasks: [] });
 
     renderPage();
 
@@ -166,5 +173,45 @@ describe('TasksPage (frontend-chat migration)', () => {
     await ui.click(screen.getByRole('button', { name: 'Run now' }));
     await waitFor(() => expect(api.executeTaskNow).toHaveBeenCalledWith('t_beta'));
     expect(window.location.hash).toBe('#/tasks');
+  });
+
+  test('loads more tasks when a nextCursor is available', async () => {
+    // Verify infinite scroll pagination requests the next cursor page. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    vi.mocked(api.fetchTasks)
+      .mockResolvedValueOnce({
+        tasks: [
+          {
+            id: 't_alpha',
+            eventType: 'chat',
+            title: 'Alpha task',
+            status: 'queued',
+            retries: 0,
+            createdAt: '2026-01-11T00:00:00.000Z',
+            updatedAt: '2026-01-11T00:00:00.000Z'
+          } as any
+        ],
+        nextCursor: 'cursor-1'
+      })
+      .mockResolvedValueOnce({
+        tasks: [
+          {
+            id: 't_beta',
+            eventType: 'chat',
+            title: 'Beta task',
+            status: 'queued',
+            retries: 0,
+            createdAt: '2026-01-11T00:00:00.000Z',
+            updatedAt: '2026-01-11T00:00:00.000Z'
+          } as any
+        ]
+      });
+
+    renderPage();
+
+    await waitFor(() => expect(api.fetchTasks).toHaveBeenCalledTimes(2));
+    expect(api.fetchTasks).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ cursor: 'cursor-1' })
+    );
   });
 });

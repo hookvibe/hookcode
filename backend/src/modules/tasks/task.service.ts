@@ -18,11 +18,12 @@ import type { RepoProvider } from '../../types/repository';
 import { isTruthy } from '../../utils/env';
 import { extractTaskSchedule, isTimeWindowActive } from '../../utils/timeWindow';
 import type { TaskScheduleSnapshot } from '../../types/timeWindow';
+import { isUuidLike } from '../../utils/uuid'; // Share UUID validation across pagination and list filters. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 
 /**
  * tasks table access layer (the "source of truth" for the queue/task state machine):
  * - Enqueue: `backend/src/routes/webhook.ts` calls `createTask()` to persist a Webhook event as queued.
- * - Consume: `backend/src/services/taskRunner.ts` uses `takeNextQueued()` with `FOR UPDATE SKIP LOCKED` to serially claim tasks and mark them processing.
+ * - Consume: `backend/src/modules/tasks/task-runner.service.ts` uses `takeNextQueued()` to claim tasks while enforcing per-group exclusivity. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
  * - Display: `backend/src/routes/tasks.ts` uses `listTasks()` / `getTask()` to serve the frontend console.
  * - Logs: `backend/src/agent/agent.ts` writes execution logs into `result_json.logs` for console SSE/polling.
  */
@@ -55,6 +56,7 @@ export interface TaskCreateInGroupOptions {
 
 export interface TaskListOptions {
   limit?: number;
+  cursor?: { id: string; updatedAt: Date };
   repoId?: string;
   robotId?: string;
   status?: TaskStatus | 'success';
@@ -125,6 +127,26 @@ const resolveScheduleState = (
   if (!schedule) return { schedule: null, blocked: false };
   if (schedule.override) return { schedule, blocked: false };
   return { schedule, blocked: !isTimeWindowActive(schedule.window, now) };
+};
+
+const isTaskGroupProcessingConflict = (err: unknown): boolean => {
+  // Detect task-group processing conflicts so workers can skip busy groups without failing the queue. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
+  const prismaErr = err instanceof PrismaClientKnownRequestError ? err : null;
+  const code = prismaErr?.code ?? (typeof (err as any)?.code === 'string' ? (err as any).code : '');
+  const meta = prismaErr?.meta ?? (err as any)?.meta;
+  const message = String((meta as any)?.message ?? (err as any)?.message ?? '');
+
+  if (code === 'P2002') {
+    return String((meta as any)?.target ?? '').includes('tasks_group_processing_unique_idx');
+  }
+
+  if (code === 'P2010') {
+    const dbCode = String((meta as any)?.code ?? '');
+    if (dbCode !== '23505') return false;
+    return message.includes('tasks_group_processing_unique_idx');
+  }
+
+  return false;
 };
 
 const taskRecordToTask = (row: any): Task => ({
@@ -205,9 +227,6 @@ const clampLimit = (value: unknown, fallback: number): number => {
   if (!Number.isFinite(num)) return fallback;
   return Math.min(Math.max(Math.floor(num), 1), 200);
 };
-
-const isUuidLike = (value: string): boolean =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
 type TaskGroupBinding = {
   kind: 'issue' | 'merge_request' | 'commit' | 'task';
@@ -787,14 +806,18 @@ export class TaskService {
 
   async listTaskGroups(options?: {
     limit?: number;
+    cursor?: { id: string; updatedAt: Date };
     repoId?: string;
     robotId?: string;
     kind?: TaskGroup['kind'];
     archived?: 'active' | 'archived' | 'all';
     includeMeta?: boolean;
+    allowedRepoIds?: string[];
   }): Promise<TaskGroupWithMeta[]> {
     const take = clampLimit(options?.limit, 50);
     const where: Record<string, any> = {};
+    // Apply keyset pagination cursor to task list queries. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    const cursor = options?.cursor ?? null;
     if (options?.repoId) where.repoId = options.repoId;
     if (options?.robotId) where.robotId = options.robotId;
     if (options?.kind) where.kind = options.kind;
@@ -805,10 +828,22 @@ export class TaskService {
 
     if (options?.repoId && !isUuidLike(options.repoId)) return [];
     if (options?.robotId && !isUuidLike(options.robotId)) return [];
+    // Apply repo access filters for non-admin list views. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    if (options?.allowedRepoIds && !options.repoId) {
+      if (options.allowedRepoIds.length === 0) return [];
+      where.repoId = { in: options.allowedRepoIds };
+    }
+    if (cursor) {
+      // Apply keyset pagination on updatedAt + id for stable task-group paging. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+      where.OR = [
+        { updatedAt: { lt: cursor.updatedAt } },
+        { updatedAt: cursor.updatedAt, id: { lt: cursor.id } }
+      ];
+    }
 
     const rows = await db.taskGroup.findMany({
       where,
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       take
     });
 
@@ -889,6 +924,10 @@ export class TaskService {
     // - Sort by `updated_at` (instead of `created_at`) so the console can surface the most recently updated tasks
     //   (status transitions, retries, log/result patches) at the top.
     const take = clampLimit(options?.limit, 50);
+    const cursor = options?.cursor ?? null;
+    const cursorUpdatedAt = cursor?.updatedAt ?? null;
+    const cursorId = cursor?.id ?? null;
+    const applyCursor = Boolean(cursorUpdatedAt && cursorId);
     const where: Record<string, any> = {};
     if (options?.repoId) where.repoId = options.repoId;
     if (options?.robotId) where.robotId = options.robotId;
@@ -913,6 +952,7 @@ export class TaskService {
 
     let tasks: TaskWithMeta[] = [];
     if (!options?.status) {
+      // Use updatedAt + id ordering to support stable keyset pagination across task lists. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
       const rows = await db.$queryRaw<any[]>`
         WITH candidates AS (
           (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
@@ -929,8 +969,9 @@ export class TaskService {
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
              AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
+             AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
              AND status = 'queued'
-           ORDER BY updated_at DESC
+           ORDER BY updated_at DESC, id DESC
            LIMIT ${take})
           UNION ALL
           (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
@@ -947,8 +988,9 @@ export class TaskService {
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
              AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
+             AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
              AND status = 'processing'
-           ORDER BY updated_at DESC
+           ORDER BY updated_at DESC, id DESC
            LIMIT ${take})
           UNION ALL
           (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
@@ -965,8 +1007,9 @@ export class TaskService {
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
              AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
+             AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
              AND status = 'succeeded'
-           ORDER BY updated_at DESC
+           ORDER BY updated_at DESC, id DESC
            LIMIT ${take})
           UNION ALL
           (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
@@ -983,8 +1026,9 @@ export class TaskService {
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
              AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
+             AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
              AND status = 'commented'
-           ORDER BY updated_at DESC
+           ORDER BY updated_at DESC, id DESC
            LIMIT ${take})
           UNION ALL
           (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
@@ -1001,13 +1045,14 @@ export class TaskService {
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
              AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
+             AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
              AND status = 'failed'
-           ORDER BY updated_at DESC
+           ORDER BY updated_at DESC, id DESC
            LIMIT ${take})
         )
         SELECT *
         FROM candidates
-        ORDER BY updated_at DESC
+        ORDER BY updated_at DESC, id DESC
         LIMIT ${take};
       `;
       tasks = rows.map(rowToTaskFromSql) as TaskWithMeta[];
@@ -1028,8 +1073,9 @@ export class TaskService {
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
              AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
+             AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
              AND status = 'succeeded'
-           ORDER BY updated_at DESC
+           ORDER BY updated_at DESC, id DESC
            LIMIT ${take})
           UNION ALL
           (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
@@ -1046,13 +1092,14 @@ export class TaskService {
              AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
              AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
+             AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
              AND status = 'commented'
-           ORDER BY updated_at DESC
+           ORDER BY updated_at DESC, id DESC
            LIMIT ${take})
         )
         SELECT *
         FROM candidates
-        ORDER BY updated_at DESC
+        ORDER BY updated_at DESC, id DESC
         LIMIT ${take};
       `;
       tasks = rows.map(rowToTaskFromSql) as TaskWithMeta[];
@@ -1073,8 +1120,9 @@ export class TaskService {
           AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
           AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
           AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
+          AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
           AND status = ${status}::text
-        ORDER BY updated_at DESC
+        ORDER BY updated_at DESC, id DESC
         LIMIT ${take};
       `;
       tasks = rows.map(rowToTaskFromSql) as TaskWithMeta[];
@@ -1376,7 +1424,7 @@ export class TaskService {
 
   async takeNextQueued(): Promise<Task | undefined> {
     const batchSize = 50;
-    // Scan queued tasks in order and skip those blocked by time windows; claim the first eligible row. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    // Scan queued tasks in order and skip those blocked by time windows or busy groups; claim the first eligible row. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
     const candidates = await db.$queryRaw<any[]>`
       SELECT *
       FROM tasks
@@ -1394,15 +1442,29 @@ export class TaskService {
       const scheduleState = resolveScheduleState(task.payload, now);
       if (scheduleState.blocked) continue;
 
-      const claimed = await db.$queryRaw<any[]>`
-        UPDATE tasks
-        SET status = 'processing', updated_at = ${now}
-        WHERE id = ${task.id}
-          AND status = 'queued'
-          AND archived_at IS NULL
-        RETURNING *;
-      `;
-      if (claimed?.[0]) return rowToTaskFromSql(claimed[0]);
+      try {
+        const claimed = await db.$queryRaw<any[]>`
+          UPDATE tasks
+          SET status = 'processing', updated_at = ${now}
+          WHERE id = ${task.id}
+            AND status = 'queued'
+            AND archived_at IS NULL
+            AND NOT EXISTS (
+              SELECT 1
+              FROM tasks AS active
+              WHERE active.status = 'processing'
+                AND active.archived_at IS NULL
+                AND active.group_id = tasks.group_id
+            )
+          RETURNING *;
+        `;
+        if (claimed?.[0]) return rowToTaskFromSql(claimed[0]);
+      } catch (err) {
+        if (isTaskGroupProcessingConflict(err)) {
+          continue;
+        }
+        throw err;
+      }
     }
 
     return undefined;

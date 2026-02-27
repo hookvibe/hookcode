@@ -58,6 +58,17 @@ Branches are used for:
   - Mutating operations (robot changes, automation edits, retries) are blocked.
   - Archived items are hidden from default lists unless you filter for archived.
 
+<!-- Document repo member management roles. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+## Member management
+
+Repository member management is available in the repo detail page:
+
+- **Owner**: full control, including deleting the repository and managing members.
+- **Maintainer**: can manage repo settings, robots, automation, and members.
+- **Member**: read-only access to repo details and task history.
+
+Use the **Members** section to invite users by email, change roles, and revoke pending invites.
+
 ## Credentials scope (repo-level)
 
 Repositories can store **repo-scoped credential profiles**:
@@ -72,4 +83,3 @@ Robots can choose credentials from:
 - Repo-scoped profiles
 
 See [Robot configuration](./robots) for details.
-

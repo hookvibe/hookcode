@@ -15,7 +15,8 @@ describe('TaskGroupChatPage composer', () => {
     const ui = userEvent.setup();
     renderTaskGroupChatPage();
 
-    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    // Expect chat page repo fetch to use paginated helper. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    await waitFor(() => expect(api.fetchAllRepos).toHaveBeenCalled());
     await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
 
     const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
@@ -121,7 +122,8 @@ describe('TaskGroupChatPage composer', () => {
     const ui = userEvent.setup();
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
 
-    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    // Expect chat page repo fetch to use paginated helper. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    await waitFor(() => expect(api.fetchAllRepos).toHaveBeenCalled());
     const actionsButton = screen.getByRole('button', { name: 'Composer actions' });
     await ui.click(actionsButton);
 
@@ -155,7 +157,8 @@ describe('TaskGroupChatPage composer', () => {
     const ui = userEvent.setup();
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
 
-    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    // Expect chat page repo fetch to use paginated helper. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    await waitFor(() => expect(api.fetchAllRepos).toHaveBeenCalled());
     const actionsButton = screen.getByRole('button', { name: 'Composer actions' });
     await ui.click(actionsButton);
 
@@ -172,7 +175,8 @@ describe('TaskGroupChatPage composer', () => {
     vi.mocked(api.listRepoRobots).mockResolvedValue([]);
     renderTaskGroupChatPage();
 
-    await waitFor(() => expect(api.listRepos).toHaveBeenCalled());
+    // Expect chat page repo fetch to use paginated helper. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    await waitFor(() => expect(api.fetchAllRepos).toHaveBeenCalled());
     await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
 
     const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');

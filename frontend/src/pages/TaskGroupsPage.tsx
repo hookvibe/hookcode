@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Card, Empty, Input, Space, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import type { TaskGroup, TaskGroupKind } from '../api';
@@ -7,6 +7,7 @@ import { useLocale, useT } from '../i18n';
 import { buildTaskGroupHash } from '../router';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 /**
  * TaskGroupsPage:
@@ -58,6 +59,8 @@ export interface TaskGroupsPageProps {
   navToggle?: PageNavMenuAction;
 }
 
+const TASK_GROUPS_PAGE_SIZE = 50; // Keep task-group pagination aligned with existing list limits. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+
 export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
@@ -66,25 +69,63 @@ export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel, navToggle }
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState<TaskGroup[]>([]);
   const [search, setSearch] = useState('');
+  const [nextCursor, setNextCursor] = useState<string | null>(null); // Track pagination cursor for task-group load-more. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchPage = useCallback(
+    async (options: { cursor?: string; append: boolean }) => {
+      // Fetch task groups for the card list page without blocking UI interactions. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+      if (options.append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+      try {
+        const params: { limit: number; cursor?: string } = { limit: TASK_GROUPS_PAGE_SIZE };
+        if (options.cursor) params.cursor = options.cursor;
+        const { taskGroups, nextCursor: cursor } = await fetchTaskGroups(params);
+        setGroups((prev) => (options.append ? [...prev, ...taskGroups] : taskGroups));
+        setNextCursor(cursor ?? null);
+      } catch (err) {
+        console.error(err);
+        message.error(t('toast.taskGroups.fetchFailed'));
+        if (!options.append) {
+          setGroups([]);
+          setNextCursor(null);
+        }
+      } finally {
+        if (options.append) {
+          setLoadingMore(false);
+        } else {
+          setLoading(false);
+        }
+      }
+    },
+    [message, t]
+  );
 
   const refresh = useCallback(async () => {
-    // Fetch task groups for the card list page without blocking UI interactions. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
-    setLoading(true);
-    try {
-      const data = await fetchTaskGroups({ limit: 50 });
-      setGroups(data);
-    } catch (err) {
-      console.error(err);
-      message.error(t('toast.taskGroups.fetchFailed'));
-      setGroups([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [message, t]);
+    // Reset task-group pagination when users refresh the list. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    await fetchPage({ append: false });
+  }, [fetchPage]);
+
+  const loadMore = useCallback(async () => {
+    // Append additional task-group pages when the sentinel is reached. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    if (!nextCursor || loading || loadingMore) return;
+    await fetchPage({ append: true, cursor: nextCursor });
+  }, [fetchPage, loading, loadingMore, nextCursor]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Trigger task-group pagination when the sentinel enters view. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  useInfiniteScroll({
+    targetRef: loadMoreRef,
+    enabled: Boolean(nextCursor) && !loading && !loadingMore,
+    onLoadMore: () => void loadMore()
+  });
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -183,6 +224,13 @@ export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel, navToggle }
                 );
               })}
             </div>
+            {/* Add an infinite-scroll sentinel to load more task groups when the list bottom is reached. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227 */}
+            <div ref={loadMoreRef} data-testid="hc-taskgroups-load-more" />
+            {loadingMore ? (
+              <div style={{ padding: '12px 0', textAlign: 'center' }}>
+                <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+              </div>
+            ) : null}
           </div>
         ) : loading ? (
           // Reuse the list skeleton so the empty state only appears after a real empty response. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw

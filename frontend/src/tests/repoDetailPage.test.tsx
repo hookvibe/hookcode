@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
@@ -19,6 +19,13 @@ vi.mock('../api', () => {
         externalId: '',
         apiBaseUrl: '',
         enabled: true,
+        permissions: {
+          canRead: true,
+          canManage: true,
+          canDelete: true,
+          canManageMembers: false,
+          canManageTasks: true
+        },
         createdAt: '2026-01-11T00:00:00.000Z',
         updatedAt: '2026-01-11T00:00:00.000Z'
       },
@@ -46,14 +53,16 @@ vi.mock('../api', () => {
       effective: [],
       mode: 'custom'
     })),
-    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [] })),
+    // Mock skills registry responses with pagination cursors. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [], builtInNextCursor: null, extraNextCursor: null })),
     // Expose archive APIs in the mock so RepoDetailPage can render the archive controls safely. qnp1mtxhzikhbi0xspbc
     archiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksArchived: 0, taskGroupsArchived: 0 })),
     unarchiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksRestored: 0, taskGroupsRestored: 0 })),
     updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null })),
     // Provide repo task-group PAT mocks for the bottom token section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
     fetchMyApiTokens: vi.fn(async () => []),
-    fetchTaskGroups: vi.fn(async () => []),
+    // Mock paginated task-group list responses for repo detail coverage. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    fetchTaskGroups: vi.fn(async () => ({ taskGroups: [] })),
     revokeMyApiToken: vi.fn(async () => ({
       id: 'pat-1',
       name: 'task-group-123e4567-e89b-12d3-a456-426614174000',
@@ -67,7 +76,8 @@ vi.mock('../api', () => {
     })),
     // Mock task stats fetch with paused counts for repo detail dashboard coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 })),
-    fetchTasks: vi.fn(async () => []),
+    // Mock paginated task list responses for repo detail coverage. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    fetchTasks: vi.fn(async () => ({ tasks: [] })),
     // Mock the daily volume API used by the task activity line chart. dashtrendline20260119m9v2
     fetchTaskVolumeByDay: vi.fn(async () => []),
     // Mock webhook deliveries list fetch used by both the dashboard charts and deliveries table. u55e45ffi8jng44erdzp
@@ -117,14 +127,16 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
 
     // Include paused in activity stats for pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     vi.mocked(api.fetchTaskStats).mockResolvedValueOnce({ total: 6, queued: 0, processing: 3, paused: 0, success: 2, failed: 1 });
-    vi.mocked(api.fetchTasks).mockResolvedValueOnce([
-      { id: 't_p1', eventType: 'issue', status: 'processing', retries: 0, createdAt: '2026-01-19T10:00:00.000Z', updatedAt: '2026-01-19T10:00:00.000Z' } as any,
-      { id: 't_p2', eventType: 'push', status: 'processing', retries: 0, createdAt: '2026-01-18T10:00:00.000Z', updatedAt: '2026-01-18T10:00:00.000Z' } as any,
-      { id: 't_p3', eventType: 'merge_request', status: 'processing', retries: 0, createdAt: '2026-01-17T10:00:00.000Z', updatedAt: '2026-01-17T10:00:00.000Z' } as any,
-      { id: 't_f1', eventType: 'commit', status: 'failed', retries: 0, createdAt: '2026-01-16T10:00:00.000Z', updatedAt: '2026-01-16T10:00:00.000Z' } as any,
-      { id: 't_s1', eventType: 'issue_comment', status: 'succeeded', retries: 0, createdAt: '2026-01-15T10:00:00.000Z', updatedAt: '2026-01-15T10:00:00.000Z' } as any,
-      { id: 't_s2', eventType: 'chat', status: 'commented', retries: 0, createdAt: '2026-01-14T10:00:00.000Z', updatedAt: '2026-01-14T10:00:00.000Z' } as any
-    ]);
+    vi.mocked(api.fetchTasks).mockResolvedValueOnce({
+      tasks: [
+        { id: 't_p1', eventType: 'issue', status: 'processing', retries: 0, createdAt: '2026-01-19T10:00:00.000Z', updatedAt: '2026-01-19T10:00:00.000Z' } as any,
+        { id: 't_p2', eventType: 'push', status: 'processing', retries: 0, createdAt: '2026-01-18T10:00:00.000Z', updatedAt: '2026-01-18T10:00:00.000Z' } as any,
+        { id: 't_p3', eventType: 'merge_request', status: 'processing', retries: 0, createdAt: '2026-01-17T10:00:00.000Z', updatedAt: '2026-01-17T10:00:00.000Z' } as any,
+        { id: 't_f1', eventType: 'commit', status: 'failed', retries: 0, createdAt: '2026-01-16T10:00:00.000Z', updatedAt: '2026-01-16T10:00:00.000Z' } as any,
+        { id: 't_s1', eventType: 'issue_comment', status: 'succeeded', retries: 0, createdAt: '2026-01-15T10:00:00.000Z', updatedAt: '2026-01-15T10:00:00.000Z' } as any,
+        { id: 't_s2', eventType: 'chat', status: 'commented', retries: 0, createdAt: '2026-01-14T10:00:00.000Z', updatedAt: '2026-01-14T10:00:00.000Z' } as any
+      ]
+    });
 
     renderPage({ repoId: 'r1' });
 
@@ -215,6 +227,13 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
         externalId: '',
         apiBaseUrl: '',
         enabled: true,
+        permissions: {
+          canRead: true,
+          canManage: true,
+          canDelete: true,
+          canManageMembers: false,
+          canManageTasks: true
+        },
         createdAt: '2026-01-11T00:00:00.000Z',
         updatedAt: '2026-01-11T00:00:00.000Z'
       },
@@ -271,6 +290,29 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     expect(await screen.findByText('feat: one')).toBeInTheDocument();
     expect(screen.getByText('MR: one')).toBeInTheDocument();
     expect(screen.getByText('Issue: one')).toBeInTheDocument();
+  });
+
+  test('keeps commit hash wrapper stable when titles are long', async () => {
+    const longTitle = 'feat: long title keeps going to test overflow handling in repo activity rows';
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    vi.mocked(api.fetchRepoProviderMeta).mockResolvedValueOnce({ provider: 'gitlab', visibility: 'public' } as any);
+    vi.mocked(api.fetchRepoProviderActivity).mockResolvedValueOnce({
+      provider: 'gitlab',
+      commits: { page: 1, pageSize: 5, hasMore: false, items: [{ id: 'c1', shortId: 'c1', title: longTitle, url: 'https://gitlab.example.com/c1' }] },
+      merges: { page: 1, pageSize: 5, hasMore: false, items: [] },
+      issues: { page: 1, pageSize: 5, hasMore: false, items: [] }
+    } as any);
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepoProviderActivity).toHaveBeenCalled());
+    expect(await screen.findByText(longTitle)).toBeInTheDocument();
+
+    // Ensure the commit hash wrapper class is present to prevent title overflow from shrinking it. docs/en/developer/plans/repo-activity-title-overflow-20260227/task_plan.md repo-activity-title-overflow-20260227
+    const hashNode = screen.getByText('c1').closest('.hc-provider-activity-item__hash');
+    expect(hashNode).toBeTruthy();
+    expect(hashNode).toHaveClass('hc-provider-activity-item__hash');
   });
 
   test('paginates commits without refreshing merges/issues', async () => {
@@ -361,6 +403,13 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
         externalId: '',
         apiBaseUrl: '',
         enabled: true,
+        permissions: {
+          canRead: true,
+          canManage: true,
+          canDelete: true,
+          canManageMembers: false,
+          canManageTasks: true
+        },
         archivedAt: '2026-01-20T00:00:00.000Z',
         createdAt: '2026-01-11T00:00:00.000Z',
         updatedAt: '2026-01-11T00:00:00.000Z'
@@ -438,6 +487,36 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await waitFor(() => expect(modelInput).toHaveValue('gpt-4o'));
   });
 
+  test('opens repo model credential modal from robot form when repo credentials are missing', async () => {
+    // Surface the repo-scoped model credential CTA inside the robot form to avoid a setup dead-end. docs/en/developer/plans/repo-guide-visibility-20260227/task_plan.md repo-guide-visibility-20260227
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    await ui.click(screen.getByRole('button', { name: /new robot/i }));
+
+    const modelCardTitle = await screen.findByText('Model settings');
+    const modelCard = modelCardTitle.closest('.ant-card');
+    expect(modelCard).toBeTruthy();
+
+    const modelCredentialLabel = within(modelCard as HTMLElement).getByText('Credential source');
+    const modelCredentialItem = modelCredentialLabel.closest('.ant-form-item');
+    expect(modelCredentialItem).toBeTruthy();
+    const modelCredentialSelect = modelCredentialItem?.querySelector('.ant-select') as HTMLElement | null;
+    expect(modelCredentialSelect).toBeTruthy();
+    // Open the Ant Design select dropdown via mouseDown so options render in the portal. docs/en/developer/plans/repo-guide-visibility-20260227/task_plan.md repo-guide-visibility-20260227
+    fireEvent.mouseDown(modelCredentialSelect as HTMLElement);
+    await ui.click(await screen.findByText('Use repo-scoped credential'));
+
+    const addRepoCredential = await within(modelCard as HTMLElement).findByRole('button', { name: 'Add repo credential' });
+    await ui.click(addRepoCredential);
+
+    expect(await screen.findByText('Add credential profile')).toBeInTheDocument();
+  });
+
   test('shows dependency override controls in robot editor', async () => {
     // Validate dependency override UI toggles for robot-level install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
     const ui = userEvent.setup();
@@ -481,15 +560,17 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
         lastUsedAt: null
       }
     ]);
-    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce([
-      {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        kind: 'task',
-        bindingKey: 'task-group-1',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      } as any
-    ]);
+    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce({
+      taskGroups: [
+        {
+          id: '123e4567-e89b-12d3-a456-426614174000',
+          kind: 'task',
+          bindingKey: 'task-group-1',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        } as any
+      ]
+    });
 
     renderPage({ repoId: 'r1' });
 
@@ -528,8 +609,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     }));
 
     vi.mocked(api.fetchMyApiTokens).mockResolvedValueOnce(tokens);
-    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce(
-      taskGroupIds.map(
+    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce({
+      taskGroups: taskGroupIds.map(
         (id) =>
           ({
             id,
@@ -539,7 +620,7 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
             updatedAt: new Date().toISOString()
           }) as any
       )
-    );
+    });
 
     renderPage({ repoId: 'r1' });
 

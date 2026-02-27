@@ -156,4 +156,13 @@ export interface DashboardSidebarSnapshot {
     failed: Task[];
   };
   taskGroups: TaskGroup[];
+  // Provide a cursor to paginate sidebar task groups with load-more UX. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  taskGroupsNextCursor?: string;
+  // Provide per-status cursors to load more tasks from the sidebar. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  tasksByStatusNextCursor?: {
+    queued?: string;
+    processing?: string;
+    success?: string;
+    failed?: string;
+  };
 }

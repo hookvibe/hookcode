@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Card, Empty, Input, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import type { Task, TaskStatusStats } from '../api';
@@ -8,6 +8,7 @@ import { buildTaskHash, buildTasksHash } from '../router';
 import { clampText, getTaskTitle, queuedHintText, statusTag } from '../utils/task';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { getStatusSummaryKey, normalizeStatusFilter, type StatusFilter, type StatusSummaryKey } from './tasks/taskFilters';
 import { formatTaskTimestamp } from './tasks/formatters';
 
@@ -29,6 +30,8 @@ export interface TasksPageProps {
   navToggle?: PageNavMenuAction;
 }
 
+const TASKS_PAGE_SIZE = 50; // Keep task pagination aligned with existing list limits. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+
 export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
@@ -40,6 +43,9 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navTo
   const [stats, setStats] = useState<TaskStatusStats | null>(null);
   const [search, setSearch] = useState('');
   const [retryingTaskId, setRetryingTaskId] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null); // Track pagination cursor for task list load-more. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const statusFilter = useMemo(() => normalizeStatusFilter(status), [status]);
   const repoIdFilter = useMemo(() => {
@@ -53,26 +59,59 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navTo
     [statusFilter]
   ); // Use shared filter helpers to keep the page module smaller. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
+  const fetchPage = useCallback(
+    async (options: { cursor?: string; append: boolean }) => {
+      if (options.append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+      try {
+        const params: {
+          limit: number;
+          cursor?: string;
+          status?: StatusFilter;
+          repoId?: string;
+          includeQueue: boolean;
+        } = {
+          limit: TASKS_PAGE_SIZE,
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          // Skip queue diagnosis on list views to keep task browsing responsive. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+          includeQueue: false
+        };
+        if (options.cursor) params.cursor = options.cursor;
+        if (repoIdFilter) params.repoId = repoIdFilter;
+        const { tasks: list, nextCursor: cursor } = await fetchTasks(params);
+        setTasks((prev) => (options.append ? [...prev, ...list] : list));
+        setNextCursor(cursor ?? null);
+      } catch (err) {
+        console.error(err);
+        message.error(t('toast.tasks.fetchFailed'));
+        if (!options.append) {
+          setTasks([]);
+          setNextCursor(null);
+        }
+      } finally {
+        if (options.append) {
+          setLoadingMore(false);
+        } else {
+          setLoading(false);
+        }
+      }
+    },
+    [message, repoIdFilter, statusFilter, t]
+  );
+
   const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params: { limit: number; status?: StatusFilter; repoId?: string; includeQueue: boolean } = {
-        limit: 50,
-        status: statusFilter === 'all' ? undefined : statusFilter,
-        // Skip queue diagnosis on list views to keep task browsing responsive. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
-        includeQueue: false
-      };
-      if (repoIdFilter) params.repoId = repoIdFilter;
-      const list = await fetchTasks(params);
-      setTasks(list);
-    } catch (err) {
-      console.error(err);
-      message.error(t('toast.tasks.fetchFailed'));
-      setTasks([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [message, repoIdFilter, statusFilter, t]);
+    // Reset task list pagination when filters change or users refresh the page. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    await fetchPage({ append: false });
+  }, [fetchPage]);
+
+  const loadMore = useCallback(async () => {
+    // Append additional task pages when the load-more sentinel is reached. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    if (!nextCursor || loading || loadingMore) return;
+    await fetchPage({ append: true, cursor: nextCursor });
+  }, [fetchPage, loading, loadingMore, nextCursor]);
 
   const refreshStats = useCallback(async () => {
     // Load status totals for the summary strip so users can see the current filter at a glance. 3iz4jx8bsy7q7d6b3jr3
@@ -95,6 +134,13 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navTo
   useEffect(() => {
     void refreshStats();
   }, [refreshStats]);
+
+  // Trigger task list pagination when the sentinel enters view. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  useInfiniteScroll({
+    targetRef: loadMoreRef,
+    enabled: Boolean(nextCursor) && !loading && !loadingMore,
+    onLoadMore: () => void loadMore()
+  });
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -383,6 +429,13 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navTo
                 </Card>
               ))}
             </div>
+            {/* Add an infinite-scroll sentinel to load more tasks when the list bottom is reached. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227 */}
+            <div ref={loadMoreRef} data-testid="hc-tasks-load-more" />
+            {loadingMore ? (
+              <div style={{ padding: '12px 0', textAlign: 'center' }}>
+                <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+              </div>
+            ) : null}
           </div>
         ) : loading ? (
           // Use skeleton cards instead of an Empty+icon while the task list is loading. ro3ln7zex8d0wyynfj0m

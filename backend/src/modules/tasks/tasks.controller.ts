@@ -11,7 +11,8 @@ import {
   Post,
   Query,
   Req,
-  Res
+  Res,
+  UnauthorizedException
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -33,14 +34,17 @@ import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
 import type { TaskStatus } from '../../types/task';
 import { isTaskLogsEnabled } from '../../config/features';
+import { db } from '../../db';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { computeTaskLogsDelta, extractTaskLogsSnapshot, sliceLogsTail } from '../../services/taskLogs';
 import { isTruthy } from '../../utils/env';
 import { normalizeString, parseOptionalBoolean, parsePositiveInt } from '../../utils/parse';
+import { decodeUpdatedAtCursor, encodeUpdatedAtCursor } from '../../utils/pagination'; // Share cursor parsing/encoding for task pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 import { extractTaskSchedule } from '../../utils/timeWindow';
 import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
+import { RepoAccessService, type RepoRole } from '../repositories/repo-access.service';
 import {
   GetTaskResponseDto,
   ListTasksResponseDto,
@@ -60,7 +64,8 @@ export class TasksController {
     private readonly taskService: TaskService,
     private readonly taskLogStream: TaskLogStream,
     private readonly taskRunner: TaskRunner,
-    private readonly taskGitPushService: TaskGitPushService
+    private readonly taskGitPushService: TaskGitPushService,
+    private readonly repoAccessService: RepoAccessService
   ) {}
 
   private normalizeTaskStatusFilter(value: unknown): TaskStatus | 'success' | undefined {
@@ -90,11 +95,25 @@ export class TasksController {
     return 'active';
   }
 
-  private attachTaskPermissions(tasks: any[]): any[] {
-    return tasks.map((t) => ({
-      ...t,
-      permissions: { canManage: true }
-    }));
+  // Compute per-task manage permissions based on repo membership. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  private async attachTaskPermissions(tasks: any[], user: { id: string; roles?: string[] }): Promise<any[]> {
+    const isAdmin = this.repoAccessService.isAdmin(user);
+    if (isAdmin) {
+      return tasks.map((t) => ({ ...t, permissions: { canManage: true } }));
+    }
+    const repoIds = Array.from(new Set(tasks.map((t) => t.repoId).filter(Boolean))) as string[];
+    const memberships = repoIds.length
+      ? await db.repoMember.findMany({
+          where: { userId: user.id, repoId: { in: repoIds } },
+          select: { repoId: true, role: true }
+        })
+      : [];
+    const roleMap = new Map<string, RepoRole>(memberships.map((row) => [String(row.repoId), row.role as RepoRole]));
+    return tasks.map((t) => {
+      const role = t.repoId ? roleMap.get(String(t.repoId)) ?? null : null;
+      const canManage = this.repoAccessService.buildRepoPermissions(role, false).canManage;
+      return { ...t, permissions: { canManage } };
+    });
   }
 
   private parseUtcDay(value: unknown): Date | null {
@@ -108,6 +127,19 @@ export class TasksController {
     return d;
   }
 
+  // Enforce repo-based access on task operations. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  private async requireTaskRead(user: { id: string; roles?: string[] }, task: { repoId?: string | null }) {
+    if (task.repoId) {
+      await this.repoAccessService.requireRepoRead(user, String(task.repoId));
+    }
+  }
+
+  private async requireTaskManage(user: { id: string; roles?: string[] }, task: { repoId?: string | null }) {
+    if (task.repoId) {
+      await this.repoAccessService.requireRepoManage(user, String(task.repoId));
+    }
+  }
+
   @Get()
   @ApiOperation({
     summary: 'List tasks',
@@ -116,11 +148,15 @@ export class TasksController {
   })
   // Add includeQueue query support to control queue diagnosis payloads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   @ApiQuery({ name: 'includeQueue', required: false, description: 'Include queue diagnosis fields for queued tasks.' })
+  // Document cursor-based pagination for task lists. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  @ApiQuery({ name: 'cursor', required: false, description: 'Pagination cursor for fetching the next page of tasks.' })
   @ApiOkResponse({ description: 'OK', type: ListTasksResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   async list(
+    @Req() req: Request,
     @Query('limit') limitRaw: string | undefined,
+    @Query('cursor') cursorRaw: string | undefined,
     @Query('repoId') repoIdRaw: string | undefined,
     @Query('robotId') robotIdRaw: string | undefined,
     @Query('status') statusRaw: string | undefined,
@@ -129,7 +165,9 @@ export class TasksController {
     @Query('includeQueue') includeQueueRaw: string | undefined
   ) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const limit = parsePositiveInt(limitRaw, 50);
+      const cursor = decodeUpdatedAtCursor(cursorRaw);
       const repoId = normalizeString(repoIdRaw);
       const robotId = normalizeString(robotIdRaw);
       const status = this.normalizeTaskStatusFilter(statusRaw);
@@ -137,22 +175,32 @@ export class TasksController {
       const archived = this.normalizeArchiveScope(archivedRaw);
       const includeQueue = parseOptionalBoolean(includeQueueRaw);
 
+      if (cursorRaw && !cursor) {
+        // Reject invalid cursors so pagination stays deterministic. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+        throw new BadRequestException({ error: 'Invalid cursor' });
+      }
       if (normalizeString(statusRaw) && !status) {
         throw new BadRequestException({ error: 'Invalid status' });
       }
 
+      if (repoId) {
+        await this.repoAccessService.requireRepoRead(req.user, repoId);
+      }
+      const allowedRepoIds = repoId ? undefined : await this.repoAccessService.listAccessibleRepoIds(req.user);
       const tasks = await this.taskService.listTasks({
         limit,
+        cursor: cursor ?? undefined,
         repoId,
         robotId,
         status,
         eventType: eventType as any,
         archived,
+        allowedRepoIds: allowedRepoIds ?? undefined,
         includeMeta: true,
         // Allow list callers to skip queue diagnosis for faster summary reads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
         includeQueue: includeQueue ?? true
       });
-      const decorated = this.attachTaskPermissions(tasks as any[]);
+      const decorated = await this.attachTaskPermissions(tasks as any[], req.user);
       const sanitized = decorated.map((t) =>
         sanitizeTaskForViewer(t, {
           // List API never returns logs (they are fetched via `/tasks/:id/logs` or SSE stream).
@@ -160,7 +208,14 @@ export class TasksController {
           includeOutputText: false
         })
       );
-      return { tasks: sanitized };
+      // Emit a nextCursor when the page is full to enable keyset pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+      const last = sanitized[sanitized.length - 1];
+      const lastUpdatedAt = last ? new Date(last.updatedAt) : null;
+      const nextCursor =
+        last && lastUpdatedAt && !Number.isNaN(lastUpdatedAt.getTime()) && sanitized.length === limit
+          ? encodeUpdatedAtCursor({ id: last.id, updatedAt: lastUpdatedAt })
+          : undefined;
+      return { tasks: sanitized, ...(nextCursor ? { nextCursor } : {}) };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[tasks] list failed', err);
@@ -177,22 +232,29 @@ export class TasksController {
   @ApiOkResponse({ description: 'OK', type: TaskStatsResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   async stats(
+    @Req() req: Request,
     @Query('repoId') repoIdRaw: string | undefined,
     @Query('robotId') robotIdRaw: string | undefined,
     @Query('eventType') eventTypeRaw: string | undefined,
     @Query('archived') archivedRaw: string | undefined
   ) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const repoId = normalizeString(repoIdRaw);
       const robotId = normalizeString(robotIdRaw);
       const eventType = normalizeString(eventTypeRaw);
       const archived = this.normalizeArchiveScope(archivedRaw);
 
+      if (repoId) {
+        await this.repoAccessService.requireRepoRead(req.user, repoId);
+      }
+      const allowedRepoIds = repoId ? undefined : await this.repoAccessService.listAccessibleRepoIds(req.user);
       const stats = await this.taskService.getTaskStats({
         repoId,
         robotId,
         eventType: eventType as any,
-        archived
+        archived,
+        allowedRepoIds: allowedRepoIds ?? undefined
       });
 
       return { stats };
@@ -213,6 +275,7 @@ export class TasksController {
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   async volumeByDay(
+    @Req() req: Request,
     @Query('repoId') repoIdRaw: string | undefined,
     @Query('startDay') startDayRaw: string | undefined,
     @Query('endDay') endDayRaw: string | undefined,
@@ -221,10 +284,12 @@ export class TasksController {
     @Query('archived') archivedRaw: string | undefined
   ) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const repoId = normalizeString(repoIdRaw);
       if (!repoId) {
         throw new BadRequestException({ error: 'repoId is required' });
       }
+      await this.repoAccessService.requireRepoRead(req.user, repoId);
 
       const start = this.parseUtcDay(startDayRaw);
       const end = this.parseUtcDay(endDayRaw);
@@ -275,8 +340,9 @@ export class TasksController {
   @ApiOkResponse({ description: 'OK', type: TaskLogsResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async logs(@Param('id') id: string, @Query('tail') tailRaw: string | undefined) {
+  async logs(@Req() req: Request, @Param('id') id: string, @Query('tail') tailRaw: string | undefined) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       if (!isTaskLogsEnabled()) {
         throw new NotFoundException({ error: 'Task logs are disabled' });
       }
@@ -284,6 +350,7 @@ export class TasksController {
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
+      await this.requireTaskManage(req.user, task);
 
       const tail = parsePositiveInt(tailRaw, 0);
       const { logs } = extractTaskLogsSnapshot(task);
@@ -305,8 +372,9 @@ export class TasksController {
   @ApiOkResponse({ description: 'OK', type: SuccessResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async clearLogs(@Param('id') id: string) {
+  async clearLogs(@Req() req: Request, @Param('id') id: string) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       if (!isTaskLogsEnabled()) {
         throw new NotFoundException({ error: 'Task logs are disabled' });
       }
@@ -314,6 +382,7 @@ export class TasksController {
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
+      await this.requireTaskManage(req.user, task);
 
       await this.taskService.patchResult(id, { logs: [], logsSeq: 0 });
       return { success: true };
@@ -335,6 +404,7 @@ export class TasksController {
   @ApiOkResponse({ description: 'OK' })
   async logsStream(@Param('id') id: string, @Req() req: Request, @Res() res: Response, @Query('tail') tailRaw?: string) {
     try {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       if (!isTaskLogsEnabled()) {
         return res.status(404).json({ error: 'Task logs are disabled' });
       }
@@ -343,6 +413,7 @@ export class TasksController {
       if (!task) {
         return res.status(404).json({ error: 'Task not found' });
       }
+      await this.requireTaskManage(req.user, task);
 
       const tail = parsePositiveInt(tailRaw, 200);
       const snapshot = extractTaskLogsSnapshot(task);
@@ -429,13 +500,15 @@ export class TasksController {
   @ApiOkResponse({ description: 'OK', type: GetTaskResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async get(@Param('id') id: string) {
+  async get(@Req() req: Request, @Param('id') id: string) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const task = await this.taskService.getTask(id, { includeMeta: true });
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
-      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      await this.requireTaskRead(req.user, task);
+      const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       const sanitized = sanitizeTaskForViewer(decorated, {
         canViewLogs: Boolean(decorated?.permissions?.canManage) && isTaskLogsEnabled(),
         includeOutputText: true
@@ -458,13 +531,15 @@ export class TasksController {
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async retry(@Param('id') id: string, @Query('force') forceRaw: string | undefined) {
+  async retry(@Req() req: Request, @Param('id') id: string, @Query('force') forceRaw: string | undefined) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const force = isTruthy(forceRaw, false);
       const existing = await this.taskService.getTask(id);
       if (!existing) {
         throw new NotFoundException({ error: 'Task not found' });
       }
+      await this.requireTaskManage(req.user, existing);
       // Prevent retrying archived tasks because the worker intentionally skips them. qnp1mtxhzikhbi0xspbc
       if (existing.archivedAt) {
         throw new ConflictException({ error: 'Task is archived; retry is blocked' });
@@ -489,7 +564,7 @@ export class TasksController {
       if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
         this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
       }
-      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -508,17 +583,19 @@ export class TasksController {
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async pause(@Param('id') id: string) {
+  async pause(@Req() req: Request, @Param('id') id: string) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const existing = await this.taskService.getTask(id);
       if (!existing) {
         throw new NotFoundException({ error: 'Task not found' });
       }
+      await this.requireTaskManage(req.user, existing);
       if (existing.archivedAt) {
         throw new ConflictException({ error: 'Task is archived; pause is blocked' });
       }
       if (existing.status === 'paused') {
-        const [decorated] = this.attachTaskPermissions([existing] as any[]);
+        const [decorated] = await this.attachTaskPermissions([existing] as any[], req.user);
         return { task: decorated };
       }
       if (existing.status !== 'processing' && existing.status !== 'queued') {
@@ -530,7 +607,7 @@ export class TasksController {
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
-      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -549,12 +626,14 @@ export class TasksController {
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async resume(@Param('id') id: string) {
+  async resume(@Req() req: Request, @Param('id') id: string) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const existing = await this.taskService.getTask(id);
       if (!existing) {
         throw new NotFoundException({ error: 'Task not found' });
       }
+      await this.requireTaskManage(req.user, existing);
       if (existing.archivedAt) {
         throw new ConflictException({ error: 'Task is archived; resume is blocked' });
       }
@@ -570,7 +649,7 @@ export class TasksController {
       if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
         this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
       }
-      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -589,12 +668,14 @@ export class TasksController {
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async executeNow(@Param('id') id: string) {
+  async executeNow(@Req() req: Request, @Param('id') id: string) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const existing = await this.taskService.getTask(id);
       if (!existing) {
         throw new NotFoundException({ error: 'Task not found' });
       }
+      await this.requireTaskManage(req.user, existing);
       if (existing.archivedAt) {
         throw new ConflictException({ error: 'Task is archived; execute-now is blocked' });
       }
@@ -614,7 +695,7 @@ export class TasksController {
       if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
         this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
       }
-      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -633,11 +714,15 @@ export class TasksController {
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async pushGit(@Param('id') id: string) {
+  async pushGit(@Req() req: Request, @Param('id') id: string) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       // Push forked changes and return refreshed git status for the UI. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+      const existing = await this.taskService.getTask(id);
+      if (!existing) throw new NotFoundException({ error: 'Task not found' });
+      await this.requireTaskManage(req.user, existing);
       const task = await this.taskGitPushService.pushTask(id);
-      const [decorated] = this.attachTaskPermissions([task] as any[]);
+      const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       const sanitized = sanitizeTaskForViewer(decorated, {
         canViewLogs: Boolean(decorated?.permissions?.canManage) && isTaskLogsEnabled(),
         includeOutputText: true
@@ -659,12 +744,14 @@ export class TasksController {
   @ApiOkResponse({ description: 'OK', type: SuccessResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async delete(@Param('id') id: string) {
+  async delete(@Req() req: Request, @Param('id') id: string) {
     try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const existing = await this.taskService.getTask(id);
       if (!existing) {
         throw new NotFoundException({ error: 'Task not found' });
       }
+      await this.requireTaskManage(req.user, existing);
 
       const ok = await this.taskService.deleteTask(id);
       if (!ok) {

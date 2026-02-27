@@ -20,6 +20,9 @@ export interface SkillSummary {
 export interface SkillListResponse {
   builtIn: SkillSummary[];
   extra: SkillSummary[];
+  // Provide optional cursors for paginated skill lists. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  builtInNextCursor?: string;
+  extraNextCursor?: string;
 }
 
 export interface SkillPatchInput {

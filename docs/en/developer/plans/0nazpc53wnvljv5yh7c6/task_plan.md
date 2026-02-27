@@ -61,7 +61,8 @@ Complete
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
 {/* Track the unknowns that block a correct fix. 0nazpc53wnvljv5yh7c6 */}
-1. Which component returns the 404 in CI (frontend static server/proxy vs backend router)? → Backend returns 404 when `TASK_LOGS_ENABLED=false`.
+<!-- Replace legacy toggle references with visibility toggle naming. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+1. Which component returns the 404 in CI (frontend static server/proxy vs backend router)? → Backend returns 404 when `TASK_LOGS_VISIBLE_ENABLED=false`.
 2. What is the backend’s canonical logs streaming path and auth mechanism for SSE (query `token` vs `Authorization` header)? → `GET /api/tasks/:id/logs/stream` + `?token=` via `@AllowQueryToken`.
 3. Is `/api` correctly reverse-proxied in CI, and does it support streaming responses (SSE) without buffering? → Yes; `docker/nginx/frontend.conf` proxies `/api/` and disables buffering for SSE.
 
@@ -69,7 +70,8 @@ Complete
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
 | Decision | Rationale |
 |----------|-----------|
-| Default `TASK_LOGS_ENABLED` to `true` in CI env generation | CI deployments need Live logs for debugging and the UI already surfaces the feature; current default `false` causes persistent 404s and logs are never recorded. |
+<!-- Clarify CI defaults using the new task logs toggles. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+| Default `TASK_LOGS_VISIBLE_ENABLED` to `true` in CI env generation | CI deployments need Live logs for debugging and the UI already surfaces the feature; current default `false` causes persistent 404s and logs are never recorded. |
 | Guard Live logs UI by backend feature toggle (`/auth/me`) or a preflight `/tasks/:id/logs` check | Prevents misleading reconnect loops when logs are disabled; `canViewLogs` is an internal sanitization option and is not available in the frontend Task DTO today. |
 
 ## Errors Encountered

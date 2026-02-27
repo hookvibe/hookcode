@@ -92,9 +92,12 @@ export const renderProviderActivityItem = (
         <div className="hc-provider-activity-item__main">
           <div className="hc-provider-activity-item__mainLine">
             {kind === 'commit' ? (
-              <Typography.Text code title={item.id} style={{ fontSize: 12 }}>
-                {displayId}
-              </Typography.Text>
+              <>
+                {/* Keep commit hash width stable so long titles only truncate. docs/en/developer/plans/repo-activity-title-overflow-20260227/task_plan.md repo-activity-title-overflow-20260227 */}
+                <Typography.Text code title={item.id} style={{ fontSize: 12 }} className="hc-provider-activity-item__hash">
+                  {displayId}
+                </Typography.Text>
+              </>
             ) : null}
             {kind !== 'commit' ? stateTag(t, item.state) : null}
             <div className="hc-provider-activity-item__titleWrap">{titleNode}</div>

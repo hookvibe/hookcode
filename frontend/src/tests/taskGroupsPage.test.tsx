@@ -9,7 +9,8 @@ import * as api from '../api';
 vi.mock('../api', () => {
   return {
     __esModule: true,
-    fetchTaskGroups: vi.fn(async () => [])
+    // Mock paginated task-group list responses for infinite scroll coverage. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    fetchTaskGroups: vi.fn(async () => ({ taskGroups: [] }))
   };
 });
 
@@ -30,24 +31,26 @@ describe('TaskGroupsPage (card list)', () => {
   test('filters task groups by search and navigates on click', async () => {
     // Validate search + navigation behavior for the taskgroup card list. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
     const ui = userEvent.setup();
-    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce([
-      {
-        id: 'g_alpha',
-        kind: 'chat',
-        bindingKey: 'alpha',
-        title: 'Alpha group',
-        createdAt: '2026-01-11T00:00:00.000Z',
-        updatedAt: '2026-01-11T00:00:00.000Z'
-      } as any,
-      {
-        id: 'g_beta',
-        kind: 'issue',
-        bindingKey: 'beta',
-        title: 'Beta group',
-        createdAt: '2026-01-11T00:00:00.000Z',
-        updatedAt: '2026-01-11T00:00:00.000Z'
-      } as any
-    ]);
+    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce({
+      taskGroups: [
+        {
+          id: 'g_alpha',
+          kind: 'chat',
+          bindingKey: 'alpha',
+          title: 'Alpha group',
+          createdAt: '2026-01-11T00:00:00.000Z',
+          updatedAt: '2026-01-11T00:00:00.000Z'
+        } as any,
+        {
+          id: 'g_beta',
+          kind: 'issue',
+          bindingKey: 'beta',
+          title: 'Beta group',
+          createdAt: '2026-01-11T00:00:00.000Z',
+          updatedAt: '2026-01-11T00:00:00.000Z'
+        } as any
+      ]
+    });
 
     renderPage();
 
@@ -62,5 +65,43 @@ describe('TaskGroupsPage (card list)', () => {
 
     await ui.click(screen.getByText('Alpha group'));
     await waitFor(() => expect(window.location.hash).toBe('#/task-groups/g_alpha'));
+  });
+
+  test('loads more task groups when a nextCursor is available', async () => {
+    // Verify infinite scroll pagination requests the next cursor page. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    vi.mocked(api.fetchTaskGroups)
+      .mockResolvedValueOnce({
+        taskGroups: [
+          {
+            id: 'g_alpha',
+            kind: 'chat',
+            bindingKey: 'alpha',
+            title: 'Alpha group',
+            createdAt: '2026-01-11T00:00:00.000Z',
+            updatedAt: '2026-01-11T00:00:00.000Z'
+          } as any
+        ],
+        nextCursor: 'cursor-1'
+      })
+      .mockResolvedValueOnce({
+        taskGroups: [
+          {
+            id: 'g_beta',
+            kind: 'issue',
+            bindingKey: 'beta',
+            title: 'Beta group',
+            createdAt: '2026-01-11T00:00:00.000Z',
+            updatedAt: '2026-01-11T00:00:00.000Z'
+          } as any
+        ]
+      });
+
+    renderPage();
+
+    await waitFor(() => expect(api.fetchTaskGroups).toHaveBeenCalledTimes(2));
+    expect(api.fetchTaskGroups).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ cursor: 'cursor-1' })
+    );
   });
 });

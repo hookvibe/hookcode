@@ -325,6 +325,10 @@ export class TaskWithMetaDto {
 export class ListTasksResponseDto {
   @ApiProperty({ type: TaskWithMetaDto, isArray: true })
   tasks!: TaskWithMetaDto[];
+
+  // Add nextCursor to task list responses for keyset pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  @ApiPropertyOptional()
+  nextCursor?: string;
 }
 
 export class TaskStatusStatsDto {

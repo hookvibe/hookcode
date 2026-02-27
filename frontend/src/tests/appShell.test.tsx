@@ -75,18 +75,22 @@ vi.mock('../api', () => {
     fetchTaskStats: vi.fn(async () => ({ total: 7, queued: 5, processing: 1, paused: 0, success: 1, failed: 0 })),
     // Mock the daily task volume series used by the repo dashboard line chart. dashtrendline20260119m9v2
     fetchTaskVolumeByDay: vi.fn(async () => []),
+    // Mock paginated task list responses for sidebar/task views. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
     fetchTasks: vi.fn(async (options?: any) => {
       const status = options?.status;
       if (status === 'queued')
-        return [
+        return {
+          tasks: [
           makeTask({ id: 't_q1', title: 'Queued task 1', status: 'queued', eventType: 'issue', issueId: 1 }),
           makeTask({ id: 't_q2', title: 'Queued task 2', status: 'queued', eventType: 'issue', issueId: 2 }),
           makeTask({ id: 't_q3', title: 'Queued task 3', status: 'queued', eventType: 'issue', issueId: 3 }),
           makeTask({ id: 't_q4', title: 'Queued task 4', status: 'queued', eventType: 'issue', issueId: 4 }),
           makeTask({ id: 't_q5', title: 'Queued task 5', status: 'queued', eventType: 'issue', issueId: 5 })
-        ];
+          ]
+        };
       if (status === 'processing')
-        return [
+        return {
+          tasks: [
           makeTask({
             id: 't_p1',
             title: 'Processing task 1',
@@ -94,15 +98,27 @@ vi.mock('../api', () => {
             eventType: 'commit',
             payload: { after: 'abcdef1234567890abcdef1234567890abcdef12' }
           })
-        ];
-      if (status === 'success') return [makeTask({ id: 't_s1', title: 'Done task 1', status: 'succeeded', eventType: 'merge_request', mrId: 7 })];
-      if (status === 'failed') return [];
-      return [makeTask({ id: 't_all', title: 'Any task', status: 'queued', eventType: 'issue', issueId: 99 })];
+          ]
+        };
+      if (status === 'success') return { tasks: [makeTask({ id: 't_s1', title: 'Done task 1', status: 'succeeded', eventType: 'merge_request', mrId: 7 })] };
+      if (status === 'failed') return { tasks: [] };
+      return { tasks: [makeTask({ id: 't_all', title: 'Any task', status: 'queued', eventType: 'issue', issueId: 99 })] };
     }),
-    fetchTaskGroups: vi.fn(async () => [
-      { id: 'g1', kind: 'chat', bindingKey: 'b1', title: 'Group 1', createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' }
-    ]),
-    listRepos: vi.fn(async () => [
+    // Mock paginated task-group list responses for sidebar/task-group views. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    fetchTaskGroups: vi.fn(async () => ({
+      taskGroups: [
+        { id: 'g1', kind: 'chat', bindingKey: 'b1', title: 'Group 1', createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' }
+      ]
+    })),
+    // Mock paginated repo list responses for repo pages. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    listRepos: vi.fn(async () => ({
+      repos: [
+        { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true, createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' }
+      ],
+      nextCursor: null
+    })),
+    // Mock full repo list fetches for chat flows after pagination changes. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    fetchAllRepos: vi.fn(async () => [
       { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true, createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' }
     ]),
     // Expose archive APIs in the mock so ArchivePage / RepoDetailPage can render safely. qnp1mtxhzikhbi0xspbc
@@ -197,7 +213,8 @@ vi.mock('../api', () => {
     fetchTaskGroupPreviewStatus: vi.fn(async () => ({ available: false, instances: [] })),
     fetchTaskGroupTasks: vi.fn(async () => []),
     // Provide skills registry mocks so chat-level selection hooks can resolve data. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [] })),
+    // Match paginated response shape for skills lists. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [], builtInNextCursor: null, extraNextCursor: null })),
     fetchRepoSkillSelection: vi.fn(async () => ({ selection: null, effective: [], mode: 'all' })),
     updateRepoSkillSelection: vi.fn(async () => ({ selection: null, effective: [], mode: 'all' })),
     fetchTaskGroupSkillSelection: vi.fn(async () => ({ selection: null, effective: [], mode: 'all' })),
@@ -673,8 +690,8 @@ describe('AppShell (frontend-chat migration)', () => {
     renderApp();
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
 
-    await ui.type(screen.getByLabelText('Username'), 'u');
-    await ui.type(screen.getByLabelText('Password'), 'p');
+    await ui.type(screen.getByLabelText(/Username/i), 'u');
+    await ui.type(screen.getByLabelText(/Password/i), 'p');
     await ui.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(window.location.hash).toBe('#/'));
@@ -693,8 +710,8 @@ describe('AppShell (frontend-chat migration)', () => {
     renderApp();
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
 
-    await ui.type(screen.getByLabelText('Username'), 'u');
-    await ui.type(screen.getByLabelText('Password'), 'p');
+    await ui.type(screen.getByLabelText(/Username/i), 'u');
+    await ui.type(screen.getByLabelText(/Password/i), 'p');
     await ui.click(screen.getByRole('button', { name: 'Sign in' }));
 
     expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();

@@ -6,6 +6,8 @@ describe('DashboardController.sidebar', () => {
   test('returns a sanitized sidebar snapshot with permissions', async () => {
     // Include paused in sidebar stats for pause/resume coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     const stats = { total: 3, queued: 1, processing: 1, paused: 0, success: 1, failed: 0 };
+    // Provide a request user for RBAC-protected endpoints in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    const req = { user: { id: 'u1', username: 'u1', roles: ['admin'] } } as any;
     const makeTask = (id: string, status: any) => ({
       id,
       eventType: 'chat',
@@ -30,8 +32,13 @@ describe('DashboardController.sidebar', () => {
 
     // Stub preview activity lookups so sidebar decoration can be validated. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
     const previewService: any = { getActiveTaskGroupIds: jest.fn().mockReturnValue(new Set()) };
-    const controller = new DashboardController(taskService, previewService);
-    const res = await controller.sidebar(undefined, undefined, undefined, undefined, undefined);
+    const repoAccessService: any = {
+      isAdmin: jest.fn().mockReturnValue(true),
+      buildRepoPermissions: jest.fn().mockReturnValue({ canManage: true }),
+      listAccessibleRepoIds: jest.fn().mockResolvedValue([])
+    }; // Stub repo access checks for dashboard sidebar tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    const controller = new DashboardController(taskService, previewService, repoAccessService);
+    const res = await controller.sidebar(req, undefined, undefined, undefined, undefined, undefined);
 
     expect(taskService.getTaskStats).toHaveBeenCalledTimes(1);
     expect(taskService.listTasks).toHaveBeenCalledWith(expect.objectContaining({ status: 'queued', limit: 3, includeMeta: true }));
@@ -52,6 +59,8 @@ describe('DashboardController.sidebar', () => {
   });
 
   test('passes through query filters and custom limits', async () => {
+    // Provide a request user for RBAC-protected endpoints in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    const req = { user: { id: 'u1', username: 'u1', roles: ['admin'] } } as any;
     const taskService: any = {
       // Mirror paused counts in sidebar stats mocks for pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
       getTaskStats: jest.fn().mockResolvedValue({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 }),
@@ -61,8 +70,14 @@ describe('DashboardController.sidebar', () => {
 
     // Provide preview activity dependency for dashboard sidebar coverage. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
     const previewService: any = { getActiveTaskGroupIds: jest.fn().mockReturnValue(new Set()) };
-    const controller = new DashboardController(taskService, previewService);
-    await controller.sidebar('5', '10', 'repo_1', 'robot_1', 'push');
+    const repoAccessService: any = {
+      isAdmin: jest.fn().mockReturnValue(true),
+      buildRepoPermissions: jest.fn().mockReturnValue({ canManage: true }),
+      listAccessibleRepoIds: jest.fn().mockResolvedValue([]),
+      requireRepoRead: jest.fn().mockResolvedValue(undefined)
+    }; // Stub repo access checks for dashboard sidebar tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    const controller = new DashboardController(taskService, previewService, repoAccessService);
+    await controller.sidebar(req, '5', '10', 'repo_1', 'robot_1', 'push');
 
     expect(taskService.getTaskStats).toHaveBeenCalledWith(expect.objectContaining({ repoId: 'repo_1', robotId: 'robot_1', eventType: 'push' }));
     expect(taskService.listTasks).toHaveBeenCalledWith(expect.objectContaining({ limit: 5, repoId: 'repo_1', robotId: 'robot_1', eventType: 'push' }));

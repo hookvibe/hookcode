@@ -12,9 +12,13 @@ import { Prisma } from '@prisma/client';
 export const userBaseSelect = Prisma.validator<Prisma.UserSelect>()({
   id: true,
   username: true,
+  // Include email + roles for RBAC and verification responses. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  email: true,
   displayName: true,
   modelCredentials: true,
   disabled: true,
+  emailVerifiedAt: true,
+  roles: true,
   createdAt: true,
   updatedAt: true
 });

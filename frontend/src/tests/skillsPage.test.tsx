@@ -9,7 +9,8 @@ import * as api from '../api';
 vi.mock('../api', () => {
   return {
     __esModule: true,
-    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [] })),
+    // Return paginated skill list mocks for SkillsPage pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [], builtInNextCursor: null, extraNextCursor: null })),
     patchSkill: vi.fn(async () => ({
       id: 'x',
       slug: 'x',
@@ -73,7 +74,11 @@ describe('SkillsPage', () => {
       tags: ['ops', 'ui']
     };
 
-    vi.mocked(api.fetchSkills).mockResolvedValueOnce({ builtIn: [builtInSkill as any], extra: [extraSkill as any] });
+    vi.mocked(api.fetchSkills)
+      // Provide built-in skills page response. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+      .mockResolvedValueOnce({ builtIn: [builtInSkill as any], extra: [], builtInNextCursor: null })
+      // Provide extra skills page response. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+      .mockResolvedValueOnce({ builtIn: [], extra: [extraSkill as any], extraNextCursor: null });
     vi.mocked(api.patchSkill).mockResolvedValueOnce({ ...extraSkill, promptEnabled: true } as any);
 
     renderPage();

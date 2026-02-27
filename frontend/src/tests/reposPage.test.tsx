@@ -11,7 +11,8 @@ import * as api from '../api';
 vi.mock('../api', () => {
   return {
     __esModule: true,
-    listRepos: vi.fn(async () => []),
+    // Update repo list mock to reflect paginated responses. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    listRepos: vi.fn(async () => ({ repos: [], nextCursor: null })),
     fetchRepo: vi.fn(async () => ({ repo: null, robots: [], automationConfig: null })),
     createRepo: vi.fn(async () => ({
       repo: { id: 'r_new' },

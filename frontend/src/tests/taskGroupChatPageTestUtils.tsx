@@ -84,7 +84,8 @@ vi.mock('../api', () => {
       success: true,
       result: { status: 'success', steps: [], totalDuration: 0 }
     })),
-    listRepos: vi.fn(async () => [repo]),
+    // Provide full repo list mocks for chat repo selection after pagination changes. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    fetchAllRepos: vi.fn(async () => [repo]),
     listRepoRobots: vi.fn(async () => [robot]),
     // Mock pause/resume APIs for task-group controls. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     pauseTask: vi.fn(async (id: string) => makeTask(id)),
@@ -96,7 +97,7 @@ vi.mock('../api', () => {
       effective: [],
       mode: 'custom'
     })),
-    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [] }))
+    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [], builtInNextCursor: null, extraNextCursor: null }))
   };
 });
 
@@ -115,7 +116,8 @@ export const setupTaskGroupChatMocks = () => {
   window.location.hash = '#/';
 
   // Ensure each test starts from a known mock baseline (avoid cross-test mock leakage).
-  vi.mocked(api.listRepos).mockResolvedValue([
+  // Reset repo list mocks to match fetchAllRepos usage. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  vi.mocked(api.fetchAllRepos).mockResolvedValue([
     { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true, createdAt: NOW, updatedAt: NOW } as any
   ]);
   vi.mocked(api.listRepoRobots).mockResolvedValue([
@@ -160,7 +162,8 @@ export const setupTaskGroupChatMocks = () => {
     effective: [],
     mode: 'custom'
   } as any);
-  vi.mocked(api.fetchSkills).mockResolvedValue({ builtIn: [], extra: [] } as any);
+  // Reset skill list mocks to include pagination cursors. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  vi.mocked(api.fetchSkills).mockResolvedValue({ builtIn: [], extra: [], builtInNextCursor: null, extraNextCursor: null } as any);
   vi.mocked(api.fetchTask).mockImplementation(async (id: string) => ({
     id,
     eventType: 'chat',

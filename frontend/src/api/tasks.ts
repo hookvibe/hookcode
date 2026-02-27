@@ -4,6 +4,7 @@ import type { ArchiveScope, DashboardSidebarSnapshot, Task, TaskStatus, TaskStat
 // Split task list/stat/actions APIs into a dedicated module for clearer ownership. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
 export const fetchTasks = async (options?: {
   limit?: number;
+  cursor?: string;
   repoId?: string;
   robotId?: string;
   status?: TaskStatus | 'success';
@@ -11,9 +12,9 @@ export const fetchTasks = async (options?: {
   archived?: ArchiveScope;
   // Allow dashboards to skip queue diagnosis to reduce payload cost. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   includeQueue?: boolean;
-}): Promise<Task[]> => {
-  const data = await getCached<{ tasks: Task[] }>('/tasks', { params: options });
-  return data.tasks;
+}): Promise<{ tasks: Task[]; nextCursor?: string }> => {
+  // Fetch task lists with cursor pagination metadata when provided. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  return getCached<{ tasks: Task[]; nextCursor?: string }>('/tasks', { params: options });
 };
 
 export const fetchTaskStats = async (options?: {

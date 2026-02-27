@@ -40,6 +40,14 @@ export class ListSkillsResponseDto {
 
   @ApiProperty({ type: SkillSummaryDto, isArray: true })
   extra!: SkillSummaryDto[];
+
+  // Paginate built-in skills with an optional cursor. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  @ApiPropertyOptional()
+  builtInNextCursor?: string;
+
+  // Paginate extra skills with an optional cursor. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  @ApiPropertyOptional()
+  extraNextCursor?: string;
 }
 
 export class UpdateSkillDto {

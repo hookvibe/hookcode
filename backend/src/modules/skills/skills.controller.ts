@@ -1,3 +1,4 @@
+// Include NestJS Query decorator for skill list query params. docs/en/developer/plans/apiquery-fix-20260227/task_plan.md apiquery-fix-20260227
 import {
   BadRequestException,
   Body,
@@ -9,6 +10,7 @@ import {
   Patch,
   Post,
   Param,
+  Query,
   UploadedFile,
   UseInterceptors,
   ConflictException
@@ -21,6 +23,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse
 } from '@nestjs/swagger';
@@ -31,6 +34,9 @@ import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SkillsService, SkillArchiveError } from './skills.service';
 import { ListSkillsResponseDto, UpdateSkillDto, UpdateSkillResponseDto, UploadSkillResponseDto } from './dto/skills-swagger.dto';
+import { decodeNameCursor } from '../../utils/pagination';
+import { normalizeString, parsePositiveInt } from '../../utils/parse';
+import { isUuidLike } from '../../utils/uuid';
 
 @AuthScopeGroup('system') // Protect skill registry APIs with system scope. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
 @Controller('skills')
@@ -45,12 +51,53 @@ export class SkillsController {
     description: 'List built-in and extra skills with prompt metadata.',
     operationId: 'skills_list'
   })
+  // Document cursor pagination for skill registry lists. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  @ApiQuery({ name: 'source', required: false, description: 'Filter skill source (built_in or extra) for paginated lists.' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Page size for paginated skill lists.' })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Pagination cursor for paginated skill lists.' })
   @ApiOkResponse({ description: 'OK', type: ListSkillsResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
-  async list() {
+  async list(
+    @Query('source') sourceRaw: string | undefined,
+    @Query('limit') limitRaw: string | undefined,
+    @Query('cursor') cursorRaw: string | undefined
+  ) {
     try {
-      // Return combined skill registry metadata for the console UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-      return await this.skillsService.listSkills();
+      const source = normalizeString(sourceRaw);
+      const wantsPagination = Boolean(source || cursorRaw || limitRaw);
+      if (!wantsPagination) {
+        // Return combined skill registry metadata for the console UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+        return await this.skillsService.listSkills();
+      }
+      if (source !== 'built_in' && source !== 'extra') {
+        throw new BadRequestException({ error: 'source is required for paginated skill lists' });
+      }
+      const limit = parsePositiveInt(limitRaw, 24);
+      const cursor = decodeNameCursor(cursorRaw);
+      if (cursorRaw && !cursor) {
+        // Reject invalid cursors so skill pagination stays deterministic. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+        throw new BadRequestException({ error: 'Invalid cursor' });
+      }
+      if (source === 'extra' && cursor && !isUuidLike(cursor.id)) {
+        // Guard extra-skill cursors to avoid invalid UUID lookups. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+        throw new BadRequestException({ error: 'Invalid cursor' });
+      }
+
+      if (source === 'built_in') {
+        const page = await this.skillsService.listBuiltInSkillsPage({ limit, cursor: cursor ?? undefined });
+        return {
+          builtIn: page.skills,
+          extra: [],
+          ...(page.nextCursor ? { builtInNextCursor: page.nextCursor } : {})
+        };
+      }
+
+      const page = await this.skillsService.listExtraSkillsPage({ limit, cursor: cursor ?? undefined });
+      return {
+        builtIn: [],
+        extra: page.skills,
+        ...(page.nextCursor ? { extraNextCursor: page.nextCursor } : {})
+      };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[skills] list failed', err);

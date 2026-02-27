@@ -11,8 +11,13 @@ import type {
 } from './types';
 
 // Fetch the skill registry for the Skills console page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-export const fetchSkills = async (): Promise<SkillListResponse> => {
-  const { data } = await api.get<SkillListResponse>('/skills');
+export const fetchSkills = async (options?: {
+  source?: 'built_in' | 'extra';
+  limit?: number;
+  cursor?: string;
+}): Promise<SkillListResponse> => {
+  // Allow paginated skill list requests for long registry views. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  const { data } = await api.get<SkillListResponse>('/skills', { params: options });
   return data;
 };
 

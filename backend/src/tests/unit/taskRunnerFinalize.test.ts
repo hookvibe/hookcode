@@ -170,6 +170,75 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     expect(events).toEqual(['start:t3', 'finish:t3:succeeded']);
   });
 
+  test('starts multiple tasks concurrently when WORKER_CONCURRENCY > 1', async () => {
+    // Validate parallel task execution across groups in TaskRunner. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
+    jest.useRealTimers();
+    const prevConcurrency = process.env.WORKER_CONCURRENCY;
+    process.env.WORKER_CONCURRENCY = '2';
+
+    try {
+      const task1 = {
+        id: 't-par-1',
+        eventType: 'commit',
+        status: 'processing',
+        payload: {},
+        retries: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      } as any;
+      const task2 = { ...task1, id: 't-par-2' } as any;
+
+      let resolveFirst: ((value: any) => void) | undefined;
+      let resolveSecond: ((value: any) => void) | undefined;
+
+      const agentService = {
+        callAgent: jest
+          .fn()
+          .mockImplementationOnce(
+            () =>
+              new Promise((resolve) => {
+                resolveFirst = resolve;
+              })
+          )
+          .mockImplementationOnce(
+            () =>
+              new Promise((resolve) => {
+                resolveSecond = resolve;
+              })
+          )
+      };
+
+      const taskService = {
+        takeNextQueued: jest
+          .fn()
+          .mockResolvedValueOnce(task1)
+          .mockResolvedValueOnce(task2)
+          .mockResolvedValueOnce(undefined),
+        patchResult: jest.fn().mockResolvedValue({ ...task1, status: 'processing' } as any)
+      };
+
+      const taskRunner = new TaskRunner(taskService as any, agentService as any);
+      const triggerPromise = taskRunner.trigger();
+
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(agentService.callAgent).toHaveBeenCalledTimes(2);
+
+      resolveFirst?.({ logs: [], outputText: '' });
+      resolveSecond?.({ logs: [], outputText: '' });
+
+      await triggerPromise;
+    } finally {
+      if (prevConcurrency === undefined) {
+        delete process.env.WORKER_CONCURRENCY;
+      } else {
+        process.env.WORKER_CONCURRENCY = prevConcurrency;
+      }
+      jest.useFakeTimers();
+    }
+  });
+
   test('calls hooks on start and finish (failure)', async () => {
     const events: string[] = [];
 

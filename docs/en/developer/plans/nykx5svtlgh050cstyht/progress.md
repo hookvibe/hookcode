@@ -16,7 +16,8 @@
 - **Started:** 2026-01-17 11:00 CST
 {/* STATUS: Same as task_plan.md (pending, in_progress, complete) TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00") */}
 - Actions taken:
-  - Searched for `TASK_LOGS_ENABLED` usages across backend/frontend/CI scripts.
+  <!-- Remove legacy toggle naming from historical action notes. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+  - Searched for task log toggle usages across backend/frontend/CI scripts.
   - Confirmed the single toggle currently gates both DB persistence (agent patch) and user-facing APIs/UI.
 - Files created/modified:
   - `docs/en/developer/plans/nykx5svtlgh050cstyht/task_plan.md` (updated)
@@ -27,7 +28,8 @@
 - **Status:** complete
 - Actions taken:
   - Decided new env vars: `TASK_LOGS_DB_ENABLED` + `TASK_LOGS_VISIBLE_ENABLED` (defaults: true).
-  - Decided effective visibility rule: `enabled = db && visible` with `TASK_LOGS_ENABLED` as legacy fallback.
+  <!-- Update planning notes to drop legacy fallback mention. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+  - Decided effective visibility rule: `enabled = db && visible`.
 - Files created/modified:
   - `docs/en/developer/plans/nykx5svtlgh050cstyht/task_plan.md` (updated)
   - `docs/en/developer/plans/nykx5svtlgh050cstyht/findings.md` (updated)
@@ -50,7 +52,8 @@
 ### Phase 4: Testing & Verification
 - **Status:** complete
 - Actions taken:
-  - Updated backend unit tests to cover the new split toggles + legacy fallback.
+  <!-- Align test notes with removal of legacy fallback. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+  - Updated backend unit tests to cover the new split toggles.
   - Ran backend and frontend test suites.
 - Files created/modified:
   - `backend/src/tests/unit/taskLogsFeatureToggle.test.ts`

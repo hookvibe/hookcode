@@ -1,5 +1,5 @@
 import { api, getCached, invalidateGetCache } from './client';
-import type { AuthMeResponse, User } from './types';
+import type { AuthMeResponse, RegisterResponse, User } from './types';
 import type { AuthUser } from '../auth';
 
 // Split authentication/profile APIs into a dedicated module for clarity. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
@@ -10,6 +10,16 @@ export const login = async (params: { username: string; password: string }): Pro
 }> => {
   const { data } = await api.post<{ token: string; expiresAt: string; user: AuthUser }>('/auth/login', params);
   return data;
+};
+
+// Register and verify email flows for the login UI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+export const register = async (params: { username: string; email: string; password: string; displayName?: string }): Promise<RegisterResponse> => {
+  const { data } = await api.post<RegisterResponse>('/auth/register', params);
+  return data;
+};
+
+export const verifyEmail = async (params: { email: string; token: string }): Promise<void> => {
+  await api.post('/auth/verify-email', params);
 };
 
 export const fetchAuthMe = async (): Promise<AuthMeResponse> => {

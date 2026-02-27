@@ -1,10 +1,12 @@
-import { All, Controller, NotFoundException, Param, Req, Res } from '@nestjs/common';
+import { All, Controller, ForbiddenException, NotFoundException, Param, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { proxyHttpRequest } from '../../utils/httpProxy';
 import { PreviewService } from './preview.service';
+import { TaskService } from './task.service';
+import { RepoAccessService } from '../repositories/repo-access.service';
 
 @AuthScopeGroup('tasks') // Scope preview APIs for PAT access control. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 @Controller('preview')
@@ -12,7 +14,11 @@ import { PreviewService } from './preview.service';
 @ApiBearerAuth('bearerAuth')
 // Proxy preview traffic through the API with auth enforcement. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export class PreviewProxyController {
-  constructor(private readonly previewService: PreviewService) {}
+  constructor(
+    private readonly previewService: PreviewService,
+    private readonly taskService: TaskService,
+    private readonly repoAccessService: RepoAccessService
+  ) {}
 
   @All(':taskGroupId/:instanceName')
   @AllowQueryToken()
@@ -50,7 +56,23 @@ export class PreviewProxyController {
     return this.forward(taskGroupId, instanceName, req, res);
   }
 
-  private forward(taskGroupId: string, instanceName: string, req: Request, res: Response) {
+  // Enforce repo RBAC before proxying preview traffic. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  private async forward(taskGroupId: string, instanceName: string, req: Request, res: Response) {
+    const user = req.user;
+    if (!user) {
+      throw new UnauthorizedException({ error: 'Unauthorized' });
+    }
+    const group = await this.taskService.getTaskGroup(taskGroupId);
+    if (!group) {
+      throw new NotFoundException({ error: 'Task group not found' });
+    }
+    if (!group.repoId) {
+      if (!this.repoAccessService.isAdmin(user)) {
+        throw new ForbiddenException({ error: 'Forbidden', code: 'REPO_ACCESS_DENIED' });
+      }
+    } else {
+      await this.repoAccessService.requireRepoRead(user, String(group.repoId));
+    }
     const target = this.previewService.getProxyTarget(taskGroupId, instanceName);
     if (!target) {
       throw new NotFoundException({ error: 'Preview instance not found' });

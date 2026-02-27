@@ -39,9 +39,9 @@ import {
   fetchTaskGroupSkillSelection,
   fetchTaskGroupPreviewStatus,
   fetchTaskGroupTasks,
+  fetchAllRepos,
   installTaskGroupPreviewDependencies,
   listRepoRobots,
-  listRepos,
   pauseTask,
   resumeTask,
   setTaskGroupPreviewVisibility,
@@ -705,6 +705,14 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     ]
   );
 
+  // Keep the latest auto-navigation handler in a ref to avoid resubscribing the highlight SSE on state changes. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const maybeAutoNavigatePreviewRef = useRef(maybeAutoNavigatePreview);
+
+  useEffect(() => {
+    // Sync the ref so highlight handlers always use the latest navigation logic. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    maybeAutoNavigatePreviewRef.current = maybeAutoNavigatePreview;
+  }, [maybeAutoNavigatePreview]);
+
   const flushPendingHighlight = useCallback(() => {
     // Send any pending highlight once the bridge becomes ready after navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
     const pending = pendingPreviewHighlightRef.current;
@@ -837,7 +845,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const refreshRepos = useCallback(async () => {
     setReposLoading(true);
     try {
-      const data = await listRepos();
+      // Fetch all repo pages for the chat repo picker after list pagination changes. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+      const data = await fetchAllRepos();
       setRepos(data);
       if (!repoId) {
         const firstEnabled = data.find((r) => r.enabled);
@@ -1203,7 +1212,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         if (!payload?.command || !payload.instanceName) return;
         if (activePreviewInstance?.name && payload.instanceName !== activePreviewInstance.name) return;
         // Auto-navigate to the target URL before highlighting when allowed. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
-        const navigation = maybeAutoNavigatePreview(payload.command.targetUrl);
+        const navigation = maybeAutoNavigatePreviewRef.current(payload.command.targetUrl); // Keep SSE handler stable while using latest navigation logic. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         if (navigation.didNavigate) {
           pendingPreviewHighlightRef.current = payload.command;
           return;
@@ -1229,7 +1238,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       source.close();
       previewHighlightStreamRef.current = null;
     };
-  }, [activePreviewInstance?.name, maybeAutoNavigatePreview, postPreviewBridgeMessage, previewPanelOpen, taskGroupId]);
+  }, [activePreviewInstance?.name, postPreviewBridgeMessage, previewPanelOpen, taskGroupId]);
 
   useEffect(() => {
     void refreshRepos();

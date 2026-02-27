@@ -22,8 +22,9 @@
   {/* Record key discoveries that explain the CI 404 symptom. 0nazpc53wnvljv5yh7c6 */}
   - Initialized `planning-with-files` session `0nazpc53wnvljv5yh7c6`
   - Located frontend Live logs SSE client (`frontend/src/components/TaskLogViewer.tsx`) and backend SSE route (`backend/src/modules/tasks/tasks.controller.ts`)
-  - Confirmed backend returns 404 when `TASK_LOGS_ENABLED=false` (feature toggle default is false)
-  - Confirmed CI Docker env generation sets `TASK_LOGS_ENABLED` to false by default (`docker/ci/write-ci-env.sh`)
+  <!-- Update legacy toggle references to new task log visibility config. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+  - Confirmed backend returns 404 when `TASK_LOGS_VISIBLE_ENABLED=false` (feature toggle default is false)
+  - Confirmed CI Docker env generation sets `TASK_LOGS_VISIBLE_ENABLED` to false by default (`docker/ci/write-ci-env.sh`)
   - Confirmed Nginx reverse proxy supports SSE and is not the likely source of the 404 (`docker/nginx/frontend.conf`)
   - Confirmed the worker does not append/persist logs when task logs are disabled (`backend/src/agent/agent.ts`)
 - Files created/modified:
@@ -40,7 +41,8 @@
 {/* Start planning immediately after discovery. 0nazpc53wnvljv5yh7c6 */}
 - **Started:** 2026-01-17 01:38 CST
 - Actions taken:
-  - Defined fixes: enable `TASK_LOGS_ENABLED` for CI deployments and guard the frontend logs UI using `canViewLogs`
+  <!-- Align historical notes with new task log toggle naming. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+  - Defined fixes: enable `TASK_LOGS_VISIBLE_ENABLED` for CI deployments and guard the frontend logs UI using `canViewLogs`
   - Recorded decisions in `task_plan.md` and `findings.md`
 - Files created/modified:
   - `docs/en/developer/plans/0nazpc53wnvljv5yh7c6/task_plan.md` (modified)

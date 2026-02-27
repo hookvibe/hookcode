@@ -11,6 +11,9 @@ import { UserPanelPopover } from '../components/UserPanelPopover';
 import { LoginCardSkeleton } from '../components/skeletons/LoginCardSkeleton';
 import { ModernSidebar } from '../components/ModernSidebar';
 import { LoginPage } from './LoginPage';
+import { RegisterPage } from './RegisterPage';
+import { VerifyEmailPage } from './VerifyEmailPage';
+import { AcceptInvitePage } from './AcceptInvitePage';
 import { RepoDetailPage } from './RepoDetailPage';
 import { ReposPage } from './ReposPage';
 import { TaskDetailPage } from './TaskDetailPage';
@@ -45,6 +48,9 @@ export const AppShell: FC<AppShellProps> = ({
   const [authToken, setAuthToken] = useState<string | null>(() => getToken());
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
   const [taskLogsEnabled, setTaskLogsEnabled] = useState<boolean | null>(null);
+  // Track registration feature flags for auth-related routes. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  const [registerEnabled, setRegisterEnabled] = useState<boolean | null>(null);
+  const [registerRequireEmailVerify, setRegisterRequireEmailVerify] = useState<boolean | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
   const [isMobileLayout, setIsMobileLayout] = useState(() => getInitialMobileLayout());
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -75,10 +81,15 @@ export const AppShell: FC<AppShellProps> = ({
       const me = await fetchAuthMe();
       setAuthEnabled(Boolean(me?.authEnabled));
       setTaskLogsEnabled(Boolean(me?.features?.taskLogsEnabled));
+      setRegisterEnabled(Boolean(me?.features?.registerEnabled));
+      setRegisterRequireEmailVerify(Boolean(me?.features?.registerRequireEmailVerify));
     } catch (err: any) {
       const status = err?.response?.status;
       setAuthEnabled(true);
       setTaskLogsEnabled(null);
+      // Fall back to disabled registration flags when auth state cannot be loaded. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+      setRegisterEnabled(false);
+      setRegisterRequireEmailVerify(false);
       if (status !== 401) {
         console.warn('[auth] fetchAuthMe failed; falling back to authEnabled=true', err);
       }
@@ -101,7 +112,7 @@ export const AppShell: FC<AppShellProps> = ({
   }, [refreshAuthState]);
 
   useEffect(() => {
-    if ((authToken || authEnabled === false) && route.page === 'login') {
+    if ((authToken || authEnabled === false) && (route.page === 'login' || route.page === 'register')) {
       window.location.hash = buildHomeHash();
     }
   }, [authEnabled, authToken, route.page]);
@@ -116,7 +127,27 @@ export const AppShell: FC<AppShellProps> = ({
 
   const loginRequired = authEnabled !== false;
   if (loginRequired && !authToken) {
-    return <LoginPage />;
+    if (route.page === 'register') {
+      return <RegisterPage registerEnabled={registerEnabled} registerRequireEmailVerify={registerRequireEmailVerify} />;
+    }
+    if (route.page === 'verifyEmail') {
+      return <VerifyEmailPage email={route.verifyEmailEmail} token={route.verifyEmailToken} />;
+    }
+    if (route.page === 'acceptInvite') {
+      return <AcceptInvitePage email={route.inviteEmail} token={route.inviteToken} isAuthenticated={false} />;
+    }
+    // Route unauthenticated users to login by default, with register flags for UX. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    return <LoginPage registerEnabled={registerEnabled} registerRequireEmailVerify={registerRequireEmailVerify} />;
+  }
+
+  // Keep verification flow outside the app shell for a focused auth UX. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  if (route.page === 'verifyEmail') {
+    return <VerifyEmailPage email={route.verifyEmailEmail} token={route.verifyEmailToken} />;
+  }
+
+  if (route.page === 'acceptInvite') {
+    // Render invite acceptance outside the main shell even when authenticated. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    return <AcceptInvitePage email={route.inviteEmail} token={route.inviteToken} isAuthenticated={Boolean(authToken)} />;
   }
 
   const userPanel = (

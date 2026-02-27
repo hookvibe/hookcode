@@ -19,6 +19,9 @@ export type RoutePage =
   | 'repo'
   | 'archive'
   | 'login'
+  | 'register'
+  | 'verifyEmail'
+  | 'acceptInvite'
   | 'skills';
 
 export interface RouteState {
@@ -29,6 +32,11 @@ export interface RouteState {
   tasksStatus?: string;
   tasksRepoId?: string;
   archiveTab?: string;
+  // Store auth/invite tokens parsed from hash query. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+  verifyEmailEmail?: string;
+  verifyEmailToken?: string;
+  inviteEmail?: string;
+  inviteToken?: string;
 }
 
 const safeDecode = (value: string): string => {
@@ -99,12 +107,40 @@ export const parseRoute = (hash: string): RouteState => {
   }
 
   if (parts[0] === 'login') return { page: 'login' };
+  if (parts[0] === 'register') return { page: 'register' };
+  if (parts[0] === 'verify-email') {
+    // Parse email verification tokens from the hash query. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    return { page: 'verifyEmail', verifyEmailEmail: query.email, verifyEmailToken: query.token };
+  }
+  if (parts[0] === 'accept-invite') {
+    // Parse repo invite tokens from the hash query. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+    return { page: 'acceptInvite', inviteEmail: query.email, inviteToken: query.token };
+  }
 
   // Fallback: keep unknown hashes safe by sending users to Home.
   return { page: 'home' };
 };
 
 export const buildHomeHash = (): string => '#/';
+// Provide hash builders for auth + invite routes. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
+export const buildLoginHash = (): string => '#/login';
+export const buildRegisterHash = (): string => '#/register';
+export const buildVerifyEmailHash = (params?: { email?: string; token?: string }): string => {
+  const email = String(params?.email ?? '').trim();
+  const token = String(params?.token ?? '').trim();
+  const query: string[] = [];
+  if (email) query.push(`email=${encodeURIComponent(email)}`);
+  if (token) query.push(`token=${encodeURIComponent(token)}`);
+  return query.length ? `#/verify-email?${query.join('&')}` : '#/verify-email';
+};
+export const buildAcceptInviteHash = (params?: { email?: string; token?: string }): string => {
+  const email = String(params?.email ?? '').trim();
+  const token = String(params?.token ?? '').trim();
+  const query: string[] = [];
+  if (email) query.push(`email=${encodeURIComponent(email)}`);
+  if (token) query.push(`token=${encodeURIComponent(token)}`);
+  return query.length ? `#/accept-invite?${query.join('&')}` : '#/accept-invite';
+};
 
 export const buildTasksHash = (options?: { status?: string; repoId?: string }): string => {
   const status = String(options?.status ?? '').trim();
