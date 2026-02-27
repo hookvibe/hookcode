@@ -167,6 +167,12 @@
   min-width: 0;
 }
 
+/* Keep commit hashes readable by preventing flex shrink when titles are long. docs/en/developer/plans/repo-activity-title-overflow-20260227/task_plan.md repo-activity-title-overflow-20260227 */
+.hc-provider-activity-item__hash {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .hc-provider-activity-item__titleWrap {
   flex: 1 1 auto;
   min-width: 0;
@@ -198,4 +204,3 @@
   border-color: var(--hc-accent-border);
   box-shadow: var(--hc-focus-ring);
 }
-

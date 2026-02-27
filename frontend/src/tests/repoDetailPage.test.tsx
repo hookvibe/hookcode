@@ -287,6 +287,29 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     expect(screen.getByText('Issue: one')).toBeInTheDocument();
   });
 
+  test('keeps commit hash wrapper stable when titles are long', async () => {
+    const longTitle = 'feat: long title keeps going to test overflow handling in repo activity rows';
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    vi.mocked(api.fetchRepoProviderMeta).mockResolvedValueOnce({ provider: 'gitlab', visibility: 'public' } as any);
+    vi.mocked(api.fetchRepoProviderActivity).mockResolvedValueOnce({
+      provider: 'gitlab',
+      commits: { page: 1, pageSize: 5, hasMore: false, items: [{ id: 'c1', shortId: 'c1', title: longTitle, url: 'https://gitlab.example.com/c1' }] },
+      merges: { page: 1, pageSize: 5, hasMore: false, items: [] },
+      issues: { page: 1, pageSize: 5, hasMore: false, items: [] }
+    } as any);
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepoProviderActivity).toHaveBeenCalled());
+    expect(await screen.findByText(longTitle)).toBeInTheDocument();
+
+    // Ensure the commit hash wrapper class is present to prevent title overflow from shrinking it. docs/en/developer/plans/repo-activity-title-overflow-20260227/task_plan.md repo-activity-title-overflow-20260227
+    const hashNode = screen.getByText('c1').closest('.hc-provider-activity-item__hash');
+    expect(hashNode).toBeTruthy();
+    expect(hashNode).toHaveClass('hc-provider-activity-item__hash');
+  });
+
   test('paginates commits without refreshing merges/issues', async () => {
     // Keep provider activity pagination column-scoped to avoid unrelated refresh/skeleton updates. docs/en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan.md 4wrx55jmsm8z5fuqlfdc
     const ui = userEvent.setup();
