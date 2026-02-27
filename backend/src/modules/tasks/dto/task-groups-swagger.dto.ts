@@ -63,6 +63,10 @@ export class TaskGroupWithMetaDto {
 export class ListTaskGroupsResponseDto {
   @ApiProperty({ type: TaskGroupWithMetaDto, isArray: true })
   taskGroups!: TaskGroupWithMetaDto[];
+
+  // Add nextCursor to task-group list responses for keyset pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  @ApiPropertyOptional()
+  nextCursor?: string;
 }
 
 export class GetTaskGroupResponseDto {

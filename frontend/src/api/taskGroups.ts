@@ -15,16 +15,18 @@ import type {
 // Split task-group and preview APIs into a dedicated module to reduce merge conflicts. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
 export const fetchTaskGroups = async (options?: {
   limit?: number;
+  cursor?: string;
   repoId?: string;
   robotId?: string;
   kind?: TaskGroupKind;
   archived?: ArchiveScope;
-}): Promise<TaskGroup[]> => {
-  const data = await getCached<{ taskGroups: TaskGroup[] }>('/task-groups', {
+}): Promise<{ taskGroups: TaskGroup[]; nextCursor?: string }> => {
+  // Fetch task-group lists with cursor pagination metadata when provided. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  const data = await getCached<{ taskGroups: TaskGroup[]; nextCursor?: string }>('/task-groups', {
     params: options,
     cacheTtlMs: 5000
   });
-  return data.taskGroups;
+  return data;
 };
 
 export const fetchTaskGroup = async (id: string): Promise<TaskGroup> => {

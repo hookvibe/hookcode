@@ -39,9 +39,9 @@ import {
   fetchTaskGroupSkillSelection,
   fetchTaskGroupPreviewStatus,
   fetchTaskGroupTasks,
+  fetchAllRepos,
   installTaskGroupPreviewDependencies,
   listRepoRobots,
-  listRepos,
   pauseTask,
   resumeTask,
   setTaskGroupPreviewVisibility,
@@ -845,7 +845,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const refreshRepos = useCallback(async () => {
     setReposLoading(true);
     try {
-      const data = await listRepos();
+      // Fetch all repo pages for the chat repo picker after list pagination changes. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+      const data = await fetchAllRepos();
       setRepos(data);
       if (!repoId) {
         const firstEnabled = data.find((r) => r.enabled);

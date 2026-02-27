@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Card, Empty, Input, Popconfirm, Space, Tabs, Tag, Typography } from 'antd';
 import { FolderOpenOutlined, LockOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { Repository, Task } from '../api';
@@ -8,6 +8,7 @@ import { buildArchiveHash, buildRepoHash, buildTaskHash } from '../router';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 import { clampText, getTaskTitle, statusTag } from '../utils/task';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 /**
  * ArchivePage:
@@ -22,6 +23,9 @@ export interface ArchivePageProps {
 
 type ArchiveTabKey = 'repos' | 'tasks';
 
+const ARCHIVE_REPOS_PAGE_SIZE = 30; // Keep archive repo pagination consistent with list pages. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+const ARCHIVE_TASKS_PAGE_SIZE = 30; // Keep archive task pagination consistent with list pages. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+
 const normalizeTab = (value: string | undefined): ArchiveTabKey => {
   const raw = String(value ?? '').trim().toLowerCase();
   if (raw === 'tasks') return 'tasks';
@@ -33,6 +37,8 @@ export const ArchivePage: FC<ArchivePageProps> = ({ tab, userPanel, navToggle })
   const t = useT();
   const { message } = App.useApp();
 
+  const reposLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const tasksLoadMoreRef = useRef<HTMLDivElement | null>(null);
   const activeTab = useMemo(() => normalizeTab(tab), [tab]);
 
   const formatTime = useCallback(
@@ -47,51 +53,120 @@ export const ArchivePage: FC<ArchivePageProps> = ({ tab, userPanel, navToggle })
   );
 
   const [reposLoading, setReposLoading] = useState(false);
+  const [reposLoadingMore, setReposLoadingMore] = useState(false);
   const [repos, setRepos] = useState<Repository[]>([]);
+  const [reposNextCursor, setReposNextCursor] = useState<string | null>(null); // Track cursor for archive repo pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
   const [reposSearch, setReposSearch] = useState('');
   const [restoringRepoId, setRestoringRepoId] = useState<string | null>(null);
 
   const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksLoadingMore, setTasksLoadingMore] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasksNextCursor, setTasksNextCursor] = useState<string | null>(null); // Track cursor for archive task pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
   const [tasksSearch, setTasksSearch] = useState('');
 
+  const fetchReposPage = useCallback(
+    async ({ append, cursor }: { append: boolean; cursor?: string }) => {
+      // Fetch a single paginated archive repo page for infinite scroll. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+      const setBusy = append ? setReposLoadingMore : setReposLoading;
+      setBusy(true);
+      try {
+        const { repos: data, nextCursor } = await listRepos({
+          archived: 'archived',
+          limit: ARCHIVE_REPOS_PAGE_SIZE,
+          cursor
+        });
+        setRepos((prev) => {
+          if (!append) return data;
+          const existing = new Set(prev.map((repo) => repo.id));
+          return [...prev, ...data.filter((repo) => !existing.has(repo.id))];
+        });
+        setReposNextCursor(nextCursor ?? null);
+      } catch (err) {
+        console.error(err);
+        if (!append) {
+          message.error(t('toast.repos.fetchFailed'));
+          setRepos([]);
+        }
+      } finally {
+        setBusy(false);
+      }
+    },
+    [message, t]
+  );
+
+  const fetchTasksPage = useCallback(
+    async ({ append, cursor }: { append: boolean; cursor?: string }) => {
+      // Fetch a single paginated archive task page for infinite scroll. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+      const setBusy = append ? setTasksLoadingMore : setTasksLoading;
+      setBusy(true);
+      try {
+        const { tasks: data, nextCursor } = await fetchTasks({
+          limit: ARCHIVE_TASKS_PAGE_SIZE,
+          cursor,
+          archived: 'archived',
+          // Skip queue diagnosis for archived task lists to keep archive loads fast. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
+          includeQueue: false
+        });
+        setTasks((prev) => {
+          if (!append) return data;
+          const existing = new Set(prev.map((task) => task.id));
+          return [...prev, ...data.filter((task) => !existing.has(task.id))];
+        });
+        setTasksNextCursor(nextCursor ?? null);
+      } catch (err) {
+        console.error(err);
+        if (!append) {
+          message.error(t('toast.tasks.fetchFailed'));
+          setTasks([]);
+        }
+      } finally {
+        setBusy(false);
+      }
+    },
+    [message, t]
+  );
+
   const refreshRepos = useCallback(async () => {
-    setReposLoading(true);
-    try {
-      const data = await listRepos({ archived: 'archived' });
-      setRepos(data);
-    } catch (err) {
-      console.error(err);
-      message.error(t('toast.repos.fetchFailed'));
-      setRepos([]);
-    } finally {
-      setReposLoading(false);
-    }
-  }, [message, t]);
+    // Reset archived repo pagination when users refresh the Archive tab. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    await fetchReposPage({ append: false });
+  }, [fetchReposPage]);
 
   const refreshTasks = useCallback(async () => {
-    setTasksLoading(true);
-    try {
-      const data = await fetchTasks({
-        limit: 50,
-        archived: 'archived',
-        // Skip queue diagnosis for archived task lists to keep archive loads fast. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
-        includeQueue: false
-      });
-      setTasks(data);
-    } catch (err) {
-      console.error(err);
-      message.error(t('toast.tasks.fetchFailed'));
-      setTasks([]);
-    } finally {
-      setTasksLoading(false);
-    }
-  }, [message, t]);
+    // Reset archived task pagination when users refresh the Archive tab. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    await fetchTasksPage({ append: false });
+  }, [fetchTasksPage]);
+
+  const loadMoreRepos = useCallback(async () => {
+    // Append more archived repositories when the list bottom is reached. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    if (!reposNextCursor || reposLoading || reposLoadingMore) return;
+    await fetchReposPage({ append: true, cursor: reposNextCursor });
+  }, [fetchReposPage, reposLoading, reposLoadingMore, reposNextCursor]);
+
+  const loadMoreTasks = useCallback(async () => {
+    // Append more archived tasks when the list bottom is reached. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    if (!tasksNextCursor || tasksLoading || tasksLoadingMore) return;
+    await fetchTasksPage({ append: true, cursor: tasksNextCursor });
+  }, [fetchTasksPage, tasksLoading, tasksLoadingMore, tasksNextCursor]);
 
   useEffect(() => {
     void refreshRepos();
     void refreshTasks();
   }, [refreshRepos, refreshTasks]);
+
+  // Trigger archive repo pagination when the repos list sentinel is visible. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  useInfiniteScroll({
+    targetRef: reposLoadMoreRef,
+    enabled: activeTab === 'repos' && Boolean(reposNextCursor) && !reposLoading && !reposLoadingMore,
+    onLoadMore: () => void loadMoreRepos()
+  });
+
+  // Trigger archive task pagination when the tasks list sentinel is visible. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  useInfiniteScroll({
+    targetRef: tasksLoadMoreRef,
+    enabled: activeTab === 'tasks' && Boolean(tasksNextCursor) && !tasksLoading && !tasksLoadingMore,
+    onLoadMore: () => void loadMoreTasks()
+  });
 
   const filteredRepos = useMemo(() => {
     const q = reposSearch.trim().toLowerCase();
@@ -175,79 +250,88 @@ export const ArchivePage: FC<ArchivePageProps> = ({ tab, userPanel, navToggle })
                   </div>
 
                   {filteredRepos.length ? (
-                    <div className="hc-card-list">
-                      <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-                        {filteredRepos.map((repo) => (
-                          <Card
-                            key={repo.id}
-                            size="small"
-                            hoverable
-                            className="hc-repo-card"
-                            styles={{ body: { padding: 12 } }}
-                            onClick={() => openRepo(repo)}
-                          >
-                            <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                              <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                <Typography.Text strong style={{ minWidth: 0 }}>
-                                  {repo.name || repo.id}
-                                </Typography.Text>
-                                <Space size={6} wrap>
-                                  <Tag color={repo.provider === 'github' ? 'geekblue' : 'orange'}>
-                                    {repo.provider === 'github' ? 'GitHub' : 'GitLab'}
-                                  </Tag>
-                                  {/* Replace `enabled` with an explicit archived badge to avoid confusing status in Archive. qnp1mtxhzikhbi0xspbc */}
-                                  <Tag icon={<LockOutlined />} color="default">
-                                    {t('archive.repos.archived')}
-                                  </Tag>
+                    <>
+                      <div className="hc-card-list">
+                        <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+                          {filteredRepos.map((repo) => (
+                            <Card
+                              key={repo.id}
+                              size="small"
+                              hoverable
+                              className="hc-repo-card"
+                              styles={{ body: { padding: 12 } }}
+                              onClick={() => openRepo(repo)}
+                            >
+                              <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                                <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                  <Typography.Text strong style={{ minWidth: 0 }}>
+                                    {repo.name || repo.id}
+                                  </Typography.Text>
+                                  <Space size={6} wrap>
+                                    <Tag color={repo.provider === 'github' ? 'geekblue' : 'orange'}>
+                                      {repo.provider === 'github' ? 'GitHub' : 'GitLab'}
+                                    </Tag>
+                                    {/* Replace `enabled` with an explicit archived badge to avoid confusing status in Archive. qnp1mtxhzikhbi0xspbc */}
+                                    <Tag icon={<LockOutlined />} color="default">
+                                      {t('archive.repos.archived')}
+                                    </Tag>
+                                  </Space>
                                 </Space>
-                              </Space>
 
-                              <Space size={10} wrap>
-                                <Typography.Text type="secondary">{repo.id}</Typography.Text>
-                                {/* Show archived timestamp as meta text to keep the card header compact. qnp1mtxhzikhbi0xspbc */}
-                                <Typography.Text type="secondary">
-                                  {repo.archivedAt ? t('archive.repos.archivedAt', { time: formatTime(repo.archivedAt) }) : t('archive.repos.archived')}
-                                </Typography.Text>
-                              </Space>
+                                <Space size={10} wrap>
+                                  <Typography.Text type="secondary">{repo.id}</Typography.Text>
+                                  {/* Show archived timestamp as meta text to keep the card header compact. qnp1mtxhzikhbi0xspbc */}
+                                  <Typography.Text type="secondary">
+                                    {repo.archivedAt ? t('archive.repos.archivedAt', { time: formatTime(repo.archivedAt) }) : t('archive.repos.archived')}
+                                  </Typography.Text>
+                                </Space>
 
-                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                                <Button
-                                  size="small"
-                                  icon={<FolderOpenOutlined />}
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    openRepo(repo);
-                                  }}
-                                >
-                                  {/* Use "View" wording inside Archive since archived repos are read-only. qnp1mtxhzikhbi0xspbc */}
-                                  {t('common.view')}
-                                </Button>
-                                <Popconfirm
-                                  title={t('archive.repos.restoreConfirm.title')}
-                                  description={t('archive.repos.restoreConfirm.desc')}
-                                  okText={t('common.restore')}
-                                  cancelText={t('common.cancel')}
-                                  onConfirm={() => void restoreRepo(repo.id)}
-                                >
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                                   <Button
                                     size="small"
-                                    type="primary"
-                                    loading={restoringRepoId === repo.id}
+                                    icon={<FolderOpenOutlined />}
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
+                                      openRepo(repo);
                                     }}
                                   >
-                                    {t('common.restore')}
+                                    {/* Use "View" wording inside Archive since archived repos are read-only. qnp1mtxhzikhbi0xspbc */}
+                                    {t('common.view')}
                                   </Button>
-                                </Popconfirm>
-                              </div>
-                            </Space>
-                          </Card>
-                        ))}
-                      </Space>
-                    </div>
+                                  <Popconfirm
+                                    title={t('archive.repos.restoreConfirm.title')}
+                                    description={t('archive.repos.restoreConfirm.desc')}
+                                    okText={t('common.restore')}
+                                    cancelText={t('common.cancel')}
+                                    onConfirm={() => void restoreRepo(repo.id)}
+                                  >
+                                    <Button
+                                      size="small"
+                                      type="primary"
+                                      loading={restoringRepoId === repo.id}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                      }}
+                                    >
+                                      {t('common.restore')}
+                                    </Button>
+                                  </Popconfirm>
+                                </div>
+                              </Space>
+                            </Card>
+                          ))}
+                        </Space>
+                      </div>
+                      {/* Add an infinite-scroll sentinel to load more archived repos. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
+                      <div ref={reposLoadMoreRef} data-testid="hc-archive-repos-load-more" />
+                      {reposLoadingMore ? (
+                        <div style={{ padding: '12px 0', textAlign: 'center' }}>
+                          <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+                        </div>
+                      ) : null}
+                    </>
                   ) : reposLoading ? (
                     <CardListSkeleton count={6} cardClassName="hc-repo-card" testId="hc-archive-repos-skeleton" ariaLabel={t('common.loading')} />
                   ) : (
@@ -273,37 +357,46 @@ export const ArchivePage: FC<ArchivePageProps> = ({ tab, userPanel, navToggle })
                   </div>
 
                   {filteredTasks.length ? (
-                    <div className="hc-card-list">
-                      <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-                        {filteredTasks.map((task) => (
-                          <Card
-                            key={task.id}
-                            size="small"
-                            hoverable
-                            className="hc-task-card"
-                            styles={{ body: { padding: 12 } }}
-                            onClick={() => openTask(task)}
-                          >
-                            <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                              <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                <Typography.Text strong style={{ minWidth: 0 }}>
-                                  {clampText(getTaskTitle(task), 80)}
-                                </Typography.Text>
-                                {/* Reuse shared statusTag helper (signature: (t, status)) for consistent UI. qnp1mtxhzikhbi0xspbc */}
-                                {statusTag(t, task.status)}
+                    <>
+                      <div className="hc-card-list">
+                        <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+                          {filteredTasks.map((task) => (
+                            <Card
+                              key={task.id}
+                              size="small"
+                              hoverable
+                              className="hc-task-card"
+                              styles={{ body: { padding: 12 } }}
+                              onClick={() => openTask(task)}
+                            >
+                              <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                                <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                  <Typography.Text strong style={{ minWidth: 0 }}>
+                                    {clampText(getTaskTitle(task), 80)}
+                                  </Typography.Text>
+                                  {/* Reuse shared statusTag helper (signature: (t, status)) for consistent UI. qnp1mtxhzikhbi0xspbc */}
+                                  {statusTag(t, task.status)}
+                                </Space>
+                                <Space size={10} wrap>
+                                  <Typography.Text type="secondary">{task.repo?.name ?? task.repoId ?? '-'}</Typography.Text>
+                                  <Typography.Text type="secondary">{formatTime(task.updatedAt)}</Typography.Text>
+                                  {task.archivedAt ? (
+                                    <Tag color="default">{t('archive.tasks.archivedAt', { time: formatTime(task.archivedAt) })}</Tag>
+                                  ) : null}
+                                </Space>
                               </Space>
-                              <Space size={10} wrap>
-                                <Typography.Text type="secondary">{task.repo?.name ?? task.repoId ?? '-'}</Typography.Text>
-                                <Typography.Text type="secondary">{formatTime(task.updatedAt)}</Typography.Text>
-                                {task.archivedAt ? (
-                                  <Tag color="default">{t('archive.tasks.archivedAt', { time: formatTime(task.archivedAt) })}</Tag>
-                                ) : null}
-                              </Space>
-                            </Space>
-                          </Card>
-                        ))}
-                      </Space>
-                    </div>
+                            </Card>
+                          ))}
+                        </Space>
+                      </div>
+                      {/* Add an infinite-scroll sentinel to load more archived tasks. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
+                      <div ref={tasksLoadMoreRef} data-testid="hc-archive-tasks-load-more" />
+                      {tasksLoadingMore ? (
+                        <div style={{ padding: '12px 0', textAlign: 'center' }}>
+                          <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+                        </div>
+                      ) : null}
+                    </>
                   ) : tasksLoading ? (
                     <CardListSkeleton count={6} cardClassName="hc-task-card" testId="hc-archive-tasks-skeleton" ariaLabel={t('common.loading')} />
                   ) : (

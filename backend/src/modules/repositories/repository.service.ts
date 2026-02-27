@@ -7,6 +7,14 @@ import { CODEX_PROVIDER_KEY } from '../../modelProviders/codex';
 import { CLAUDE_CODE_PROVIDER_KEY } from '../../modelProviders/claudeCode';
 import { GEMINI_CLI_PROVIDER_KEY } from '../../modelProviders/geminiCli';
 import { normalizeHttpBaseUrl } from '../../utils/url';
+import type { UpdatedAtCursor } from '../../utils/pagination';
+
+const clampRepoListLimit = (value: number | undefined, fallback: number): number => {
+  // Keep repository pagination page sizes bounded for consistent list performance. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  const num = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback;
+  if (num <= 0) return fallback;
+  return Math.min(num, 50);
+};
 
 const toIso = (value: unknown): string => {
   if (value instanceof Date) return value.toISOString();
@@ -367,14 +375,22 @@ export class RepositoryService {
     };
   }
 
-  async listAll(options?: { userId?: string; isAdmin?: boolean }): Promise<Repository[]> {
+  async listAll(options?: { userId?: string; isAdmin?: boolean; limit?: number; cursor?: UpdatedAtCursor | null }): Promise<Repository[]> {
     // Default to listing active (non-archived) repos for backward compatible UI behavior. qnp1mtxhzikhbi0xspbc
     return this.listByArchiveScope('active', options);
   }
 
-  async listByArchiveScope(scope: ArchiveScope, options?: { userId?: string; isAdmin?: boolean }): Promise<Repository[]> {
+  async listByArchiveScope(
+    scope: ArchiveScope,
+    options?: { userId?: string; isAdmin?: boolean; limit?: number; cursor?: UpdatedAtCursor | null }
+  ): Promise<Repository[]> {
     // Archive listing is used by both the normal Repos page and the dedicated Archive area. qnp1mtxhzikhbi0xspbc
     const archivedScope: ArchiveScope = scope ?? 'active';
+    const take = clampRepoListLimit(options?.limit, 50);
+    const cursor = options?.cursor ?? null;
+    const cursorUpdatedAt = cursor?.updatedAt ?? null;
+    const cursorId = cursor?.id ?? null;
+    const applyCursor = Boolean(cursorUpdatedAt && cursorId);
     const where: Prisma.RepositoryWhereInput = {};
     if (archivedScope === 'active') where.archivedAt = null;
     if (archivedScope === 'archived') where.archivedAt = { not: null };
@@ -382,10 +398,18 @@ export class RepositoryService {
       // Apply membership filter for private repo access. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
       where.members = { some: { userId: options.userId } };
     }
+    if (applyCursor) {
+      // Apply keyset pagination for repo lists using updatedAt + id ordering. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+      where.OR = [
+        { updatedAt: { lt: cursorUpdatedAt! } },
+        { updatedAt: cursorUpdatedAt!, id: { lt: cursorId! } }
+      ];
+    }
 
     const rows = await db.repository.findMany({
       where,
-      orderBy: { createdAt: 'desc' }
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      take
     });
     return rows.map(recordToRepository);
   }

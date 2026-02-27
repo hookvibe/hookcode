@@ -45,6 +45,12 @@ export interface Repository {
   permissions?: RepoPermissions;
 }
 
+// Return cursors for repo list pagination in the UI. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+export interface RepoListResponse {
+  repos: Repository[];
+  nextCursor?: string;
+}
+
 export interface RepoMember {
   id: string;
   userId: string;

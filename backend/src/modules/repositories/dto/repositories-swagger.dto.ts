@@ -347,6 +347,10 @@ export class RepoRobotSwaggerDto {
 export class ListRepositoriesResponseDto {
   @ApiProperty({ type: RepositorySwaggerDto, isArray: true })
   repos!: RepositorySwaggerDto[];
+
+  // Return pagination cursor when more repository pages are available. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  @ApiPropertyOptional()
+  nextCursor?: string;
 }
 
 export class CreateRepositoryResponseDto {

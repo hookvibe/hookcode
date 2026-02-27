@@ -525,10 +525,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     if (!repoId) return;
     setRepoTaskGroupTokensLoading(true);
     try {
-      const [tokens, taskGroups] = await Promise.all([
+      const [tokens, taskGroupsResponse] = await Promise.all([
         fetchMyApiTokens(),
         fetchTaskGroups({ repoId, archived: 'all', limit: 200 })
       ]);
+      // Unwrap task-group list payload from paginated response. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+      const taskGroups = taskGroupsResponse.taskGroups;
       const taskGroupIds = new Set((taskGroups ?? []).map((group: TaskGroup) => group.id));
       const filtered = (Array.isArray(tokens) ? tokens : []).filter((token) => {
         const groupId = extractTaskGroupIdFromTokenName(token.name);

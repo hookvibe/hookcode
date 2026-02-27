@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { db } from '../../db';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { normalizeString, parsePositiveInt } from '../../utils/parse';
+import { encodeUpdatedAtCursor } from '../../utils/pagination'; // Encode sidebar task-group cursors for load-more pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { DashboardSidebarResponseDto } from './dto/dashboard-swagger.dto';
@@ -143,12 +144,35 @@ export class DashboardController {
         );
       };
 
+      const buildStatusCursor = (tasks: any[]): string | undefined => {
+        // Emit per-status cursors for sidebar task pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+        const lastTask = tasks[tasks.length - 1];
+        const lastUpdatedAt = lastTask?.updatedAt ? new Date(lastTask.updatedAt) : null;
+        if (!lastTask || !lastUpdatedAt || Number.isNaN(lastUpdatedAt.getTime())) return undefined;
+        if (tasks.length !== tasksLimit) return undefined;
+        return encodeUpdatedAtCursor({ id: lastTask.id, updatedAt: lastUpdatedAt });
+      };
+
       // Annotate task-group sidebar rows with preview activity state. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
       const previewActiveIds = this.previewService.getActiveTaskGroupIds();
       const decoratedTaskGroups = taskGroups.map((group) => ({
         ...group,
         previewActive: previewActiveIds.has(group.id)
       }));
+      // Emit a task-group cursor for sidebar load-more pagination when the page is full. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+      const lastGroup = decoratedTaskGroups[decoratedTaskGroups.length - 1];
+      const lastGroupUpdatedAt = lastGroup ? new Date(lastGroup.updatedAt) : null;
+      const taskGroupsNextCursor =
+        lastGroup && lastGroupUpdatedAt && !Number.isNaN(lastGroupUpdatedAt.getTime()) && decoratedTaskGroups.length === taskGroupsLimit
+          ? encodeUpdatedAtCursor({ id: lastGroup.id, updatedAt: lastGroupUpdatedAt })
+          : undefined;
+      const tasksByStatusNextCursor = {
+        queued: buildStatusCursor(queued as any[]),
+        processing: buildStatusCursor(processing as any[]),
+        success: buildStatusCursor(success as any[]),
+        failed: buildStatusCursor(failed as any[])
+      };
+      const hasStatusCursor = Object.values(tasksByStatusNextCursor).some(Boolean);
 
       return {
         stats,
@@ -158,7 +182,9 @@ export class DashboardController {
           success: await sanitize(success as any[]),
           failed: await sanitize(failed as any[])
         },
-        taskGroups: decoratedTaskGroups
+        taskGroups: decoratedTaskGroups,
+        ...(taskGroupsNextCursor ? { taskGroupsNextCursor } : {}),
+        ...(hasStatusCursor ? { tasksByStatusNextCursor } : {})
       };
     } catch (err) {
       if (err instanceof HttpException) throw err;

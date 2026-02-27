@@ -14,16 +14,30 @@ import type {
   RepoScopedCredentialsPublic,
   RepoWebhookDeliveryDetail,
   RepoWebhookDeliverySummary,
+  RepoListResponse,
   Repository,
   RepositoryBranch,
   TimeWindow
 } from './types';
 
 // Split repository, robot, automation, and webhook-delivery APIs into a dedicated module. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
-export const listRepos = async (options?: { archived?: ArchiveScope }): Promise<Repository[]> => {
+export const listRepos = async (options?: { archived?: ArchiveScope; limit?: number; cursor?: string }): Promise<RepoListResponse> => {
+  // Add cursor-aware repo list retrieval for paginated UI loads. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
   // Cache repo lists briefly to dedupe repeated navigation between repo pages. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
-  const data = await getCached<{ repos: Repository[] }>('/repos', { params: options, cacheTtlMs: 5000 });
-  return data.repos;
+  return getCached<RepoListResponse>('/repos', { params: options, cacheTtlMs: 5000 });
+};
+
+export const fetchAllRepos = async (options?: { archived?: ArchiveScope }): Promise<Repository[]> => {
+  // Load all repo pages for selectors that require the full repository list. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  const collected: Repository[] = [];
+  let cursor: string | undefined;
+  do {
+    const { repos, nextCursor } = await listRepos({ ...(options ?? {}), limit: 50, cursor });
+    const existing = new Set(collected.map((repo) => repo.id));
+    collected.push(...repos.filter((repo) => !existing.has(repo.id)));
+    cursor = nextCursor;
+  } while (cursor);
+  return collected;
 };
 
 export const deleteRepo = async (repoId: string): Promise<Repository> => {

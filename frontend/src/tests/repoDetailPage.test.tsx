@@ -53,14 +53,16 @@ vi.mock('../api', () => {
       effective: [],
       mode: 'custom'
     })),
-    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [] })),
+    // Mock skills registry responses with pagination cursors. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    fetchSkills: vi.fn(async () => ({ builtIn: [], extra: [], builtInNextCursor: null, extraNextCursor: null })),
     // Expose archive APIs in the mock so RepoDetailPage can render the archive controls safely. qnp1mtxhzikhbi0xspbc
     archiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksArchived: 0, taskGroupsArchived: 0 })),
     unarchiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksRestored: 0, taskGroupsRestored: 0 })),
     updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null })),
     // Provide repo task-group PAT mocks for the bottom token section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
     fetchMyApiTokens: vi.fn(async () => []),
-    fetchTaskGroups: vi.fn(async () => []),
+    // Mock paginated task-group list responses for repo detail coverage. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    fetchTaskGroups: vi.fn(async () => ({ taskGroups: [] })),
     revokeMyApiToken: vi.fn(async () => ({
       id: 'pat-1',
       name: 'task-group-123e4567-e89b-12d3-a456-426614174000',
@@ -74,7 +76,8 @@ vi.mock('../api', () => {
     })),
     // Mock task stats fetch with paused counts for repo detail dashboard coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 })),
-    fetchTasks: vi.fn(async () => []),
+    // Mock paginated task list responses for repo detail coverage. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+    fetchTasks: vi.fn(async () => ({ tasks: [] })),
     // Mock the daily volume API used by the task activity line chart. dashtrendline20260119m9v2
     fetchTaskVolumeByDay: vi.fn(async () => []),
     // Mock webhook deliveries list fetch used by both the dashboard charts and deliveries table. u55e45ffi8jng44erdzp
@@ -124,14 +127,16 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
 
     // Include paused in activity stats for pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     vi.mocked(api.fetchTaskStats).mockResolvedValueOnce({ total: 6, queued: 0, processing: 3, paused: 0, success: 2, failed: 1 });
-    vi.mocked(api.fetchTasks).mockResolvedValueOnce([
-      { id: 't_p1', eventType: 'issue', status: 'processing', retries: 0, createdAt: '2026-01-19T10:00:00.000Z', updatedAt: '2026-01-19T10:00:00.000Z' } as any,
-      { id: 't_p2', eventType: 'push', status: 'processing', retries: 0, createdAt: '2026-01-18T10:00:00.000Z', updatedAt: '2026-01-18T10:00:00.000Z' } as any,
-      { id: 't_p3', eventType: 'merge_request', status: 'processing', retries: 0, createdAt: '2026-01-17T10:00:00.000Z', updatedAt: '2026-01-17T10:00:00.000Z' } as any,
-      { id: 't_f1', eventType: 'commit', status: 'failed', retries: 0, createdAt: '2026-01-16T10:00:00.000Z', updatedAt: '2026-01-16T10:00:00.000Z' } as any,
-      { id: 't_s1', eventType: 'issue_comment', status: 'succeeded', retries: 0, createdAt: '2026-01-15T10:00:00.000Z', updatedAt: '2026-01-15T10:00:00.000Z' } as any,
-      { id: 't_s2', eventType: 'chat', status: 'commented', retries: 0, createdAt: '2026-01-14T10:00:00.000Z', updatedAt: '2026-01-14T10:00:00.000Z' } as any
-    ]);
+    vi.mocked(api.fetchTasks).mockResolvedValueOnce({
+      tasks: [
+        { id: 't_p1', eventType: 'issue', status: 'processing', retries: 0, createdAt: '2026-01-19T10:00:00.000Z', updatedAt: '2026-01-19T10:00:00.000Z' } as any,
+        { id: 't_p2', eventType: 'push', status: 'processing', retries: 0, createdAt: '2026-01-18T10:00:00.000Z', updatedAt: '2026-01-18T10:00:00.000Z' } as any,
+        { id: 't_p3', eventType: 'merge_request', status: 'processing', retries: 0, createdAt: '2026-01-17T10:00:00.000Z', updatedAt: '2026-01-17T10:00:00.000Z' } as any,
+        { id: 't_f1', eventType: 'commit', status: 'failed', retries: 0, createdAt: '2026-01-16T10:00:00.000Z', updatedAt: '2026-01-16T10:00:00.000Z' } as any,
+        { id: 't_s1', eventType: 'issue_comment', status: 'succeeded', retries: 0, createdAt: '2026-01-15T10:00:00.000Z', updatedAt: '2026-01-15T10:00:00.000Z' } as any,
+        { id: 't_s2', eventType: 'chat', status: 'commented', retries: 0, createdAt: '2026-01-14T10:00:00.000Z', updatedAt: '2026-01-14T10:00:00.000Z' } as any
+      ]
+    });
 
     renderPage({ repoId: 'r1' });
 
@@ -555,15 +560,17 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
         lastUsedAt: null
       }
     ]);
-    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce([
-      {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        kind: 'task',
-        bindingKey: 'task-group-1',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      } as any
-    ]);
+    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce({
+      taskGroups: [
+        {
+          id: '123e4567-e89b-12d3-a456-426614174000',
+          kind: 'task',
+          bindingKey: 'task-group-1',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        } as any
+      ]
+    });
 
     renderPage({ repoId: 'r1' });
 
@@ -602,8 +609,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     }));
 
     vi.mocked(api.fetchMyApiTokens).mockResolvedValueOnce(tokens);
-    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce(
-      taskGroupIds.map(
+    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce({
+      taskGroups: taskGroupIds.map(
         (id) =>
           ({
             id,
@@ -613,7 +620,7 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
             updatedAt: new Date().toISOString()
           }) as any
       )
-    );
+    });
 
     renderPage({ repoId: 'r1' });
 

@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client';
 import { db } from '../../db';
 import type { SkillListResponse, SkillPatchInput, SkillSelectionKey, SkillSelectionMode, SkillSelectionState, SkillSummary } from '../../types/skill';
 import { resolveAgentExampleSkillsRoot } from '../../utils/agentTemplatePaths';
+import { encodeNameCursor, type NameCursor } from '../../utils/pagination';
 
 const BUILTIN_SKILLS_ENV_KEY = 'HOOKCODE_SKILLS_BUILTIN_ROOT';
 const SKILL_DOC_FILENAME = 'SKILL.md';
@@ -294,6 +295,30 @@ const buildSkillPromptPrefix = (skills: SkillSummary[]): string => {
   return ['# Skill Directives', ...blocks, ''].join('\n\n');
 };
 
+const clampSkillListLimit = (value: number | undefined, fallback: number): number => {
+  // Cap skill pagination page sizes to keep registry loads consistent. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  const num = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback;
+  if (num <= 0) return fallback;
+  return Math.min(num, 50);
+};
+
+const paginateSkillsByName = (
+  skills: SkillSummary[],
+  limit: number,
+  cursor?: NameCursor | null
+): { skills: SkillSummary[]; nextCursor?: string } => {
+  // Paginate skill lists with name + id keyset ordering. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  const take = clampSkillListLimit(limit, 24);
+  const applyCursor = Boolean(cursor?.name && cursor?.id);
+  const filtered = applyCursor
+    ? skills.filter((skill) => skill.name > cursor!.name || (skill.name === cursor!.name && skill.id > cursor!.id))
+    : skills;
+  const page = filtered.slice(0, take);
+  const last = page[page.length - 1];
+  const nextCursor = last && page.length === take ? encodeNameCursor({ id: last.id, name: last.name }) : undefined;
+  return { skills: page, nextCursor };
+};
+
 export const __test__parseSkillFrontmatter = parseSkillFrontmatter;
 export const __test__buildSkillPromptPrefix = buildSkillPromptPrefix;
 export const __test__normalizeSkillTags = normalizeSkillTags;
@@ -310,6 +335,50 @@ export class SkillsService {
     // Fetch built-in and extra skills concurrently for the registry response. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
     const [builtIn, extra] = await Promise.all([this.listBuiltInSkills(), this.listExtraSkills()]);
     return { builtIn, extra };
+  }
+
+  async listBuiltInSkillsPage(params: { limit: number; cursor?: NameCursor | null }): Promise<{ skills: SkillSummary[]; nextCursor?: string }> {
+    // Paginate built-in skills by name for the registry UI. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    const skills = await this.listBuiltInSkills();
+    return paginateSkillsByName(skills, params.limit, params.cursor);
+  }
+
+  async listExtraSkillsPage(params: { limit: number; cursor?: NameCursor | null }): Promise<{ skills: SkillSummary[]; nextCursor?: string }> {
+    // Paginate extra skills with name + id keyset ordering for the registry UI. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    const take = clampSkillListLimit(params.limit, 24);
+    const cursor = params.cursor ?? null;
+    const cursorName = cursor?.name ?? null;
+    const cursorId = cursor?.id ?? null;
+    const applyCursor = Boolean(cursorName && cursorId);
+    const where: Prisma.ExtraSkillWhereInput = {};
+    if (applyCursor) {
+      where.OR = [
+        { displayName: { gt: cursorName! } },
+        { displayName: cursorName!, id: { gt: cursorId! } }
+      ];
+    }
+
+    const rows = await db.extraSkill.findMany({
+      where,
+      orderBy: [{ displayName: 'asc' }, { id: 'asc' }],
+      take
+    });
+    // Keep extra-skill pagination results typed to the SkillSummary shape. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    const skills: SkillSummary[] = rows.map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      name: row.displayName,
+      description: row.description ?? null,
+      version: row.version ?? null,
+      source: 'extra',
+      enabled: row.enabled,
+      promptText: row.promptText ?? null,
+      promptEnabled: row.promptEnabled,
+      tags: normalizeSkillTags(row.tags)
+    }));
+    const last = skills[skills.length - 1];
+    const nextCursor = last && skills.length === take ? encodeNameCursor({ id: last.id, name: last.name }) : undefined;
+    return { skills, nextCursor };
   }
 
   private async listAllSkills(): Promise<SkillSummary[]> {

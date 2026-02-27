@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Empty, Input, Modal, Switch, Tag, Typography, Upload } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
@@ -7,11 +7,14 @@ import { fetchSkills, patchSkill, uploadExtraSkill } from '../api';
 import { useT } from '../i18n';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { filterSkillsByQueryAndTags } from '../utils/skills';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 export interface SkillsPageProps {
   userPanel?: ReactNode;
   navToggle?: PageNavMenuAction;
 }
+
+const SKILLS_PAGE_SIZE = 24; // Keep skill registry pages small for infinite scroll. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
 
 const isPromptAvailable = (skill: SkillSummary): boolean =>
   // Determine when prompt text can be toggled for a skill. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
@@ -205,13 +208,19 @@ export const SkillsPage: FC<SkillsPageProps> = ({ userPanel, navToggle }) => {
   const t = useT();
   const { message } = App.useApp();
 
+  const builtInLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const extraLoadMoreRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMoreBuiltIn, setLoadingMoreBuiltIn] = useState(false);
+  const [loadingMoreExtra, setLoadingMoreExtra] = useState(false);
   const [search, setSearch] = useState('');
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const [updatingIds, setUpdatingIds] = useState<Record<string, boolean>>({});
   const [builtInSkills, setBuiltInSkills] = useState<SkillSummary[]>([]);
   const [extraSkills, setExtraSkills] = useState<SkillSummary[]>([]);
+  const [builtInNextCursor, setBuiltInNextCursor] = useState<string | null>(null); // Track cursor for built-in skill pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  const [extraNextCursor, setExtraNextCursor] = useState<string | null>(null); // Track cursor for extra skill pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<UploadFile | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -220,14 +229,22 @@ export const SkillsPage: FC<SkillsPageProps> = ({ userPanel, navToggle }) => {
     // Load skills registry data for the dedicated console page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
     setLoading(true);
     try {
-      const data = await fetchSkills();
-      setBuiltInSkills(data.builtIn);
-      setExtraSkills(data.extra);
+      // Fetch the first paginated slice for built-in/extra skills. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+      const [builtInPage, extraPage] = await Promise.all([
+        fetchSkills({ source: 'built_in', limit: SKILLS_PAGE_SIZE }),
+        fetchSkills({ source: 'extra', limit: SKILLS_PAGE_SIZE })
+      ]);
+      setBuiltInSkills(builtInPage.builtIn);
+      setExtraSkills(extraPage.extra);
+      setBuiltInNextCursor(builtInPage.builtInNextCursor ?? null);
+      setExtraNextCursor(extraPage.extraNextCursor ?? null);
     } catch (err) {
       console.error(err);
       message.error(t('skills.toast.fetchFailed'));
       setBuiltInSkills([]);
       setExtraSkills([]);
+      setBuiltInNextCursor(null);
+      setExtraNextCursor(null);
     } finally {
       setLoading(false);
     }
@@ -236,6 +253,56 @@ export const SkillsPage: FC<SkillsPageProps> = ({ userPanel, navToggle }) => {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const loadMoreBuiltIn = useCallback(async () => {
+    // Append additional built-in skills when the list bottom is reached. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    if (!builtInNextCursor || loading || loadingMoreBuiltIn) return;
+    setLoadingMoreBuiltIn(true);
+    try {
+      const page = await fetchSkills({ source: 'built_in', limit: SKILLS_PAGE_SIZE, cursor: builtInNextCursor });
+      setBuiltInSkills((prev) => {
+        const existing = new Set(prev.map((skill) => skill.id));
+        return [...prev, ...page.builtIn.filter((skill) => !existing.has(skill.id))];
+      });
+      setBuiltInNextCursor(page.builtInNextCursor ?? null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMoreBuiltIn(false);
+    }
+  }, [builtInNextCursor, loading, loadingMoreBuiltIn]);
+
+  const loadMoreExtra = useCallback(async () => {
+    // Append additional extra skills when the list bottom is reached. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    if (!extraNextCursor || loading || loadingMoreExtra) return;
+    setLoadingMoreExtra(true);
+    try {
+      const page = await fetchSkills({ source: 'extra', limit: SKILLS_PAGE_SIZE, cursor: extraNextCursor });
+      setExtraSkills((prev) => {
+        const existing = new Set(prev.map((skill) => skill.id));
+        return [...prev, ...page.extra.filter((skill) => !existing.has(skill.id))];
+      });
+      setExtraNextCursor(page.extraNextCursor ?? null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMoreExtra(false);
+    }
+  }, [extraNextCursor, loading, loadingMoreExtra]);
+
+  // Trigger built-in skill pagination when the sentinel enters view. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  useInfiniteScroll({
+    targetRef: builtInLoadMoreRef,
+    enabled: Boolean(builtInNextCursor) && !loading && !loadingMoreBuiltIn,
+    onLoadMore: () => void loadMoreBuiltIn()
+  });
+
+  // Trigger extra skill pagination when the sentinel enters view. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  useInfiniteScroll({
+    targetRef: extraLoadMoreRef,
+    enabled: Boolean(extraNextCursor) && !loading && !loadingMoreExtra,
+    onLoadMore: () => void loadMoreExtra()
+  });
 
   const tagStats = useMemo(() => {
     // Derive tag counts for category-style browsing and filtering. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
@@ -522,6 +589,13 @@ export const SkillsPage: FC<SkillsPageProps> = ({ userPanel, navToggle }) => {
                 <Empty description={t('skills.section.emptyBuiltIn')} className="hc-skills__empty" />
               )}
             </div>
+            {/* Add an infinite-scroll sentinel to load more built-in skills. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
+            <div ref={builtInLoadMoreRef} data-testid="hc-skills-built-in-load-more" />
+            {loadingMoreBuiltIn ? (
+              <div style={{ padding: '12px 0', textAlign: 'center' }}>
+                <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+              </div>
+            ) : null}
           </div>
 
           <div className="hc-skills__section">
@@ -565,6 +639,13 @@ export const SkillsPage: FC<SkillsPageProps> = ({ userPanel, navToggle }) => {
                 <Empty description={t('skills.section.emptyExtra')} className="hc-skills__empty" />
               )}
             </div>
+            {/* Add an infinite-scroll sentinel to load more extra skills. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
+            <div ref={extraLoadMoreRef} data-testid="hc-skills-extra-load-more" />
+            {loadingMoreExtra ? (
+              <div style={{ padding: '12px 0', textAlign: 'center' }}>
+                <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+              </div>
+            ) : null}
           </div>
         </div>
       </section>

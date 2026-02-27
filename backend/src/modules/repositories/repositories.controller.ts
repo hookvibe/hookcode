@@ -26,6 +26,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse
 } from '@nestjs/swagger';
@@ -56,6 +57,7 @@ import { UpdateRepoRobotDto } from './dto/update-repo-robot.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { AcceptRepoInviteDto, CreateRepoInviteDto, UpdateRepoMemberDto } from './dto/repo-members.dto';
 import { parsePositiveInt } from '../../utils/parse';
+import { decodeUpdatedAtCursor, encodeUpdatedAtCursor } from '../../utils/pagination'; // Share cursor helpers for repo list pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
 import { TtlCache } from '../../utils/ttlCache';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { OkResponseDto } from '../common/dto/basic-response.dto';
@@ -281,17 +283,39 @@ export class RepositoriesController {
     description: 'List repositories visible to the current user.',
     operationId: 'repos_list'
   })
+  // Document cursor pagination for repository lists. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  @ApiQuery({ name: 'cursor', required: false, description: 'Pagination cursor for fetching the next page of repositories.' })
   @ApiOkResponse({ description: 'OK', type: ListRepositoriesResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
-  async list(@Req() req: Request, @Query('archived') archivedRaw: string | undefined) {
+  async list(
+    @Req() req: Request,
+    @Query('archived') archivedRaw: string | undefined,
+    @Query('limit') limitRaw: string | undefined,
+    @Query('cursor') cursorRaw: string | undefined
+  ) {
     try {
       const user = ensureRequestUser(req);
       const scope = normalizeArchiveScope(archivedRaw);
+      const limit = parsePositiveInt(limitRaw, 50);
+      const cursor = decodeUpdatedAtCursor(cursorRaw);
+      if (cursorRaw && !cursor) {
+        // Reject invalid cursors so repo pagination remains deterministic. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+        throw new BadRequestException({ error: 'Invalid cursor' });
+      }
       const repos = await this.repositoryService.listByArchiveScope(scope, {
         userId: user.id,
-        isAdmin: this.repoAccessService.isAdmin(user)
+        isAdmin: this.repoAccessService.isAdmin(user),
+        limit,
+        cursor: cursor ?? undefined
       });
-      return { repos: await this.attachRepoPermissions(repos, user) };
+      const withPermissions = await this.attachRepoPermissions(repos, user);
+      const lastRepo = withPermissions[withPermissions.length - 1];
+      const lastUpdatedAt = lastRepo?.updatedAt ? new Date(lastRepo.updatedAt) : null;
+      const nextCursor =
+        lastRepo && lastUpdatedAt && !Number.isNaN(lastUpdatedAt.getTime()) && withPermissions.length === limit
+          ? encodeUpdatedAtCursor({ id: lastRepo.id, updatedAt: lastUpdatedAt })
+          : undefined;
+      return { repos: withPermissions, ...(nextCursor ? { nextCursor } : {}) };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[repos] list failed', err);

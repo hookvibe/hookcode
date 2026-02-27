@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Card, Empty, Form, Input, Modal, Select, Space, Tag, Typography } from 'antd';
 import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import type { RepoAutomationConfig, RepoProvider, Repository } from '../api';
@@ -8,6 +8,7 @@ import { buildRepoHash } from '../router';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 import { parseRepoUrl } from '../utils/repoUrl';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 /**
  * ReposPage:
@@ -24,6 +25,7 @@ import { parseRepoUrl } from '../utils/repoUrl';
  */
 
 const providerLabel = (provider: RepoProvider) => (provider === 'github' ? 'GitHub' : 'GitLab');
+const REPOS_PAGE_SIZE = 30; // Keep repo list pages lightweight for infinite scroll. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
 
 type RepoSummary =
   | { loading: true }
@@ -55,8 +57,11 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel, navToggle }) => {
   const t = useT();
   const { message } = App.useApp();
 
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [repos, setRepos] = useState<Repository[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null); // Track cursor for repo list pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
   const [repoSummaryById, setRepoSummaryById] = useState<Record<string, RepoSummary>>({});
   const [search, setSearch] = useState('');
 
@@ -64,23 +69,56 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel, navToggle }) => {
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createForm] = Form.useForm<{ provider: RepoProvider; repoUrl: string }>(); // Collect provider + repo URL for repo identity parsing. 58w1q3n5nr58flmempxe
 
+  const fetchPage = useCallback(
+    async ({ append, cursor }: { append: boolean; cursor?: string }) => {
+      // Fetch a single paginated repo page for infinite scroll. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+      const setBusy = append ? setLoadingMore : setLoading;
+      setBusy(true);
+      try {
+        const { repos: data, nextCursor: next } = await listRepos({
+          limit: REPOS_PAGE_SIZE,
+          cursor
+        });
+        setRepos((prev) => {
+          if (!append) return data;
+          const existing = new Set(prev.map((repo) => repo.id));
+          return [...prev, ...data.filter((repo) => !existing.has(repo.id))];
+        });
+        setNextCursor(next ?? null);
+      } catch (err) {
+        console.error(err);
+        if (!append) {
+          message.error(t('toast.repos.fetchFailed'));
+          setRepos([]);
+        }
+      } finally {
+        setBusy(false);
+      }
+    },
+    [message, t]
+  );
+
   const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await listRepos();
-      setRepos(data);
-    } catch (err) {
-      console.error(err);
-      message.error(t('toast.repos.fetchFailed'));
-      setRepos([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [message, t]);
+    // Reset repo list pagination when users refresh the page. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    await fetchPage({ append: false });
+  }, [fetchPage]);
+
+  const loadMore = useCallback(async () => {
+    // Append additional repository pages when the load-more sentinel is reached. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+    if (!nextCursor || loading || loadingMore) return;
+    await fetchPage({ append: true, cursor: nextCursor });
+  }, [fetchPage, loading, loadingMore, nextCursor]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Trigger repo list pagination when the sentinel enters view. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
+  useInfiniteScroll({
+    targetRef: loadMoreRef,
+    enabled: Boolean(nextCursor) && !loading && !loadingMore,
+    onLoadMore: () => void loadMore()
+  });
 
   useEffect(() => {
     // Performance note: fetch repo details lazily to enrich cards with robots/triggers counts.
@@ -176,36 +214,37 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel, navToggle }) => {
         </div>
 
         {filtered.length ? (
-          <div className="hc-card-grid-modern">
-            {filtered.map((repo) => {
-              const summary = repoSummaryById[repo.id];
-              const robotsText =
-                !summary || summary.loading
-                  ? '…'
-                  : 'error' in summary
-                    ? '—'
-                    : t('repos.page.meta.robots', { enabled: summary.robotsEnabled, total: summary.robotsTotal });
-              const triggersText =
-                !summary || summary.loading
-                  ? '…'
-                  : 'error' in summary
-                    ? '—'
-                    : t('repos.page.meta.triggers', { enabled: summary.triggersEnabled, total: summary.triggersTotal });
+          <>
+            <div className="hc-card-grid-modern">
+              {filtered.map((repo) => {
+                const summary = repoSummaryById[repo.id];
+                const robotsText =
+                  !summary || summary.loading
+                    ? '…'
+                    : 'error' in summary
+                      ? '—'
+                      : t('repos.page.meta.robots', { enabled: summary.robotsEnabled, total: summary.robotsTotal });
+                const triggersText =
+                  !summary || summary.loading
+                    ? '…'
+                    : 'error' in summary
+                      ? '—'
+                      : t('repos.page.meta.triggers', { enabled: summary.triggersEnabled, total: summary.triggersTotal });
 
-              return (
-                <div
-                  key={repo.id}
-                  className="hc-modern-card"
-                  onClick={() => openRepo(repo)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      openRepo(repo);
-                    }
-                  }}
-                >
+                return (
+                  <div
+                    key={repo.id}
+                    className="hc-modern-card"
+                    onClick={() => openRepo(repo)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openRepo(repo);
+                      }
+                    }}
+                  >
                   <div className="hc-modern-card__header">
                     <div className="hc-modern-card__title-group">
                       <div className="hc-modern-card__title" title={repo.name || repo.id}>
@@ -253,9 +292,17 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel, navToggle }) => {
                     </Button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+            {/* Add an infinite-scroll sentinel to load more repositories when the list bottom is reached. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
+            <div ref={loadMoreRef} data-testid="hc-repos-load-more" />
+            {loadingMore ? (
+              <div style={{ padding: '12px 0', textAlign: 'center' }}>
+                <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+              </div>
+            ) : null}
+          </>
         ) : loading ? (
           // Use skeleton cards instead of an Empty+icon while the repo list is loading. ro3ln7zex8d0wyynfj0m
           <CardListSkeleton

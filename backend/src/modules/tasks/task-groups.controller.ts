@@ -3,6 +3,7 @@ import { ApiBadRequestResponse, ApiBearerAuth, ApiNotFoundResponse, ApiOkRespons
 import type { Request } from 'express';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { normalizeString, parsePositiveInt } from '../../utils/parse';
+import { decodeUpdatedAtCursor, encodeUpdatedAtCursor } from '../../utils/pagination'; // Share cursor parsing/encoding for task-group pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { TaskService } from './task.service';
@@ -40,11 +41,16 @@ export class TaskGroupsController {
     description: 'List task groups with optional filters.',
     operationId: 'task_groups_list'
   })
+  // Document cursor-based pagination for task-group lists. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  @ApiQuery({ name: 'cursor', required: false, description: 'Pagination cursor for fetching the next page of task groups.' })
   @ApiOkResponse({ description: 'OK', type: ListTaskGroupsResponseDto })
+  // Document bad-request responses for cursor parsing errors. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   async list(
     @Req() req: Request,
     @Query('limit') limitRaw: string | undefined,
+    @Query('cursor') cursorRaw: string | undefined,
     @Query('repoId') repoIdRaw: string | undefined,
     @Query('robotId') robotIdRaw: string | undefined,
     @Query('kind') kindRaw: string | undefined,
@@ -53,10 +59,15 @@ export class TaskGroupsController {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const limit = parsePositiveInt(limitRaw, 50);
+      const cursor = decodeUpdatedAtCursor(cursorRaw);
       const repoId = normalizeString(repoIdRaw);
       const robotId = normalizeString(robotIdRaw);
       const kind = normalizeString(kindRaw);
       const archived = normalizeArchiveScope(archivedRaw);
+      if (cursorRaw && !cursor) {
+        // Reject invalid cursors so pagination stays deterministic. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+        throw new BadRequestException({ error: 'Invalid cursor' });
+      }
       if (repoId) {
         await this.repoAccessService.requireRepoRead(req.user, repoId);
       }
@@ -64,6 +75,7 @@ export class TaskGroupsController {
 
       const taskGroups = await this.taskService.listTaskGroups({
         limit,
+        cursor: cursor ?? undefined,
         repoId,
         robotId,
         kind: kind as any,
@@ -79,7 +91,14 @@ export class TaskGroupsController {
         previewActive: previewActiveIds.has(group.id)
       }));
 
-      return { taskGroups: decorated };
+      // Emit a nextCursor when the page is full to enable keyset pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+      const last = decorated[decorated.length - 1];
+      const lastUpdatedAt = last ? new Date(last.updatedAt) : null;
+      const nextCursor =
+        last && lastUpdatedAt && !Number.isNaN(lastUpdatedAt.getTime()) && decorated.length === limit
+          ? encodeUpdatedAtCursor({ id: last.id, updatedAt: lastUpdatedAt })
+          : undefined;
+      return { taskGroups: decorated, ...(nextCursor ? { nextCursor } : {}) };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[task-groups] list failed', err);

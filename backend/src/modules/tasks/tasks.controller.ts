@@ -39,6 +39,7 @@ import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { computeTaskLogsDelta, extractTaskLogsSnapshot, sliceLogsTail } from '../../services/taskLogs';
 import { isTruthy } from '../../utils/env';
 import { normalizeString, parseOptionalBoolean, parsePositiveInt } from '../../utils/parse';
+import { decodeUpdatedAtCursor, encodeUpdatedAtCursor } from '../../utils/pagination'; // Share cursor parsing/encoding for task pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 import { extractTaskSchedule } from '../../utils/timeWindow';
 import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
@@ -147,12 +148,15 @@ export class TasksController {
   })
   // Add includeQueue query support to control queue diagnosis payloads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   @ApiQuery({ name: 'includeQueue', required: false, description: 'Include queue diagnosis fields for queued tasks.' })
+  // Document cursor-based pagination for task lists. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+  @ApiQuery({ name: 'cursor', required: false, description: 'Pagination cursor for fetching the next page of tasks.' })
   @ApiOkResponse({ description: 'OK', type: ListTasksResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   async list(
     @Req() req: Request,
     @Query('limit') limitRaw: string | undefined,
+    @Query('cursor') cursorRaw: string | undefined,
     @Query('repoId') repoIdRaw: string | undefined,
     @Query('robotId') robotIdRaw: string | undefined,
     @Query('status') statusRaw: string | undefined,
@@ -163,6 +167,7 @@ export class TasksController {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const limit = parsePositiveInt(limitRaw, 50);
+      const cursor = decodeUpdatedAtCursor(cursorRaw);
       const repoId = normalizeString(repoIdRaw);
       const robotId = normalizeString(robotIdRaw);
       const status = this.normalizeTaskStatusFilter(statusRaw);
@@ -170,6 +175,10 @@ export class TasksController {
       const archived = this.normalizeArchiveScope(archivedRaw);
       const includeQueue = parseOptionalBoolean(includeQueueRaw);
 
+      if (cursorRaw && !cursor) {
+        // Reject invalid cursors so pagination stays deterministic. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+        throw new BadRequestException({ error: 'Invalid cursor' });
+      }
       if (normalizeString(statusRaw) && !status) {
         throw new BadRequestException({ error: 'Invalid status' });
       }
@@ -180,6 +189,7 @@ export class TasksController {
       const allowedRepoIds = repoId ? undefined : await this.repoAccessService.listAccessibleRepoIds(req.user);
       const tasks = await this.taskService.listTasks({
         limit,
+        cursor: cursor ?? undefined,
         repoId,
         robotId,
         status,
@@ -198,7 +208,14 @@ export class TasksController {
           includeOutputText: false
         })
       );
-      return { tasks: sanitized };
+      // Emit a nextCursor when the page is full to enable keyset pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+      const last = sanitized[sanitized.length - 1];
+      const lastUpdatedAt = last ? new Date(last.updatedAt) : null;
+      const nextCursor =
+        last && lastUpdatedAt && !Number.isNaN(lastUpdatedAt.getTime()) && sanitized.length === limit
+          ? encodeUpdatedAtCursor({ id: last.id, updatedAt: lastUpdatedAt })
+          : undefined;
+      return { tasks: sanitized, ...(nextCursor ? { nextCursor } : {}) };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[tasks] list failed', err);
