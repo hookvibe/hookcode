@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
@@ -457,6 +457,36 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await ui.click(modelButton);
 
     await waitFor(() => expect(modelInput).toHaveValue('gpt-4o'));
+  });
+
+  test('opens repo model credential modal from robot form when repo credentials are missing', async () => {
+    // Surface the repo-scoped model credential CTA inside the robot form to avoid a setup dead-end. docs/en/developer/plans/repo-guide-visibility-20260227/task_plan.md repo-guide-visibility-20260227
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    await ui.click(screen.getByRole('button', { name: /new robot/i }));
+
+    const modelCardTitle = await screen.findByText('Model settings');
+    const modelCard = modelCardTitle.closest('.ant-card');
+    expect(modelCard).toBeTruthy();
+
+    const modelCredentialLabel = within(modelCard as HTMLElement).getByText('Credential source');
+    const modelCredentialItem = modelCredentialLabel.closest('.ant-form-item');
+    expect(modelCredentialItem).toBeTruthy();
+    const modelCredentialSelect = modelCredentialItem?.querySelector('.ant-select') as HTMLElement | null;
+    expect(modelCredentialSelect).toBeTruthy();
+    // Open the Ant Design select dropdown via mouseDown so options render in the portal. docs/en/developer/plans/repo-guide-visibility-20260227/task_plan.md repo-guide-visibility-20260227
+    fireEvent.mouseDown(modelCredentialSelect as HTMLElement);
+    await ui.click(await screen.findByText('Use repo-scoped credential'));
+
+    const addRepoCredential = await within(modelCard as HTMLElement).findByRole('button', { name: 'Add repo credential' });
+    await ui.click(addRepoCredential);
+
+    expect(await screen.findByText('Add credential profile')).toBeInTheDocument();
   });
 
   test('shows dependency override controls in robot editor', async () => {

@@ -328,6 +328,8 @@ export const enUSRepos = {
   'repos.robotForm.modelCredential.repoNotConfigured': 'Repo-scoped codex API key is not configured.',
   'repos.robotForm.modelCredential.repoNotConfigured.claude_code': 'Repo-scoped claude_code API key is not configured.',
   'repos.robotForm.modelCredential.repoNotConfigured.gemini_cli': 'Repo-scoped gemini_cli API key is not configured.',
+  // Add repo model credential CTA to unblock robot setup. docs/en/developer/plans/repo-guide-visibility-20260227/task_plan.md repo-guide-visibility-20260227
+  'repos.robotForm.modelCredential.addRepoCredential': 'Add repo credential',
   'repos.robotForm.modelCredential.profile': 'Credential profile',
   'repos.robotForm.modelCredential.profilePlaceholder': 'Select a profile',
   'repos.robotForm.modelCredential.profileRequired': 'Please select a profile',

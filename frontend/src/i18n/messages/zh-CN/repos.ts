@@ -333,6 +333,8 @@ export const zhCNRepos = {
     '仓库级 claude_code API 密钥未配置：请先在本仓库「凭据」中添加，或切换为账号/机器人凭据。',
   'repos.robotForm.modelCredential.repoNotConfigured.gemini_cli':
     '仓库级 gemini_cli API 密钥未配置：请先在本仓库「凭据」中添加，或切换为账号/机器人凭据。',
+  // Add repo model credential CTA to unblock robot setup. docs/en/developer/plans/repo-guide-visibility-20260227/task_plan.md repo-guide-visibility-20260227
+  'repos.robotForm.modelCredential.addRepoCredential': '新增仓库模型凭据',
   'repos.robotForm.modelCredential.profile': '凭据配置',
   'repos.robotForm.modelCredential.profilePlaceholder': '请选择配置',
   'repos.robotForm.modelCredential.profileRequired': '请选择凭据配置',

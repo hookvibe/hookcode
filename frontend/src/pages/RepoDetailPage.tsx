@@ -3402,14 +3402,24 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                         </Form.Item>
                       </>
                     ) : source === 'repo' ? (
-                      <Alert
-                        type={repoHasApiKey ? 'info' : 'warning'}
-                        showIcon
-                        message={
-                          repoHasApiKey ? t(repoConfiguredKey) : t(repoNotConfiguredKey)
-                        }
-                        style={{ marginBottom: 12 }}
-                      />
+                      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                        <Alert
+                          type={repoHasApiKey ? 'info' : 'warning'}
+                          showIcon
+                          message={repoHasApiKey ? t(repoConfiguredKey) : t(repoNotConfiguredKey)}
+                          style={{ marginBottom: 12 }}
+                        />
+                        {/* Surface repo-scoped model credential setup from the robot form to avoid onboarding dead-ends. docs/en/developer/plans/repo-guide-visibility-20260227/task_plan.md repo-guide-visibility-20260227 */}
+                        {!repoHasApiKey ? (
+                          <Button
+                            size="small"
+                            disabled={credentialsSaving || repoReadOnly}
+                            onClick={() => startEditModelProfile(provider, null)}
+                          >
+                            {t('repos.robotForm.modelCredential.addRepoCredential')}
+                          </Button>
+                        ) : null}
+                      </Space>
                     ) : (
                       <Alert
                         type={userHasApiKey ? 'info' : 'warning'}
