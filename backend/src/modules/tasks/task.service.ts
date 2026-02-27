@@ -22,7 +22,7 @@ import type { TaskScheduleSnapshot } from '../../types/timeWindow';
 /**
  * tasks table access layer (the "source of truth" for the queue/task state machine):
  * - Enqueue: `backend/src/routes/webhook.ts` calls `createTask()` to persist a Webhook event as queued.
- * - Consume: `backend/src/services/taskRunner.ts` uses `takeNextQueued()` with `FOR UPDATE SKIP LOCKED` to serially claim tasks and mark them processing.
+ * - Consume: `backend/src/modules/tasks/task-runner.service.ts` uses `takeNextQueued()` to claim tasks while enforcing per-group exclusivity. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
  * - Display: `backend/src/routes/tasks.ts` uses `listTasks()` / `getTask()` to serve the frontend console.
  * - Logs: `backend/src/agent/agent.ts` writes execution logs into `result_json.logs` for console SSE/polling.
  */
@@ -125,6 +125,26 @@ const resolveScheduleState = (
   if (!schedule) return { schedule: null, blocked: false };
   if (schedule.override) return { schedule, blocked: false };
   return { schedule, blocked: !isTimeWindowActive(schedule.window, now) };
+};
+
+const isTaskGroupProcessingConflict = (err: unknown): boolean => {
+  // Detect task-group processing conflicts so workers can skip busy groups without failing the queue. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
+  const prismaErr = err instanceof PrismaClientKnownRequestError ? err : null;
+  const code = prismaErr?.code ?? (typeof (err as any)?.code === 'string' ? (err as any).code : '');
+  const meta = prismaErr?.meta ?? (err as any)?.meta;
+  const message = String((meta as any)?.message ?? (err as any)?.message ?? '');
+
+  if (code === 'P2002') {
+    return String((meta as any)?.target ?? '').includes('tasks_group_processing_unique_idx');
+  }
+
+  if (code === 'P2010') {
+    const dbCode = String((meta as any)?.code ?? '');
+    if (dbCode !== '23505') return false;
+    return message.includes('tasks_group_processing_unique_idx');
+  }
+
+  return false;
 };
 
 const taskRecordToTask = (row: any): Task => ({
@@ -1382,7 +1402,7 @@ export class TaskService {
 
   async takeNextQueued(): Promise<Task | undefined> {
     const batchSize = 50;
-    // Scan queued tasks in order and skip those blocked by time windows; claim the first eligible row. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
+    // Scan queued tasks in order and skip those blocked by time windows or busy groups; claim the first eligible row. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
     const candidates = await db.$queryRaw<any[]>`
       SELECT *
       FROM tasks
@@ -1400,15 +1420,29 @@ export class TaskService {
       const scheduleState = resolveScheduleState(task.payload, now);
       if (scheduleState.blocked) continue;
 
-      const claimed = await db.$queryRaw<any[]>`
-        UPDATE tasks
-        SET status = 'processing', updated_at = ${now}
-        WHERE id = ${task.id}
-          AND status = 'queued'
-          AND archived_at IS NULL
-        RETURNING *;
-      `;
-      if (claimed?.[0]) return rowToTaskFromSql(claimed[0]);
+      try {
+        const claimed = await db.$queryRaw<any[]>`
+          UPDATE tasks
+          SET status = 'processing', updated_at = ${now}
+          WHERE id = ${task.id}
+            AND status = 'queued'
+            AND archived_at IS NULL
+            AND NOT EXISTS (
+              SELECT 1
+              FROM tasks AS active
+              WHERE active.status = 'processing'
+                AND active.archived_at IS NULL
+                AND active.group_id = tasks.group_id
+            )
+          RETURNING *;
+        `;
+        if (claimed?.[0]) return rowToTaskFromSql(claimed[0]);
+      } catch (err) {
+        if (isTaskGroupProcessingConflict(err)) {
+          continue;
+        }
+        throw err;
+      }
     }
 
     return undefined;

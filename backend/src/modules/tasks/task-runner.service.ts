@@ -17,7 +17,7 @@ export interface TaskRunnerHooks {
 }
 
 /**
- * Queue runner (serially consumes tasks):
+ * Queue runner (consumes tasks in parallel across task groups). docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
  * - Triggered periodically by `backend/src/worker.ts`, or triggered in INLINE_WORKER mode by `backend/src/routes/webhook.ts` / `backend/src/routes/tasks.ts`.
  * - Pulls one queued task via `TaskService.takeNextQueued()` and marks it processing; updates status to succeeded/failed when done.
  * - The actual "execute task" logic lives in `backend/src/agent/agent.ts` (callAgent: clone repo, build prompt, run codex, post back to GitLab).
@@ -29,6 +29,13 @@ type TaskAbortReason = 'paused' | 'deleted';
 // Poll task control state so workers can pause/stop running tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
 const TASK_CONTROL_POLL_INTERVAL_MS = 2000;
 
+const resolveWorkerConcurrency = (): number => {
+  // Bound worker parallelism for task-group execution while allowing config overrides. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
+  const raw = Number(process.env.WORKER_CONCURRENCY ?? '');
+  if (Number.isFinite(raw) && raw >= 1) return Math.floor(raw);
+  return 2;
+};
+
 const getErrorMessage = (err: unknown): string => {
   if (err instanceof Error) return err.message;
   return String(err);
@@ -39,6 +46,8 @@ export class TaskRunner {
   private running = false;
   private pending = false;
   private hooks: TaskRunnerHooks | null = null;
+  // Configure per-process task concurrency to enable parallel task-group runs. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
+  private readonly maxConcurrency = resolveWorkerConcurrency();
 
   constructor(private readonly taskService: TaskService, private readonly agentService: AgentService) {}
 
@@ -67,11 +76,26 @@ export class TaskRunner {
   }
 
   private async runLoop(): Promise<void> {
-    // Keep pulling from the queue until there are no pending tasks.
+    // Run up to maxConcurrency tasks in parallel while the queue has eligible tasks. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
+    const running = new Set<Promise<void>>();
+
+    const startTask = (task: Task) => {
+      const work = this.processTask(task).catch((err) => {
+        console.error('[taskRunner] processTask failed', task.id, err);
+      });
+      running.add(work);
+      work.finally(() => running.delete(work));
+    };
+
     while (true) {
-      const task = await this.taskService.takeNextQueued();
-      if (!task) break;
-      await this.processTask(task);
+      while (running.size < this.maxConcurrency) {
+        const task = await this.taskService.takeNextQueued();
+        if (!task) break;
+        startTask(task);
+      }
+
+      if (running.size === 0) break;
+      await Promise.race(running);
     }
   }
 

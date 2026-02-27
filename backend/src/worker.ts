@@ -1,7 +1,7 @@
 /**
  * Standalone Worker process entry (no HTTP):
  * - Started via `dev:worker` / `start:worker` in `backend/package.json`, or via the docker-compose worker service.
- * - Polls the DB queue (see `backend/src/services/taskService.ts`) and consumes tasks serially via `backend/src/services/taskRunner.ts`.
+ * - Polls the DB queue (see `backend/src/services/taskService.ts`) and consumes tasks in parallel across task groups via `backend/src/services/taskRunner.ts`. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
  * - On startup, recovers "stuck" processing tasks (avoids tasks being permanently stuck in processing after API/worker restarts);
  *   see `TaskService.recoverStaleProcessing`.
  * - The Webhook/API process can also trigger an inline worker (see INLINE_WORKER_ENABLED in `backend/src/routes/webhook.ts` and `backend/src/routes/tasks.ts`).
