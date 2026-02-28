@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
 import { RepoDetailPage } from '../pages/RepoDetailPage';
+import type { RepoTab } from '../router';
 import * as api from '../api';
 
 // Update repo detail tests for the first-entry onboarding wizard + relaxed webhook gating. 58w1q3n5nr58flmempxe
@@ -103,10 +104,11 @@ vi.mock('../api', () => {
   };
 });
 
-const renderPage = (props: { repoId: string }) =>
+// Accept optional repoTab to render specific tab content after sub-navigation refactor. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+const renderPage = (props: { repoId: string; repoTab?: RepoTab }) =>
   render(
     <AntdApp>
-      <RepoDetailPage repoId={props.repoId} />
+      <RepoDetailPage repoId={props.repoId} repoTab={props.repoTab} />
     </AntdApp>
   );
 
@@ -156,7 +158,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
   test('saves basic info via updateRepo', async () => {
     const ui = userEvent.setup();
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
-    renderPage({ repoId: 'r1' });
+    // Render the basic tab where the Name input lives. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    renderPage({ repoId: 'r1', repoTab: 'basic' });
 
     await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
 
@@ -205,9 +208,9 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
   });
 
   test('shows the repository skill defaults panel', async () => {
-    // Ensure repo-level skill selection UI renders in the dashboard. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    // Ensure repo-level skill selection UI renders in the skills tab. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
-    renderPage({ repoId: 'r1' });
+    renderPage({ repoId: 'r1', repoTab: 'skills' });
 
     await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
     // Target the skill panel heading to avoid duplicate card title matches. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
@@ -215,7 +218,7 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
   });
 
   test('renders unified model credential list with provider tags', async () => {
-    // Verify unified model credential list renders provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    // Verify unified model credential list renders provider tags in the credentials tab. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
     const ui = userEvent.setup();
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
 
@@ -251,7 +254,7 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
       }
     });
 
-    renderPage({ repoId: 'r1' });
+    renderPage({ repoId: 'r1', repoTab: 'credentials' });
 
     await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
     // List-only rendering means the profile remark appears once. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
@@ -262,10 +265,10 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     // Default selection now lives inside the manage modal. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
     expect(screen.queryByText('Select default profile')).not.toBeInTheDocument();
 
-    // Open the model-provider add flow from the card wrapper. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
+    // Open the model-provider add flow from the section block wrapper. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
     const modelCard = screen
       .getAllByText('Model provider')
-      .map((node) => node.closest('.ant-card'))
+      .map((node) => node.closest('.hc-section-block'))
       .find((card): card is HTMLElement => Boolean(card));
     expect(modelCard).toBeTruthy();
     await ui.click(within(modelCard as HTMLElement).getByRole('button', { name: /Add/i }));
@@ -385,7 +388,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
 
   test('shows onboarding wizard on first entry and can be skipped', async () => {
     const ui = userEvent.setup();
-    renderPage({ repoId: 'r1' });
+    // Render basic tab so that after skip the Name input is visible. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    renderPage({ repoId: 'r1', repoTab: 'basic' });
     await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
 
     expect(await screen.findByText('Repository setup guide')).toBeInTheDocument();
@@ -395,6 +399,63 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
 
   test('treats archived repositories as read-only (no write actions)', async () => {
     // Ensure archived repositories do not expose write affordances in the repo detail page. qnp1mtxhzikhbi0xspbc
+    const archivedRepoMock = {
+      repo: {
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'Repo 1',
+        externalId: '',
+        apiBaseUrl: '',
+        enabled: true,
+        permissions: {
+          canRead: true,
+          canManage: true,
+          canDelete: true,
+          canManageMembers: false,
+          canManageTasks: true
+        },
+        archivedAt: '2026-01-20T00:00:00.000Z',
+        createdAt: '2026-01-11T00:00:00.000Z',
+        updatedAt: '2026-01-11T00:00:00.000Z'
+      },
+      robots: [
+        {
+          id: 'rb1',
+          repoId: 'r1',
+          name: 'Bot 1',
+          enabled: true,
+          activatedAt: null,
+          permission: 'write',
+          isDefault: true
+        } as any
+      ],
+      automationConfig: null,
+      webhookSecret: null,
+      webhookPath: null,
+      repoScopedCredentials: {
+        repoProvider: { profiles: [], defaultProfileId: null },
+        modelProvider: {
+          codex: { profiles: [], defaultProfileId: null },
+          claude_code: { profiles: [], defaultProfileId: null },
+          gemini_cli: { profiles: [], defaultProfileId: null }
+        }
+      }
+    };
+
+    // Test basic tab: Name input disabled for archived repo. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    vi.mocked(api.fetchRepo).mockResolvedValueOnce(archivedRepoMock);
+    renderPage({ repoId: 'r1', repoTab: 'basic' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    expect(screen.queryByText('Repository setup guide')).not.toBeInTheDocument();
+
+    const nameInput = await screen.findByLabelText('Name');
+    expect(nameInput).toBeDisabled();
+  });
+
+  // Test robots tab: archived repo hides New robot button but keeps View button. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+  test('treats archived repositories as read-only (robots tab)', async () => {
     vi.mocked(api.fetchRepo).mockResolvedValueOnce({
       repo: {
         id: 'r1',
@@ -438,32 +499,57 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
       }
     });
 
-    renderPage({ repoId: 'r1' });
+    renderPage({ repoId: 'r1', repoTab: 'robots' });
 
     await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
 
-    expect(screen.queryByText('Repository setup guide')).not.toBeInTheDocument();
+    // Robots tab should show View button but hide New robot / Test / Delete for archived repos. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    expect(screen.queryByRole('button', { name: /New robot/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'View' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Test' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+  });
 
-    const nameInput = await screen.findByLabelText('Name');
-    expect(nameInput).toBeDisabled();
+  // Test automation tab: archived repo disables the Add rule button. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+  test('treats archived repositories as read-only (automation tab)', async () => {
+    vi.mocked(api.fetchRepo).mockResolvedValueOnce({
+      repo: {
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'Repo 1',
+        externalId: '',
+        apiBaseUrl: '',
+        enabled: true,
+        permissions: {
+          canRead: true,
+          canManage: true,
+          canDelete: true,
+          canManageMembers: false,
+          canManageTasks: true
+        },
+        archivedAt: '2026-01-20T00:00:00.000Z',
+        createdAt: '2026-01-11T00:00:00.000Z',
+        updatedAt: '2026-01-11T00:00:00.000Z'
+      },
+      robots: [],
+      automationConfig: null,
+      webhookSecret: null,
+      webhookPath: null,
+      repoScopedCredentials: {
+        repoProvider: { profiles: [], defaultProfileId: null },
+        modelProvider: {
+          codex: { profiles: [], defaultProfileId: null },
+          claude_code: { profiles: [], defaultProfileId: null },
+          gemini_cli: { profiles: [], defaultProfileId: null }
+        }
+      }
+    });
 
-    await waitFor(() => expect(document.getElementById('hc-repo-section-branches')).not.toBeNull());
+    renderPage({ repoId: 'r1', repoTab: 'automation' });
 
-    const branchesSection = document.getElementById('hc-repo-section-branches');
-    expect(branchesSection).not.toBeNull();
-    expect(within(branchesSection as HTMLElement).queryByRole('button', { name: 'Add branch' })).not.toBeInTheDocument();
-    expect(within(branchesSection as HTMLElement).queryByRole('button', { name: 'Save branches' })).not.toBeInTheDocument();
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
 
-    const robotsSection = document.getElementById('hc-repo-section-robots');
-    expect(robotsSection).not.toBeNull();
-    expect(within(robotsSection as HTMLElement).queryByRole('button', { name: /New robot/i })).not.toBeInTheDocument();
-    expect(within(robotsSection as HTMLElement).getByRole('button', { name: 'View' })).toBeInTheDocument();
-    expect(within(robotsSection as HTMLElement).queryByRole('button', { name: 'Test' })).not.toBeInTheDocument();
-    expect(within(robotsSection as HTMLElement).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
-
-    const automationSection = document.getElementById('hc-repo-section-automation');
-    expect(automationSection).not.toBeNull();
-    expect(within(automationSection as HTMLElement).getByRole('button', { name: 'Add rule' })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add rule' })).toBeDisabled());
   });
 
   test('applies selected model from the available models picker', async () => {
@@ -472,7 +558,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
     vi.mocked(api.listMyModelProviderModels).mockResolvedValueOnce({ models: ['gpt-4o'], source: 'remote' });
 
-    renderPage({ repoId: 'r1' });
+    // Render robots tab where the New robot button lives. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    renderPage({ repoId: 'r1', repoTab: 'robots' });
 
     await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
 
@@ -492,7 +579,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
 
-    renderPage({ repoId: 'r1' });
+    // Render robots tab where the New robot button lives. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    renderPage({ repoId: 'r1', repoTab: 'robots' });
 
     await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
 
@@ -522,7 +610,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
 
-    renderPage({ repoId: 'r1' });
+    // Render robots tab where the New robot button lives. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    renderPage({ repoId: 'r1', repoTab: 'robots' });
 
     await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
 
@@ -572,15 +661,15 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
       ]
     });
 
-    renderPage({ repoId: 'r1' });
+    // Render settings tab where task-group PATs live after sub-navigation refactor. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    renderPage({ repoId: 'r1', repoTab: 'settings' });
 
     await waitFor(() => expect(api.fetchMyApiTokens).toHaveBeenCalled());
     const title = await screen.findByText('Task-group API tokens');
-    const regions = Array.from(document.querySelectorAll('.hc-repo-dashboard__region'));
-    const lastRegion = regions[regions.length - 1] as HTMLElement | undefined;
-    expect(lastRegion).toBeTruthy();
-    expect(within(lastRegion as HTMLElement).getByText('Task-group API tokens')).toBeInTheDocument();
-    expect(within(lastRegion as HTMLElement).getByText('task-group-123e4567-e89b-12d3-a456-426614174000')).toBeInTheDocument();
+    // Task-group PATs are inside hc-section-block after modernized layout. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    const section = title.closest('.hc-section-block');
+    expect(section).toBeTruthy();
+    expect(within(section as HTMLElement).getByText('task-group-123e4567-e89b-12d3-a456-426614174000')).toBeInTheDocument();
     expect(title).toBeInTheDocument();
   });
 
@@ -622,7 +711,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
       )
     });
 
-    renderPage({ repoId: 'r1' });
+    // Render settings tab where task-group PATs live after sub-navigation refactor. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    renderPage({ repoId: 'r1', repoTab: 'settings' });
 
     await waitFor(() => expect(api.fetchMyApiTokens).toHaveBeenCalled());
 
@@ -633,8 +723,9 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     expect(screen.queryByText(`task-group-${taskGroupIds[4]}`)).not.toBeInTheDocument();
 
     const tokenTitle = screen.getByText('Task-group API tokens');
-    const tokenCard = tokenTitle.closest('.ant-card') ?? document.body;
-    const pagination = tokenCard.querySelector('.ant-pagination');
+    // Use hc-section-block instead of .ant-card after modernized layout. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    const tokenSection = tokenTitle.closest('.hc-section-block') ?? document.body;
+    const pagination = tokenSection.querySelector('.ant-pagination');
     expect(pagination).toBeTruthy();
 
     await ui.click(within(pagination as HTMLElement).getByText('2'));

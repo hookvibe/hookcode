@@ -15,10 +15,10 @@ describe('styles tokens', () => {
     const cssText = readFileSync(resolve(process.cwd(), 'src/styles/tokens.css'), 'utf8');
     const darkBlock = extractDarkThemeBlock(cssText);
 
-    // Align dark theme token assertions with the latest neutral palette. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
-    expect(darkBlock).toContain('--bg: #0a0a0a;');
-    expect(darkBlock).toContain('--hc-panel-bg: #171717;');
-    expect(darkBlock).toContain('--hc-control-bg: #171717;');
+    // Align dark theme token assertions with the latest pure-neutral palette. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    expect(darkBlock).toContain('--bg: #020202;');
+    expect(darkBlock).toContain('--hc-panel-bg: rgba(12, 12, 12, 0.95);');
+    expect(darkBlock).toContain('--hc-control-bg: #020202;');
     expect(darkBlock).toContain('color-scheme: dark;');
     expect(darkBlock).toContain('--hc-scrollbar-track: transparent;');
     expect(darkBlock).not.toContain('#0b1020');

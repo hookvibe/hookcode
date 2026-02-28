@@ -10,6 +10,7 @@ export const enUSCore = {
   'common.collapseSidebar': 'Collapse sidebar',
   'common.expandSidebar': 'Expand sidebar',
   'common.back': 'Back',
+  'common.backToHome': 'Home',
   'common.backToList': 'Back to list',
   'common.backToTaskDetail': 'Back to task detail',
   'common.prev': 'Previous',

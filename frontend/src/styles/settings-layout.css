@@ -1,0 +1,254 @@
+/* Settings page layout — frosted glass sidebar + content area, mirroring the repo detail pattern.
+   docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+
+/* ---------- LAYOUT CONTAINER ---------- */
+.hc-settings-layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* When inside the settings layout the page occupies the remaining width. */
+.hc-settings-layout > .hc-page {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+/* ---------- SIDEBAR ---------- */
+/* Frosted-glass sidebar surface for settings navigation. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+.hc-settings-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--hc-glass-bg);
+  backdrop-filter: blur(var(--hc-glass-blur));
+  -webkit-backdrop-filter: blur(var(--hc-glass-blur));
+  border-right: 1px solid var(--border);
+  /* Smooth width transition for collapse animation. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+  transition: width 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ---------- COLLAPSED STATE ---------- */
+/* Narrow icon-only sidebar when collapsed. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+.hc-settings-sidebar--collapsed {
+  width: 72px;
+}
+
+.hc-settings-sidebar--collapsed .hc-settings-sidebar-header {
+  justify-content: center;
+  padding: 10px 8px 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hc-settings-sidebar--collapsed .hc-settings-sidebar-back {
+  padding: 6px;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.hc-settings-sidebar--collapsed .hc-settings-sidebar-identity {
+  justify-content: center;
+  padding: 10px 8px 14px;
+}
+
+.hc-settings-sidebar--collapsed .hc-settings-sidebar-identity__info {
+  display: none;
+}
+
+.hc-settings-sidebar--collapsed .hc-sidebar-content {
+  padding: 8px 10px;
+}
+
+.hc-settings-sidebar--collapsed .hc-sidebar-section-title {
+  display: none;
+}
+
+.hc-settings-sidebar--collapsed .hc-nav-item {
+  justify-content: center;
+  padding: 12px;
+}
+
+.hc-settings-sidebar--collapsed .hc-nav-label {
+  display: none;
+}
+
+/* ---------- HEADER ---------- */
+/* Compact header with back link and collapse toggle. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+.hc-settings-sidebar-header {
+  height: auto;
+  padding: 14px 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Back button as subtle breadcrumb link */
+.hc-settings-sidebar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.hc-settings-sidebar-back:hover {
+  background-color: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.hc-settings-sidebar-back .anticon {
+  font-size: 10px;
+}
+
+/* ---------- USER IDENTITY AREA ---------- */
+/* Avatar + name + role display in the sidebar header. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+.hc-settings-sidebar-identity {
+  padding: 10px 20px 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hc-settings-sidebar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.hc-settings-sidebar-identity__info {
+  min-width: 0;
+  flex: 1;
+}
+
+.hc-settings-sidebar-identity__name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.hc-settings-sidebar-identity__role {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+
+/* ---------- LOGOUT ---------- */
+/* Push logout button to the bottom of the sidebar. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+.hc-settings-sidebar-logout {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Danger-styled nav item for logout. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+.hc-nav-item--danger {
+  color: var(--text-secondary);
+}
+
+.hc-nav-item--danger:hover {
+  color: var(--hc-danger, #ef4444);
+  background-color: rgba(239, 68, 68, 0.08);
+}
+
+/* ---------- TAB CONTENT AREA ---------- */
+/* Content area styles for settings page body. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+.hc-settings-page .hc-page__body {
+  padding: 0;
+}
+
+.hc-settings-page .hc-settings-tab-content {
+  padding: 24px 32px 36px;
+  width: 100%;
+  max-width: 900px;
+  /* Smooth entry animation when switching tabs. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+  animation: hc-settings-tab-fade-in 0.2s ease-out;
+}
+
+@keyframes hc-settings-tab-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* PageNav header height in settings page. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+.hc-settings-page .hc-modern-nav {
+  height: 54px;
+  padding: 0 32px;
+}
+
+/* Re-use panel section styles from the original modal within the page layout. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+.hc-settings-tab-content .hc-panel-section {
+  margin-bottom: 24px;
+}
+
+.hc-settings-tab-content .hc-panel-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+/* ---------- RESPONSIVE ---------- */
+/* Stack sidebar + content vertically on small screens. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
+@media (max-width: 768px) {
+  .hc-settings-layout {
+    flex-direction: column;
+  }
+
+  .hc-settings-sidebar {
+    width: 100% !important;
+    height: auto;
+    max-height: 60px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .hc-settings-sidebar .hc-sidebar-content {
+    display: none;
+  }
+
+  .hc-settings-sidebar .hc-settings-sidebar-identity {
+    display: none;
+  }
+
+  .hc-settings-page .hc-settings-tab-content {
+    padding: 16px;
+  }
+}

@@ -22,6 +22,7 @@ import { TaskGroupsPage } from './TaskGroupsPage';
 import { TasksPage } from './TasksPage';
 import { ArchivePage } from './ArchivePage';
 import { SkillsPage } from './SkillsPage';
+import { UserSettingsPage } from './UserSettingsPage'; // Standalone user settings page replacing modal panel. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -164,8 +165,8 @@ export const AppShell: FC<AppShellProps> = ({
       }
     : undefined;
 
-  // Determine if the global sidebar should be hidden (repo detail uses its own sidebar). docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
-  const hideGlobalSidebar = route.page === 'repo';
+  // Determine if the global sidebar should be hidden (repo detail and settings use their own sidebar). docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+  const hideGlobalSidebar = route.page === 'repo' || route.page === 'settings';
 
   return (
     <div className="hc-shell-modern">
@@ -206,6 +207,10 @@ export const AppShell: FC<AppShellProps> = ({
         {route.page === 'skills' ? (
           <SkillsPage userPanel={userPanel} navToggle={navToggle} />
         ) : null /* Render the skills registry page inside the shell. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+        {/* Render standalone user settings page with its own sidebar. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */}
+        {route.page === 'settings' ? (
+          <UserSettingsPage settingsTab={route.settingsTab} themePreference={themePreference} onThemePreferenceChange={onThemePreferenceChange} navToggle={navToggle} />
+        ) : null}
         {route.page === 'archive' ? <ArchivePage tab={route.archiveTab} userPanel={userPanel} navToggle={navToggle} /> : null}
         {route.page === 'tasks' ? (
           <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} navToggle={navToggle} />
