@@ -147,10 +147,12 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
 
     expect(screen.queryByText('Last task')).not.toBeInTheDocument();
 
-    await ui.click(screen.getByRole('button', { name: 'View all Processing' }));
+    // Use findByRole to wait for the task activity card to finish rendering after async data resolves. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    const viewAllBtn = await screen.findByRole('button', { name: 'View all Processing' });
+    await ui.click(viewAllBtn);
     expect(window.location.hash).toBe('#/tasks?status=processing&repoId=r1');
 
-    const processingTile = screen.getByTestId('hc-repo-activity-processing');
+    const processingTile = await screen.findByTestId('hc-repo-activity-processing');
     await ui.click(within(processingTile).getByRole('button', { name: 'View t_p1' }));
     expect(window.location.hash).toBe('#/tasks/t_p1');
   });
