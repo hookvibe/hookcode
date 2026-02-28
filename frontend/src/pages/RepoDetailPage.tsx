@@ -5,7 +5,6 @@ import {
   Button,
   Card,
   Col,
-  Descriptions,
   Divider,
   Empty,
   Form,
@@ -1769,96 +1768,106 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                       userModelCredentials={userModelCredentials}
                       formatTime={formatTime}
                     />
-                    {/* Preview configuration discovery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
-                    <Card size="small" title={t('repos.preview.title')} className="hc-card">
-                      {previewConfigLoading ? (
-                        <Typography.Text type="secondary">{t('repos.preview.loading')}</Typography.Text>
-                      ) : previewConfig?.available ? (
-                        <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                          <Typography.Text type="secondary">{t('repos.preview.available')}</Typography.Text>
-                          {previewConfig.instances.map((instance) => (
-                            <Space key={instance.name} size={8} wrap>
-                              <Tag color="blue">{instance.name}</Tag>
-                              <Typography.Text code>{instance.workdir}</Typography.Text>
-                            </Space>
-                          ))}
-                        </Space>
-                      ) : (
-                        <Space direction="vertical" size={4}>
-                          <Typography.Text type="secondary">{t('repos.preview.unavailable')}</Typography.Text>
-                          {previewConfigReasonText ? (
-                            <Typography.Text type="secondary">{previewConfigReasonText}</Typography.Text>
-                          ) : null}
-                        </Space>
-                      )}
-                    </Card>
+                    {/* Preview configuration discovery — modern section style. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */}
+                    <div className="hc-section-block">
+                      <div className="hc-section-block__header">
+                        <span className="hc-section-block__title">{t('repos.preview.title')}</span>
+                      </div>
+                      <div className="hc-section-block__body">
+                        {previewConfigLoading ? (
+                          <Typography.Text type="secondary">{t('repos.preview.loading')}</Typography.Text>
+                        ) : previewConfig?.available ? (
+                          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                            <Typography.Text type="secondary">{t('repos.preview.available')}</Typography.Text>
+                            {previewConfig.instances.map((instance) => (
+                              <div key={instance.name} className="hc-section-block__row">
+                                <Tag color="blue">{instance.name}</Tag>
+                                <Typography.Text code>{instance.workdir}</Typography.Text>
+                              </div>
+                            ))}
+                          </Space>
+                        ) : (
+                          <Space direction="vertical" size={4}>
+                            <Typography.Text type="secondary">{t('repos.preview.unavailable')}</Typography.Text>
+                            {previewConfigReasonText ? (
+                              <Typography.Text type="secondary">{previewConfigReasonText}</Typography.Text>
+                            ) : null}
+                          </Space>
+                        )}
+                      </div>
+                    </div>
                   </Space>
                 )}
 
-                {/* ---------- BASIC TAB ---------- */}
+                {/* ---------- BASIC TAB — modern section block. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 ---------- */}
                 {activeTab === 'basic' && (
-                  <Card size="small" title={t('repos.detail.basicTitle')} className="hc-card">
-                    {repoArchived ? (
-                      <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} />
-                    ) : null}
-                    <Form form={basicForm} layout="vertical" requiredMark={false} disabled={repoReadOnly}>
-                      <Form.Item label={t('common.name')} name="name" rules={[{ required: true, message: t('repos.form.nameRequired') }]}>
-                        <Input />
-                      </Form.Item>
-                      <Form.Item label={t('repos.detail.externalId')} name="externalId">
-                        <Input placeholder={t('repos.detail.externalIdPlaceholder')} />
-                      </Form.Item>
-                      <Form.Item label={t('repos.detail.apiBaseUrl')} name="apiBaseUrl">
-                        <Input placeholder={t('repos.detail.apiBaseUrlPlaceholder')} />
-                      </Form.Item>
-                      <Form.Item label={t('common.status')} name="enabled" valuePropName="checked">
-                        <Switch checkedChildren={t('common.enabled')} unCheckedChildren={t('common.disabled')} />
-                      </Form.Item>
-                    </Form>
-                    {fromTaskId ? (
-                      <Typography.Paragraph type="secondary" style={{ marginTop: 10, marginBottom: 0 }}>
-                        {t('repos.detail.openedFromTask', { taskId: fromTaskId })}
-                      </Typography.Paragraph>
-                    ) : null}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
+                  <div className="hc-section-block">
+                    <div className="hc-section-block__header">
+                      <span className="hc-section-block__title">{t('repos.detail.basicTitle')}</span>
+                    </div>
+                    <div className="hc-section-block__body">
                       {repoArchived ? (
-                        <Popconfirm
-                          title={t('repos.unarchive.confirmTitle')}
-                          description={t('repos.unarchive.confirmDesc')}
-                          okText={t('common.restore')}
-                          cancelText={t('common.cancel')}
-                          onConfirm={() => void handleUnarchiveRepo()}
-                        >
-                          <Button type="primary" loading={repoUnarchiving} disabled={loading || !canManageRepo}>
-                            {t('common.restore')}
-                          </Button>
-                        </Popconfirm>
-                      ) : (
-                        <>
+                        <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} />
+                      ) : null}
+                      <Form form={basicForm} layout="vertical" requiredMark={false} disabled={repoReadOnly}>
+                        <Form.Item label={t('common.name')} name="name" rules={[{ required: true, message: t('repos.form.nameRequired') }]}>
+                          <Input />
+                        </Form.Item>
+                        <Form.Item label={t('repos.detail.externalId')} name="externalId">
+                          <Input placeholder={t('repos.detail.externalIdPlaceholder')} />
+                        </Form.Item>
+                        <Form.Item label={t('repos.detail.apiBaseUrl')} name="apiBaseUrl">
+                          <Input placeholder={t('repos.detail.apiBaseUrlPlaceholder')} />
+                        </Form.Item>
+                        <Form.Item label={t('common.status')} name="enabled" valuePropName="checked">
+                          <Switch checkedChildren={t('common.enabled')} unCheckedChildren={t('common.disabled')} />
+                        </Form.Item>
+                      </Form>
+                      {fromTaskId ? (
+                        <Typography.Paragraph type="secondary" style={{ marginTop: 10, marginBottom: 0 }}>
+                          {t('repos.detail.openedFromTask', { taskId: fromTaskId })}
+                        </Typography.Paragraph>
+                      ) : null}
+                      <div className="hc-section-block__actions">
+                        {repoArchived ? (
                           <Popconfirm
-                            title={t('repos.archive.confirmTitle')}
-                            description={t('repos.archive.confirmDesc')}
-                            okText={t('repos.detail.archive')}
+                            title={t('repos.unarchive.confirmTitle')}
+                            description={t('repos.unarchive.confirmDesc')}
+                            okText={t('common.restore')}
                             cancelText={t('common.cancel')}
-                            onConfirm={() => void handleArchiveRepo()}
+                            onConfirm={() => void handleUnarchiveRepo()}
                           >
-                            <Button danger loading={repoArchiving} disabled={loading || !canManageRepo}>
-                              {t('repos.detail.archive')}
+                            <Button type="primary" loading={repoUnarchiving} disabled={loading || !canManageRepo}>
+                              {t('common.restore')}
                             </Button>
                           </Popconfirm>
-                          <Button
-                            type="primary"
-                            icon={<SaveOutlined />}
-                            onClick={() => void handleSaveBasic()}
-                            loading={basicSaving}
-                            disabled={loading || repoReadOnly}
-                          >
-                            {t('common.save')}
-                          </Button>
-                        </>
-                      )}
+                        ) : (
+                          <>
+                            <Popconfirm
+                              title={t('repos.archive.confirmTitle')}
+                              description={t('repos.archive.confirmDesc')}
+                              okText={t('repos.detail.archive')}
+                              cancelText={t('common.cancel')}
+                              onConfirm={() => void handleArchiveRepo()}
+                            >
+                              <Button danger loading={repoArchiving} disabled={loading || !canManageRepo}>
+                                {t('repos.detail.archive')}
+                              </Button>
+                            </Popconfirm>
+                            <Button
+                              type="primary"
+                              icon={<SaveOutlined />}
+                              onClick={() => void handleSaveBasic()}
+                              loading={basicSaving}
+                              disabled={loading || repoReadOnly}
+                            >
+                              {t('common.save')}
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </Card>
+                  </div>
                 )}
 
                 {/* ---------- BRANCHES TAB ---------- */}
@@ -1866,20 +1875,19 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                   <RepoBranchesCard repo={repo} onSaved={(next) => setRepo(next)} readOnly={repoReadOnly} />
                 )}
 
-                {/* ---------- CREDENTIALS TAB ---------- */}
+                {/* ---------- CREDENTIALS TAB — modern section blocks. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 ---------- */}
                 {activeTab === 'credentials' && (
-                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                    <Card
-                      size="small"
-                      title={<Space size={8}><GlobalOutlined /><span>{t('repos.detail.credentials.repoProvider')}</span></Space>}
-                      className="hc-card"
-                      extra={
-                        <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving || repoReadOnly}>
-                          {t('panel.credentials.profile.add')}
-                        </Button>
-                      }
-                    >
-                      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <div className="hc-section-stack">
+                    <div className="hc-section-block">
+                      <div className="hc-section-block__header">
+                        <span className="hc-section-block__title"><GlobalOutlined />{t('repos.detail.credentials.repoProvider')}</span>
+                        <div className="hc-section-block__extra">
+                          <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving || repoReadOnly}>
+                            {t('panel.credentials.profile.add')}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="hc-section-block__body">
                         <Typography.Text type="secondary">{t('repos.detail.credentials.repoProviderTip')}</Typography.Text>
                         {(() => {
                           const profiles = repoScopedCredentials?.repoProvider?.profiles ?? [];
@@ -1887,12 +1895,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                           const defaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
                           const start = (repoProviderProfilesPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
                           const paged = profiles.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
-                          if (!total) return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
+                          if (!total) return <div style={{ marginTop: 8 }}><Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text></div>;
                           return (
                             <>
-                              <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
                                 {paged.map((p) => (
-                                  <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                  <div key={p.id} className="hc-section-block__item">
                                     <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
                                       <Space size={8} wrap>
                                         <Typography.Text strong>{p.remark || p.id}</Typography.Text>
@@ -1905,9 +1913,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                                       <Button size="small" onClick={() => startEditRepoProviderProfile(p)} disabled={credentialsSaving || repoReadOnly}>{t('common.manage')}</Button>
                                       <Button size="small" danger onClick={() => removeRepoProviderProfile(p.id)} disabled={credentialsSaving || repoReadOnly}>{t('panel.credentials.profile.remove')}</Button>
                                     </div>
-                                  </Card>
+                                  </div>
                                 ))}
-                              </Space>
+                              </div>
                               {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <Pagination size="small" current={repoProviderProfilesPage} pageSize={CREDENTIAL_PROFILE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={(page) => setRepoProviderProfilesPage(page)} />
@@ -1916,31 +1924,30 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                             </>
                           );
                         })()}
-                      </Space>
-                    </Card>
+                      </div>
+                    </div>
 
-                    <Card
-                      size="small"
-                      title={<Space size={8}><KeyOutlined /><span>{t('repos.detail.credentials.modelProvider')}</span></Space>}
-                      className="hc-card"
-                      extra={
-                        <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={credentialsSaving || repoReadOnly}>
-                          {t('panel.credentials.profile.add')}
-                        </Button>
-                      }
-                    >
-                      <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                    <div className="hc-section-block">
+                      <div className="hc-section-block__header">
+                        <span className="hc-section-block__title"><KeyOutlined />{t('repos.detail.credentials.modelProvider')}</span>
+                        <div className="hc-section-block__extra">
+                          <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={credentialsSaving || repoReadOnly}>
+                            {t('panel.credentials.profile.add')}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="hc-section-block__body">
                         <Typography.Text type="secondary">{t('repos.detail.credentials.modelProviderTip')}</Typography.Text>
                         {(() => {
                           const total = modelProviderProfileItems.length;
                           const start = (modelProviderProfilesPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
                           const paged = modelProviderProfileItems.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
-                          if (!total) return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
+                          if (!total) return <div style={{ marginTop: 8 }}><Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text></div>;
                           return (
                             <>
-                              <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
                                 {paged.map(({ provider, profile, defaultId }) => (
-                                  <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                  <div key={`${provider}-${profile.id}`} className="hc-section-block__item">
                                     <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
                                       <Space size={8} wrap>
                                         <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
@@ -1954,9 +1961,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                                       <Button size="small" onClick={() => startEditModelProfile(provider, profile)} disabled={credentialsSaving || repoReadOnly}>{t('common.manage')}</Button>
                                       <Button size="small" danger onClick={() => removeModelProviderProfile(provider, profile.id)} disabled={credentialsSaving || repoReadOnly}>{t('panel.credentials.profile.remove')}</Button>
                                     </div>
-                                  </Card>
+                                  </div>
                                 ))}
-                              </Space>
+                              </div>
                               {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <Pagination size="small" current={modelProviderProfilesPage} pageSize={CREDENTIAL_PROFILE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={(page) => setModelProviderProfilesPage(page)} />
@@ -1965,23 +1972,23 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                             </>
                           );
                         })()}
-                      </Space>
-                    </Card>
-                  </Space>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
-                {/* ---------- ROBOTS TAB ---------- */}
+                {/* ---------- ROBOTS TAB — modern section block. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 ---------- */}
                 {activeTab === 'robots' && (
-                  <Card
-                    size="small"
-                    title={t('repos.robots.title')}
-                    className="hc-card"
-                    extra={
-                      repoReadOnly ? null : (
-                        <Button icon={<PlusOutlined />} onClick={openCreateRobot}>{t('repos.robots.createRobot')}</Button>
-                      )
-                    }
-                  >
+                  <div className="hc-section-block">
+                    <div className="hc-section-block__header">
+                      <span className="hc-section-block__title">{t('repos.robots.title')}</span>
+                      {!repoReadOnly && (
+                        <div className="hc-section-block__extra">
+                          <Button icon={<PlusOutlined />} onClick={openCreateRobot}>{t('repos.robots.createRobot')}</Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="hc-section-block__body">
                     {repoArchived ? <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} /> : null}
                     {robotsSorted.length ? (
                       <ScrollableTable<RepoRobot>
@@ -2044,12 +2051,17 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                     ) : (
                       <Empty description={t('repos.detail.robotsEmpty')} />
                     )}
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
-                {/* ---------- AUTOMATION TAB ---------- */}
+                {/* ---------- AUTOMATION TAB — modern section block. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 ---------- */}
                 {activeTab === 'automation' && (
-                  <Card size="small" title={t('repos.automation.title')} className="hc-card">
+                  <div className="hc-section-block">
+                    <div className="hc-section-block__header">
+                      <span className="hc-section-block__title">{t('repos.automation.title')}</span>
+                    </div>
+                    <div className="hc-section-block__body">
                     {repoArchived ? <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} /> : null}
                     <RepoAutomationPanel
                       repo={repo}
@@ -2062,12 +2074,17 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                         setAutomationConfig(saved);
                       }}
                     />
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
-                {/* ---------- SKILLS TAB ---------- */}
+                {/* ---------- SKILLS TAB — modern section block. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 ---------- */}
                 {activeTab === 'skills' && (
-                  <Card size="small" title={t('skills.selection.repo.title')} className="hc-card">
+                  <div className="hc-section-block">
+                    <div className="hc-section-block__header">
+                      <span className="hc-section-block__title">{t('skills.selection.repo.title')}</span>
+                    </div>
+                    <div className="hc-section-block__body">
                     <SkillSelectionPanel
                       scope="repo"
                       skills={skillsCatalog}
@@ -2078,74 +2095,92 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                       onRefresh={() => { void refreshSkillSelection(); void refreshSkillsCatalog(); }}
                       onChange={saveSkillSelection}
                     />
-                  </Card>
+                    </div>
+                  </div>
                 )}
 
-                {/* ---------- WEBHOOKS TAB ---------- */}
+                {/* ---------- WEBHOOKS TAB — modern section blocks. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 ---------- */}
                 {activeTab === 'webhooks' && (
-                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                    <Card
-                      size="small"
-                      title={t('repos.detail.webhookTitle')}
-                      className="hc-card"
-                      extra={<Button type="link" size="small" onClick={() => setWebhookIntroOpen(true)}>{t('repos.webhookIntro.open')}</Button>}
-                    >
-                      <Descriptions column={1} size="small" styles={{ label: { width: 180 } }}>
-                        <Descriptions.Item label={t('repos.webhookIntro.webhookUrl')}>
-                          {webhookFullUrl ? (
-                            <Typography.Text code copyable style={{ wordBreak: 'break-all' }}>{webhookFullUrl}</Typography.Text>
-                          ) : (
-                            <Typography.Text type="secondary">-</Typography.Text>
-                          )}
-                        </Descriptions.Item>
-                        <Descriptions.Item label={t('repos.detail.webhookSecret')}>
-                          {webhookSecret ? (
-                            <Space size={8}>
-                              <Typography.Text code copyable={showWebhookSecretInline ? { text: webhookSecret } : false} style={{ wordBreak: 'break-all' }}>
-                                {showWebhookSecretInline ? webhookSecret : '••••••••••••••••'}
-                              </Typography.Text>
-                              <Button type="link" size="small" onClick={() => setShowWebhookSecretInline((v) => !v)}>
-                                {showWebhookSecretInline ? t('repos.webhookIntro.hide') : t('repos.webhookIntro.show')}
-                              </Button>
-                            </Space>
-                          ) : (
-                            <Typography.Text type="secondary">-</Typography.Text>
-                          )}
-                        </Descriptions.Item>
-                        <Descriptions.Item label={t('repos.webhookIntro.verified')}>
-                          {webhookVerified ? <Tag color="green">{t('repos.webhookIntro.verifiedYes')}</Tag> : <Tag color="gold">{t('repos.webhookIntro.verifiedNo')}</Tag>}
-                        </Descriptions.Item>
-                      </Descriptions>
-                      <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>{t('repos.detail.webhookTip')}</Typography.Paragraph>
-                    </Card>
+                  <div className="hc-section-stack">
+                    <div className="hc-section-block">
+                      <div className="hc-section-block__header">
+                        <span className="hc-section-block__title">{t('repos.detail.webhookTitle')}</span>
+                        <div className="hc-section-block__extra">
+                          <Button type="link" size="small" onClick={() => setWebhookIntroOpen(true)}>{t('repos.webhookIntro.open')}</Button>
+                        </div>
+                      </div>
+                      <div className="hc-section-block__body">
+                        <div className="hc-section-block__row">
+                          <span className="hc-section-block__row-label">{t('repos.webhookIntro.webhookUrl')}</span>
+                          <span className="hc-section-block__row-value">
+                            {webhookFullUrl ? (
+                              <Typography.Text code copyable style={{ wordBreak: 'break-all' }}>{webhookFullUrl}</Typography.Text>
+                            ) : (
+                              <Typography.Text type="secondary">-</Typography.Text>
+                            )}
+                          </span>
+                        </div>
+                        <div className="hc-section-block__row">
+                          <span className="hc-section-block__row-label">{t('repos.detail.webhookSecret')}</span>
+                          <span className="hc-section-block__row-value">
+                            {webhookSecret ? (
+                              <Space size={8}>
+                                <Typography.Text code copyable={showWebhookSecretInline ? { text: webhookSecret } : false} style={{ wordBreak: 'break-all' }}>
+                                  {showWebhookSecretInline ? webhookSecret : '••••••••••••••••'}
+                                </Typography.Text>
+                                <Button type="link" size="small" onClick={() => setShowWebhookSecretInline((v) => !v)}>
+                                  {showWebhookSecretInline ? t('repos.webhookIntro.hide') : t('repos.webhookIntro.show')}
+                                </Button>
+                              </Space>
+                            ) : (
+                              <Typography.Text type="secondary">-</Typography.Text>
+                            )}
+                          </span>
+                        </div>
+                        <div className="hc-section-block__row">
+                          <span className="hc-section-block__row-label">{t('repos.webhookIntro.verified')}</span>
+                          <span className="hc-section-block__row-value">
+                            {webhookVerified ? <Tag color="green">{t('repos.webhookIntro.verifiedYes')}</Tag> : <Tag color="gold">{t('repos.webhookIntro.verifiedNo')}</Tag>}
+                          </span>
+                        </div>
+                        <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>{t('repos.detail.webhookTip')}</Typography.Paragraph>
+                      </div>
+                    </div>
                     <RepoWebhookActivityCard
                       deliveries={webhookDeliveries}
                       loading={webhookDeliveriesLoading}
                       loadFailed={webhookDeliveriesFailed}
                       onRefresh={refreshWebhookDeliveries}
                     />
-                    <Card size="small" title={t('repos.webhookDeliveries.title')} className="hc-card">
-                      <RepoWebhookDeliveriesPanel
-                        repoId={repo.id}
-                        deliveries={webhookDeliveries}
-                        loading={webhookDeliveriesLoading}
-                        loadFailed={webhookDeliveriesFailed}
-                        onRefresh={refreshWebhookDeliveries}
-                      />
-                    </Card>
-                  </Space>
+                    <div className="hc-section-block">
+                      <div className="hc-section-block__header">
+                        <span className="hc-section-block__title">{t('repos.webhookDeliveries.title')}</span>
+                      </div>
+                      <div className="hc-section-block__body">
+                        <RepoWebhookDeliveriesPanel
+                          repoId={repo.id}
+                          deliveries={webhookDeliveries}
+                          loading={webhookDeliveriesLoading}
+                          loadFailed={webhookDeliveriesFailed}
+                          onRefresh={refreshWebhookDeliveries}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 )}
 
-                {/* ---------- MEMBERS TAB ---------- */}
+                {/* ---------- MEMBERS TAB — modern section blocks. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 ---------- */}
                 {activeTab === 'members' && (
                   canManageMembers ? (
-                    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                      <Card
-                        size="small"
-                        title={t('repos.members.title')}
-                        className="hc-card"
-                        extra={<Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshMembers()} disabled={membersLoading}>{t('common.refresh')}</Button>}
-                      >
+                    <div className="hc-section-stack">
+                      <div className="hc-section-block">
+                        <div className="hc-section-block__header">
+                          <span className="hc-section-block__title">{t('repos.members.title')}</span>
+                          <div className="hc-section-block__extra">
+                            <Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshMembers()} disabled={membersLoading}>{t('common.refresh')}</Button>
+                          </div>
+                        </div>
+                        <div className="hc-section-block__body">
                         <ScrollableTable<RepoMember>
                           rowKey="id"
                           dataSource={members}
@@ -2186,13 +2221,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                             }
                           ]}
                         />
-                      </Card>
-                      <Card
-                        size="small"
-                        title={t('repos.invites.title')}
-                        className="hc-card"
-                        extra={<Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshInvites()} disabled={invitesLoading}>{t('common.refresh')}</Button>}
-                      >
+                        </div>
+                      </div>
+                      <div className="hc-section-block">
+                        <div className="hc-section-block__header">
+                          <span className="hc-section-block__title">{t('repos.invites.title')}</span>
+                          <div className="hc-section-block__extra">
+                            <Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshInvites()} disabled={invitesLoading}>{t('common.refresh')}</Button>
+                          </div>
+                        </div>
+                        <div className="hc-section-block__body">
                         <Form form={inviteForm} layout="vertical" requiredMark={false} initialValues={{ role: 'member' as RepoRole }} onFinish={() => void handleInviteSubmit()} disabled={repoReadOnly || inviteSubmitting}>
                           <Row gutter={12}>
                             <Col xs={24} md={16}>
@@ -2234,8 +2272,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                             }
                           ]}
                         />
-                      </Card>
-                    </Space>
+                        </div>
+                      </div>
+                    </div>
                   ) : (
                     <div className="hc-empty"><Empty description={t('repos.members.empty')} /></div>
                   )
@@ -2243,25 +2282,25 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
 
                 {/* ---------- SETTINGS TAB ---------- */}
                 {activeTab === 'settings' && (
-                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                    {/* Task-group API tokens section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215 */}
-                    <Card
-                      size="small"
-                      title={<Space size={8}><ApiOutlined /><span>{t('repos.detail.autoTokens.title')}</span></Space>}
-                      extra={<Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshRepoTaskGroupTokens()} disabled={repoTaskGroupTokensLoading}>{t('common.refresh')}</Button>}
-                      className="hc-card"
-                      loading={repoTaskGroupTokensLoading}
-                    >
-                      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <div className="hc-section-stack">
+                    {/* Task-group API tokens section — modern section block. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */}
+                    <div className="hc-section-block">
+                      <div className="hc-section-block__header">
+                        <span className="hc-section-block__title"><ApiOutlined />{t('repos.detail.autoTokens.title')}</span>
+                        <div className="hc-section-block__extra">
+                          <Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshRepoTaskGroupTokens()} disabled={repoTaskGroupTokensLoading}>{t('common.refresh')}</Button>
+                        </div>
+                      </div>
+                      <div className="hc-section-block__body">
                         <Typography.Text type="secondary">{t('repos.detail.autoTokens.tip')}</Typography.Text>
                         {(() => {
                           const total = repoTaskGroupTokens.length;
-                          if (!total) return <Typography.Text type="secondary">{t('repos.detail.autoTokens.empty')}</Typography.Text>;
+                          if (!total) return <div style={{ marginTop: 8 }}><Typography.Text type="secondary">{t('repos.detail.autoTokens.empty')}</Typography.Text></div>;
                           const start = (repoTaskGroupTokensPage - 1) * TASK_GROUP_TOKEN_PAGE_SIZE;
                           const paged = repoTaskGroupTokens.slice(start, start + TASK_GROUP_TOKEN_PAGE_SIZE);
                           return (
                             <>
-                              <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
                                 {paged.map((tokenItem) => {
                                   const now = Date.now();
                                   const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
@@ -2270,7 +2309,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                                   const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
                                   const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
                                   return (
-                                    <Card key={tokenItem.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                    <div key={tokenItem.id} className="hc-section-block__item">
                                       <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
                                         <Space size={8} wrap>
                                           <Typography.Text strong>{tokenItem.name}</Typography.Text>
@@ -2287,10 +2326,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                                           <Button size="small" danger loading={repoTaskGroupTokenRevokingId === tokenItem.id} disabled={isRevoked || repoReadOnly}>{t('panel.apiTokens.revoke')}</Button>
                                         </Popconfirm>
                                       </Space>
-                                    </Card>
+                                    </div>
                                   );
                                 })}
-                              </Space>
+                              </div>
                               {total > TASK_GROUP_TOKEN_PAGE_SIZE ? (
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <Pagination size="small" current={repoTaskGroupTokensPage} pageSize={TASK_GROUP_TOKEN_PAGE_SIZE} total={total} showSizeChanger={false} onChange={(page) => setRepoTaskGroupTokensPage(page)} />
@@ -2299,21 +2338,26 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                             </>
                           );
                         })()}
-                      </Space>
-                    </Card>
+                      </div>
+                    </div>
 
-                    {/* Danger zone for repo deletion. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                    {/* Danger zone — uses danger variant. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */}
                     {canDeleteRepo ? (
-                      <Card size="small" title={t('repos.danger.title')} className="hc-card">
-                        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                      <div className="hc-section-block hc-section-block--danger">
+                        <div className="hc-section-block__header">
+                          <span className="hc-section-block__title">{t('repos.danger.title')}</span>
+                        </div>
+                        <div className="hc-section-block__body">
                           <Typography.Text type="secondary">{t('repos.danger.desc')}</Typography.Text>
-                          <Popconfirm title={t('repos.danger.confirmTitle')} description={t('repos.danger.confirmDesc')} okText={t('common.delete')} cancelText={t('common.cancel')} onConfirm={() => void handleDeleteRepo()}>
-                            <Button danger loading={repoDeleting} disabled={repoDeleting}>{t('repos.danger.delete')}</Button>
-                          </Popconfirm>
-                        </Space>
-                      </Card>
+                          <div style={{ marginTop: 12 }}>
+                            <Popconfirm title={t('repos.danger.confirmTitle')} description={t('repos.danger.confirmDesc')} okText={t('common.delete')} cancelText={t('common.cancel')} onConfirm={() => void handleDeleteRepo()}>
+                              <Button danger loading={repoDeleting} disabled={repoDeleting}>{t('repos.danger.delete')}</Button>
+                            </Popconfirm>
+                          </div>
+                        </div>
+                      </div>
                     ) : null}
-                  </Space>
+                  </div>
                 )}
               </div>
             )
