@@ -74,7 +74,8 @@ import {
   updateRepoSkillSelection
 } from '../api';
 import { supportedLocales, useLocale, useT } from '../i18n';
-import { buildReposHash, buildTaskHash } from '../router';
+import { buildReposHash, buildTaskHash, buildRepoHash } from '../router';
+import type { RepoTab } from '../router';
 import { getPrevHashForBack, isInAppHash } from '../navHistory';
 import { getStoredUser } from '../auth';
 import { RepoAutomationPanel } from '../components/repoAutomation/RepoAutomationPanel';
@@ -89,8 +90,9 @@ import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { buildWebhookUrl } from '../utils/webhook';
 import { getRobotProviderLabel } from '../utils/robot';
 import { extractTaskGroupIdFromTokenName } from '../utils/apiTokens';
+import { RepoDetailSidebar } from '../components/repos/RepoDetailSidebar';
 import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
-import { RepoDetailDashboardSummaryStrip, type RepoDetailSectionKey } from '../components/repos/RepoDetailDashboardSummaryStrip';
+import { RepoDetailDashboardSummaryStrip } from '../components/repos/RepoDetailDashboardSummaryStrip';
 import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
 import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
 import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
@@ -124,8 +126,10 @@ import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
  * - 2026-01-13: Added Gemini CLI (`gemini_cli`) model provider support for repo-scoped credentials and robot configuration.
  */
 
+// Accept repoTab for sidebar sub-navigation routing. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
 export interface RepoDetailPageProps {
   repoId: string;
+  repoTab?: RepoTab;
   userPanel?: ReactNode;
   navToggle?: PageNavMenuAction;
 }
@@ -244,7 +248,9 @@ const resolveRobotStatusTag = (t: ReturnType<typeof useT>, robot: RepoRobot) => 
   return <Tag color="gold">{t('repos.robots.status.pending')}</Tag>;
 };
 
-export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, navToggle }) => {
+export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userPanel, navToggle }) => {
+  // Resolve active tab from route, defaulting to overview. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+  const activeTab: RepoTab = repoTab || 'overview';
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -1620,17 +1626,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     [message, repo, repoReadOnly, t]
   );
 
-  // Provide section-based navigation for the repo detail dashboard without using tab switching. u55e45ffi8jng44erdzp
-  const sectionDomId = useCallback((key: RepoDetailSectionKey) => `hc-repo-section-${key}`, []);
-
-  const scrollToSection = useCallback(
-    (key: RepoDetailSectionKey) => {
-      if (typeof window === 'undefined') return;
-      const el = document.getElementById(sectionDomId(key));
-      if (!el) return;
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Navigate to a specific repo sub-tab instead of scroll-to-section. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+  const navigateToTab = useCallback(
+    (key: RepoTab) => {
+      window.location.hash = buildRepoHash(repoId, key);
     },
-    [sectionDomId]
+    [repoId]
   );
 
   const openedRobotIdRef = useRef<string>('');
@@ -1646,8 +1647,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
     if (!target) return;
     openedRobotIdRef.current = fromRobotId;
     openEditRobot(target);
-    scrollToSection('robots');
-  }, [fromRobotId, openEditRobot, robotsSorted, scrollToSection]);
+    navigateToTab('robots');
+  }, [fromRobotId, openEditRobot, robotsSorted, navigateToTab]);
 
   if (!repoId) {
     return (
@@ -1662,59 +1663,49 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
   // UX: keep PageNav actions minimal; section-level actions (save/test/create) should live inside each dashboard card. u55e45ffi8jng44erdzp
   const headerActions = undefined;
 
+  // Only show PageNav back arrow when navigated from TaskDetail; sidebar handles normal "back to repos". docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
   const headerBack = useMemo(() => {
-    // Header back behavior:
-    // - Module: Frontend Chat / Repos.
-    // - Business intent: match legacy frontend "header back icon" rules:
-    //   - If opened from TaskDetail via `?from=task&taskId=...`, go back to that task (prefer `history.back()` when safe).
-    //   - Otherwise, prefer the previous in-app hash; fall back to `#/repos` when there is no safe history.
-    // - Change record: 2026-01-12 - Add header back to repo detail and support task->repo deep-linking parity.
     if (typeof window === 'undefined') return undefined;
-
-    if (fromTaskId) {
-      const target = buildTaskHash(fromTaskId);
-      return {
-        ariaLabel: t('common.backToTaskDetail'),
-        onClick: () => {
-          const prevHash = String(getPrevHashForBack() ?? '');
-          if (isInAppHash(prevHash) && prevHash === target) {
-            window.history.back();
-            return;
-          }
-          window.location.hash = target;
-        }
-      };
-    }
-
+    if (!fromTaskId) return undefined; // Sidebar covers the "all repos" back flow
+    const target = buildTaskHash(fromTaskId);
     return {
-      ariaLabel: t('common.backToList'),
+      ariaLabel: t('common.backToTaskDetail'),
       onClick: () => {
-        const currentHash = String(window.location.hash ?? '');
         const prevHash = String(getPrevHashForBack() ?? '');
-        if (isInAppHash(prevHash) && prevHash !== currentHash) {
+        if (isInAppHash(prevHash) && prevHash === target) {
           window.history.back();
           return;
         }
-        window.location.hash = buildReposHash();
+        window.location.hash = target;
       }
     };
   }, [fromTaskId, t]);
 
+  // Derive the current tab display name for the PageNav header. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+  const tabTitleKey = `repos.detail.tabs.${activeTab}` as const;
+
+  // Render repo detail with sidebar sub-navigation layout. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
   return (
     <>
-      <div className="hc-page hc-repo-detail-page">
+      {/* Sidebar + page wrapper rendered as a horizontal flex row */}
+      <div className="hc-repo-detail-layout">
+        <RepoDetailSidebar
+          repoId={repoId}
+          repoName={repo?.name || title}
+          provider={repo?.provider as 'github' | 'gitlab' | undefined}
+          enabled={repo?.enabled ?? true}
+          activeTab={activeTab}
+        />
+        <div className="hc-page hc-repo-detail-page" style={{ flex: 1, minWidth: 0 }}>
 	        <PageNav
 	          back={headerBack}
-	          title={title}
+	          title={t(tabTitleKey as any) || title}
           meta={
             <Typography.Text type="secondary">
-              {repo ? `${providerLabel(repo.provider)} · ${repo.id}` : repoId}
-              {repo?.updatedAt ? ` · ${t('repos.detail.updatedAt', { time: formatTime(repo.updatedAt) })}` : ''}
-              {repo?.webhookVerifiedAt ? ` · ${t('repos.webhookIntro.verifiedAt', { time: formatTime(repo.webhookVerifiedAt) })}` : ''}
+              {repo?.updatedAt ? t('repos.detail.updatedAt', { time: formatTime(repo.updatedAt) }) : ''}
             </Typography.Text>
           }
 	          actions={headerActions}
-	          // Pass the mobile nav toggle (hidden when back is shown) for consistent header behavior. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
 	          navToggle={navToggle}
 	          userPanel={userPanel}
 	        />
@@ -1747,1027 +1738,592 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, userPanel, nav
                 }}
               />
             ) : (
-              <div className="hc-repo-dashboard">
-                {(() => {
-                  const items = [
-                    {
-                    key: 'basic',
-                    label: t('repos.detail.tabs.basic'),
-                    children: (
-                      <Card size="small" title={t('repos.detail.basicTitle')} className="hc-card">
-                        {repoArchived ? (
-                          <Alert
-                            type="warning"
-                            showIcon
-                            message={t('repos.archive.banner')}
-                            style={{ marginBottom: 12 }}
-                          />
-                        ) : null}
-                        {/* Disable basic edits when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                        <Form form={basicForm} layout="vertical" requiredMark={false} disabled={repoReadOnly}>
-                          <Form.Item label={t('common.name')} name="name" rules={[{ required: true, message: t('repos.form.nameRequired') }]}>
-                            <Input />
-                          </Form.Item>
-                          <Form.Item label={t('repos.detail.externalId')} name="externalId">
-                            <Input placeholder={t('repos.detail.externalIdPlaceholder')} />
-                          </Form.Item>
-                          <Form.Item label={t('repos.detail.apiBaseUrl')} name="apiBaseUrl">
-                            <Input placeholder={t('repos.detail.apiBaseUrlPlaceholder')} />
-                          </Form.Item>
-                          <Form.Item label={t('common.status')} name="enabled" valuePropName="checked">
-                            <Switch checkedChildren={t('common.enabled')} unCheckedChildren={t('common.disabled')} />
-                          </Form.Item>
-                        </Form>
-                        {fromTaskId ? (
-                          <Typography.Paragraph type="secondary" style={{ marginTop: 10, marginBottom: 0 }}>
-                            {t('repos.detail.openedFromTask', { taskId: fromTaskId })}
-                          </Typography.Paragraph>
-                        ) : null}
-                        {/* Gate repo actions when user lacks manage rights. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
-                          {repoArchived ? (
-                            <Popconfirm
-                              title={t('repos.unarchive.confirmTitle')}
-                              description={t('repos.unarchive.confirmDesc')}
-                              okText={t('common.restore')}
-                              cancelText={t('common.cancel')}
-                              onConfirm={() => void handleUnarchiveRepo()}
-                            >
-                              <Button type="primary" loading={repoUnarchiving} disabled={loading || !canManageRepo}>
-                                {t('common.restore')}
-                              </Button>
-                            </Popconfirm>
-                          ) : (
-                            <>
-                              <Popconfirm
-                                title={t('repos.archive.confirmTitle')}
-                                description={t('repos.archive.confirmDesc')}
-                                okText={t('repos.detail.archive')}
-                                cancelText={t('common.cancel')}
-                                onConfirm={() => void handleArchiveRepo()}
-                              >
-                                <Button danger loading={repoArchiving} disabled={loading || !canManageRepo}>
-                                  {t('repos.detail.archive')}
-                                </Button>
-                              </Popconfirm>
-                              <Button
-                                type="primary"
-                                icon={<SaveOutlined />}
-                                onClick={() => void handleSaveBasic()}
-                                loading={basicSaving}
-                                disabled={loading || repoReadOnly}
-                              >
-                                {t('common.save')}
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </Card>
-                    )
-                  },
-                  {
-                    key: 'branches',
-                    label: t('repos.detail.tabs.branches'),
-                    children: (
-                      <>
-                        {/* Render branches as read-only when the repository is archived. qnp1mtxhzikhbi0xspbc */}
-                        {/* Gate branch edits when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                        <RepoBranchesCard repo={repo} onSaved={(next) => setRepo(next)} readOnly={repoReadOnly} />
-                      </>
-                    )
-                  },
-                  {
-                    key: 'credentials',
-                    label: t('repos.detail.tabs.credentials'),
-                    children: (
-                      <Row gutter={[12, 12]}>
-                        {/* Region 3: split repo credentials and model credentials into a single row with min-height guards. u55e45ffi8jng44erdzp */}
-                        <Col xs={24} lg={12} style={{ display: 'flex' }}>
-                          <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
-                            <Card
-                              size="small"
-                              title={
-                                <Space size={8}>
-                                  <GlobalOutlined />
-                                  <span>{t('repos.detail.credentials.repoProvider')}</span>
-                                </Space>
-                              }
-                              className="hc-card"
-                              extra={
-                                // Disable credential mutations for archived repos (archive is view-only). qnp1mtxhzikhbi0xspbc
-                                // Disable credential mutations for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-                                <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving || repoReadOnly}>
-                                  {t('panel.credentials.profile.add')}
-                                </Button>
-                              }
-                            >
-                              <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                                <Typography.Text type="secondary">{t('repos.detail.credentials.repoProviderTip')}</Typography.Text>
-
-                                {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-
-                                {(() => {
-                                  const profiles = repoScopedCredentials?.repoProvider?.profiles ?? [];
-                                  const total = profiles.length;
-                                  const defaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
-                                  const start = (repoProviderProfilesPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
-                                  const paged = profiles.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
-
-                                  if (!total) {
-                                    return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
-                                  }
-
-                                  return (
-                                    <>
-                                      {/* Paginate credential profiles to prevent extremely tall cards that create empty gaps in the dashboard layout. u55e45ffi8jng44erdzp */}
-                                      <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                                        {paged.map((p) => (
-                                          <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                            <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                              <Space size={8} wrap>
-                                                <Typography.Text strong>{p.remark || p.id}</Typography.Text>
-                                                {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                                                <Tag color={p.hasToken ? 'green' : 'default'}>
-                                                  {p.hasToken ? t('common.configured') : t('common.notConfigured')}
-                                                </Tag>
-                                              </Space>
-                                              <Typography.Text type="secondary">{p.cloneUsername || '-'}</Typography.Text>
-                                            </Space>
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                              {/* Disable credential actions for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                                              <Button size="small" onClick={() => startEditRepoProviderProfile(p)} disabled={credentialsSaving || repoReadOnly}>
-                                                {t('common.manage')}
-                                              </Button>
-                                              <Button size="small" danger onClick={() => removeRepoProviderProfile(p.id)} disabled={credentialsSaving || repoReadOnly}>
-                                                {t('panel.credentials.profile.remove')}
-                                              </Button>
-                                            </div>
-                                          </Card>
-                                        ))}
-                                      </Space>
-
-                                      {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                                          <Pagination
-                                            size="small"
-                                            current={repoProviderProfilesPage}
-                                            pageSize={CREDENTIAL_PROFILE_PAGE_SIZE}
-                                            total={total}
-                                            showSizeChanger={false}
-                                            onChange={(page) => setRepoProviderProfilesPage(page)}
-                                          />
-                                        </div>
-                                      ) : null}
-                                    </>
-                                  );
-                                })()}
-                              </Space>
-                            </Card>
-                          </div>
-                        </Col>
-
-                        <Col xs={24} lg={12} style={{ display: 'flex' }}>
-                          <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
-                            <Card
-                              size="small"
-                              title={
-                                <Space size={8}>
-                                  <KeyOutlined />
-                                  <span>{t('repos.detail.credentials.modelProvider')}</span>
-                                </Space>
-                              }
-                              extra={
-                                <>
-                                  {/* Use a single add entry point for the unified model list. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                                  {/* Disable model credential mutations for archived repos (archive is view-only). qnp1mtxhzikhbi0xspbc */}
-                                  {/* Disable model credential mutations for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                                  <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={credentialsSaving || repoReadOnly}>
-                                    {t('panel.credentials.profile.add')}
-                                  </Button>
-                                </>
-                              }
-                              className="hc-card"
-                            >
-                              <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-                                <Typography.Text type="secondary">{t('repos.detail.credentials.modelProviderTip')}</Typography.Text>
-                                {/* Default selection now happens inside the manage modal; the list only highlights tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                                {(() => {
-                                  const total = modelProviderProfileItems.length;
-                                  const start = (modelProviderProfilesPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
-                                  const paged = modelProviderProfileItems.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
-
-                                  if (!total) {
-                                    return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
-                                  }
-
-                                  return (
-                                    <>
-                                      {/* Render a single list of model provider profiles with provider tags. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
-                                      <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                                        {paged.map(({ provider, profile, defaultId }) => (
-                                          <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                            <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                              <Space size={8} wrap>
-                                                <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
-                                                <Tag color="geekblue">{t(`repos.robotForm.modelProvider.${provider}` as any)}</Tag>
-                                                {defaultId === profile.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                                                <Tag color={profile.hasApiKey ? 'green' : 'default'}>
-                                                  {profile.hasApiKey ? t('common.configured') : t('common.notConfigured')}
-                                                </Tag>
-                                              </Space>
-                                              <Typography.Text type="secondary">{profile.apiBaseUrl || '-'}</Typography.Text>
-                                            </Space>
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                                              {/* Disable model credential actions for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                                              <Button size="small" onClick={() => startEditModelProfile(provider, profile)} disabled={credentialsSaving || repoReadOnly}>
-                                                {t('common.manage')}
-                                              </Button>
-                                              <Button
-                                                size="small"
-                                                danger
-                                                onClick={() => removeModelProviderProfile(provider, profile.id)}
-                                                disabled={credentialsSaving || repoReadOnly}
-                                              >
-                                                {t('panel.credentials.profile.remove')}
-                                              </Button>
-                                            </div>
-                                          </Card>
-                                        ))}
-                                      </Space>
-
-                                      {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                                          <Pagination
-                                            size="small"
-                                            current={modelProviderProfilesPage}
-                                            pageSize={CREDENTIAL_PROFILE_PAGE_SIZE}
-                                            total={total}
-                                            showSizeChanger={false}
-                                            onChange={(page) => setModelProviderProfilesPage(page)}
-                                          />
-                                        </div>
-                                      ) : null}
-                                    </>
-                                  );
-                                })()}
-                              </Space>
-                            </Card>
-                          </div>
-                        </Col>
-
-                      </Row>
-                    )
-                  },
-                  {
-                    key: 'robots',
-                    label: t('repos.detail.tabs.robots'),
-                    children: (
-                      <Card
-                        size="small"
-                        title={t('repos.robots.title')}
-                        className="hc-card"
-                        extra={
-                          // Hide the create button for read-only repositories. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-                          repoReadOnly ? null : (
-                            <Button icon={<PlusOutlined />} onClick={openCreateRobot}>
-                              {t('repos.robots.createRobot')}
-                            </Button>
-                          )
-                        }
-                      >
-                        {repoArchived ? (
-                          <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} />
-                        ) : null}
-                        {robotsSorted.length ? (
-                          <ScrollableTable<RepoRobot>
-                            // Paginate robots to avoid extremely tall tables that break the dashboard board density. u55e45ffi8jng44erdzp
-                            size="small"
-                            rowKey="id"
-                            dataSource={robotsSorted}
-                            pagination={{ pageSize: 8, showSizeChanger: true, pageSizeOptions: ['8', '16', '32'], hideOnSinglePage: true }}
-                            columns={[
-                              {
-                                title: t('common.name'),
-                                dataIndex: 'name',
-                                render: (_: any, r: RepoRobot) => {
-                                  // Display bound AI provider for robot rows in the repo table. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
-                                  const providerLabel = getRobotProviderLabel(r.modelProvider);
-                                  return (
-                                    <Space direction="vertical" size={0} style={{ width: '100%' }}>
-                                      <Space size={6} wrap>
-                                        <Typography.Text strong className="table-cell-ellipsis" title={r.name}>
-                                          {r.name}
-                                        </Typography.Text>
-                                        {providerLabel ? (
-                                          <Tag color="geekblue" style={{ fontSize: 11, lineHeight: '18px', marginInlineEnd: 0 }}>
-                                            {providerLabel}
-                                          </Tag>
-                                        ) : null}
-                                      </Space>
-                                      <Typography.Text type="secondary" className="table-cell-ellipsis" style={{ fontSize: 12 }} title={r.id}>
-                                        {r.id}
-                                      </Typography.Text>
-                                    </Space>
-                                  );
-                                }
-                              },
-                              {
-                                title: t('common.status'),
-                                key: 'status',
-                                width: 140,
-                                render: (_: any, r: RepoRobot) => resolveRobotStatusTag(t, r)
-                              },
-                              {
-                                title: t('repos.robots.permission'),
-                                dataIndex: 'permission',
-                                width: 120,
-                                render: (v: string) => <Tag color={v === 'write' ? 'volcano' : 'blue'}>{v}</Tag>
-                              },
-                              {
-                                title: t('repos.robots.default'),
-                                dataIndex: 'isDefault',
-                                width: 110,
-                                render: (v: boolean) => (v ? <Tag color="blue">{t('repos.robots.default')}</Tag> : <Typography.Text type="secondary">-</Typography.Text>)
-                              },
-                              {
-                                title: t('repos.robots.lastTest'),
-                                key: 'lastTest',
-                                width: 220,
-                                render: (_: any, r: RepoRobot) => {
-                                  if (!r.lastTestAt) return <Typography.Text type="secondary">-</Typography.Text>;
-                                  const ok = Boolean(r.lastTestOk);
-                                  return (
-                                    <Space direction="vertical" size={0} style={{ width: '100%' }}>
-                                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                        {formatTime(r.lastTestAt)}
-                                      </Typography.Text>
-                                      <Typography.Text type={ok ? 'success' : 'danger'} style={{ fontSize: 12 }}>
-                                        {ok ? t('repos.robots.test.ok') : t('repos.robots.test.notOk')}
-                                      </Typography.Text>
-                                    </Space>
-                                  );
-                                }
-                              },
-                              {
-                                title: t('common.actions'),
-                                key: 'actions',
-                                width: 300,
-                                render: (_: any, r: RepoRobot) => (
-                                  <Space size={8} wrap style={{ minWidth: 0 }}>
-                                    {/* Hide robot write actions for read-only repositories. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                                    <Button size="small" onClick={() => openEditRobot(r)}>
-                                      {repoReadOnly ? t('common.view') : t('common.edit')}
-                                    </Button>
-                                    {!repoReadOnly ? (
-                                      <>
-                                        <Button
-                                          size="small"
-                                          onClick={() => void handleTestRobot(r)}
-                                          loading={robotTestingId === r.id}
-                                        >
-                                          {t('repos.robots.test')}
-                                        </Button>
-                                        <Button
-                                          size="small"
-                                          onClick={() => void handleToggleRobotEnabled(r)}
-                                          loading={robotTogglingId === r.id}
-                                        >
-                                          {r.enabled ? t('repos.robots.disable') : t('repos.robots.enable')}
-                                        </Button>
-                                        <Popconfirm
-                                          title={t('repos.robots.deleteConfirmTitle')}
-                                          description={t('repos.robots.deleteConfirmDesc')}
-                                          okText={t('common.delete')}
-                                          cancelText={t('common.cancel')}
-                                          onConfirm={() => void handleDeleteRobot(r)}
-                                        >
-                                          <Button size="small" danger loading={robotDeletingId === r.id}>
-                                            {t('common.delete')}
-                                          </Button>
-                                        </Popconfirm>
-                                      </>
-                                    ) : null}
-                                  </Space>
-                                )
-                              }
-                            ]}
-                          />
-                        ) : (
-                          <Empty description={t('repos.detail.robotsEmpty')} />
-                        )}
-                      </Card>
-                    )
-                  },
-                  {
-                    key: 'automation',
-                    label: t('repos.detail.tabs.automation'),
-                    children: (
-                      <Card size="small" title={t('repos.automation.title')} className="hc-card">
-                        {repoArchived ? (
-                          <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} />
-                        ) : null}
-                        <RepoAutomationPanel
-                          repo={repo}
-                          robots={robotsSorted}
-                          value={automationConfig ?? defaultAutomationConfig()}
-                          readOnly={repoReadOnly} // Gate automation edits for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-                          onChange={(next) => setAutomationConfig(next)}
-                          onSave={async (next) => {
-                            // Allow saving automation config even before webhook verification. 58w1q3n5nr58flmempxe
-                            const saved = await updateRepoAutomation(repo.id, next);
-                            setAutomationConfig(saved);
-                          }}
-                        />
-                      </Card>
-                    )
-                  },
-                  {
-                    key: 'webhooks',
-                    label: t('repos.detail.tabs.webhooks'),
-                    children: (
-                      <Card
-                        size="small"
-                        title={t('repos.detail.webhookTitle')}
-                        className="hc-card"
-                        extra={
-                          <Button type="link" size="small" onClick={() => setWebhookIntroOpen(true)}>
-                            {t('repos.webhookIntro.open')}
-                          </Button>
-                        }
-                      >
-                        <Descriptions column={1} size="small" styles={{ label: { width: 180 } }}>
-                          {/* Webhook path is intentionally omitted here; the full URL is sufficient for provider setup. (Change record: 2026-01-15) */}
-                          <Descriptions.Item label={t('repos.webhookIntro.webhookUrl')}>
-                            {webhookFullUrl ? (
-                              <Typography.Text code copyable style={{ wordBreak: 'break-all' }}>
-                                {webhookFullUrl}
-                              </Typography.Text>
-                            ) : (
-                              <Typography.Text type="secondary">-</Typography.Text>
-                            )}
-                          </Descriptions.Item>
-                          <Descriptions.Item label={t('repos.detail.webhookSecret')}>
-                            {webhookSecret ? (
-                              <Space size={8}>
-                                <Typography.Text
-                                  code
-                                  copyable={showWebhookSecretInline ? { text: webhookSecret } : false}
-                                  style={{ wordBreak: 'break-all' }}
-                                >
-                                  {showWebhookSecretInline ? webhookSecret : '••••••••••••••••'}
-                                </Typography.Text>
-                                <Button type="link" size="small" onClick={() => setShowWebhookSecretInline((v) => !v)}>
-                                  {showWebhookSecretInline ? t('repos.webhookIntro.hide') : t('repos.webhookIntro.show')}
-                                </Button>
-                              </Space>
-                            ) : (
-                              <Typography.Text type="secondary">-</Typography.Text>
-                            )}
-                          </Descriptions.Item>
-                          <Descriptions.Item label={t('repos.webhookIntro.verified')}>
-                            {webhookVerified ? <Tag color="green">{t('repos.webhookIntro.verifiedYes')}</Tag> : <Tag color="gold">{t('repos.webhookIntro.verifiedNo')}</Tag>}
-                          </Descriptions.Item>
-                        </Descriptions>
-                        <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
-                          {t('repos.detail.webhookTip')}
-                        </Typography.Paragraph>
-                      </Card>
-                    )
-                  }
-                  ] as const;
-
-                  const section = (key: RepoDetailSectionKey) => items.find((i) => i.key === key)?.children ?? null;
-                  // Build the bottom task-group token card with pagination controls. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
-                  const repoTaskGroupTokensCard = (
-                    <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
-                      <Card
-                        size="small"
-                        title={
-                          <Space size={8}>
-                            <ApiOutlined />
-                            <span>{t('repos.detail.autoTokens.title')}</span>
-                          </Space>
-                        }
-                        extra={
-                          <Button
-                            size="small"
-                            icon={<ReloadOutlined />}
-                            onClick={() => void refreshRepoTaskGroupTokens()}
-                            disabled={repoTaskGroupTokensLoading}
-                          >
-                            {t('common.refresh')}
-                          </Button>
-                        }
-                        className="hc-card"
-                        loading={repoTaskGroupTokensLoading}
-                      >
-                        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                          {/* Render auto-generated task-group PATs in the bottom section with pagination. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215 */}
-                          <Typography.Text type="secondary">{t('repos.detail.autoTokens.tip')}</Typography.Text>
-                          {(() => {
-                            const total = repoTaskGroupTokens.length;
-                            if (!total) {
-                              return <Typography.Text type="secondary">{t('repos.detail.autoTokens.empty')}</Typography.Text>;
-                            }
-
-                            const start = (repoTaskGroupTokensPage - 1) * TASK_GROUP_TOKEN_PAGE_SIZE;
-                            const paged = repoTaskGroupTokens.slice(start, start + TASK_GROUP_TOKEN_PAGE_SIZE);
-
-                            return (
-                              <>
-                                <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-                                  {paged.map((tokenItem) => {
-                                    const now = Date.now();
-                                    const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
-                                    const isExpired = Boolean(expiresAt && expiresAt <= now);
-                                    const isRevoked = Boolean(tokenItem.revokedAt);
-                                    const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
-                                    const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
-                                    return (
-                                      <Card key={tokenItem.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
-                                        <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                                          <Space size={8} wrap>
-                                            <Typography.Text strong>{tokenItem.name}</Typography.Text>
-                                            <Tag color={statusColor}>{t(`panel.apiTokens.status.${statusKey}`)}</Tag>
-                                          </Space>
-                                          <Typography.Text type="secondary">
-                                            {t('panel.apiTokens.field.expiresAt')}: {formatTokenTime(tokenItem.expiresAt ?? null)}
-                                          </Typography.Text>
-                                        </Space>
-                                        <Space size={16} wrap style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
-                                          <Space size={12} wrap>
-                                            <Typography.Text type="secondary">
-                                              {t('panel.apiTokens.field.createdAt')}: {formatTokenTime(tokenItem.createdAt)}
-                                            </Typography.Text>
-                                            <Typography.Text type="secondary">
-                                              {t('panel.apiTokens.field.lastUsed')}: {formatTokenTime(tokenItem.lastUsedAt ?? null)}
-                                            </Typography.Text>
-                                          </Space>
-                                          <Popconfirm
-                                            title={t('panel.apiTokens.revokeTitle')}
-                                            description={t('panel.apiTokens.revokeDesc')}
-                                            okText={t('panel.apiTokens.revokeOk')}
-                                            cancelText={t('common.cancel')}
-                                            onConfirm={() => void revokeRepoTaskGroupToken(tokenItem)}
-                                          >
-                                            {/* Block token revokes when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                                            <Button
-                                              size="small"
-                                              danger
-                                              loading={repoTaskGroupTokenRevokingId === tokenItem.id}
-                                              disabled={isRevoked || repoReadOnly}
-                                            >
-                                              {t('panel.apiTokens.revoke')}
-                                            </Button>
-                                          </Popconfirm>
-                                        </Space>
-                                      </Card>
-                                    );
-                                  })}
-                                </Space>
-
-                                {total > TASK_GROUP_TOKEN_PAGE_SIZE ? (
-                                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                                    <Pagination
-                                      size="small"
-                                      current={repoTaskGroupTokensPage}
-                                      pageSize={TASK_GROUP_TOKEN_PAGE_SIZE}
-                                      total={total}
-                                      showSizeChanger={false}
-                                      onChange={(page) => setRepoTaskGroupTokensPage(page)}
-                                    />
-                                  </div>
-                                ) : null}
-                              </>
-                            );
-                          })()}
+              /* Tab-based content rendering: show only the active tab instead of all sections. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228 */
+              <div className="hc-repo-tab-content">
+                {/* ---------- OVERVIEW TAB ---------- */}
+                {activeTab === 'overview' && (
+                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                    <RepoDetailDashboardSummaryStrip
+                      repo={repo}
+                      robots={robotsSorted}
+                      automationConfig={automationConfig}
+                      repoScopedCredentials={repoScopedCredentials}
+                      webhookVerified={webhookVerified}
+                      webhookUrl={webhookFullUrl || webhookPath}
+                      formatTime={formatTime}
+                      providerLabel={providerLabel}
+                      onJumpToSection={(key) => {
+                        // Navigate to the corresponding tab when a summary strip section is clicked. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+                        const tabMap: Record<string, RepoTab> = {
+                          basic: 'basic', branches: 'branches', credentials: 'credentials',
+                          robots: 'robots', automation: 'automation', webhooks: 'webhooks',
+                        };
+                        const tab = tabMap[key];
+                        if (tab) window.location.hash = buildRepoHash(repoId, tab);
+                      }}
+                    />
+                    <RepoTaskActivityCard repoId={repo.id} />
+                    <RepoDetailProviderActivityRow
+                      repo={repo}
+                      repoScopedCredentials={repoScopedCredentials}
+                      userModelCredentials={userModelCredentials}
+                      formatTime={formatTime}
+                    />
+                    {/* Preview configuration discovery. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+                    <Card size="small" title={t('repos.preview.title')} className="hc-card">
+                      {previewConfigLoading ? (
+                        <Typography.Text type="secondary">{t('repos.preview.loading')}</Typography.Text>
+                      ) : previewConfig?.available ? (
+                        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                          <Typography.Text type="secondary">{t('repos.preview.available')}</Typography.Text>
+                          {previewConfig.instances.map((instance) => (
+                            <Space key={instance.name} size={8} wrap>
+                              <Tag color="blue">{instance.name}</Tag>
+                              <Typography.Text code>{instance.workdir}</Typography.Text>
+                            </Space>
+                          ))}
                         </Space>
-                      </Card>
+                      ) : (
+                        <Space direction="vertical" size={4}>
+                          <Typography.Text type="secondary">{t('repos.preview.unavailable')}</Typography.Text>
+                          {previewConfigReasonText ? (
+                            <Typography.Text type="secondary">{previewConfigReasonText}</Typography.Text>
+                          ) : null}
+                        </Space>
+                      )}
+                    </Card>
+                  </Space>
+                )}
+
+                {/* ---------- BASIC TAB ---------- */}
+                {activeTab === 'basic' && (
+                  <Card size="small" title={t('repos.detail.basicTitle')} className="hc-card">
+                    {repoArchived ? (
+                      <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} />
+                    ) : null}
+                    <Form form={basicForm} layout="vertical" requiredMark={false} disabled={repoReadOnly}>
+                      <Form.Item label={t('common.name')} name="name" rules={[{ required: true, message: t('repos.form.nameRequired') }]}>
+                        <Input />
+                      </Form.Item>
+                      <Form.Item label={t('repos.detail.externalId')} name="externalId">
+                        <Input placeholder={t('repos.detail.externalIdPlaceholder')} />
+                      </Form.Item>
+                      <Form.Item label={t('repos.detail.apiBaseUrl')} name="apiBaseUrl">
+                        <Input placeholder={t('repos.detail.apiBaseUrlPlaceholder')} />
+                      </Form.Item>
+                      <Form.Item label={t('common.status')} name="enabled" valuePropName="checked">
+                        <Switch checkedChildren={t('common.enabled')} unCheckedChildren={t('common.disabled')} />
+                      </Form.Item>
+                    </Form>
+                    {fromTaskId ? (
+                      <Typography.Paragraph type="secondary" style={{ marginTop: 10, marginBottom: 0 }}>
+                        {t('repos.detail.openedFromTask', { taskId: fromTaskId })}
+                      </Typography.Paragraph>
+                    ) : null}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
+                      {repoArchived ? (
+                        <Popconfirm
+                          title={t('repos.unarchive.confirmTitle')}
+                          description={t('repos.unarchive.confirmDesc')}
+                          okText={t('common.restore')}
+                          cancelText={t('common.cancel')}
+                          onConfirm={() => void handleUnarchiveRepo()}
+                        >
+                          <Button type="primary" loading={repoUnarchiving} disabled={loading || !canManageRepo}>
+                            {t('common.restore')}
+                          </Button>
+                        </Popconfirm>
+                      ) : (
+                        <>
+                          <Popconfirm
+                            title={t('repos.archive.confirmTitle')}
+                            description={t('repos.archive.confirmDesc')}
+                            okText={t('repos.detail.archive')}
+                            cancelText={t('common.cancel')}
+                            onConfirm={() => void handleArchiveRepo()}
+                          >
+                            <Button danger loading={repoArchiving} disabled={loading || !canManageRepo}>
+                              {t('repos.detail.archive')}
+                            </Button>
+                          </Popconfirm>
+                          <Button
+                            type="primary"
+                            icon={<SaveOutlined />}
+                            onClick={() => void handleSaveBasic()}
+                            loading={basicSaving}
+                            disabled={loading || repoReadOnly}
+                          >
+                            {t('common.save')}
+                          </Button>
+                        </>
+                      )}
                     </div>
-                  );
+                  </Card>
+                )}
 
-	                  return (
-	                    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-	                      <div className="hc-repo-dashboard__region">
-	                        {/* Restore the KPI summary strip inside the scrollable dashboard body instead of fixing it above the content. u55e45ffi8jng44erdzp */}
-	                        <RepoDetailDashboardSummaryStrip
-	                          repo={repo}
-	                          robots={robotsSorted}
-	                          automationConfig={automationConfig}
-	                          repoScopedCredentials={repoScopedCredentials}
-	                          webhookVerified={webhookVerified}
-	                          webhookUrl={webhookFullUrl || webhookPath}
-	                          formatTime={formatTime}
-	                          providerLabel={providerLabel}
-	                          onJumpToSection={scrollToSection}
-	                        />
-	                      </div>
+                {/* ---------- BRANCHES TAB ---------- */}
+                {activeTab === 'branches' && (
+                  <RepoBranchesCard repo={repo} onSaved={(next) => setRepo(next)} readOnly={repoReadOnly} />
+                )}
 
-	                      <div className="hc-repo-dashboard__region">
-	                        {/* Region 1: icon + stats based on repo-scoped task activity (not webhook deliveries). u55e45ffi8jng44erdzp */}
-	                        <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--sm">
-	                          <RepoTaskActivityCard repoId={repo.id} />
-	                        </div>
-	                      </div>
-
-                      <div className="hc-repo-dashboard__region">
-                        {/* Region 2: left Basic, right Branches. u55e45ffi8jng44erdzp */}
-                        <Row gutter={[12, 12]}>
-                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
-                            <div id={sectionDomId('basic')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
-                              {section('basic')}
-                            </div>
-                          </Col>
-                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
-                            <div id={sectionDomId('branches')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
-                              {section('branches')}
-                            </div>
-                          </Col>
-                        </Row>
-                      </div>
-
-                      <div className="hc-repo-dashboard__region">
-                        {/* Region 2.5: provider activity as a standalone full-width row (not inside Basic card). kzxac35mxk0fg358i7zs */}
-                        <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
-                          <RepoDetailProviderActivityRow
-                            repo={repo}
-                            repoScopedCredentials={repoScopedCredentials}
-                            userModelCredentials={userModelCredentials}
-                            formatTime={formatTime}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="hc-repo-dashboard__region">
-                        {/* Region 2.75: preview configuration discovery for repo-level UX. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
-                        <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
-                          <Card size="small" title={t('repos.preview.title')} className="hc-card">
-                            {previewConfigLoading ? (
-                              <Typography.Text type="secondary">{t('repos.preview.loading')}</Typography.Text>
-                            ) : previewConfig?.available ? (
-                              <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                                <Typography.Text type="secondary">{t('repos.preview.available')}</Typography.Text>
-                                {previewConfig.instances.map((instance) => (
-                                  <Space key={instance.name} size={8} wrap>
-                                    <Tag color="blue">{instance.name}</Tag>
-                                    <Typography.Text code>{instance.workdir}</Typography.Text>
-                                  </Space>
+                {/* ---------- CREDENTIALS TAB ---------- */}
+                {activeTab === 'credentials' && (
+                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                    <Card
+                      size="small"
+                      title={<Space size={8}><GlobalOutlined /><span>{t('repos.detail.credentials.repoProvider')}</span></Space>}
+                      className="hc-card"
+                      extra={
+                        <Button size="small" onClick={() => startEditRepoProviderProfile(null)} disabled={credentialsSaving || repoReadOnly}>
+                          {t('panel.credentials.profile.add')}
+                        </Button>
+                      }
+                    >
+                      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                        <Typography.Text type="secondary">{t('repos.detail.credentials.repoProviderTip')}</Typography.Text>
+                        {(() => {
+                          const profiles = repoScopedCredentials?.repoProvider?.profiles ?? [];
+                          const total = profiles.length;
+                          const defaultId = String(repoScopedCredentials?.repoProvider?.defaultProfileId ?? '').trim();
+                          const start = (repoProviderProfilesPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
+                          const paged = profiles.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
+                          if (!total) return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
+                          return (
+                            <>
+                              <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                                {paged.map((p) => (
+                                  <Card key={p.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                    <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                      <Space size={8} wrap>
+                                        <Typography.Text strong>{p.remark || p.id}</Typography.Text>
+                                        {defaultId === p.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                                        <Tag color={p.hasToken ? 'green' : 'default'}>{p.hasToken ? t('common.configured') : t('common.notConfigured')}</Tag>
+                                      </Space>
+                                      <Typography.Text type="secondary">{p.cloneUsername || '-'}</Typography.Text>
+                                    </Space>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                                      <Button size="small" onClick={() => startEditRepoProviderProfile(p)} disabled={credentialsSaving || repoReadOnly}>{t('common.manage')}</Button>
+                                      <Button size="small" danger onClick={() => removeRepoProviderProfile(p.id)} disabled={credentialsSaving || repoReadOnly}>{t('panel.credentials.profile.remove')}</Button>
+                                    </div>
+                                  </Card>
                                 ))}
                               </Space>
-                            ) : (
-                              <Space direction="vertical" size={4}>
-                                <Typography.Text type="secondary">{t('repos.preview.unavailable')}</Typography.Text>
-                                {previewConfigReasonText ? (
-                                  <Typography.Text type="secondary">{previewConfigReasonText}</Typography.Text>
+                              {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                  <Pagination size="small" current={repoProviderProfilesPage} pageSize={CREDENTIAL_PROFILE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={(page) => setRepoProviderProfilesPage(page)} />
+                                </div>
+                              ) : null}
+                            </>
+                          );
+                        })()}
+                      </Space>
+                    </Card>
+
+                    <Card
+                      size="small"
+                      title={<Space size={8}><KeyOutlined /><span>{t('repos.detail.credentials.modelProvider')}</span></Space>}
+                      className="hc-card"
+                      extra={
+                        <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={credentialsSaving || repoReadOnly}>
+                          {t('panel.credentials.profile.add')}
+                        </Button>
+                      }
+                    >
+                      <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                        <Typography.Text type="secondary">{t('repos.detail.credentials.modelProviderTip')}</Typography.Text>
+                        {(() => {
+                          const total = modelProviderProfileItems.length;
+                          const start = (modelProviderProfilesPage - 1) * CREDENTIAL_PROFILE_PAGE_SIZE;
+                          const paged = modelProviderProfileItems.slice(start, start + CREDENTIAL_PROFILE_PAGE_SIZE);
+                          if (!total) return <Typography.Text type="secondary">{t('panel.credentials.profile.empty')}</Typography.Text>;
+                          return (
+                            <>
+                              <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                                {paged.map(({ provider, profile, defaultId }) => (
+                                  <Card key={`${provider}-${profile.id}`} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                    <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                      <Space size={8} wrap>
+                                        <Typography.Text strong>{profile.remark || profile.id}</Typography.Text>
+                                        <Tag color="geekblue">{t(`repos.robotForm.modelProvider.${provider}` as any)}</Tag>
+                                        {defaultId === profile.id ? <Tag color="blue">{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                                        <Tag color={profile.hasApiKey ? 'green' : 'default'}>{profile.hasApiKey ? t('common.configured') : t('common.notConfigured')}</Tag>
+                                      </Space>
+                                      <Typography.Text type="secondary">{profile.apiBaseUrl || '-'}</Typography.Text>
+                                    </Space>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+                                      <Button size="small" onClick={() => startEditModelProfile(provider, profile)} disabled={credentialsSaving || repoReadOnly}>{t('common.manage')}</Button>
+                                      <Button size="small" danger onClick={() => removeModelProviderProfile(provider, profile.id)} disabled={credentialsSaving || repoReadOnly}>{t('panel.credentials.profile.remove')}</Button>
+                                    </div>
+                                  </Card>
+                                ))}
+                              </Space>
+                              {total > CREDENTIAL_PROFILE_PAGE_SIZE ? (
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                  <Pagination size="small" current={modelProviderProfilesPage} pageSize={CREDENTIAL_PROFILE_PAGE_SIZE} total={total} showSizeChanger={false} onChange={(page) => setModelProviderProfilesPage(page)} />
+                                </div>
+                              ) : null}
+                            </>
+                          );
+                        })()}
+                      </Space>
+                    </Card>
+                  </Space>
+                )}
+
+                {/* ---------- ROBOTS TAB ---------- */}
+                {activeTab === 'robots' && (
+                  <Card
+                    size="small"
+                    title={t('repos.robots.title')}
+                    className="hc-card"
+                    extra={
+                      repoReadOnly ? null : (
+                        <Button icon={<PlusOutlined />} onClick={openCreateRobot}>{t('repos.robots.createRobot')}</Button>
+                      )
+                    }
+                  >
+                    {repoArchived ? <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} /> : null}
+                    {robotsSorted.length ? (
+                      <ScrollableTable<RepoRobot>
+                        size="small"
+                        rowKey="id"
+                        dataSource={robotsSorted}
+                        pagination={{ pageSize: 16, showSizeChanger: true, pageSizeOptions: ['8', '16', '32'], hideOnSinglePage: true }}
+                        columns={[
+                          {
+                            title: t('common.name'),
+                            dataIndex: 'name',
+                            render: (_: any, r: RepoRobot) => {
+                              const pl = getRobotProviderLabel(r.modelProvider);
+                              return (
+                                <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                                  <Space size={6} wrap>
+                                    <Typography.Text strong className="table-cell-ellipsis" title={r.name}>{r.name}</Typography.Text>
+                                    {pl ? <Tag color="geekblue" style={{ fontSize: 11, lineHeight: '18px', marginInlineEnd: 0 }}>{pl}</Tag> : null}
+                                  </Space>
+                                  <Typography.Text type="secondary" className="table-cell-ellipsis" style={{ fontSize: 12 }} title={r.id}>{r.id}</Typography.Text>
+                                </Space>
+                              );
+                            }
+                          },
+                          { title: t('common.status'), key: 'status', width: 140, render: (_: any, r: RepoRobot) => resolveRobotStatusTag(t, r) },
+                          { title: t('repos.robots.permission'), dataIndex: 'permission', width: 120, render: (v: string) => <Tag color={v === 'write' ? 'volcano' : 'blue'}>{v}</Tag> },
+                          { title: t('repos.robots.default'), dataIndex: 'isDefault', width: 110, render: (v: boolean) => (v ? <Tag color="blue">{t('repos.robots.default')}</Tag> : <Typography.Text type="secondary">-</Typography.Text>) },
+                          {
+                            title: t('repos.robots.lastTest'), key: 'lastTest', width: 220,
+                            render: (_: any, r: RepoRobot) => {
+                              if (!r.lastTestAt) return <Typography.Text type="secondary">-</Typography.Text>;
+                              const ok = Boolean(r.lastTestOk);
+                              return (
+                                <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatTime(r.lastTestAt)}</Typography.Text>
+                                  <Typography.Text type={ok ? 'success' : 'danger'} style={{ fontSize: 12 }}>{ok ? t('repos.robots.test.ok') : t('repos.robots.test.notOk')}</Typography.Text>
+                                </Space>
+                              );
+                            }
+                          },
+                          {
+                            title: t('common.actions'), key: 'actions', width: 300,
+                            render: (_: any, r: RepoRobot) => (
+                              <Space size={8} wrap style={{ minWidth: 0 }}>
+                                <Button size="small" onClick={() => openEditRobot(r)}>{repoReadOnly ? t('common.view') : t('common.edit')}</Button>
+                                {!repoReadOnly ? (
+                                  <>
+                                    <Button size="small" onClick={() => void handleTestRobot(r)} loading={robotTestingId === r.id}>{t('repos.robots.test')}</Button>
+                                    <Button size="small" onClick={() => void handleToggleRobotEnabled(r)} loading={robotTogglingId === r.id}>{r.enabled ? t('repos.robots.disable') : t('repos.robots.enable')}</Button>
+                                    <Popconfirm title={t('repos.robots.deleteConfirmTitle')} description={t('repos.robots.deleteConfirmDesc')} okText={t('common.delete')} cancelText={t('common.cancel')} onConfirm={() => void handleDeleteRobot(r)}>
+                                      <Button size="small" danger loading={robotDeletingId === r.id}>{t('common.delete')}</Button>
+                                    </Popconfirm>
+                                  </>
                                 ) : null}
                               </Space>
-                            )}
-                          </Card>
-                        </div>
-                      </div>
+                            )
+                          }
+                        ]}
+                      />
+                    ) : (
+                      <Empty description={t('repos.detail.robotsEmpty')} />
+                    )}
+                  </Card>
+                )}
 
-                      <div className="hc-repo-dashboard__region">
-                        {/* Region 2.8: repo-level skill defaults for task-group inheritance. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
-                        <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
-                          <Card size="small" title={t('skills.selection.repo.title')} className="hc-card">
-                            {/* Disable skill selection edits for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                            <SkillSelectionPanel
-                              scope="repo"
-                              skills={skillsCatalog}
-                              selection={skillSelection}
-                              loading={skillSelectionLoading || skillsCatalogLoading}
-                              saving={skillSelectionSaving}
-                              disabled={repoReadOnly}
-                              onRefresh={() => {
-                                void refreshSkillSelection();
-                                void refreshSkillsCatalog();
-                              }}
-                              onChange={saveSkillSelection}
-                            />
-                          </Card>
-                        </div>
-                      </div>
+                {/* ---------- AUTOMATION TAB ---------- */}
+                {activeTab === 'automation' && (
+                  <Card size="small" title={t('repos.automation.title')} className="hc-card">
+                    {repoArchived ? <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} /> : null}
+                    <RepoAutomationPanel
+                      repo={repo}
+                      robots={robotsSorted}
+                      value={automationConfig ?? defaultAutomationConfig()}
+                      readOnly={repoReadOnly}
+                      onChange={(next) => setAutomationConfig(next)}
+                      onSave={async (next) => {
+                        const saved = await updateRepoAutomation(repo.id, next);
+                        setAutomationConfig(saved);
+                      }}
+                    />
+                  </Card>
+                )}
 
-	                      <div id={sectionDomId('credentials')} className="hc-repo-dashboard__region">
-	                        {section('credentials')}
-	                      </div>
+                {/* ---------- SKILLS TAB ---------- */}
+                {activeTab === 'skills' && (
+                  <Card size="small" title={t('skills.selection.repo.title')} className="hc-card">
+                    <SkillSelectionPanel
+                      scope="repo"
+                      skills={skillsCatalog}
+                      selection={skillSelection}
+                      loading={skillSelectionLoading || skillsCatalogLoading}
+                      saving={skillSelectionSaving}
+                      disabled={repoReadOnly}
+                      onRefresh={() => { void refreshSkillSelection(); void refreshSkillsCatalog(); }}
+                      onChange={saveSkillSelection}
+                    />
+                  </Card>
+                )}
 
-	                      <div className="hc-repo-dashboard__region">
-	                        {/* Region 4: robots as a standalone row to avoid narrow/short panels. u55e45ffi8jng44erdzp */}
-	                        <div id={sectionDomId('robots')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
-	                          {section('robots')}
-	                        </div>
-	                      </div>
+                {/* ---------- WEBHOOKS TAB ---------- */}
+                {activeTab === 'webhooks' && (
+                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                    <Card
+                      size="small"
+                      title={t('repos.detail.webhookTitle')}
+                      className="hc-card"
+                      extra={<Button type="link" size="small" onClick={() => setWebhookIntroOpen(true)}>{t('repos.webhookIntro.open')}</Button>}
+                    >
+                      <Descriptions column={1} size="small" styles={{ label: { width: 180 } }}>
+                        <Descriptions.Item label={t('repos.webhookIntro.webhookUrl')}>
+                          {webhookFullUrl ? (
+                            <Typography.Text code copyable style={{ wordBreak: 'break-all' }}>{webhookFullUrl}</Typography.Text>
+                          ) : (
+                            <Typography.Text type="secondary">-</Typography.Text>
+                          )}
+                        </Descriptions.Item>
+                        <Descriptions.Item label={t('repos.detail.webhookSecret')}>
+                          {webhookSecret ? (
+                            <Space size={8}>
+                              <Typography.Text code copyable={showWebhookSecretInline ? { text: webhookSecret } : false} style={{ wordBreak: 'break-all' }}>
+                                {showWebhookSecretInline ? webhookSecret : '••••••••••••••••'}
+                              </Typography.Text>
+                              <Button type="link" size="small" onClick={() => setShowWebhookSecretInline((v) => !v)}>
+                                {showWebhookSecretInline ? t('repos.webhookIntro.hide') : t('repos.webhookIntro.show')}
+                              </Button>
+                            </Space>
+                          ) : (
+                            <Typography.Text type="secondary">-</Typography.Text>
+                          )}
+                        </Descriptions.Item>
+                        <Descriptions.Item label={t('repos.webhookIntro.verified')}>
+                          {webhookVerified ? <Tag color="green">{t('repos.webhookIntro.verifiedYes')}</Tag> : <Tag color="gold">{t('repos.webhookIntro.verifiedNo')}</Tag>}
+                        </Descriptions.Item>
+                      </Descriptions>
+                      <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>{t('repos.detail.webhookTip')}</Typography.Paragraph>
+                    </Card>
+                    <RepoWebhookActivityCard
+                      deliveries={webhookDeliveries}
+                      loading={webhookDeliveriesLoading}
+                      loadFailed={webhookDeliveriesFailed}
+                      onRefresh={refreshWebhookDeliveries}
+                    />
+                    <Card size="small" title={t('repos.webhookDeliveries.title')} className="hc-card">
+                      <RepoWebhookDeliveriesPanel
+                        repoId={repo.id}
+                        deliveries={webhookDeliveries}
+                        loading={webhookDeliveriesLoading}
+                        loadFailed={webhookDeliveriesFailed}
+                        onRefresh={refreshWebhookDeliveries}
+                      />
+                    </Card>
+                  </Space>
+                )}
 
-	                      <div className="hc-repo-dashboard__region">
-	                        {/* Region 5: triggers/automation as a standalone row. u55e45ffi8jng44erdzp */}
-	                        <div id={sectionDomId('automation')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
-	                          {section('automation')}
-	                        </div>
-	                      </div>
-
-                      {canManageMembers ? (
-                        <div className="hc-repo-dashboard__region">
-                          {/* Region 5.5: repo member + invite management. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                          <Row gutter={[12, 12]}>
-                            <Col xs={24} lg={12} style={{ display: 'flex' }}>
-                              <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
-                                <Card
-                                  size="small"
-                                  title={t('repos.members.title')}
-                                  className="hc-card"
-                                  extra={
-                                    <Button
-                                      size="small"
-                                      icon={<ReloadOutlined />}
-                                      onClick={() => void refreshMembers()}
-                                      disabled={membersLoading}
-                                    >
-                                      {t('common.refresh')}
-                                    </Button>
-                                  }
-                                >
-                                  <ScrollableTable<RepoMember>
-                                    rowKey="id"
-                                    dataSource={members}
-                                    loading={membersLoading}
-                                    pagination={{ pageSize: 8, showSizeChanger: false, hideOnSinglePage: true }}
-                                    locale={{ emptyText: t('repos.members.empty') }}
-                                    columns={[
-                                      {
-                                        title: t('repos.members.column.user'),
-                                        key: 'user',
-                                        render: (_: any, member: RepoMember) => (
-                                          <Space direction="vertical" size={0} style={{ width: '100%' }}>
-                                            <Typography.Text strong>{member.displayName || member.username}</Typography.Text>
-                                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                              {member.username}
-                                            </Typography.Text>
-                                          </Space>
-                                        )
-                                      },
-                                      {
-                                        title: t('repos.members.column.email'),
-                                        dataIndex: 'email',
-                                        render: (value: string) => <Typography.Text type="secondary">{value || '-'}</Typography.Text>
-                                      },
-                                      {
-                                        title: t('repos.members.column.role'),
-                                        key: 'role',
-                                        render: (_: any, member: RepoMember) => {
-                                          // Prevent non-owners from changing/removing owner roles. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-                                          const isOwner = member.role === 'owner';
-                                          const roleDisabled = repoReadOnly || memberUpdatingId === member.userId || (isOwner && !canDeleteRepo);
-                                          return (
-                                            <Select
-                                              value={member.role}
-                                              options={roleOptions}
-                                              size="small"
-                                              loading={memberUpdatingId === member.userId}
-                                              disabled={roleDisabled}
-                                              onChange={(value) => void handleUpdateMemberRole(member, value as RepoRole)}
-                                            />
-                                          );
-                                        }
-                                      },
-                                      {
-                                        title: t('common.actions'),
-                                        key: 'actions',
-                                        render: (_: any, member: RepoMember) => {
-                                          const isOwner = member.role === 'owner';
-                                          const isSelf = member.userId === currentUserId;
-                                          const removeDisabled =
-                                            repoReadOnly ||
-                                            memberRemovingId === member.userId ||
-                                            isSelf ||
-                                            (isOwner && !canDeleteRepo);
-                                          return (
-                                            <Popconfirm
-                                              title={t('repos.members.removeConfirmTitle')}
-                                              description={t('repos.members.removeConfirmDesc')}
-                                              okText={t('common.delete')}
-                                              cancelText={t('common.cancel')}
-                                              onConfirm={() => void handleRemoveMember(member)}
-                                              disabled={removeDisabled}
-                                            >
-                                              <Button size="small" danger disabled={removeDisabled} loading={memberRemovingId === member.userId}>
-                                                {t('common.delete')}
-                                              </Button>
-                                            </Popconfirm>
-                                          );
-                                        }
-                                      }
-                                    ]}
-                                  />
-                                </Card>
-                              </div>
+                {/* ---------- MEMBERS TAB ---------- */}
+                {activeTab === 'members' && (
+                  canManageMembers ? (
+                    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                      <Card
+                        size="small"
+                        title={t('repos.members.title')}
+                        className="hc-card"
+                        extra={<Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshMembers()} disabled={membersLoading}>{t('common.refresh')}</Button>}
+                      >
+                        <ScrollableTable<RepoMember>
+                          rowKey="id"
+                          dataSource={members}
+                          loading={membersLoading}
+                          pagination={{ pageSize: 16, showSizeChanger: false, hideOnSinglePage: true }}
+                          locale={{ emptyText: t('repos.members.empty') }}
+                          columns={[
+                            {
+                              title: t('repos.members.column.user'), key: 'user',
+                              render: (_: any, member: RepoMember) => (
+                                <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                                  <Typography.Text strong>{member.displayName || member.username}</Typography.Text>
+                                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>{member.username}</Typography.Text>
+                                </Space>
+                              )
+                            },
+                            { title: t('repos.members.column.email'), dataIndex: 'email', render: (value: string) => <Typography.Text type="secondary">{value || '-'}</Typography.Text> },
+                            {
+                              title: t('repos.members.column.role'), key: 'role',
+                              render: (_: any, member: RepoMember) => {
+                                const isOwner = member.role === 'owner';
+                                const roleDisabled = repoReadOnly || memberUpdatingId === member.userId || (isOwner && !canDeleteRepo);
+                                return <Select value={member.role} options={roleOptions} size="small" loading={memberUpdatingId === member.userId} disabled={roleDisabled} onChange={(value) => void handleUpdateMemberRole(member, value as RepoRole)} />;
+                              }
+                            },
+                            {
+                              title: t('common.actions'), key: 'actions',
+                              render: (_: any, member: RepoMember) => {
+                                const isOwner = member.role === 'owner';
+                                const isSelf = member.userId === currentUserId;
+                                const removeDisabled = repoReadOnly || memberRemovingId === member.userId || isSelf || (isOwner && !canDeleteRepo);
+                                return (
+                                  <Popconfirm title={t('repos.members.removeConfirmTitle')} description={t('repos.members.removeConfirmDesc')} okText={t('common.delete')} cancelText={t('common.cancel')} onConfirm={() => void handleRemoveMember(member)} disabled={removeDisabled}>
+                                    <Button size="small" danger disabled={removeDisabled} loading={memberRemovingId === member.userId}>{t('common.delete')}</Button>
+                                  </Popconfirm>
+                                );
+                              }
+                            }
+                          ]}
+                        />
+                      </Card>
+                      <Card
+                        size="small"
+                        title={t('repos.invites.title')}
+                        className="hc-card"
+                        extra={<Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshInvites()} disabled={invitesLoading}>{t('common.refresh')}</Button>}
+                      >
+                        <Form form={inviteForm} layout="vertical" requiredMark={false} initialValues={{ role: 'member' as RepoRole }} onFinish={() => void handleInviteSubmit()} disabled={repoReadOnly || inviteSubmitting}>
+                          <Row gutter={12}>
+                            <Col xs={24} md={16}>
+                              <Form.Item name="email" label={t('repos.invites.email')} rules={[{ required: true, message: t('repos.invites.validation.emailRequired') }, { type: 'email', message: t('repos.invites.validation.emailInvalid') }]}>
+                                <Input placeholder={t('repos.invites.emailPlaceholder')} />
+                              </Form.Item>
                             </Col>
-
-                            <Col xs={24} lg={12} style={{ display: 'flex' }}>
-                              <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--lg">
-                                <Card
-                                  size="small"
-                                  title={t('repos.invites.title')}
-                                  className="hc-card"
-                                  extra={
-                                    <Button
-                                      size="small"
-                                      icon={<ReloadOutlined />}
-                                      onClick={() => void refreshInvites()}
-                                      disabled={invitesLoading}
-                                    >
-                                      {t('common.refresh')}
-                                    </Button>
-                                  }
-                                >
-                                  {/* Disable invite creation when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                                  <Form
-                                    form={inviteForm}
-                                    layout="vertical"
-                                    requiredMark={false}
-                                    initialValues={{ role: 'member' as RepoRole }}
-                                    onFinish={() => void handleInviteSubmit()}
-                                    disabled={repoReadOnly || inviteSubmitting}
-                                  >
-                                    <Row gutter={12}>
-                                      <Col xs={24} md={16}>
-                                        <Form.Item
-                                          name="email"
-                                          label={t('repos.invites.email')}
-                                          rules={[
-                                            { required: true, message: t('repos.invites.validation.emailRequired') },
-                                            { type: 'email', message: t('repos.invites.validation.emailInvalid') }
-                                          ]}
-                                        >
-                                          <Input placeholder={t('repos.invites.emailPlaceholder')} />
-                                        </Form.Item>
-                                      </Col>
-                                      <Col xs={24} md={8}>
-                                        <Form.Item
-                                          name="role"
-                                          label={t('repos.invites.role')}
-                                          rules={[{ required: true, message: t('repos.invites.validation.roleRequired') }]}
-                                        >
-                                          <Select options={roleOptions} />
-                                        </Form.Item>
-                                      </Col>
-                                    </Row>
-                                    <Button type="primary" loading={inviteSubmitting} onClick={() => inviteForm.submit()}>
-                                      {t('repos.invites.send')}
-                                    </Button>
-                                  </Form>
-
-                                  <Divider style={{ margin: '16px 0' }} />
-
-                                  <ScrollableTable<RepoInvite>
-                                    rowKey="id"
-                                    dataSource={invites}
-                                    loading={invitesLoading}
-                                    pagination={{ pageSize: 6, showSizeChanger: false, hideOnSinglePage: true }}
-                                    locale={{ emptyText: t('repos.invites.empty') }}
-                                    columns={[
-                                      {
-                                        title: t('repos.invites.column.email'),
-                                        dataIndex: 'email',
-                                        render: (value: string) => <Typography.Text>{value}</Typography.Text>
-                                      },
-                                      {
-                                        title: t('repos.invites.column.role'),
-                                        dataIndex: 'role',
-                                        render: (value: RepoRole) => (
-                                          <Tag color="blue">{t(`repos.members.role.${value}` as const)}</Tag>
-                                        )
-                                      },
-                                      {
-                                        title: t('repos.invites.column.status'),
-                                        key: 'status',
-                                        render: (_: any, invite: RepoInvite) => {
-                                          const status = resolveInviteStatus(invite);
-                                          return <Tag color={status.color}>{t(`repos.invites.status.${status.key}`)}</Tag>;
-                                        }
-                                      },
-                                      {
-                                        title: t('repos.invites.column.expiresAt'),
-                                        dataIndex: 'expiresAt',
-                                        render: (value: string) => <Typography.Text type="secondary">{formatTime(value)}</Typography.Text>
-                                      },
-                                      {
-                                        title: t('common.actions'),
-                                        key: 'actions',
-                                        render: (_: any, invite: RepoInvite) => {
-                                          const status = resolveInviteStatus(invite);
-                                          const revokeDisabled = repoReadOnly || status.key !== 'pending';
-                                          return (
-                                            <>
-                                              {/* Only allow revoking active invites. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                                              <Popconfirm
-                                                title={t('repos.invites.revokeConfirmTitle')}
-                                                description={t('repos.invites.revokeConfirmDesc')}
-                                                okText={t('common.delete')}
-                                                cancelText={t('common.cancel')}
-                                                onConfirm={() => void handleRevokeInvite(invite)}
-                                                disabled={revokeDisabled}
-                                              >
-                                                <Button
-                                                  size="small"
-                                                  danger
-                                                  disabled={revokeDisabled}
-                                                  loading={inviteRevokingId === invite.id}
-                                                >
-                                                  {t('repos.invites.revoke')}
-                                                </Button>
-                                              </Popconfirm>
-                                            </>
-                                          );
-                                        }
-                                      }
-                                    ]}
-                                  />
-                                </Card>
-                              </div>
+                            <Col xs={24} md={8}>
+                              <Form.Item name="role" label={t('repos.invites.role')} rules={[{ required: true, message: t('repos.invites.validation.roleRequired') }]}>
+                                <Select options={roleOptions} />
+                              </Form.Item>
                             </Col>
                           </Row>
-                        </div>
-                      ) : null}
-
-                      <div className="hc-repo-dashboard__region">
-                        {/* Region 6: webhook records (config + activity + deliveries) in a single row. u55e45ffi8jng44erdzp */}
-                        <Row gutter={[12, 12]}>
-                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
-	                            <Space orientation="vertical" size={12} style={{ width: '100%', flex: 1 }}>
-                              <div id={sectionDomId('webhooks')} className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
-                                {section('webhooks')}
-                              </div>
-                              <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--md">
-                                {/* Feed shared delivery data into both webhook cards to avoid duplicate API calls. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
-                                <RepoWebhookActivityCard
-                                  deliveries={webhookDeliveries}
-                                  loading={webhookDeliveriesLoading}
-                                  loadFailed={webhookDeliveriesFailed}
-                                  onRefresh={refreshWebhookDeliveries}
-                                />
-                              </div>
-                            </Space>
-                          </Col>
-
-                          <Col xs={24} lg={12} style={{ display: 'flex' }}>
-                            <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
-                              <Card size="small" title={t('repos.webhookDeliveries.title')} className="hc-card">
-                                <RepoWebhookDeliveriesPanel
-                                  repoId={repo.id}
-                                  deliveries={webhookDeliveries}
-                                  loading={webhookDeliveriesLoading}
-                                  loadFailed={webhookDeliveriesFailed}
-                                  onRefresh={refreshWebhookDeliveries}
-                                />
-                              </Card>
-                            </div>
-                          </Col>
-                        </Row>
-                      </div>
-
-                      {canDeleteRepo ? (
-                        <div className="hc-repo-dashboard__region">
-                          {/* Region 6.5: danger zone actions for repo owners. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
-                          <div className="hc-repo-dashboard__slot hc-repo-dashboard__slot--xl">
-                            <Card size="small" title={t('repos.danger.title')} className="hc-card">
-                              <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                                <Typography.Text type="secondary">{t('repos.danger.desc')}</Typography.Text>
-                                <Popconfirm
-                                  title={t('repos.danger.confirmTitle')}
-                                  description={t('repos.danger.confirmDesc')}
-                                  okText={t('common.delete')}
-                                  cancelText={t('common.cancel')}
-                                  onConfirm={() => void handleDeleteRepo()}
-                                >
-                                  <Button danger loading={repoDeleting} disabled={repoDeleting}>
-                                    {t('repos.danger.delete')}
-                                  </Button>
-                                </Popconfirm>
-                              </Space>
-                            </Card>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      <div className="hc-repo-dashboard__region">
-                        {/* Place task-group API tokens at the bottom of the repo detail dashboard. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215 */}
-                        {repoTaskGroupTokensCard}
-                      </div>
+                          <Button type="primary" loading={inviteSubmitting} onClick={() => inviteForm.submit()}>{t('repos.invites.send')}</Button>
+                        </Form>
+                        <Divider style={{ margin: '16px 0' }} />
+                        <ScrollableTable<RepoInvite>
+                          rowKey="id"
+                          dataSource={invites}
+                          loading={invitesLoading}
+                          pagination={{ pageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
+                          locale={{ emptyText: t('repos.invites.empty') }}
+                          columns={[
+                            { title: t('repos.invites.column.email'), dataIndex: 'email', render: (value: string) => <Typography.Text>{value}</Typography.Text> },
+                            { title: t('repos.invites.column.role'), dataIndex: 'role', render: (value: RepoRole) => <Tag color="blue">{t(`repos.members.role.${value}` as const)}</Tag> },
+                            { title: t('repos.invites.column.status'), key: 'status', render: (_: any, invite: RepoInvite) => { const status = resolveInviteStatus(invite); return <Tag color={status.color}>{t(`repos.invites.status.${status.key}`)}</Tag>; } },
+                            { title: t('repos.invites.column.expiresAt'), dataIndex: 'expiresAt', render: (value: string) => <Typography.Text type="secondary">{formatTime(value)}</Typography.Text> },
+                            {
+                              title: t('common.actions'), key: 'actions',
+                              render: (_: any, invite: RepoInvite) => {
+                                const status = resolveInviteStatus(invite);
+                                const revokeDisabled = repoReadOnly || status.key !== 'pending';
+                                return (
+                                  <Popconfirm title={t('repos.invites.revokeConfirmTitle')} description={t('repos.invites.revokeConfirmDesc')} okText={t('common.delete')} cancelText={t('common.cancel')} onConfirm={() => void handleRevokeInvite(invite)} disabled={revokeDisabled}>
+                                    <Button size="small" danger disabled={revokeDisabled} loading={inviteRevokingId === invite.id}>{t('repos.invites.revoke')}</Button>
+                                  </Popconfirm>
+                                );
+                              }
+                            }
+                          ]}
+                        />
+                      </Card>
                     </Space>
-                  );
-                })()}
+                  ) : (
+                    <div className="hc-empty"><Empty description={t('repos.members.empty')} /></div>
+                  )
+                )}
+
+                {/* ---------- SETTINGS TAB ---------- */}
+                {activeTab === 'settings' && (
+                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                    {/* Task-group API tokens section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215 */}
+                    <Card
+                      size="small"
+                      title={<Space size={8}><ApiOutlined /><span>{t('repos.detail.autoTokens.title')}</span></Space>}
+                      extra={<Button size="small" icon={<ReloadOutlined />} onClick={() => void refreshRepoTaskGroupTokens()} disabled={repoTaskGroupTokensLoading}>{t('common.refresh')}</Button>}
+                      className="hc-card"
+                      loading={repoTaskGroupTokensLoading}
+                    >
+                      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                        <Typography.Text type="secondary">{t('repos.detail.autoTokens.tip')}</Typography.Text>
+                        {(() => {
+                          const total = repoTaskGroupTokens.length;
+                          if (!total) return <Typography.Text type="secondary">{t('repos.detail.autoTokens.empty')}</Typography.Text>;
+                          const start = (repoTaskGroupTokensPage - 1) * TASK_GROUP_TOKEN_PAGE_SIZE;
+                          const paged = repoTaskGroupTokens.slice(start, start + TASK_GROUP_TOKEN_PAGE_SIZE);
+                          return (
+                            <>
+                              <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                                {paged.map((tokenItem) => {
+                                  const now = Date.now();
+                                  const expiresAt = tokenItem.expiresAt ? new Date(tokenItem.expiresAt).getTime() : null;
+                                  const isExpired = Boolean(expiresAt && expiresAt <= now);
+                                  const isRevoked = Boolean(tokenItem.revokedAt);
+                                  const statusKey = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active';
+                                  const statusColor = isRevoked ? 'red' : isExpired ? 'orange' : 'green';
+                                  return (
+                                    <Card key={tokenItem.id} size="small" className="hc-inner-card" styles={{ body: { padding: 8 } }}>
+                                      <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+                                        <Space size={8} wrap>
+                                          <Typography.Text strong>{tokenItem.name}</Typography.Text>
+                                          <Tag color={statusColor}>{t(`panel.apiTokens.status.${statusKey}`)}</Tag>
+                                        </Space>
+                                        <Typography.Text type="secondary">{t('panel.apiTokens.field.expiresAt')}: {formatTokenTime(tokenItem.expiresAt ?? null)}</Typography.Text>
+                                      </Space>
+                                      <Space size={16} wrap style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
+                                        <Space size={12} wrap>
+                                          <Typography.Text type="secondary">{t('panel.apiTokens.field.createdAt')}: {formatTokenTime(tokenItem.createdAt)}</Typography.Text>
+                                          <Typography.Text type="secondary">{t('panel.apiTokens.field.lastUsed')}: {formatTokenTime(tokenItem.lastUsedAt ?? null)}</Typography.Text>
+                                        </Space>
+                                        <Popconfirm title={t('panel.apiTokens.revokeTitle')} description={t('panel.apiTokens.revokeDesc')} okText={t('panel.apiTokens.revokeOk')} cancelText={t('common.cancel')} onConfirm={() => void revokeRepoTaskGroupToken(tokenItem)}>
+                                          <Button size="small" danger loading={repoTaskGroupTokenRevokingId === tokenItem.id} disabled={isRevoked || repoReadOnly}>{t('panel.apiTokens.revoke')}</Button>
+                                        </Popconfirm>
+                                      </Space>
+                                    </Card>
+                                  );
+                                })}
+                              </Space>
+                              {total > TASK_GROUP_TOKEN_PAGE_SIZE ? (
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                  <Pagination size="small" current={repoTaskGroupTokensPage} pageSize={TASK_GROUP_TOKEN_PAGE_SIZE} total={total} showSizeChanger={false} onChange={(page) => setRepoTaskGroupTokensPage(page)} />
+                                </div>
+                              ) : null}
+                            </>
+                          );
+                        })()}
+                      </Space>
+                    </Card>
+
+                    {/* Danger zone for repo deletion. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+                    {canDeleteRepo ? (
+                      <Card size="small" title={t('repos.danger.title')} className="hc-card">
+                        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                          <Typography.Text type="secondary">{t('repos.danger.desc')}</Typography.Text>
+                          <Popconfirm title={t('repos.danger.confirmTitle')} description={t('repos.danger.confirmDesc')} okText={t('common.delete')} cancelText={t('common.cancel')} onConfirm={() => void handleDeleteRepo()}>
+                            <Button danger loading={repoDeleting} disabled={repoDeleting}>{t('repos.danger.delete')}</Button>
+                          </Popconfirm>
+                        </Space>
+                      </Card>
+                    ) : null}
+                  </Space>
+                )}
               </div>
             )
           ) : loading ? (
-            // Render a repo-detail skeleton instead of a generic Empty+icon while loading. ro3ln7zex8d0wyynfj0m
             <RepoDetailSkeleton testId="hc-repo-detail-skeleton" ariaLabel={t('common.loading')} />
           ) : (
-            <div className="hc-empty">
-              <Empty description={t('repos.detail.notFound')} />
-            </div>
+            <div className="hc-empty"><Empty description={t('repos.detail.notFound')} /></div>
           )}
         </div>
+      </div>
       </div>
 
       <WebhookIntroModal

@@ -127,6 +127,14 @@ export const zhCNRepos = {
   'repos.detail.tabs.robots': '机器人',
   'repos.detail.tabs.automation': '触发器',
   'repos.detail.tabs.webhooks': 'Webhook',
+  // Sidebar sub-navigation tab labels for repo detail page. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+  'repos.detail.tabs.overview': '概览',
+  'repos.detail.tabs.skills': '技能',
+  'repos.detail.tabs.members': '成员',
+  'repos.detail.tabs.settings': '设置',
+  'repos.detail.sidebar.backToRepos': '仓库列表',
+  'repos.detail.sidebar.groupIntegration': '集成',
+  'repos.detail.sidebar.groupManage': '管理',
   'repos.detail.openedFromTask': '从任务 {{taskId}} 跳转进入',
 
   // --- Repo detail (credentials tab) ---
