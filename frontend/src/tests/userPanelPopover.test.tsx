@@ -1,99 +1,26 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+/**
+ * Tests for the simplified UserPanelPopover navigation trigger.
+ * After user-panel-page-20260301, UserPanelPopover is a lightweight button that navigates to #/settings.
+ * Detailed settings page tests live in userSettingsPage.test.tsx.
+ *
+ * Rewritten to match simplified navigation trigger. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+ */
+import { beforeEach, describe, expect, test } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
 import { UserPanelPopover } from '../components/UserPanelPopover';
-import * as api from '../api';
 
-vi.mock('../api', () => {
-  return {
-    __esModule: true,
-    fetchMe: vi.fn(async () => ({ id: 'u', username: 'u', displayName: 'User', roles: [], createdAt: '', updatedAt: '' })),
-    updateMe: vi.fn(async () => ({ id: 'u', username: 'u', displayName: 'User', roles: [], createdAt: '', updatedAt: '' })),
-    changeMyPassword: vi.fn(async () => undefined),
-    fetchMyModelCredentials: vi.fn(async () => ({
-      // Change record: credentials API returns `profiles[]` per provider (multi-profile support).
-      codex: { profiles: [], defaultProfileId: null },
-      claude_code: { profiles: [], defaultProfileId: null },
-      gemini_cli: { profiles: [], defaultProfileId: null },
-      gitlab: { profiles: [], defaultProfileId: null },
-      github: { profiles: [], defaultProfileId: null }
-    })),
-    listMyModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
-    updateMyModelCredentials: vi.fn(async () => ({
-      codex: { profiles: [], defaultProfileId: null },
-      claude_code: { profiles: [], defaultProfileId: null },
-      gemini_cli: { profiles: [], defaultProfileId: null },
-      gitlab: { profiles: [], defaultProfileId: null },
-      github: { profiles: [], defaultProfileId: null }
-    })),
-    // Mock PAT APIs for the new credentials section. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
-    fetchMyApiTokens: vi.fn(async () => []),
-    createMyApiToken: vi.fn(async () => ({
-      token: 'hcpat_test',
-      apiToken: {
-        id: 'pat-1',
-        name: 'CI',
-        tokenPrefix: 'hcpat_abcd',
-        tokenLast4: 'wxyz',
-        scopes: [{ group: 'tasks', level: 'read' }],
-        createdAt: new Date().toISOString(),
-        expiresAt: null,
-        revokedAt: null,
-        lastUsedAt: null
-      }
-    })),
-    updateMyApiToken: vi.fn(async () => ({
-      id: 'pat-1',
-      name: 'CI',
-      tokenPrefix: 'hcpat_abcd',
-      tokenLast4: 'wxyz',
-      scopes: [{ group: 'tasks', level: 'read' }],
-      createdAt: new Date().toISOString(),
-      expiresAt: null,
-      revokedAt: null,
-      lastUsedAt: null
-    })),
-    revokeMyApiToken: vi.fn(async () => ({
-      id: 'pat-1',
-      name: 'CI',
-      tokenPrefix: 'hcpat_abcd',
-      tokenLast4: 'wxyz',
-      scopes: [{ group: 'tasks', level: 'read' }],
-      createdAt: new Date().toISOString(),
-      expiresAt: null,
-      revokedAt: new Date().toISOString(),
-      lastUsedAt: null
-    })),
-    fetchAdminToolsMeta: vi.fn(async () => ({ enabled: true, ports: { prisma: 7215, swagger: 7216 } })),
-    // Provide runtime API mocks for the environment tab. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
-    fetchSystemRuntimes: vi.fn(async () => ({ runtimes: [], detectedAt: null }))
-  };
-});
-
-const renderPopover = (props?: { token?: string }) => {
-  if (props?.token) window.localStorage.setItem('hookcode-token', props.token);
+const renderPopover = () => {
   return render(
     <AntdApp>
-      {/* Keep the test render aligned with fixed neutral accent settings. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */}
       <UserPanelPopover themePreference="dark" onThemePreferenceChange={() => {}} />
     </AntdApp>
   );
 };
 
 describe('UserPanelPopover', () => {
-  const ORIGINAL_DISABLE_ACCOUNT_EDIT = process.env.VITE_DISABLE_ACCOUNT_EDIT;
-
-  const setDisableAccountEditEnv = (value?: string) => {
-    // Test helper: keep env mutation explicit and reversible within this file.
-    if (value === undefined) {
-      delete process.env.VITE_DISABLE_ACCOUNT_EDIT;
-      return;
-    }
-    process.env.VITE_DISABLE_ACCOUNT_EDIT = value;
-  };
-
   beforeEach(() => {
     window.localStorage.clear();
     window.sessionStorage.clear();
@@ -101,163 +28,28 @@ describe('UserPanelPopover', () => {
     window.location.hash = '#/';
   });
 
-  afterEach(() => {
-    // Test isolation: restore env so other test files are not affected.
-    setDisableAccountEditEnv(ORIGINAL_DISABLE_ACCOUNT_EDIT);
+  // Verify trigger button renders with accessible label. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+  test('renders a trigger button with accessible label', () => {
+    renderPopover();
+    const button = screen.getByRole('button', { name: /Panel/i });
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveClass('hc-user-trigger-btn');
   });
 
-  test('forces Settings tab when not signed in', async () => {
+  // Verify clicking the trigger navigates to the settings page. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+  test('navigates to settings page on click', async () => {
     const ui = userEvent.setup();
     renderPopover();
 
     await ui.click(screen.getByRole('button', { name: /Panel/i }));
-
-    // Settings content should be visible; auth-only nav items are disabled.
-    expect(await screen.findByText('Language')).toBeInTheDocument();
-    // Keep the regression guard aligned with the modern panel layout classes. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
-    expect(document.querySelector('.hc-modern-panel-layout')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Me' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+    expect(window.location.hash).toBe('#/settings');
   });
 
-  test('allows switching tabs when signed in', async () => {
-    const ui = userEvent.setup();
-    renderPopover({ token: 't' });
-
-    await ui.click(screen.getByRole('button', { name: /Panel/i }));
-
-    // Keep the regression guard aligned with the modern panel layout classes. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
-    expect(document.querySelector('.hc-modern-panel-layout')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Me' })).not.toBeDisabled();
-
-    await ui.click(screen.getByRole('button', { name: 'Credentials' }));
-    // Model provider title appears in both section header and card title after list unification. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
-    const modelTitles = await screen.findAllByText('Model provider credentials');
-    expect(modelTitles.length).toBeGreaterThan(0);
-    // Default selection now lives inside the manage modal, so list-level defaults should be absent. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
-    expect(screen.queryByText('Default profile')).not.toBeInTheDocument();
-  });
-
-  test('renders placeholders for panel inputs', async () => {
-    const ui = userEvent.setup();
-    renderPopover({ token: 't' });
-
-    await ui.click(screen.getByRole('button', { name: /Panel/i }));
-
-    const displayName = (await screen.findByLabelText('Display name')) as HTMLInputElement;
-    expect(displayName.placeholder).not.toBe('');
-
-    const currentPassword = screen.getByLabelText('Current password') as HTMLInputElement;
-    expect(currentPassword.placeholder).not.toBe('');
-
-    const newPassword = screen.getByLabelText('New password') as HTMLInputElement;
-    expect(newPassword.placeholder).not.toBe('');
-
-    const confirmPassword = screen.getByLabelText('Confirm new password') as HTMLInputElement;
-    expect(confirmPassword.placeholder).not.toBe('');
-
-    await ui.click(screen.getByRole('button', { name: 'Credentials' }));
-    // Model provider title appears in both section header and card title after list unification. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
-    const modelTitles = await screen.findAllByText('Model provider credentials');
-    expect(modelTitles.length).toBeGreaterThan(0);
-
-    // Open the model-provider add flow from the updated section header layout. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
-    const modelSection = screen
-      .getAllByText('Model provider credentials')
-      .map((node) => node.closest('.hc-panel-section'))
-      .find((section): section is HTMLElement => Boolean(section));
-    expect(modelSection).toBeTruthy();
-
-    await ui.click(within(modelSection as HTMLElement).getByRole('button', { name: /Add/i }));
-    expect(await screen.findByText('Add credential profile')).toBeInTheDocument();
-
-    // Modal structure note:
-    // - The secret input is rendered inside a nested Form.Item (no direct label->control association),
-    //   so we assert placeholders by checking all visible textboxes within the profile dialog.
-    const dialogs = screen.getAllByRole('dialog');
-    const profileDialog = dialogs[dialogs.length - 1] as HTMLElement;
-    // Assert provider selector is visible for unified credential adds. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
-    expect(within(profileDialog).getByText('Provider')).toBeInTheDocument();
-    // Default selection is managed inside the modal via the new toggle. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex
-    expect(within(profileDialog).getByText('Set as default')).toBeInTheDocument();
-    const textboxes = within(profileDialog).getAllByRole('textbox') as HTMLInputElement[];
-    for (const input of textboxes) {
-      expect(input.placeholder).not.toBe('');
-    }
-  });
-
-  test('disables account editing when VITE_DISABLE_ACCOUNT_EDIT=1', async () => {
-    const ui = userEvent.setup();
-    setDisableAccountEditEnv('1');
-    renderPopover({ token: 't' });
-
-    await ui.click(screen.getByRole('button', { name: /Panel/i }));
-
-    expect(await screen.findByLabelText('Display name')).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Save/i })).toBeDisabled();
-    expect(screen.getByLabelText('Current password')).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Update password/i })).toBeDisabled();
-  });
-
-  test('keeps account editing enabled by default (VITE_DISABLE_ACCOUNT_EDIT=0)', async () => {
-    const ui = userEvent.setup();
-    setDisableAccountEditEnv('0');
-    renderPopover({ token: 't' });
-
-    await ui.click(screen.getByRole('button', { name: /Panel/i }));
-
-    expect(await screen.findByLabelText('Display name')).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: /Save/i })).not.toBeDisabled();
-  });
-
-  test('renders API token section in credentials', async () => {
-    const ui = userEvent.setup();
-    renderPopover({ token: 't' });
-
-    await ui.click(screen.getByRole('button', { name: /Panel/i }));
-    await ui.click(screen.getByRole('button', { name: 'Credentials' }));
-
-    // Ensure PAT section appears inside the credentials tab. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
-    const titles = await screen.findAllByText('Open API access tokens');
-    expect(titles.length).toBeGreaterThan(0);
-
-    await ui.click(screen.getByRole('button', { name: 'Request PAT' }));
-    expect(await screen.findByText('Request API token')).toBeInTheDocument();
-  });
-
-  test('filters task-group tokens from the panel PAT list', async () => {
-    // Ensure auto-generated task-group PATs stay out of the panel list. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
-    const ui = userEvent.setup();
-    vi.mocked(api.fetchMyApiTokens).mockResolvedValueOnce([
-      {
-        id: 'pat-manual',
-        name: 'Manual token',
-        tokenPrefix: 'hcpat_abcd',
-        tokenLast4: 'wxyz',
-        scopes: [{ group: 'tasks', level: 'read' }],
-        createdAt: new Date().toISOString(),
-        expiresAt: null,
-        revokedAt: null,
-        lastUsedAt: null
-      },
-      {
-        id: 'pat-auto',
-        name: 'task-group-123e4567-e89b-12d3-a456-426614174000',
-        tokenPrefix: 'hcpat_auto',
-        tokenLast4: '0000',
-        scopes: [{ group: 'tasks', level: 'write' }],
-        createdAt: new Date().toISOString(),
-        expiresAt: null,
-        revokedAt: null,
-        lastUsedAt: null
-      }
-    ]);
-
-    renderPopover({ token: 't' });
-    await ui.click(screen.getByRole('button', { name: /Panel/i }));
-    await ui.click(screen.getByRole('button', { name: 'Credentials' }));
-
-    expect(await screen.findByText('Manual token')).toBeInTheDocument();
-    expect(screen.queryByText('task-group-123e4567-e89b-12d3-a456-426614174000')).not.toBeInTheDocument();
+  // Verify the avatar placeholder icon is rendered. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+  test('renders avatar placeholder and label', () => {
+    renderPopover();
+    const button = screen.getByRole('button', { name: /Panel/i });
+    expect(button.querySelector('.hc-user-avatar-placeholder')).toBeTruthy();
+    expect(screen.getByText('Panel')).toBeInTheDocument();
   });
 });

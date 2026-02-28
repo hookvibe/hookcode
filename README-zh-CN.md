@@ -47,76 +47,144 @@ HookCode 是一个通过对话和 Webhook 优雅触发 CLI 编码助手的智能
 
 # 快速开始
 
-> 需要有一个公网能够访问的服务器才能够接收仓库的 webhook
+> 需要有一个公网可访问的服务器来接收仓库 Webhook。
 
+<!-- Reorganize command-first quick start workflows for Docker and local development clarity. docs/en/developer/plans/readmecmd20260227/task_plan.md readmecmd20260227 -->
 ## Docker 部署（推荐）
 
-**推荐使用 Docker Compose 一键启动所有服务（数据库 + 后端 + 前端）**
+使用 Docker Compose 一次启动 **数据库 + backend + worker + frontend**。
 
-Docker 部署相关资源集中在 `docker/` 目录下：
-- Compose 文件：`docker/docker-compose.yml`
-- Nginx 反向代理配置：`docker/nginx/frontend.conf`
-- 单一 env 文件（前端构建 + 后端运行共用）：`docker/.env`
+### 1）准备环境变量文件
 
-1. 配置环境变量：复制 `docker/.env.example` 为 `docker/.env`，根据需要修改配置（至少修改 `AUTH_TOKEN_SECRET` 和管理员账号密码）
-2. 构建并启动服务：
-   ```bash
-   docker compose -f docker/docker-compose.yml up -d --build
-   ```
-3. 访问前端控制台：`http://localhost`（或 `http://localhost:<HOOKCODE_FRONTEND_PORT>`）
-   - 默认管理员账号见 `docker/.env` 的 `AUTH_ADMIN_USERNAME/AUTH_ADMIN_PASSWORD`（示例为 `admin/admin`，生产环境务必修改）
-   - 登录后默认进入：
-     - 普通用户：`#/account`
-     - 管理员：`#/admin/users`
-     - 任务列表：`#/tasks`
+```bash
+cp docker/.env.example docker/.env
+```
 
-**自定义配置：**
-- **端口配置**：在 `docker/.env` 中修改 `HOOKCODE_FRONTEND_PORT/HOOKCODE_BACKEND_PORT/HOOKCODE_DB_PORT`
-- **数据库账号**：在 `docker/.env` 中修改 `DB_USER/DB_PASSWORD/DB_NAME`
-- **Cloudflare（单端口）**：
-  - 在 `docker/.env` 中保持 `VITE_API_BASE_URL=/api`
-  - 通过 `https://<你的域名>/api/...` 访问后端（不要再用 `:8000`）
-- **CI/CD**：在 GitHub Actions 或 GitLab CI 中请使用 secrets 或 variables 管理敏感信息
+生产环境至少修改 `docker/.env` 中以下字段：
+- `AUTH_TOKEN_SECRET`
+- `AUTH_ADMIN_USERNAME`
+- `AUTH_ADMIN_PASSWORD`
 
-**技术说明：**
-- backend/frontend 均有独立 Dockerfile
-- Docker Compose 通过 `env_file` 注入 `docker/.env`（不提交到版本控制）
+### 2）构建并启动全部服务
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build
+```
+
+### 3）查看运行状态和日志
+
+```bash
+docker compose -f docker/docker-compose.yml ps
+```
+
+```bash
+docker compose -f docker/docker-compose.yml logs -f backend worker frontend
+```
+
+### 4）日常运维命令
+
+重启全部服务：
+
+```bash
+docker compose -f docker/docker-compose.yml restart
+```
+
+后端代码变更后，只重建并重启 backend/worker：
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build backend worker
+```
+
+前端代码变更后，只重建并重启 frontend：
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build frontend
+```
+
+停止并删除容器：
+
+```bash
+docker compose -f docker/docker-compose.yml down
+```
+
+停止并删除容器 + 数据库卷：
+
+```bash
+docker compose -f docker/docker-compose.yml down -v
+```
+
+### 5）访问地址和默认信息
+
+- 前端控制台：`http://localhost`（或 `http://localhost:<HOOKCODE_FRONTEND_PORT>`）
+- 后端 API：`http://localhost:<HOOKCODE_BACKEND_PORT>`
+- 默认管理员账号密码来自 `docker/.env` 的 `AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD`
+
+### 6）Docker 模式的重要行为说明
+
+- frontend/backend 在容器内运行的是构建产物。
+- **宿主机源码变更不会自动热更新到容器。**
+- 代码变更后请执行对应的 `up -d --build ...` 重建命令。
+
+### Docker 配置说明
+
+- Docker 相关资源在 `docker/` 目录：
+  - Compose 文件：`docker/docker-compose.yml`
+  - Nginx 反向代理配置：`docker/nginx/frontend.conf`
+  - 共享环境变量文件：`docker/.env`
+- 端口覆盖：`HOOKCODE_FRONTEND_PORT`、`HOOKCODE_BACKEND_PORT`、`HOOKCODE_DB_PORT`
+- 数据库凭据：`DB_USER`、`DB_PASSWORD`、`DB_NAME`
+- Cloudflare 单端口路由：
+  - 保持 `VITE_API_BASE_URL=/api`
+  - 通过 `https://<你的域名>/api/...` 访问 API（不要用 `:8000`）
 
 ## 本地开发
 
-如需进行源码开发或调试，可以使用以下方式：
+如果需要源码级调试和热更新，使用本地开发命令。
 
-1. 安装依赖（推荐启用 corepack 以使用 pnpm）
-   ```bash
-   corepack enable
-   pnpm install
-   ```
-2. 一键启动（数据库 + 后端 + 前端）
-   ```bash
-   pnpm dev
-   ```
-   - 控制台已启用登录：默认账号见 `backend/.env.example` 的 `AUTH_ADMIN_USERNAME/AUTH_ADMIN_PASSWORD`（示例为 `admin/admin`，生产务必修改并设置 `AUTH_TOKEN_SECRET`）
-   - 如需邮箱自助注册：后端配置 `AUTH_REGISTER_ENABLED=true`（示例文件已开启），并配置邮件服务（例如 `EMAIL_PROVIDER=smtp` + `SMTP_*`）与 `HOOKCODE_CONSOLE_BASE_URL`；注册后会发送验证邮件，点击链接完成验证后即可登录
-   - 登录后默认进入：
-     - 普通用户：`#/account`
-     - 管理员：`#/admin/users`
-     - 任务列表：`#/tasks`
-   
-3. **分模块开发：**
-   - 仅启动数据库：
-     ```bash
-     pnpm dev:db
-     ```
-   - 仅后端开发（默认 4000 端口）：
-     ```bash
-     pnpm dev:backend
-     ```
-   - 仅前端开发（默认 5173 端口）：
-     ```bash
-     pnpm dev:frontend
-     ```
+### 1）安装依赖
 
-4. **使用远程数据库**：复制 `backend/.env.example` 为 `backend/.env`，保持本地前后端端口不变，并将数据库指向你的远程 Postgres（设置 `DB_HOST`、`DB_PORT` 等，或直接设置 `DATABASE_URL`）
+```bash
+corepack enable
+pnpm install
+```
+
+### 2）一键启动
+
+```bash
+pnpm dev
+```
+
+### 3）按模块启动（可选）
+
+仅启动数据库：
+
+```bash
+pnpm dev:db
+```
+
+仅启动后端（默认 `4000`）：
+
+```bash
+pnpm dev:backend
+```
+
+仅启动前端（默认 `5173`）：
+
+```bash
+pnpm dev:frontend
+```
+
+### 4）本地开发接远程数据库（可选）
+
+复制 `backend/.env.example` 为 `backend/.env`，保持本地前后端端口不变，然后将数据库配置指向远程 Postgres（`DB_HOST`、`DB_PORT`、`DB_USER`、`DB_PASSWORD`、`DB_NAME`，或直接设置 `DATABASE_URL`）。
+
+### 5）登录与注册说明
+
+- 默认启用登录。
+- 默认管理员账号见 `backend/.env.example`（`AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD`）。
+- 生产环境请设置强随机的 `AUTH_TOKEN_SECRET`。
+- 若启用邮箱自助注册，需要配置后端邮件相关参数（`AUTH_REGISTER_ENABLED`、`EMAIL_PROVIDER`、`SMTP_*`、`HOOKCODE_CONSOLE_BASE_URL`）。
+
 
 ## 环境变量
 

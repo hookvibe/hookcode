@@ -37,6 +37,10 @@ export const enUSUi = {
   'panel.nav.group.account': 'Account',
   'panel.nav.group.integrations': 'Integrations',
   'panel.nav.group.preferences': 'Preferences',
+  // User identity labels for settings sidebar. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+  'panel.anonymous': 'Anonymous',
+  'panel.role.admin': 'Admin',
+  'panel.role.user': 'User',
   'panel.logout.confirmTitle': 'Sign out?',
   'panel.logout.confirmDesc': 'You will need to sign in again to access protected pages.',
   'panel.logout.ok': 'Sign out',

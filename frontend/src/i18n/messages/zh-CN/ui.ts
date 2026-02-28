@@ -37,6 +37,10 @@ export const zhCNUi = {
   'panel.nav.group.account': '账号',
   'panel.nav.group.integrations': '集成',
   'panel.nav.group.preferences': '偏好设置',
+  // User identity labels for settings sidebar. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+  'panel.anonymous': '匿名用户',
+  'panel.role.admin': '管理员',
+  'panel.role.user': '用户',
   'panel.logout.confirmTitle': '确认退出登录？',
   'panel.logout.confirmDesc': '退出后需要重新登录才能访问受保护的页面。',
   'panel.logout.ok': '退出登录',
