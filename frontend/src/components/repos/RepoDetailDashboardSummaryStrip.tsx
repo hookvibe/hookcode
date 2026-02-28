@@ -1,6 +1,7 @@
+// Modernized repo overview summary strip with hero-number metric tiles. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301
 import { FC, KeyboardEvent, useMemo } from 'react';
-import { ApiOutlined, BranchesOutlined, CodeOutlined, KeyOutlined, RobotOutlined, ThunderboltOutlined } from '@ant-design/icons';
-import { Space, Tag, Typography } from 'antd';
+import { ApiOutlined, BranchesOutlined, CodeOutlined, GlobalOutlined, KeyOutlined, RobotOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { Tag } from 'antd';
 import type { RepoAutomationConfig, RepoRobot, RepoScopedCredentialsPublic, Repository } from '../../api';
 import { useT } from '../../i18n';
 import { normalizeAutomationConfig } from '../repoAutomation/utils';
@@ -84,203 +85,119 @@ export const RepoDetailDashboardSummaryStrip: FC<RepoDetailDashboardSummaryStrip
           tabIndex: 0,
           onClick: () => onJumpToSection?.(key),
           onKeyDown: onKeyActivate(key),
-          className: 'hc-task-meta__card hc-repo-summary-strip__card hc-repo-summary-strip__card--interactive'
+          className: 'hc-summary-tile hc-summary-tile--interactive'
         }
-      : { className: 'hc-task-meta__card hc-repo-summary-strip__card' };
+      : { className: 'hc-summary-tile' };
 
   return (
     <div className="hc-repo-summary-strip">
-      {/* Present repo modules as a KPI-style summary strip to support the new dashboard layout. u55e45ffi8jng44erdzp */}
+      {/* Uniform 3×2 stat tiles — same structure per card to ensure consistent sizing. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */}
       <div className="hc-repo-summary-strip__scroller">
+        {/* ---- Basic ---- */}
         <div {...cardProps('basic')}>
-          <Space size={12} align="start">
-            <div className="hc-task-meta__icon" aria-hidden>
-              <CodeOutlined style={{ fontSize: 16 }} />
+          <div className="hc-summary-tile__icon hc-summary-tile__icon--blue">
+            <CodeOutlined />
+          </div>
+          <div className="hc-summary-tile__body">
+            <span className="hc-summary-tile__label">{t('repos.detail.basicTitle')}</span>
+            <span className="hc-summary-tile__hero" title={repo.name}>{repo.name}</span>
+            <div className="hc-summary-tile__meta">
+              <Tag color={repo.provider === 'github' ? 'geekblue' : 'orange'} style={{ marginInlineEnd: 0 }}>{providerLabel(repo.provider)}</Tag>
+              {repo.enabled
+                ? <span className="hc-summary-tile__badge hc-summary-tile__badge--green">{t('common.enabled')}</span>
+                : <span className="hc-summary-tile__badge hc-summary-tile__badge--red">{t('common.disabled')}</span>}
             </div>
-            <div style={{ minWidth: 0 }}>
-              <Typography.Text type="secondary" className="hc-task-meta__label">
-                {t('repos.detail.basicTitle')}
-              </Typography.Text>
-              <div className="hc-task-meta__value">
-                <Space size={8} wrap>
-                  <Tag color={repo.provider === 'github' ? 'geekblue' : 'orange'}>{providerLabel(repo.provider)}</Tag>
-                  <Typography.Text strong className="table-cell-ellipsis" title={repo.name}>
-                    {repo.name}
-                  </Typography.Text>
-                </Space>
-                <Space size={8} wrap style={{ marginTop: 6 }}>
-                  {repo.enabled ? <Tag color="green">{t('common.enabled')}</Tag> : <Tag color="red">{t('common.disabled')}</Tag>}
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {repo.updatedAt ? t('repos.detail.updatedAt', { time: formatTime(repo.updatedAt) }) : '-'}
-                  </Typography.Text>
-                </Space>
-              </div>
-            </div>
-          </Space>
+          </div>
         </div>
 
-        <div {...cardProps('credentials')}>
-          <Space size={12} align="start">
-            <div className="hc-task-meta__icon" aria-hidden>
-              <KeyOutlined style={{ fontSize: 16 }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <Typography.Text type="secondary" className="hc-task-meta__label">
-                {t('repos.detail.credentialsTitle')}
-              </Typography.Text>
-              <div className="hc-task-meta__value">
-                <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {t('repos.detail.credentials.repoProvider')}
-                  </Typography.Text>
-                  <Typography.Text>
-                    {credentialStats.repoProviderConfigured}/{credentialStats.repoProviderTotal}{' '}
-                    <Typography.Text type="secondary">{t('common.configured')}</Typography.Text>
-                  </Typography.Text>
-
-                  <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 6 }}>
-                    {t('repos.detail.credentials.modelProvider')}
-                  </Typography.Text>
-                  <Typography.Text>
-                    {credentialStats.modelConfigured}/{credentialStats.modelTotal}{' '}
-                    <Typography.Text type="secondary">{t('common.configured')}</Typography.Text>
-                  </Typography.Text>
-                </Space>
-              </div>
-            </div>
-          </Space>
-        </div>
-
-        <div {...cardProps('robots')}>
-          <Space size={12} align="start">
-            <div className="hc-task-meta__icon" aria-hidden>
-              <RobotOutlined style={{ fontSize: 16 }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <Typography.Text type="secondary" className="hc-task-meta__label">
-                {t('repos.robots.title')}
-              </Typography.Text>
-              <div className="hc-task-meta__value">
-                <Space size={8} wrap>
-                  <Typography.Text strong style={{ fontSize: 18 }}>
-                    {robotsEnabled}/{robotsTotal}
-                  </Typography.Text>
-                  <Typography.Text type="secondary">{t('common.enabled')}</Typography.Text>
-                </Space>
-                <div style={{ marginTop: 6 }}>
-                  {defaultRobotName ? (
-                    <Space size={6} wrap>
-                      <Tag color="blue">{t('repos.detail.robot.default')}</Tag>
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }} className="table-cell-ellipsis" title={defaultRobotName}>
-                        {defaultRobotName}
-                      </Typography.Text>
-                      {/* Append bound AI provider for the default robot summary. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128 */}
-                      {defaultRobotProvider ? (
-                        <Tag color="geekblue" style={{ fontSize: 11, lineHeight: '18px', marginInlineEnd: 0 }}>
-                          {defaultRobotProvider}
-                        </Tag>
-                      ) : null}
-                    </Space>
-                  ) : (
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      -
-                    </Typography.Text>
-                  )}
-                </div>
-              </div>
-            </div>
-          </Space>
-        </div>
-
-        <div {...cardProps('automation')}>
-          <Space size={12} align="start">
-            <div className="hc-task-meta__icon" aria-hidden>
-              <ThunderboltOutlined style={{ fontSize: 16 }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <Typography.Text type="secondary" className="hc-task-meta__label">
-                {t('repos.automation.title')}
-              </Typography.Text>
-              <div className="hc-task-meta__value">
-                <Space size={10} wrap>
-                  <Typography.Text strong style={{ fontSize: 18 }}>
-                    {automationStats.rules}
-                  </Typography.Text>
-                  <Typography.Text type="secondary">{t('repos.dashboard.kpi.rules')}</Typography.Text>
-                </Space>
-                <Typography.Text type="secondary" style={{ display: 'block', marginTop: 6, fontSize: 12 }}>
-                  {t('repos.dashboard.kpi.eventsEnabled', {
-                    enabled: automationStats.enabledEvents,
-                    total: automationStats.totalEvents
-                  })}
-                </Typography.Text>
-              </div>
-            </div>
-          </Space>
-        </div>
-
+        {/* ---- Branches ---- */}
         <div {...cardProps('branches')}>
-          <Space size={12} align="start">
-            <div className="hc-task-meta__icon" aria-hidden>
-              <BranchesOutlined style={{ fontSize: 16 }} />
+          <div className="hc-summary-tile__icon hc-summary-tile__icon--purple">
+            <BranchesOutlined />
+          </div>
+          <div className="hc-summary-tile__body">
+            <span className="hc-summary-tile__label">{t('repos.branches.title')}</span>
+            <span className="hc-summary-tile__hero">{branches.length}</span>
+            <div className="hc-summary-tile__meta">
+              {defaultBranch
+                ? <><span className="hc-summary-tile__badge hc-summary-tile__badge--blue">{t('repos.branches.column.default')}</span><span className="hc-summary-tile__detail">{defaultBranch}</span></>
+                : <span className="hc-summary-tile__muted">-</span>}
             </div>
-            <div style={{ minWidth: 0 }}>
-              <Typography.Text type="secondary" className="hc-task-meta__label">
-                {t('repos.branches.title')}
-              </Typography.Text>
-              <div className="hc-task-meta__value">
-                <Typography.Text strong style={{ fontSize: 18 }}>
-                  {branches.length}
-                </Typography.Text>
-                <div style={{ marginTop: 6 }}>
-                  {defaultBranch ? (
-                    <Space size={6} wrap>
-                      <Tag color="blue">{t('repos.branches.column.default')}</Tag>
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }} className="table-cell-ellipsis" title={defaultBranch}>
-                        {defaultBranch}
-                      </Typography.Text>
-                    </Space>
-                  ) : (
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      -
-                    </Typography.Text>
-                  )}
-                </div>
-              </div>
-            </div>
-          </Space>
+          </div>
         </div>
 
+        {/* ---- Credentials ---- */}
+        {/* Credentials tile — compact stat pills to avoid label overflow. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */}
+        <div {...cardProps('credentials')}>
+          <div className="hc-summary-tile__icon hc-summary-tile__icon--amber">
+            <KeyOutlined />
+          </div>
+          <div className="hc-summary-tile__body">
+            <span className="hc-summary-tile__label">{t('repos.detail.credentialsTitle')}</span>
+            <span className="hc-summary-tile__hero">
+              {credentialStats.repoProviderConfigured + credentialStats.modelConfigured}
+              <span className="hc-summary-tile__hero-sub"> / {credentialStats.repoProviderTotal + credentialStats.modelTotal}</span>
+            </span>
+            <div className="hc-summary-tile__meta">
+              <span className="hc-summary-tile__pill"><GlobalOutlined style={{ fontSize: 11 }} />{credentialStats.repoProviderConfigured}/{credentialStats.repoProviderTotal}</span>
+              <span className="hc-summary-tile__pill"><KeyOutlined style={{ fontSize: 11 }} />{credentialStats.modelConfigured}/{credentialStats.modelTotal}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ---- Robots ---- */}
+        <div {...cardProps('robots')}>
+          <div className="hc-summary-tile__icon hc-summary-tile__icon--teal">
+            <RobotOutlined />
+          </div>
+          <div className="hc-summary-tile__body">
+            <span className="hc-summary-tile__label">{t('repos.robots.title')}</span>
+            <span className="hc-summary-tile__hero">
+              {robotsEnabled}<span className="hc-summary-tile__hero-sub"> / {robotsTotal}</span>
+            </span>
+            <div className="hc-summary-tile__meta">
+              {defaultRobotName
+                ? <><span className="hc-summary-tile__badge hc-summary-tile__badge--blue">{t('repos.detail.robot.default')}</span><span className="hc-summary-tile__detail">{defaultRobotName}{defaultRobotProvider ? ` (${defaultRobotProvider})` : ''}</span></>
+                : <span className="hc-summary-tile__muted">-</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* ---- Automation ---- */}
+        <div {...cardProps('automation')}>
+          <div className="hc-summary-tile__icon hc-summary-tile__icon--orange">
+            <ThunderboltOutlined />
+          </div>
+          <div className="hc-summary-tile__body">
+            <span className="hc-summary-tile__label">{t('repos.automation.title')}</span>
+            <span className="hc-summary-tile__hero">{automationStats.rules}</span>
+            <div className="hc-summary-tile__meta">
+              <span className="hc-summary-tile__detail">
+                {t('repos.dashboard.kpi.eventsEnabled', { enabled: automationStats.enabledEvents, total: automationStats.totalEvents })}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ---- Webhooks ---- */}
+        {/* Webhooks tile — show hostname only to avoid URL overflow. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */}
         <div {...cardProps('webhooks')}>
-          <Space size={12} align="start">
-            <div className="hc-task-meta__icon" aria-hidden>
-              <ApiOutlined style={{ fontSize: 16 }} />
+          <div className="hc-summary-tile__icon hc-summary-tile__icon--green">
+            <ApiOutlined />
+          </div>
+          <div className="hc-summary-tile__body">
+            <span className="hc-summary-tile__label">{t('repos.detail.webhookTitle')}</span>
+            <span className="hc-summary-tile__hero">
+              {webhookVerified
+                ? <span className="hc-summary-tile__badge hc-summary-tile__badge--green">{t('repos.webhookIntro.verifiedYes')}</span>
+                : <span className="hc-summary-tile__badge hc-summary-tile__badge--gold">{t('repos.webhookIntro.verifiedNo')}</span>}
+            </span>
+            <div className="hc-summary-tile__meta">
+              {webhookUrl
+                ? <span className="hc-summary-tile__detail" title={webhookUrl}>{(() => { try { return new URL(webhookUrl).host; } catch { return webhookUrl; } })()}</span>
+                : <span className="hc-summary-tile__muted">-</span>}
             </div>
-            <div style={{ minWidth: 0 }}>
-              <Typography.Text type="secondary" className="hc-task-meta__label">
-                {t('repos.detail.webhookTitle')}
-              </Typography.Text>
-              <div className="hc-task-meta__value">
-                <Space size={8} wrap>
-                  {webhookVerified ? <Tag color="green">{t('repos.webhookIntro.verifiedYes')}</Tag> : <Tag color="gold">{t('repos.webhookIntro.verifiedNo')}</Tag>}
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {t('repos.webhookIntro.verified')}
-                  </Typography.Text>
-                </Space>
-                <div style={{ marginTop: 6 }}>
-                  {webhookUrl ? (
-                    <Typography.Text code ellipsis={{ tooltip: webhookUrl }} copyable={{ text: webhookUrl }} style={{ fontSize: 12 }}>
-                      {webhookUrl}
-                    </Typography.Text>
-                  ) : (
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      -
-                    </Typography.Text>
-                  )}
-                </div>
-              </div>
-            </div>
-          </Space>
+          </div>
         </div>
       </div>
     </div>

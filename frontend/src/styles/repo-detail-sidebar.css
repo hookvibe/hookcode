@@ -25,14 +25,63 @@
   backdrop-filter: blur(var(--hc-glass-blur));
   -webkit-backdrop-filter: blur(var(--hc-glass-blur));
   border-right: 1px solid var(--border);
+  /* Smooth width transition for collapse animation. docs/en/developer/plans/repo-sidebar-collapse-20260301/task_plan.md repo-sidebar-collapse-20260301 */
+  transition: width 0.3s cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Compact header. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228 */
+/* ---------- COLLAPSED STATE ---------- */
+/* Narrow icon-only sidebar when collapsed — mirrors global sidebar pattern. docs/en/developer/plans/repo-sidebar-collapse-20260301/task_plan.md repo-sidebar-collapse-20260301 */
+.hc-repo-detail-sidebar--collapsed {
+  width: 72px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-repo-sidebar-header {
+  justify-content: center;
+  padding: 10px 8px 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-repo-sidebar-back {
+  padding: 6px;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-repo-sidebar-identity {
+  justify-content: center;
+  padding: 10px 8px 14px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-repo-sidebar-identity__name-row {
+  justify-content: center;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-sidebar-content {
+  padding: 8px 10px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-sidebar-section-title {
+  display: none;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-nav-item {
+  justify-content: center;
+  padding: 12px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-nav-label {
+  display: none;
+}
+
+/* Compact header — flex row with back link and collapse toggle. docs/en/developer/plans/repo-sidebar-collapse-20260301/task_plan.md repo-sidebar-collapse-20260301 */
 .hc-repo-sidebar-header {
   height: auto;
   padding: 14px 16px 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
 }
 
 /* Back button as subtle breadcrumb link */
