@@ -5,11 +5,21 @@ import { ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icon
 import type { SkillSummary } from '../api';
 import { fetchSkills, patchSkill, uploadExtraSkill } from '../api';
 import { useT } from '../i18n';
+import { type SkillsTab, SKILLS_TABS } from '../router';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
+import { SkillsSidebar } from '../components/skills/SkillsSidebar';
 import { filterSkillsByQueryAndTags } from '../utils/skills';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
+/**
+ * SkillsPage — skills marketplace with sidebar sub-navigation.
+ * Accepts a `skillsTab` prop to drive which section is active (overview / built-in / extra).
+ *
+ * Sidebar sub-navigation replaces the previous single-page layout for consistency.
+ * docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+ */
 export interface SkillsPageProps {
+  skillsTab?: SkillsTab;
   userPanel?: ReactNode;
   navToggle?: PageNavMenuAction;
 }
@@ -204,9 +214,15 @@ const SkillCard: FC<{
   );
 };
 
-export const SkillsPage: FC<SkillsPageProps> = ({ userPanel, navToggle }) => {
+export const SkillsPage: FC<SkillsPageProps> = ({ skillsTab, userPanel, navToggle }) => {
   const t = useT();
   const { message } = App.useApp();
+
+  // Normalize the active skills tab, defaulting to overview. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  const activeTab: SkillsTab = useMemo(() => {
+    if (skillsTab && SKILLS_TABS.includes(skillsTab)) return skillsTab;
+    return 'overview';
+  }, [skillsTab]);
 
   const builtInLoadMoreRef = useRef<HTMLDivElement | null>(null);
   const extraLoadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -402,253 +418,326 @@ export const SkillsPage: FC<SkillsPageProps> = ({ userPanel, navToggle }) => {
   const totalSkills = builtInSkills.length + extraSkills.length; // Surface marketplace headline stats. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   const uploadFileList = uploadFile ? [uploadFile] : []; // Keep Upload in controlled mode for skill archives. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
 
-  return (
-    <div className="hc-page hc-skills">
-      <PageNav title={t('skills.page.title')} meta={<Typography.Text type="secondary">{headerMeta}</Typography.Text>} userPanel={userPanel} navToggle={navToggle} />
+  // Map active skills tab to the PageNav title display key. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  const tabTitleMap: Record<SkillsTab, string> = {
+    'overview': 'skills.sidebar.overview',
+    'built-in': 'skills.sidebar.builtIn',
+    'extra': 'skills.sidebar.extra',
+  };
 
-      <section className="hc-skills__body">
-        <div className="hc-skills__hero">
-          <div className="hc-skills__hero-main">
-            <div className="hc-skills__hero-copy">
-              <Typography.Text className="hc-skills__hero-kicker">{t('skills.hero.kicker')}</Typography.Text>
-              <Typography.Title level={2} className="hc-skills__hero-title">
-                {t('skills.hero.title')}
-              </Typography.Title>
-              <Typography.Text className="hc-skills__hero-desc">{t('skills.hero.desc')}</Typography.Text>
-            </div>
-            <div className="hc-skills__hero-search">
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                prefix={<SearchOutlined />}
-                placeholder={t('skills.search.placeholder')}
-                allowClear
-                className="hc-skills__search"
-              />
-              <div className="hc-skills__hero-buttons">
-                {/* Surface a hero CTA for uploading new skills. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
-                <Button
-                  type="primary"
-                  icon={<UploadOutlined />}
-                  onClick={() => setUploadOpen(true)}
-                  className="hc-skills__hero-cta"
-                >
-                  {t('skills.hero.cta')}
-                </Button>
-                <Button
-                  type="default"
-                  icon={<ReloadOutlined />}
-                  onClick={refresh}
-                  loading={loading}
-                  className="hc-skills__refresh"
-                >
-                  {t('common.refresh')}
-                </Button>
-              </div>
-            </div>
-            <Typography.Text type="secondary" className="hc-skills__hero-hint">
-              {t('skills.hero.hint')}
-            </Typography.Text>
-            {/* Surface headline metrics for the skills marketplace header. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
-            <div className="hc-skills__hero-stats">
-              <div className="hc-skills__hero-stat">
-                <span className="hc-skills__hero-stat-value">{totalSkills}</span>
-                <span className="hc-skills__hero-stat-label">{t('skills.hero.stat.total')}</span>
-              </div>
-              <div className="hc-skills__hero-stat">
-                <span className="hc-skills__hero-stat-value">{builtInSkills.length}</span>
-                <span className="hc-skills__hero-stat-label">{t('skills.hero.stat.builtIn')}</span>
-              </div>
-              <div className="hc-skills__hero-stat">
-                <span className="hc-skills__hero-stat-value">{extraSkills.length}</span>
-                <span className="hc-skills__hero-stat-label">{t('skills.hero.stat.extra')}</span>
-              </div>
-              <div className="hc-skills__hero-stat">
-                <span className="hc-skills__hero-stat-value">{tagStats.length}</span>
-                <span className="hc-skills__hero-stat-label">{t('skills.hero.stat.tags')}</span>
-              </div>
+  // Render the overview tab content (hero + categories + stats). docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  const renderOverview = () => (
+    <>
+      <div className="hc-skills__hero">
+        <div className="hc-skills__hero-main">
+          <div className="hc-skills__hero-copy">
+            <Typography.Text className="hc-skills__hero-kicker">{t('skills.hero.kicker')}</Typography.Text>
+            <Typography.Title level={2} className="hc-skills__hero-title">
+              {t('skills.hero.title')}
+            </Typography.Title>
+            <Typography.Text className="hc-skills__hero-desc">{t('skills.hero.desc')}</Typography.Text>
+          </div>
+          <div className="hc-skills__hero-search">
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              prefix={<SearchOutlined />}
+              placeholder={t('skills.search.placeholder')}
+              allowClear
+              className="hc-skills__search"
+            />
+            <div className="hc-skills__hero-buttons">
+              {/* Surface a hero CTA for uploading new skills. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+              <Button
+                type="primary"
+                icon={<UploadOutlined />}
+                onClick={() => setUploadOpen(true)}
+                className="hc-skills__hero-cta"
+              >
+                {t('skills.hero.cta')}
+              </Button>
+              <Button
+                type="default"
+                icon={<ReloadOutlined />}
+                onClick={refresh}
+                loading={loading}
+                className="hc-skills__refresh"
+              >
+                {t('common.refresh')}
+              </Button>
             </div>
           </div>
-          {/* Render a CLI-style preview panel to echo the SkillsMP layout. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
-          <div className="hc-skills__hero-terminal">
-            <div className="hc-skills__terminal-header">
-              <div className="hc-skills__terminal-dots" aria-hidden="true">
-                <span className="hc-skills__terminal-dot" />
-                <span className="hc-skills__terminal-dot" />
-                <span className="hc-skills__terminal-dot" />
-              </div>
-              <span className="hc-skills__terminal-title">{t('skills.hero.terminal.title')}</span>
+          <Typography.Text type="secondary" className="hc-skills__hero-hint">
+            {t('skills.hero.hint')}
+          </Typography.Text>
+          {/* Surface headline metrics for the skills marketplace header. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+          <div className="hc-skills__hero-stats">
+            <div className="hc-skills__hero-stat">
+              <span className="hc-skills__hero-stat-value">{totalSkills}</span>
+              <span className="hc-skills__hero-stat-label">{t('skills.hero.stat.total')}</span>
             </div>
-            <div className="hc-skills__terminal-body">
-              <span className="hc-skills__terminal-line">
-                <span className="hc-skills__terminal-prompt">$</span> {t('skills.hero.terminal.command')}
-              </span>
-              <span className="hc-skills__terminal-line">
-                {t('skills.hero.terminal.stats', {
-                  total: totalSkills,
-                  builtIn: builtInSkills.length,
-                  extra: extraSkills.length,
-                  tags: tagStats.length
-                })}
-              </span>
-              <span className="hc-skills__terminal-line">{t('skills.hero.terminal.status')}</span>
-              <span className="hc-skills__terminal-section">{t('skills.hero.terminal.browse')}</span>
-              <div className="hc-skills__terminal-tags">
-                {topTags.length ? (
-                  topTags.map((tag) => (
-                    <span key={`hero-${tag.label}`} className="hc-skills__terminal-tag">
-                      {tag.label}
-                    </span>
-                  ))
-                ) : (
-                  <span className="hc-skills__terminal-empty">{t('skills.hero.terminal.emptyTags')}</span>
-                )}
-              </div>
+            <div className="hc-skills__hero-stat">
+              <span className="hc-skills__hero-stat-value">{builtInSkills.length}</span>
+              <span className="hc-skills__hero-stat-label">{t('skills.hero.stat.builtIn')}</span>
+            </div>
+            <div className="hc-skills__hero-stat">
+              <span className="hc-skills__hero-stat-value">{extraSkills.length}</span>
+              <span className="hc-skills__hero-stat-label">{t('skills.hero.stat.extra')}</span>
+            </div>
+            <div className="hc-skills__hero-stat">
+              <span className="hc-skills__hero-stat-value">{tagStats.length}</span>
+              <span className="hc-skills__hero-stat-label">{t('skills.hero.stat.tags')}</span>
             </div>
           </div>
         </div>
-
-        {/* Provide tag-based browsing for fast skill discovery. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
-        <div className="hc-skills__categories">
-          <div className="hc-skills__category-header">
-            <div className="hc-skills__category-header-text">
-              <Typography.Title level={4} className="hc-skills__category-title">
-                {t('skills.categories.title')}
-              </Typography.Title>
-              <Typography.Text type="secondary" className="hc-skills__category-desc">
-                {t('skills.categories.desc')}
-              </Typography.Text>
+        {/* Render a CLI-style preview panel to echo the SkillsMP layout. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+        <div className="hc-skills__hero-terminal">
+          <div className="hc-skills__terminal-header">
+            <div className="hc-skills__terminal-dots" aria-hidden="true">
+              <span className="hc-skills__terminal-dot" />
+              <span className="hc-skills__terminal-dot" />
+              <span className="hc-skills__terminal-dot" />
             </div>
-            {activeTags.length ? (
-              <button type="button" className="hc-skills__category-clear" onClick={clearTags}>
-                {t('skills.tags.clear')}
-              </button>
-            ) : null}
+            <span className="hc-skills__terminal-title">{t('skills.hero.terminal.title')}</span>
+          </div>
+          <div className="hc-skills__terminal-body">
+            <span className="hc-skills__terminal-line">
+              <span className="hc-skills__terminal-prompt">$</span> {t('skills.hero.terminal.command')}
+            </span>
+            <span className="hc-skills__terminal-line">
+              {t('skills.hero.terminal.stats', {
+                total: totalSkills,
+                builtIn: builtInSkills.length,
+                extra: extraSkills.length,
+                tags: tagStats.length
+              })}
+            </span>
+            <span className="hc-skills__terminal-line">{t('skills.hero.terminal.status')}</span>
+            <span className="hc-skills__terminal-section">{t('skills.hero.terminal.browse')}</span>
+            <div className="hc-skills__terminal-tags">
+              {topTags.length ? (
+                topTags.map((tag) => (
+                  <span key={`hero-${tag.label}`} className="hc-skills__terminal-tag">
+                    {tag.label}
+                  </span>
+                ))
+              ) : (
+                <span className="hc-skills__terminal-empty">{t('skills.hero.terminal.emptyTags')}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Provide tag-based browsing for fast skill discovery. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+      <div className="hc-skills__categories">
+        <div className="hc-skills__category-header">
+          <div className="hc-skills__category-header-text">
+            <Typography.Title level={4} className="hc-skills__category-title">
+              {t('skills.categories.title')}
+            </Typography.Title>
+            <Typography.Text type="secondary" className="hc-skills__category-desc">
+              {t('skills.categories.desc')}
+            </Typography.Text>
           </div>
           {activeTags.length ? (
-            <div className="hc-skills__category-active">
-              <span className="hc-skills__category-active-label">{t('skills.categories.active')}</span>
-              <div className="hc-skills__category-active-tags">
-                {activeTags.map((tag) => (
-                  <Tag key={`active-${tag}`} className="hc-skills__tag-chip">
-                    {tag}
-                  </Tag>
-                ))}
-              </div>
-            </div>
+            <button type="button" className="hc-skills__category-clear" onClick={clearTags}>
+              {t('skills.tags.clear')}
+            </button>
           ) : null}
-          <div className="hc-skills__category-grid">
-            {tagStats.length ? (
-              tagStats.map((tag) => {
-                const active = activeTags.includes(tag.label);
-                return (
-                  <button
-                    key={tag.label}
-                    type="button"
-                    className={`hc-skills__category-card ${active ? 'is-active' : ''}`}
-                    onClick={() => toggleTag(tag.label)}
-                    aria-pressed={active}
-                  >
-                    <span className="hc-skills__category-name">{tag.label}</span>
-                    <span className="hc-skills__category-meta">
-                      <span className="hc-skills__category-count">{tag.count}</span>
-                      <span className="hc-skills__category-label">{t('skills.page.subtitle')}</span>
-                    </span>
-                  </button>
-                );
-              })
-            ) : (
-              <Typography.Text className="hc-skills__category-empty">{t('skills.tags.emptyFilter')}</Typography.Text>
-            )}
-          </div>
         </div>
-
-        <div className="hc-skills__sections">
-          <div className="hc-skills__section">
-            <div className="hc-skills__section-header">
-              <Typography.Title level={4} className="hc-skills__section-title">
-                {t('skills.section.builtIn')}
-              </Typography.Title>
-              <Typography.Text className="hc-skills__section-meta">
-                {t('skills.section.count', { count: filteredBuiltIn.length })}
-              </Typography.Text>
+        {activeTags.length ? (
+          <div className="hc-skills__category-active">
+            <span className="hc-skills__category-active-label">{t('skills.categories.active')}</span>
+            <div className="hc-skills__category-active-tags">
+              {activeTags.map((tag) => (
+                <Tag key={`active-${tag}`} className="hc-skills__tag-chip">
+                  {tag}
+                </Tag>
+              ))}
             </div>
-            <div className="hc-skills__grid">
-              {filteredBuiltIn.length ? (
-                filteredBuiltIn.map((skill) => (
-                  <SkillCard
-                    key={skill.id}
-                    skill={skill}
-                    isExtra={false}
-                    expanded={Boolean(expandedIds[skill.id])}
-                    updating={Boolean(updatingIds[skill.id])}
-                    onToggleExpand={toggleExpand}
-                  />
-                ))
-              ) : (
-                <Empty description={t('skills.section.emptyBuiltIn')} className="hc-skills__empty" />
-              )}
-            </div>
-            {/* Add an infinite-scroll sentinel to load more built-in skills. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
-            <div ref={builtInLoadMoreRef} data-testid="hc-skills-built-in-load-more" />
-            {loadingMoreBuiltIn ? (
-              <div style={{ padding: '12px 0', textAlign: 'center' }}>
-                <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
-              </div>
-            ) : null}
           </div>
-
-          <div className="hc-skills__section">
-            <div className="hc-skills__section-header">
-              <Typography.Title level={4} className="hc-skills__section-title">
-                {t('skills.section.extra')}
-              </Typography.Title>
-              <div className="hc-skills__section-actions">
-                <Typography.Text className="hc-skills__section-meta">
-                  {t('skills.section.count', { count: filteredExtra.length })}
-                </Typography.Text>
-                {/* Provide an upload entry point for extra skill archives. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
-                <Button
-                  size="small"
-                  type="primary"
-                  icon={<UploadOutlined />}
-                  onClick={() => setUploadOpen(true)}
-                  className="hc-skills__upload"
+        ) : null}
+        <div className="hc-skills__category-grid">
+          {tagStats.length ? (
+            tagStats.map((tag) => {
+              const active = activeTags.includes(tag.label);
+              return (
+                <button
+                  key={tag.label}
+                  type="button"
+                  className={`hc-skills__category-card ${active ? 'is-active' : ''}`}
+                  onClick={() => toggleTag(tag.label)}
+                  aria-pressed={active}
                 >
-                  {t('skills.upload.action')}
-                </Button>
-              </div>
-            </div>
-            <div className="hc-skills__grid">
-              {filteredExtra.length ? (
-                filteredExtra.map((skill) => (
-                  <SkillCard
-                    key={skill.id}
-                    skill={skill}
-                    isExtra
-                    expanded={Boolean(expandedIds[skill.id])}
-                    updating={Boolean(updatingIds[skill.id])}
-                    onToggleExpand={toggleExpand}
-                    onToggleEnabled={(target, next) => updateSkill(target, { enabled: next })}
-                    onTogglePrompt={(target, next) => updateSkill(target, { promptEnabled: next })}
-                    /* Allow extra skills to update tags from the card editor. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
-                    onUpdateTags={(target, next) => updateSkill(target, { tags: next })}
-                  />
-                ))
-              ) : (
-                <Empty description={t('skills.section.emptyExtra')} className="hc-skills__empty" />
-              )}
-            </div>
-            {/* Add an infinite-scroll sentinel to load more extra skills. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
-            <div ref={extraLoadMoreRef} data-testid="hc-skills-extra-load-more" />
-            {loadingMoreExtra ? (
-              <div style={{ padding: '12px 0', textAlign: 'center' }}>
-                <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
-              </div>
-            ) : null}
+                  <span className="hc-skills__category-name">{tag.label}</span>
+                  <span className="hc-skills__category-meta">
+                    <span className="hc-skills__category-count">{tag.count}</span>
+                    <span className="hc-skills__category-label">{t('skills.page.subtitle')}</span>
+                  </span>
+                </button>
+              );
+            })
+          ) : (
+            <Typography.Text className="hc-skills__category-empty">{t('skills.tags.emptyFilter')}</Typography.Text>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
+  // Render the built-in skills tab content (search + grid). docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  const renderBuiltIn = () => (
+    <div className="hc-skills__sections">
+      {/* Shared search bar for built-in skills grid. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301 */}
+      <div className="hc-skills__hero-search hc-skills__tab-search">
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          prefix={<SearchOutlined />}
+          placeholder={t('skills.search.placeholder')}
+          allowClear
+          className="hc-skills__search"
+        />
+      </div>
+      <div className="hc-skills__section">
+        <div className="hc-skills__section-header">
+          <Typography.Title level={4} className="hc-skills__section-title">
+            {t('skills.section.builtIn')}
+          </Typography.Title>
+          <Typography.Text className="hc-skills__section-meta">
+            {t('skills.section.count', { count: filteredBuiltIn.length })}
+          </Typography.Text>
+        </div>
+        <div className="hc-skills__grid">
+          {filteredBuiltIn.length ? (
+            filteredBuiltIn.map((skill) => (
+              <SkillCard
+                key={skill.id}
+                skill={skill}
+                isExtra={false}
+                expanded={Boolean(expandedIds[skill.id])}
+                updating={Boolean(updatingIds[skill.id])}
+                onToggleExpand={toggleExpand}
+              />
+            ))
+          ) : (
+            <Empty description={t('skills.section.emptyBuiltIn')} className="hc-skills__empty" />
+          )}
+        </div>
+        {/* Add an infinite-scroll sentinel to load more built-in skills. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
+        <div ref={builtInLoadMoreRef} data-testid="hc-skills-built-in-load-more" />
+        {loadingMoreBuiltIn ? (
+          <div style={{ padding: '12px 0', textAlign: 'center' }}>
+            <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  // Render the extra skills tab content (search + grid + upload). docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  const renderExtra = () => (
+    <div className="hc-skills__sections">
+      {/* Shared search bar for extra skills grid. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301 */}
+      <div className="hc-skills__hero-search hc-skills__tab-search">
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          prefix={<SearchOutlined />}
+          placeholder={t('skills.search.placeholder')}
+          allowClear
+          className="hc-skills__search"
+        />
+      </div>
+      <div className="hc-skills__section">
+        <div className="hc-skills__section-header">
+          <Typography.Title level={4} className="hc-skills__section-title">
+            {t('skills.section.extra')}
+          </Typography.Title>
+          <div className="hc-skills__section-actions">
+            <Typography.Text className="hc-skills__section-meta">
+              {t('skills.section.count', { count: filteredExtra.length })}
+            </Typography.Text>
+            {/* Provide an upload entry point for extra skill archives. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+            <Button
+              size="small"
+              type="primary"
+              icon={<UploadOutlined />}
+              onClick={() => setUploadOpen(true)}
+              className="hc-skills__upload"
+            >
+              {t('skills.upload.action')}
+            </Button>
           </div>
         </div>
-      </section>
+        <div className="hc-skills__grid">
+          {filteredExtra.length ? (
+            filteredExtra.map((skill) => (
+              <SkillCard
+                key={skill.id}
+                skill={skill}
+                isExtra
+                expanded={Boolean(expandedIds[skill.id])}
+                updating={Boolean(updatingIds[skill.id])}
+                onToggleExpand={toggleExpand}
+                onToggleEnabled={(target, next) => updateSkill(target, { enabled: next })}
+                onTogglePrompt={(target, next) => updateSkill(target, { promptEnabled: next })}
+                /* Allow extra skills to update tags from the card editor. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+                onUpdateTags={(target, next) => updateSkill(target, { tags: next })}
+              />
+            ))
+          ) : (
+            <Empty description={t('skills.section.emptyExtra')} className="hc-skills__empty" />
+          )}
+        </div>
+        {/* Add an infinite-scroll sentinel to load more extra skills. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
+        <div ref={extraLoadMoreRef} data-testid="hc-skills-extra-load-more" />
+        {loadingMoreExtra ? (
+          <div style={{ padding: '12px 0', textAlign: 'center' }}>
+            <Typography.Text type="secondary">{t('common.loading')}</Typography.Text>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  // Switch active content section based on the current skills tab. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'built-in': return renderBuiltIn();
+      case 'extra': return renderExtra();
+      default: return renderOverview();
+    }
+  };
+
+  // Render skills page with sidebar sub-navigation layout. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  return (
+    <>
+      <div className="hc-skills-layout">
+        <SkillsSidebar activeTab={activeTab} />
+        <div className="hc-page hc-skills hc-skills-page">
+          <PageNav
+            title={t(tabTitleMap[activeTab] as any)}
+            meta={<Typography.Text type="secondary">{headerMeta}</Typography.Text>}
+            actions={
+              <Button icon={<ReloadOutlined />} onClick={refresh} loading={loading}>
+                {t('common.refresh')}
+              </Button>
+            }
+            userPanel={userPanel}
+            navToggle={navToggle}
+          />
+
+          <div className="hc-page__body">
+            <div className="hc-skills-tab-content">
+              <section className="hc-skills__body">
+                {renderContent()}
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Provide archive upload workflow for extra skills. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
       <Modal
@@ -686,6 +775,6 @@ export const SkillsPage: FC<SkillsPageProps> = ({ userPanel, navToggle }) => {
           {t('skills.upload.tip')}
         </Typography.Paragraph>
       </Modal>
-    </div>
+    </>
   );
 };

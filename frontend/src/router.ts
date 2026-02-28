@@ -30,6 +30,16 @@ export type RepoTab = 'overview' | 'basic' | 'branches' | 'credentials' | 'robot
 
 export const REPO_TABS: RepoTab[] = ['overview', 'basic', 'branches', 'credentials', 'robots', 'automation', 'skills', 'webhooks', 'members', 'settings'];
 
+// Define the available sub-tabs for the archive page sidebar navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+export type ArchiveTab = 'repos' | 'tasks';
+
+export const ARCHIVE_TABS: ArchiveTab[] = ['repos', 'tasks'];
+
+// Define the available sub-tabs for the skills page sidebar navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+export type SkillsTab = 'overview' | 'built-in' | 'extra';
+
+export const SKILLS_TABS: SkillsTab[] = ['overview', 'built-in', 'extra'];
+
 // Define the available sub-tabs for the user settings page sidebar navigation. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 export type SettingsTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings';
 
@@ -46,7 +56,10 @@ export interface RouteState {
   settingsTab?: SettingsTab;
   tasksStatus?: string;
   tasksRepoId?: string;
-  archiveTab?: string;
+  // Track the active sub-tab within archive page sidebar navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  archiveTab?: ArchiveTab;
+  // Track the active sub-tab within skills page sidebar navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  skillsTab?: SkillsTab;
   // Store auth/invite tokens parsed from hash query. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
   verifyEmailEmail?: string;
   verifyEmailToken?: string;
@@ -115,15 +128,19 @@ export const parseRoute = (hash: string): RouteState => {
   }
 
   if (parts[0] === 'archive') {
-    // Add an Archive route so archived repos/tasks have a dedicated console area. qnp1mtxhzikhbi0xspbc
-    const state: RouteState = { page: 'archive' };
-    if (query.tab) state.archiveTab = query.tab;
-    return state;
+    // Parse optional sub-tab from the second path segment (e.g. #/archive/tasks). docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+    const tab = parts[1] as ArchiveTab | undefined;
+    const validTab = tab && ARCHIVE_TABS.includes(tab) ? tab : undefined;
+    // Backward compat: also check query param for old-style hash (#/archive?tab=repos). docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+    const fallbackTab = query.tab && ARCHIVE_TABS.includes(query.tab as ArchiveTab) ? (query.tab as ArchiveTab) : undefined;
+    return { page: 'archive', archiveTab: validTab || fallbackTab };
   }
 
   if (parts[0] === 'skills') {
-    // Route to the skills registry page for built-in/extra skill management. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-    return { page: 'skills' };
+    // Parse optional sub-tab from the second path segment (e.g. #/skills/built-in). docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+    const tab = parts[1] as SkillsTab | undefined;
+    const validTab = tab && SKILLS_TABS.includes(tab) ? tab : undefined;
+    return { page: 'skills', skillsTab: validTab };
   }
 
   if (parts[0] === 'settings') {
@@ -193,12 +210,17 @@ export const buildRepoHash = (repoId: string, tab?: RepoTab): string => {
   return tab ? `${base}/${tab}` : base;
 };
 
-export const buildArchiveHash = (options?: { tab?: 'repos' | 'tasks' }): string => {
-  const tab = String(options?.tab ?? '').trim();
-  return tab ? `#/archive?tab=${encodeURIComponent(tab)}` : '#/archive';
+// Build an archive page hash with optional sub-tab path. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+export const buildArchiveHash = (tab?: ArchiveTab): string => {
+  const base = '#/archive';
+  return tab ? `${base}/${tab}` : base;
 };
 
-export const buildSkillsHash = (): string => '#/skills'; // Add a stable route for the skills registry page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+// Build a skills page hash with optional sub-tab path. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+export const buildSkillsHash = (tab?: SkillsTab): string => {
+  const base = '#/skills';
+  return tab ? `${base}/${tab}` : base;
+};
 
 // Build a settings page hash with optional sub-tab path. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 export const buildSettingsHash = (tab?: SettingsTab): string => {

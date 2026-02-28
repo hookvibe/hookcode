@@ -23,8 +23,7 @@
 .hc-skills__body {
   position: relative;
   padding: 24px var(--page-padding) 48px;
-  max-width: var(--hc-page-max);
-  margin: 0 auto;
+  /* Let skills body fill the sidebar tab content area; no hard max-width needed inside the sidebar layout. docs/en/developer/plans/widescreen-layout-20260301/task_plan.md widescreen-layout-20260301 */
   width: 100%;
   display: flex;
   flex-direction: column;

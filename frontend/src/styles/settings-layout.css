@@ -190,10 +190,13 @@
   padding: 0;
 }
 
+/* Widen settings content and center it so large-screen users don't see left-aligned empty space. docs/en/developer/plans/widescreen-layout-20260301/task_plan.md widescreen-layout-20260301 */
 .hc-settings-page .hc-settings-tab-content {
   padding: 24px 32px 36px;
   width: 100%;
-  max-width: 900px;
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
   /* Smooth entry animation when switching tabs. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
   animation: hc-settings-tab-fade-in 0.2s ease-out;
 }
