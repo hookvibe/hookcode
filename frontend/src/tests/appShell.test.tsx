@@ -772,8 +772,8 @@ describe('AppShell (frontend-chat migration)', () => {
     // then re-enter the same task via the sidebar (hash does not change) to ensure the back chain is still cleared.
     window.location.hash = '#/repos/r1';
     window.dispatchEvent(new Event('hashchange'));
-    // Align repo detail title selector with PageNav markup. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
-    expect(await screen.findByText('Repo r1', { selector: '.hc-modern-nav__title' })).toBeInTheDocument();
+    // Repo detail now shows active tab name in PageNav after sub-navigation refactor. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    expect(await screen.findByText('Overview', { selector: '.hc-modern-nav__title' })).toBeInTheDocument();
 
     window.location.hash = '#/tasks/t_q1';
     window.dispatchEvent(new Event('hashchange'));
@@ -837,8 +837,8 @@ describe('AppShell (frontend-chat migration)', () => {
     // Simulate a deep link coming from TaskDetail (hash query is used as the explicit referrer).
     window.location.hash = '#/repos/r1?from=task&taskId=t_q1';
     window.dispatchEvent(new Event('hashchange'));
-    // Align repo detail title selector with PageNav markup. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
-    expect(await screen.findByText('Repo r1', { selector: '.hc-modern-nav__title' })).toBeInTheDocument();
+    // Repo detail now shows active tab name in PageNav after sub-navigation refactor. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    expect(await screen.findByText('Overview', { selector: '.hc-modern-nav__title' })).toBeInTheDocument();
 
     const backButton = await screen.findByRole('button', { name: 'Back to task detail' });
     await ui.click(backButton);

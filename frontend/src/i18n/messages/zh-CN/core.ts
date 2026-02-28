@@ -10,6 +10,7 @@ export const zhCNCore = {
   'common.collapseSidebar': '收起侧边栏',
   'common.expandSidebar': '展开侧边栏',
   'common.back': '返回',
+  'common.backToHome': '首页',
   'common.backToList': '返回列表',
   'common.backToTaskDetail': '返回任务详情',
   'common.prev': '上一步',

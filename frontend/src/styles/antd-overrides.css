@@ -1,43 +1,54 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
-/* =============================================================================
- * Ant Design integration (minimal overrides)
- *
- * Business context:
- * - Module: Frontend Chat / Styles / AntD.
- * - Purpose: keep AntD surfaces aligned with our CSS-variable theme (light/dark + accent).
- *
- * Change record:
- * - 2026-01-12: Add subtle surface + focus styling for inputs/selects so the UI feels consistent.
- * ========================================================================== */
+/* AntD integration — modernized glass surfaces, accent-tinted focus, rounded controls. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 
-.hc-shell .ant-card,
-.hc-shell .ant-modal-content,
-.hc-shell .ant-popover-inner {
-  /* background: var(--hc-surface-elevated); */
-  /* border-color: var(--hc-border); */
+/* --- Card / Dialog / Popover surfaces --- */
+/* Glass-morphism AntD surfaces for cohesive modern feel. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+.hc-shell .ant-card {
+  background: var(--hc-glass-bg);
+  backdrop-filter: blur(var(--hc-glass-blur));
+  -webkit-backdrop-filter: blur(var(--hc-glass-blur));
+  border-color: var(--border);
+  border-radius: 14px;
+  box-shadow: var(--hc-shadow-sm);
+  transition: box-shadow 0.25s ease, border-color 0.2s ease;
 }
 
-.hc-shell .ant-popover-inner {
+.hc-shell .ant-card:hover {
   box-shadow: var(--hc-shadow-md);
 }
 
-/* Compact dialog skin (2026-01-15):
- * - Business context: Frontend / Dialogs / Credential profile editors.
- * - Purpose:
- *   1) Reduce modal padding so dialogs feel closer to the main content density.
- *   2) Keep header/body/footer on a single surface in dark mode (avoid mixed blacks/greys).
- *
- * Usage:
- * - Add `className="hc-dialog--compact"` to AntD `Modal` / `ResponsiveDialog` (compact variant).
- *
- * Notes:
- * - We intentionally keep the control surface (`--hc-control-bg`) the same across pages/modals; this class only
- *   adjusts container padding + dialog surface to match the user panel's neutral background.
- */
+.hc-shell .ant-card .ant-card-head {
+  border-bottom-color: var(--border);
+}
+
+/* Inner cards (nested sections) — flat, subtle, no shadow. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+.hc-shell .hc-inner-card.ant-card {
+  background: var(--surface-hover);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: var(--border);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.hc-shell .hc-inner-card.ant-card:hover {
+  box-shadow: none;
+}
+
+.hc-shell .ant-modal-content,
+.hc-shell .ant-popover-inner {
+  border-radius: 16px;
+}
+
+.hc-shell .ant-popover-inner {
+  box-shadow: var(--hc-shadow-lg);
+}
+
+/* Compact dialog skin. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 .hc-shell .hc-dialog--compact .ant-modal-content {
   background: var(--hc-panel-bg);
-  border: 1px solid var(--hc-border);
+  border: 1px solid var(--border);
   box-shadow: var(--hc-shadow-lg);
+  border-radius: 16px;
 }
 
 .hc-shell .hc-dialog--compact .ant-modal-header,
@@ -49,7 +60,7 @@
 .hc-shell .hc-dialog--compact .ant-modal-header {
   padding: 12px 16px;
   margin-bottom: 0;
-  border-bottom: 1px solid var(--hc-border);
+  border-bottom: 1px solid var(--border);
 }
 
 .hc-shell .hc-dialog--compact .ant-modal-body {
@@ -58,20 +69,18 @@
 
 .hc-shell .hc-dialog--compact .ant-modal-footer {
   padding: 12px 16px;
-  border-top: 1px solid var(--hc-border);
+  border-top: 1px solid var(--border);
 }
 
-/* Form controls: make inputs/selects feel consistent with the "soft surface" theme. */
+/* Form controls — rounded, accent-focused, consistent control surface. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 .hc-shell .ant-input:not(.ant-input-borderless),
 .hc-shell .ant-input-affix-wrapper:not(.ant-input-borderless),
 .hc-shell .ant-input-textarea-affix-wrapper:not(.ant-input-borderless),
 .hc-shell .ant-input-number,
 .hc-shell .ant-picker {
-  /* Visual goal: a single, consistent control surface for all input-like components across pages/modals. */
   background: var(--hc-control-bg);
-  border-color: var(--hc-border);
-  border-radius: 12px;
-  /* Visual fix: avoid "double border" caused by default inset shadows on some AntD controls. */
+  border-color: var(--hc-control-border);
+  border-radius: 10px;
   box-shadow: none;
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -149,16 +158,16 @@
 .hc-shell .ant-input-disabled,
 .hc-shell .ant-input-number-disabled,
 .hc-shell .ant-picker-disabled {
-  /* UX: disabled controls should remain obviously non-interactive while keeping the theme surface. */
+  /* Disabled controls: muted surface, consistent with glass theme. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
   background: var(--hc-control-bg-disabled) !important;
-  border-color: var(--hc-border) !important;
+  border-color: var(--hc-control-border) !important;
   box-shadow: none !important;
 }
 
 .hc-shell .ant-select:not(.ant-select-borderless) .ant-select-selector {
   background: var(--hc-control-bg) !important;
-  border-color: var(--hc-border) !important;
-  border-radius: 12px !important;
+  border-color: var(--hc-control-border) !important;
+  border-radius: 10px !important;
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -188,7 +197,7 @@
 
 .hc-shell .ant-select-disabled .ant-select-selector {
   background: var(--hc-control-bg-disabled) !important;
-  border-color: var(--hc-border) !important;
+  border-color: var(--hc-control-border) !important;
   box-shadow: none !important;
 }
 

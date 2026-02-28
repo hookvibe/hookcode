@@ -1,4 +1,4 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Repo Detail Layout — modernized dashboard with glass surfaces. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 /* =============================================================================
  * Repo Detail Layout (Dashboard)
  * ========================================================================== */
@@ -30,8 +30,8 @@
  * ========================================================================== */
 
 .hc-repo-summary-strip {
-  padding: 0 0 14px; /* Keep KPI strip aligned with page body padding (strip now renders inside `.hc-page__body`). u55e45ffi8jng44erdzp */
-  border-bottom: 1px solid var(--hc-border);
+  /* Modern summary strip with compact metric tiles. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */
+  padding: 0 0 20px;
 }
 
 /* Keep dashboard regions visually stable by reserving space for empty/minimal modules. u55e45ffi8jng44erdzp */
@@ -78,11 +78,227 @@
 }
 
 .hc-repo-summary-strip__scroller {
+  /* Fixed 3-col grid ensures all 6 tiles are exactly the same size. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-  align-items: stretch; /* Keep summary tiles equal-height per row. u55e45ffi8jng44erdzp */
+  grid-template-columns: repeat(3, 1fr);
+  align-items: stretch;
   gap: 12px;
 }
+
+@media (max-width: 900px) {
+  .hc-repo-summary-strip__scroller {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .hc-repo-summary-strip__scroller {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Modern Summary Tile ---------- */
+/* Uniform stat cards: icon-left layout, fixed internal height, truncated content. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */
+.hc-summary-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--hc-glass-bg);
+  backdrop-filter: blur(var(--hc-glass-blur));
+  -webkit-backdrop-filter: blur(var(--hc-glass-blur));
+  box-shadow: var(--hc-shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+  min-width: 0;
+  /* Force equal height by stretching rows */
+  min-height: 0;
+}
+
+.hc-summary-tile--interactive {
+  cursor: pointer;
+}
+
+.hc-summary-tile--interactive:hover {
+  transform: translateY(-2px);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-md);
+}
+
+.hc-summary-tile--interactive:focus-visible {
+  outline: none;
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-summary-tile__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 17px;
+  transition: transform 0.2s ease;
+}
+
+.hc-summary-tile--interactive:hover .hc-summary-tile__icon {
+  transform: scale(1.08);
+}
+
+/* Color variants for icon backgrounds. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */
+.hc-summary-tile__icon--blue {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.hc-summary-tile__icon--purple {
+  background: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
+}
+
+.hc-summary-tile__icon--amber {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.hc-summary-tile__icon--teal {
+  background: rgba(20, 184, 166, 0.1);
+  color: #14b8a6;
+}
+
+.hc-summary-tile__icon--orange {
+  background: rgba(249, 115, 22, 0.1);
+  color: #f97316;
+}
+
+.hc-summary-tile__icon--green {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+:root[data-theme='dark'] .hc-summary-tile__icon--blue   { background: rgba(59, 130, 246, 0.15); }
+:root[data-theme='dark'] .hc-summary-tile__icon--purple { background: rgba(139, 92, 246, 0.15); }
+:root[data-theme='dark'] .hc-summary-tile__icon--amber  { background: rgba(245, 158, 11, 0.15); }
+:root[data-theme='dark'] .hc-summary-tile__icon--teal   { background: rgba(20, 184, 166, 0.15); }
+:root[data-theme='dark'] .hc-summary-tile__icon--orange { background: rgba(249, 115, 22, 0.15); }
+:root[data-theme='dark'] .hc-summary-tile__icon--green  { background: rgba(34, 197, 94, 0.15); }
+
+.hc-summary-tile__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  /* Mask overflow from long hero/meta strings. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */
+  overflow: hidden;
+}
+
+.hc-summary-tile__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+.hc-summary-tile__hero {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hc-summary-tile__hero-sub {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.hc-summary-tile__meta {
+  /* Single-line footer to keep all tiles the same height. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+  overflow: hidden;
+  min-height: 20px;
+  max-height: 20px;
+}
+
+.hc-summary-tile__detail {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.hc-summary-tile__muted {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* Compact icon+number stat pill for dense metrics. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */
+.hc-summary-tile__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--hc-accent-soft);
+  padding: 1px 7px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.hc-summary-tile__badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.hc-summary-tile__badge--green {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+.hc-summary-tile__badge--red {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.hc-summary-tile__badge--blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
+}
+
+.hc-summary-tile__badge--gold {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+:root[data-theme='dark'] .hc-summary-tile__badge--green { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
+:root[data-theme='dark'] .hc-summary-tile__badge--red   { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+:root[data-theme='dark'] .hc-summary-tile__badge--blue  { background: rgba(59, 130, 246, 0.18); color: #60a5fa; }
+:root[data-theme='dark'] .hc-summary-tile__badge--gold  { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
 
 .hc-repo-summary-strip__card {
   height: 100%;
@@ -119,8 +335,8 @@
 }
 
 .hc-provider-activity-item {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--hc-border);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .hc-provider-activity-item:last-child {
@@ -137,7 +353,7 @@
 
 @media (min-width: 768px) {
   .hc-provider-activity-column--divider {
-    border-left: 1px solid var(--hc-border);
+    border-left: 1px solid var(--border);
     padding-left: 16px;
   }
 }
@@ -194,13 +410,154 @@
 }
 
 .hc-repo-summary-strip__card--interactive:hover {
+  /* Legacy hover — kept for backward compat. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */
   background: var(--hc-accent-soft-hover);
   border-color: var(--hc-accent-border);
-  box-shadow: var(--hc-shadow-sm);
+  box-shadow: var(--hc-shadow-md);
 }
 
 .hc-repo-summary-strip__card--interactive:focus-visible {
   outline: none;
   border-color: var(--hc-accent-border);
   box-shadow: var(--hc-focus-ring);
+}
+
+/* =============================================================================
+ * Section Block — modern card replacement for tab content panels.
+ * Glass-morphism surface with layered shadows, replacing plain AntD <Card>.
+ * docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301
+ * ========================================================================== */
+
+.hc-section-block {
+  background: var(--hc-glass-bg);
+  backdrop-filter: blur(var(--hc-glass-blur));
+  -webkit-backdrop-filter: blur(var(--hc-glass-blur));
+  border: 1px solid var(--hc-border);
+  border-radius: 14px;
+  box-shadow: var(--hc-shadow-sm);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  overflow: hidden;
+}
+
+.hc-section-block:hover {
+  box-shadow: var(--hc-shadow-md);
+}
+
+.hc-section-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px 0;
+}
+
+.hc-section-block__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-section-block__extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.hc-section-block__body {
+  padding: 16px 20px 20px;
+}
+
+.hc-section-block__body--flush {
+  padding: 0;
+}
+
+/* Action bar at bottom of section (e.g. save / archive buttons) */
+.hc-section-block__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hc-border);
+}
+
+/* Key-value row inside a section body */
+.hc-section-block__row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-section-block__row:last-child {
+  border-bottom: none;
+}
+
+.hc-section-block__row-label {
+  flex: 0 0 160px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.hc-section-block__row-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+/* Stacked section blocks with consistent spacing */
+.hc-section-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Inner card inside a section block (e.g., credential profile entries) */
+.hc-section-block__item {
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hc-section-block__item:hover {
+  background: var(--hc-hover);
+  box-shadow: var(--hc-shadow-sm);
+}
+
+/* Danger zone section variant */
+.hc-section-block--danger {
+  border-color: rgba(255, 77, 79, 0.25);
+}
+
+.hc-section-block--danger .hc-section-block__title {
+  color: #ff4d4f;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .hc-section-block__header {
+    padding: 12px 14px 0;
+  }
+  .hc-section-block__body {
+    padding: 12px 14px 16px;
+  }
+  .hc-section-block__row {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .hc-section-block__row-label {
+    flex: none;
+  }
 }

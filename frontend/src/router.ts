@@ -22,13 +22,28 @@ export type RoutePage =
   | 'register'
   | 'verifyEmail'
   | 'acceptInvite'
-  | 'skills';
+  | 'skills'
+  | 'settings'; // Add settings page route for standalone user settings panel. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+
+// Define the available sub-tabs for the repo detail page sidebar navigation. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+export type RepoTab = 'overview' | 'basic' | 'branches' | 'credentials' | 'robots' | 'automation' | 'skills' | 'webhooks' | 'members' | 'settings';
+
+export const REPO_TABS: RepoTab[] = ['overview', 'basic', 'branches', 'credentials', 'robots', 'automation', 'skills', 'webhooks', 'members', 'settings'];
+
+// Define the available sub-tabs for the user settings page sidebar navigation. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+export type SettingsTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings';
+
+export const SETTINGS_TABS: SettingsTab[] = ['account', 'credentials', 'tools', 'environment', 'settings'];
 
 export interface RouteState {
   page: RoutePage;
   taskId?: string;
   taskGroupId?: string;
   repoId?: string;
+  // Track the active sub-tab within repo detail sidebar navigation. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+  repoTab?: RepoTab;
+  // Track the active sub-tab within user settings page navigation. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+  settingsTab?: SettingsTab;
   tasksStatus?: string;
   tasksRepoId?: string;
   archiveTab?: string;
@@ -90,7 +105,12 @@ export const parseRoute = (hash: string): RouteState => {
   }
 
   if (parts[0] === 'repos') {
-    if (parts.length === 2 && parts[1]) return { page: 'repo', repoId: parts[1] };
+    if (parts.length >= 2 && parts[1]) {
+      // Parse optional sub-tab from the third path segment (e.g. #/repos/:id/robots). docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+      const tab = parts[2] as RepoTab | undefined;
+      const validTab = tab && REPO_TABS.includes(tab) ? tab : undefined;
+      return { page: 'repo', repoId: parts[1], repoTab: validTab };
+    }
     return { page: 'repos' };
   }
 
@@ -104,6 +124,13 @@ export const parseRoute = (hash: string): RouteState => {
   if (parts[0] === 'skills') {
     // Route to the skills registry page for built-in/extra skill management. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
     return { page: 'skills' };
+  }
+
+  if (parts[0] === 'settings') {
+    // Parse optional sub-tab from the second path segment (e.g. #/settings/credentials). docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    const tab = parts[1] as SettingsTab | undefined;
+    const validTab = tab && SETTINGS_TABS.includes(tab) ? tab : undefined;
+    return { page: 'settings', settingsTab: validTab };
   }
 
   if (parts[0] === 'login') return { page: 'login' };
@@ -160,7 +187,11 @@ export const buildTaskGroupsHash = (): string => '#/task-groups'; // Provide a s
 
 export const buildReposHash = (): string => '#/repos';
 
-export const buildRepoHash = (repoId: string): string => `#/repos/${encodeURIComponent(repoId)}`;
+export const buildRepoHash = (repoId: string, tab?: RepoTab): string => {
+  // Build a repo detail hash with optional sub-tab path. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+  const base = `#/repos/${encodeURIComponent(repoId)}`;
+  return tab ? `${base}/${tab}` : base;
+};
 
 export const buildArchiveHash = (options?: { tab?: 'repos' | 'tasks' }): string => {
   const tab = String(options?.tab ?? '').trim();
@@ -168,3 +199,9 @@ export const buildArchiveHash = (options?: { tab?: 'repos' | 'tasks' }): string 
 };
 
 export const buildSkillsHash = (): string => '#/skills'; // Add a stable route for the skills registry page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+
+// Build a settings page hash with optional sub-tab path. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+export const buildSettingsHash = (tab?: SettingsTab): string => {
+  const base = '#/settings';
+  return tab ? `${base}/${tab}` : base;
+};

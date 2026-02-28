@@ -1,4 +1,4 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
+/* Global resets and body styles — modernized for SaaS aesthetic. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 *,
 *::before,
 *::after {
@@ -7,11 +7,10 @@
 
 body {
   margin: 0;
-  background: var(--bg);
-  /* Keep the body background in sync with the flat neutral theme. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
+  /* Subtle radial gradient background adds spatial depth to the entire app. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
   background: var(--hc-app-bg);
   color: var(--text);
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

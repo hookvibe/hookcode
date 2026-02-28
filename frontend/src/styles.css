@@ -33,3 +33,5 @@
 @import './styles/modern-user-panel.css';
 @import './styles/skills.css'; /* Skills registry dashboard styling. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
 @import './styles/skills-selection.css'; /* Skill selection panel styling for repo/task-group scopes. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */
+@import './styles/repo-detail-sidebar.css'; /* Repo detail sidebar sub-navigation. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228 */
+@import './styles/settings-layout.css'; /* Settings page sidebar + content layout. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */

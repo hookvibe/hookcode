@@ -1,4 +1,4 @@
-/* Modern Card Styles - High-End Redesign */
+/* Modern Card Styles — glass-morphism surfaces, refined hover, layered shadows. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 
 .hc-card-grid-modern {
   display: grid;
@@ -9,10 +9,14 @@
 
 .hc-modern-card {
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 20px;
-  background-color: var(--hc-surface);
-  transition: all 0.2s ease;
+  /* Glass-morphism surface: semi-transparent bg + backdrop blur for depth. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  background: var(--hc-glass-bg);
+  backdrop-filter: blur(var(--hc-glass-blur));
+  -webkit-backdrop-filter: blur(var(--hc-glass-blur));
+  box-shadow: var(--hc-shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.2s ease;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -22,9 +26,9 @@
 }
 
 .hc-modern-card:hover {
-  border-color: var(--border-hover);
-  box-shadow: var(--hc-shadow-sm);
-  transform: translateY(-1px);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-md);
+  transform: translateY(-2px);
 }
 
 .hc-modern-card__header {
@@ -67,9 +71,8 @@
 
 .hc-modern-card__divider {
   height: 1px;
-  background-color: var(--border);
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
   width: 100%;
-  opacity: 0.6;
 }
 
 .hc-modern-card__meta-row {

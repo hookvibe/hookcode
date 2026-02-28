@@ -1,7 +1,4 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
-/* =============================================================================
- * Sidebar Sections (App Shell)
- * ========================================================================== */
+/* Sidebar Sections — modernized dividers with gradient fade. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 
 .hc-sider__sectionHeaderRow {
   display: flex;
@@ -20,12 +17,11 @@
   justify-content: center;
 }
 
-/* Show persistent section dividers between repos, tasks, and task groups. docs/en/developer/plans/sidebarviewall20260128/task_plan.md sidebarviewall20260128 */
+/* Gradient-fade section dividers for a polished look. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
 .hc-sider__divider {
   height: 1px;
   margin: 8px 12px;
-  background: var(--hc-border);
-  opacity: 0.7;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
 }
 
 .hc-sider.ant-layout-sider-collapsed .hc-sider__divider {

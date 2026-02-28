@@ -215,7 +215,7 @@ html[data-theme='dark'] .chat-bubble.kind-todo_list .chat-bubble__role { color: 
 
 /* Reasoning border color follows role color for subtle connection */
 .chat-bubble.kind-reasoning .chat-reasoning { border-left-color: #cbd5e1; }
-html[data-theme='dark'] .chat-bubble.kind-reasoning .chat-reasoning { border-left-color: #334155; }
+html[data-theme='dark'] .chat-bubble.kind-reasoning .chat-reasoning { border-left-color: #2e2e2e; /* Neutral reasoning border for dark mode. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */ }
 
 /* Code / Output */
 .chat-work__mono {
@@ -233,7 +233,7 @@ html[data-theme='dark'] .chat-bubble.kind-reasoning .chat-reasoning { border-lef
 
 /* Differentiate output background slightly based on theme for readability */
 html[data-theme='light'] .chat-work__mono { background: #f8fafc; border-color: #e2e8f0; }
-html[data-theme='dark'] .chat-work__mono { background: #0f0f11; border-color: #27272a; }
+html[data-theme='dark'] .chat-work__mono { background: #0c0c0c; border-color: #1e1e1e; /* Pure neutral mono block for dark mode. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */ }
 
 /* Files List */
 .chat-files {

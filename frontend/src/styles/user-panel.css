@@ -34,15 +34,18 @@
 }
 
 .hc-user-modal .ant-modal-content {
-  background: var(--hc-surface);
-  border: 1px solid var(--hc-border);
+  /* Glass-morphism user panel modal. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  background: var(--hc-glass-bg);
+  backdrop-filter: blur(var(--hc-glass-blur));
+  -webkit-backdrop-filter: blur(var(--hc-glass-blur));
+  border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: var(--hc-shadow-lg);
 }
 
 .hc-user-modal .ant-modal-header {
   background: transparent;
-  border-bottom: 1px solid var(--hc-border);
+  border-bottom: 1px solid var(--border);
 }
 
 .hc-user-modal .ant-modal-title {

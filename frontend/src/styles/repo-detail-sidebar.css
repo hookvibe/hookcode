@@ -1,0 +1,204 @@
+/* Repo Detail Sidebar — frosted glass sub-navigation for repo detail page. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+
+/* ---------- LAYOUT CONTAINER ---------- */
+.hc-repo-detail-layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* When inside the detail layout the page occupies the remaining width. */
+.hc-repo-detail-layout > .hc-page {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+/* ---------- SIDEBAR ---------- */
+/* Frosted-glass sidebar surface. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+.hc-repo-detail-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--hc-glass-bg);
+  backdrop-filter: blur(var(--hc-glass-blur));
+  -webkit-backdrop-filter: blur(var(--hc-glass-blur));
+  border-right: 1px solid var(--border);
+  /* Smooth width transition for collapse animation. docs/en/developer/plans/repo-sidebar-collapse-20260301/task_plan.md repo-sidebar-collapse-20260301 */
+  transition: width 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ---------- COLLAPSED STATE ---------- */
+/* Narrow icon-only sidebar when collapsed — mirrors global sidebar pattern. docs/en/developer/plans/repo-sidebar-collapse-20260301/task_plan.md repo-sidebar-collapse-20260301 */
+.hc-repo-detail-sidebar--collapsed {
+  width: 72px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-repo-sidebar-header {
+  justify-content: center;
+  padding: 10px 8px 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-repo-sidebar-back {
+  padding: 6px;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-repo-sidebar-identity {
+  justify-content: center;
+  padding: 10px 8px 14px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-repo-sidebar-identity__name-row {
+  justify-content: center;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-sidebar-content {
+  padding: 8px 10px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-sidebar-section-title {
+  display: none;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-nav-item {
+  justify-content: center;
+  padding: 12px;
+}
+
+.hc-repo-detail-sidebar--collapsed .hc-nav-label {
+  display: none;
+}
+
+/* Compact header — flex row with back link and collapse toggle. docs/en/developer/plans/repo-sidebar-collapse-20260301/task_plan.md repo-sidebar-collapse-20260301 */
+.hc-repo-sidebar-header {
+  height: auto;
+  padding: 14px 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Back button as subtle breadcrumb link */
+.hc-repo-sidebar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.hc-repo-sidebar-back:hover {
+  background-color: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.hc-repo-sidebar-back .anticon {
+  font-size: 10px;
+}
+
+/* ---------- REPO IDENTITY AREA ---------- */
+.hc-repo-sidebar-identity {
+  padding: 10px 20px 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-repo-sidebar-identity__name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hc-repo-sidebar-identity__provider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+  color: var(--text-secondary);
+  opacity: 0.75;
+}
+
+.hc-repo-sidebar-identity__name {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+/* Status dot — accent-tinted when enabled. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+.hc-repo-sidebar-identity__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.hc-repo-sidebar-identity__dot--on {
+  background-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+}
+.hc-repo-sidebar-identity__dot--off {
+  background-color: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+/* ---------- TAB CONTENT AREA ---------- */
+.hc-repo-detail-page .hc-page__body {
+  padding: 0;
+}
+
+.hc-repo-detail-page .hc-repo-tab-content {
+  padding: 24px 32px 36px;
+  width: 100%;
+  max-width: 1100px;
+  /* Smooth entry animation when switching tabs. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+  animation: hc-tab-fade-in 0.2s ease-out;
+}
+
+@keyframes hc-tab-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.hc-repo-tab-content .hc-card {
+  width: 100%;
+}
+
+.hc-repo-tab-content > .ant-space {
+  width: 100%;
+}
+
+/* Slightly reduce PageNav header height in repo detail. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
+.hc-repo-detail-page .hc-modern-nav {
+  height: 54px;
+  padding: 0 32px;
+}
