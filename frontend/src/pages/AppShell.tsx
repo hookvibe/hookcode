@@ -164,17 +164,20 @@ export const AppShell: FC<AppShellProps> = ({
       }
     : undefined;
 
+  // Determine if the global sidebar should be hidden (repo detail uses its own sidebar). docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+  const hideGlobalSidebar = route.page === 'repo';
+
   return (
     <div className="hc-shell-modern">
-      {/* Desktop Sidebar */}
-      {!isMobileLayout && (
+      {/* Desktop Sidebar - hidden for repo detail, which uses its own sub-navigation sidebar */}
+      {!isMobileLayout && !hideGlobalSidebar && (
         <ModernSidebar 
           route={route} 
         />
       )}
 
-      {/* Mobile Drawer */}
-      {isMobileLayout && (
+      {/* Mobile Drawer - hidden for repo detail page */}
+      {isMobileLayout && !hideGlobalSidebar && (
         <Drawer
           placement="left"
           open={mobileNavOpen}
@@ -198,7 +201,7 @@ export const AppShell: FC<AppShellProps> = ({
       <main className="hc-content-modern">
         {route.page === 'repos' ? <ReposPage userPanel={userPanel} navToggle={navToggle} /> : null}
         {route.page === 'repo' && route.repoId ? (
-          <RepoDetailPage repoId={route.repoId} userPanel={userPanel} navToggle={navToggle} />
+          <RepoDetailPage repoId={route.repoId} repoTab={route.repoTab} userPanel={userPanel} navToggle={navToggle} />
         ) : null}
         {route.page === 'skills' ? (
           <SkillsPage userPanel={userPanel} navToggle={navToggle} />

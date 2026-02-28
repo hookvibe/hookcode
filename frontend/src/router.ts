@@ -24,11 +24,18 @@ export type RoutePage =
   | 'acceptInvite'
   | 'skills';
 
+// Define the available sub-tabs for the repo detail page sidebar navigation. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+export type RepoTab = 'overview' | 'basic' | 'branches' | 'credentials' | 'robots' | 'automation' | 'skills' | 'webhooks' | 'members' | 'settings';
+
+export const REPO_TABS: RepoTab[] = ['overview', 'basic', 'branches', 'credentials', 'robots', 'automation', 'skills', 'webhooks', 'members', 'settings'];
+
 export interface RouteState {
   page: RoutePage;
   taskId?: string;
   taskGroupId?: string;
   repoId?: string;
+  // Track the active sub-tab within repo detail sidebar navigation. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+  repoTab?: RepoTab;
   tasksStatus?: string;
   tasksRepoId?: string;
   archiveTab?: string;
@@ -90,7 +97,12 @@ export const parseRoute = (hash: string): RouteState => {
   }
 
   if (parts[0] === 'repos') {
-    if (parts.length === 2 && parts[1]) return { page: 'repo', repoId: parts[1] };
+    if (parts.length >= 2 && parts[1]) {
+      // Parse optional sub-tab from the third path segment (e.g. #/repos/:id/robots). docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+      const tab = parts[2] as RepoTab | undefined;
+      const validTab = tab && REPO_TABS.includes(tab) ? tab : undefined;
+      return { page: 'repo', repoId: parts[1], repoTab: validTab };
+    }
     return { page: 'repos' };
   }
 
@@ -160,7 +172,11 @@ export const buildTaskGroupsHash = (): string => '#/task-groups'; // Provide a s
 
 export const buildReposHash = (): string => '#/repos';
 
-export const buildRepoHash = (repoId: string): string => `#/repos/${encodeURIComponent(repoId)}`;
+export const buildRepoHash = (repoId: string, tab?: RepoTab): string => {
+  // Build a repo detail hash with optional sub-tab path. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+  const base = `#/repos/${encodeURIComponent(repoId)}`;
+  return tab ? `${base}/${tab}` : base;
+};
 
 export const buildArchiveHash = (options?: { tab?: 'repos' | 'tasks' }): string => {
   const tab = String(options?.tab ?? '').trim();

@@ -1,0 +1,156 @@
+/* Repo Detail Sidebar Styles - Sub-navigation for repo detail page. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228 */
+
+/* ---------- LAYOUT CONTAINER ---------- */
+/* Layout container: sidebar + page content side-by-side. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228 */
+.hc-repo-detail-layout {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* When inside the detail layout the page occupies the remaining width. */
+.hc-repo-detail-layout > .hc-page {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+/* ---------- SIDEBAR ---------- */
+/* Inherit base sidebar layout from .hc-modern-sidebar, override specific sections */
+.hc-repo-detail-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+}
+
+/* Compact header: just enough room for the breadcrumb-style back link. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228 */
+.hc-repo-sidebar-header {
+  height: auto;
+  padding: 14px 16px 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Back button styled as a subtle breadcrumb link */
+.hc-repo-sidebar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.hc-repo-sidebar-back:hover {
+  background-color: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.hc-repo-sidebar-back .anticon {
+  font-size: 10px;
+}
+
+/* ---------- REPO IDENTITY AREA ---------- */
+/* Shows repo name with a provider icon badge and enabled/disabled dot. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228 */
+.hc-repo-sidebar-identity {
+  padding: 10px 20px 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-repo-sidebar-identity__name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hc-repo-sidebar-identity__provider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+  color: var(--text-secondary);
+  opacity: 0.75;
+}
+
+.hc-repo-sidebar-identity__name {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+/* Tiny status dot: green when enabled, gray when disabled */
+.hc-repo-sidebar-identity__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.hc-repo-sidebar-identity__dot--on {
+  background-color: #52c41a;
+  box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.2);
+}
+.hc-repo-sidebar-identity__dot--off {
+  background-color: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+/* ---------- TAB CONTENT AREA ---------- */
+/* Tab content takes full width inside the page body when using repo sub-navigation */
+.hc-repo-detail-page .hc-page__body {
+  padding: 0;
+}
+
+.hc-repo-detail-page .hc-repo-tab-content {
+  padding: 20px 28px 32px;
+  width: 100%;
+  max-width: 1100px;
+  /* Smooth entry animation when switching tabs. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228 */
+  animation: hc-tab-fade-in 0.18s ease-out;
+}
+
+@keyframes hc-tab-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Full-width card sections within each tab for better space utilization. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228 */
+.hc-repo-tab-content .hc-card {
+  width: 100%;
+}
+
+/* Remove extra bottom margin in tab content */
+.hc-repo-tab-content > .ant-space {
+  width: 100%;
+}
+
+/* Slightly reduce PageNav header height when inside repo detail layout for a more compact look */
+.hc-repo-detail-page .hc-modern-nav {
+  height: 54px;
+  padding: 0 28px;
+}

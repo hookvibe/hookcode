@@ -128,6 +128,14 @@ export const enUSRepos = {
   'repos.detail.tabs.robots': 'Robots',
   'repos.detail.tabs.automation': 'Automation',
   'repos.detail.tabs.webhooks': 'Webhooks',
+  // Sidebar sub-navigation tab labels for repo detail page. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
+  'repos.detail.tabs.overview': 'Overview',
+  'repos.detail.tabs.skills': 'Skills',
+  'repos.detail.tabs.members': 'Members',
+  'repos.detail.tabs.settings': 'Settings',
+  'repos.detail.sidebar.backToRepos': 'Repositories',
+  'repos.detail.sidebar.groupIntegration': 'Integration',
+  'repos.detail.sidebar.groupManage': 'Manage',
   'repos.detail.openedFromTask': 'Opened from task {{taskId}}',
 
   // --- Repo detail (credentials tab) ---
