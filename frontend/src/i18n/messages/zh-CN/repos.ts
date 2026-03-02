@@ -131,6 +131,8 @@ export const zhCNRepos = {
   'repos.detail.tabs.overview': '概览',
   'repos.detail.tabs.skills': '技能',
   'repos.detail.tabs.members': '成员',
+  // Add sidebar label for task-group API tokens tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
+  'repos.detail.tabs.taskGroupTokens': '任务组 API 令牌',
   'repos.detail.tabs.settings': '设置',
   'repos.detail.sidebar.backToRepos': '仓库列表',
   'repos.detail.sidebar.groupIntegration': '集成',

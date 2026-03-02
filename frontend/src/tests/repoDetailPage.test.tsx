@@ -635,8 +635,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     expect(failureModeSelectAfter).not.toHaveClass('ant-select-disabled');
   });
 
-  test('renders repo task-group PATs in the bottom section', async () => {
-    // Verify task-group PATs render in the bottom dashboard section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+  test('renders repo task-group PATs in the token tab', async () => {
+    // Verify task-group PATs render inside the dedicated token tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
     vi.mocked(api.fetchMyApiTokens).mockResolvedValueOnce([
       {
@@ -663,12 +663,13 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
       ]
     });
 
-    // Render settings tab where task-group PATs live after sub-navigation refactor. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
-    renderPage({ repoId: 'r1', repoTab: 'settings' });
+    // Render the dedicated task-group token tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
+    renderPage({ repoId: 'r1', repoTab: 'taskGroupTokens' });
 
     await waitFor(() => expect(api.fetchMyApiTokens).toHaveBeenCalled());
-    const title = await screen.findByText('Task-group API tokens');
-    // Task-group PATs are inside hc-section-block after modernized layout. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    // Scope the token tab title query to the section header to avoid duplicate matches. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
+    const title = await screen.findByText('Task-group API tokens', { selector: '.hc-section-block__title' });
+    // Task-group PATs are rendered in the token tab section block. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
     const section = title.closest('.hc-section-block');
     expect(section).toBeTruthy();
     expect(within(section as HTMLElement).getByText('task-group-123e4567-e89b-12d3-a456-426614174000')).toBeInTheDocument();
@@ -676,16 +677,23 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
   });
 
   test('paginates repo task-group PATs', async () => {
-    // Ensure task-group PAT pagination switches pages in the bottom section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    // Ensure task-group PAT pagination switches pages in the token tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
     const ui = userEvent.setup();
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
 
+    // Use 11 task-group IDs to force pagination in the token tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
     const taskGroupIds = [
       '11111111-1111-1111-1111-111111111111',
       '22222222-2222-2222-2222-222222222222',
       '33333333-3333-3333-3333-333333333333',
       '44444444-4444-4444-4444-444444444444',
-      '55555555-5555-5555-5555-555555555555'
+      '55555555-5555-5555-5555-555555555555',
+      '66666666-6666-6666-6666-666666666666',
+      '77777777-7777-7777-7777-777777777777',
+      '88888888-8888-8888-8888-888888888888',
+      '99999999-9999-9999-9999-999999999999',
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
     ];
     const tokens = taskGroupIds.map((id, index) => ({
       id: `pat-auto-${index}`,
@@ -713,26 +721,27 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
       )
     });
 
-    // Render settings tab where task-group PATs live after sub-navigation refactor. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
-    renderPage({ repoId: 'r1', repoTab: 'settings' });
+    // Render the dedicated task-group token tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
+    renderPage({ repoId: 'r1', repoTab: 'taskGroupTokens' });
 
     await waitFor(() => expect(api.fetchMyApiTokens).toHaveBeenCalled());
 
+    // Assert page 1 shows the first and last item while hiding the overflow item. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
     expect(await screen.findByText(`task-group-${taskGroupIds[0]}`)).toBeInTheDocument();
-    expect(screen.getByText(`task-group-${taskGroupIds[1]}`)).toBeInTheDocument();
-    expect(screen.getByText(`task-group-${taskGroupIds[2]}`)).toBeInTheDocument();
-    expect(screen.getByText(`task-group-${taskGroupIds[3]}`)).toBeInTheDocument();
-    expect(screen.queryByText(`task-group-${taskGroupIds[4]}`)).not.toBeInTheDocument();
+    expect(screen.getByText(`task-group-${taskGroupIds[9]}`)).toBeInTheDocument();
+    expect(screen.queryByText(`task-group-${taskGroupIds[10]}`)).not.toBeInTheDocument();
 
-    const tokenTitle = screen.getByText('Task-group API tokens');
-    // Use hc-section-block instead of .ant-card after modernized layout. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+    // Scope the token tab title query to the section header to avoid duplicate matches. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
+    const tokenTitle = screen.getByText('Task-group API tokens', { selector: '.hc-section-block__title' });
+    // Locate the token tab section container. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
     const tokenSection = tokenTitle.closest('.hc-section-block') ?? document.body;
     const pagination = tokenSection.querySelector('.ant-pagination');
     expect(pagination).toBeTruthy();
 
     await ui.click(within(pagination as HTMLElement).getByText('2'));
 
-    expect(await screen.findByText(`task-group-${taskGroupIds[4]}`)).toBeInTheDocument();
+    // Assert page 2 reveals the overflow item and hides page 1 content. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
+    expect(await screen.findByText(`task-group-${taskGroupIds[10]}`)).toBeInTheDocument();
     expect(screen.queryByText(`task-group-${taskGroupIds[0]}`)).not.toBeInTheDocument();
   });
 });

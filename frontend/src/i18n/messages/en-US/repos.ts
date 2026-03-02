@@ -132,6 +132,8 @@ export const enUSRepos = {
   'repos.detail.tabs.overview': 'Overview',
   'repos.detail.tabs.skills': 'Skills',
   'repos.detail.tabs.members': 'Members',
+  // Add sidebar label for task-group API tokens tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
+  'repos.detail.tabs.taskGroupTokens': 'Task-group API tokens',
   'repos.detail.tabs.settings': 'Settings',
   'repos.detail.sidebar.backToRepos': 'Repositories',
   'repos.detail.sidebar.groupIntegration': 'Integration',

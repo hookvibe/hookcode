@@ -20,6 +20,7 @@
 import { FC, useState } from 'react';
 import {
   AppstoreOutlined,
+  ApiOutlined,
   BranchesOutlined,
   FormOutlined,
   GithubOutlined,
@@ -78,6 +79,7 @@ const REPO_NAV_GROUPS: NavGroup[] = [
     titleKey: 'repos.detail.sidebar.groupManage',
     items: [
       { key: 'members', icon: <TeamOutlined />, labelKey: 'repos.detail.tabs.members' },
+      { key: 'taskGroupTokens', icon: <ApiOutlined />, labelKey: 'repos.detail.tabs.taskGroupTokens' }, // Add task-group token page entry in the repo sidebar. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
       { key: 'settings', icon: <SettingOutlined />, labelKey: 'repos.detail.tabs.settings' },
     ],
   },

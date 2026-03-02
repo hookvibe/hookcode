@@ -193,7 +193,7 @@ const providerLabel = (provider: string) => (provider === 'github' ? 'GitHub' : 
 const ONBOARDING_STORAGE_PREFIX = 'hookcode-repo-onboarding:'; // Persist per-repo onboarding completion in localStorage. 58w1q3n5nr58flmempxe
 
 const CREDENTIAL_PROFILE_PAGE_SIZE = 4; // Limit credential profile list height so the dashboard board stays visually dense. u55e45ffi8jng44erdzp
-const TASK_GROUP_TOKEN_PAGE_SIZE = 4; // Paginate task-group tokens to keep the bottom section compact. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+const TASK_GROUP_TOKEN_PAGE_SIZE = 10; // Paginate task-group tokens for the dedicated tab view. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
 
 const getOnboardingKey = (repoId: string): string => `${ONBOARDING_STORAGE_PREFIX}${repoId}`;
 
@@ -275,7 +275,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
   const [repoTaskGroupTokens, setRepoTaskGroupTokens] = useState<UserApiTokenPublic[]>([]);
   const [repoTaskGroupTokensLoading, setRepoTaskGroupTokensLoading] = useState(false);
   const [repoTaskGroupTokenRevokingId, setRepoTaskGroupTokenRevokingId] = useState<string | null>(null);
-  const [repoTaskGroupTokensPage, setRepoTaskGroupTokensPage] = useState(1); // Track task-group token pagination for the bottom section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+  const [repoTaskGroupTokensPage, setRepoTaskGroupTokensPage] = useState(1); // Track task-group token pagination for the dedicated tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
   // Track preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewConfig, setPreviewConfig] = useState<RepoPreviewConfigResponse | null>(null);
   const [previewConfigLoading, setPreviewConfigLoading] = useState(false);
@@ -343,7 +343,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     // Clear repo-scoped auto-generated PATs when switching repositories. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
     setRepoTaskGroupTokens([]);
     setRepoTaskGroupTokenRevokingId(null);
-    // Reset task-group token pagination on repo switch to avoid empty pages. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    // Reset task-group token pagination on repo switch to avoid empty pages in the dedicated tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
     setRepoTaskGroupTokensPage(1);
   }, [repoId]);
 
@@ -357,7 +357,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     const modelProfilesTotal = modelProviderProfileItems.length;
     const modelMaxPage = Math.max(1, Math.ceil(modelProfilesTotal / CREDENTIAL_PROFILE_PAGE_SIZE));
     setModelProviderProfilesPage((p) => Math.min(p, modelMaxPage));
-    // Clamp task-group token pagination when the list size changes. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    // Clamp task-group token pagination when the list size changes in the dedicated tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
     const tokenMaxPage = Math.max(1, Math.ceil(repoTaskGroupTokens.length / TASK_GROUP_TOKEN_PAGE_SIZE));
     setRepoTaskGroupTokensPage((p) => Math.min(p, tokenMaxPage));
   }, [modelProviderProfileItems, repoScopedCredentials, repoTaskGroupTokens]);
@@ -2280,10 +2280,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                   )
                 )}
 
-                {/* ---------- SETTINGS TAB ---------- */}
-                {activeTab === 'settings' && (
+                {/* ---------- TASK-GROUP TOKENS TAB ---------- */}
+                {activeTab === 'taskGroupTokens' && (
                   <div className="hc-section-stack">
-                    {/* Task-group API tokens section — modern section block. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */}
+                    {/* Render the task-group API token list as its own tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302 */}
                     <div className="hc-section-block">
                       <div className="hc-section-block__header">
                         <span className="hc-section-block__title"><ApiOutlined />{t('repos.detail.autoTokens.title')}</span>
@@ -2340,7 +2340,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                         })()}
                       </div>
                     </div>
+                  </div>
+                )}
 
+                {/* ---------- SETTINGS TAB ---------- */}
+                {activeTab === 'settings' && (
+                  <div className="hc-section-stack">
                     {/* Danger zone — uses danger variant. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */}
                     {canDeleteRepo ? (
                       <div className="hc-section-block hc-section-block--danger">
