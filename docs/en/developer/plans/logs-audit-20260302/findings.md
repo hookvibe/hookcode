@@ -37,6 +37,17 @@
 | Provide `LogWriterService` with `logSystem/logOperation/logExecution` helpers | Gives a global logging API to keep future changes consistent and auditable. |
 | Use `EventStreamService` topic `logs` for SSE | Reuses existing SSE infrastructure and avoids new streaming stack. |
 | Admin-only access enforced in controller using `RepoAccessService.isAdmin` | Aligns with existing RBAC checks. |
+<!-- Document FK decision for audit logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+| Keep log foreign keys nullable without DB constraints | Preserve audit logs even when related records are deleted. |
+
+## Audit Review Follow-ups
+{/* Track audit report resolutions. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
+- Fixed `.gitignore` to stop ignoring `backend/src/modules/logs`.
+- LogWriterService now reports write failures with throttling.
+- AuditLogInterceptor now logs write failures only to reduce duplicate success logs.
+- Log retention is configurable via `LOG_RETENTION_DAYS` and deletion runs in batches.
+- SSE heartbeat already exists in `EventStreamService` (25s keep-alive), no change needed.
+- SSE server-side filtering and full-text search indexing remain future improvements.
 
 ## Issues Encountered
 | Issue | Resolution |

@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
+import type { SystemLog } from '@prisma/client';
 import { db } from '../../db';
 import { EventStreamService } from '../events/event-stream.service';
 import type { SystemLogCategory, SystemLogEntry, SystemLogLevel } from '../../types/systemLog';
@@ -33,6 +34,9 @@ export interface ListSystemLogsResult {
   logs: SystemLogEntry[];
   nextCursor?: string;
 }
+
+// Batch size for retention deletes to avoid long-running transactions. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+const PURGE_BATCH_SIZE = 1000;
 
 @Injectable()
 // Persist and stream system logs for admin observability. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
@@ -120,15 +124,25 @@ export class LogsService {
   }
 
   async purgeExpired(before: Date): Promise<number> {
-    const result = await db.systemLog.deleteMany({
-      where: {
-        createdAt: { lt: before }
-      }
-    });
-    return result.count;
+    // Delete expired logs in batches to avoid large table locks. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    let total = 0;
+    while (true) {
+      const rows = await db.systemLog.findMany({
+        where: { createdAt: { lt: before } },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+        take: PURGE_BATCH_SIZE
+      });
+      if (rows.length === 0) break;
+      const ids = rows.map((row) => row.id);
+      const result = await db.systemLog.deleteMany({ where: { id: { in: ids } } });
+      total += result.count ?? 0;
+      if (rows.length < PURGE_BATCH_SIZE || result.count === 0) break;
+    }
+    return total;
   }
 
-  private toEntry(row: any): SystemLogEntry {
+  private toEntry(row: SystemLog): SystemLogEntry {
     return {
       id: String(row.id),
       category: row.category,

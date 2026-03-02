@@ -41,6 +41,11 @@
   - Added repo/user business event logging (repos, robots, invites, automation, account/token events).
   - Extended log API docs with schema + common event codes.
   - Updated unit/integration tests to inject LogWriterService and assert audit log calls.
+  <!-- Record audit follow-up fixes. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+  - Fixed `.gitignore` to include logs module files in version control.
+  - Added throttled error reporting in LogWriterService and failure-only audit logging.
+  - Added retention batch deletion and configurable `LOG_RETENTION_DAYS`.
+  - Added UI note for live log retention cap.
 - Files created/modified:
   - `backend/prisma/schema.prisma`
   - `backend/prisma/migrations/20260302000000_system_logs/migration.sql`
@@ -80,6 +85,11 @@
   - `docs/en/api-reference/logs.md`
   - `docs/docs.json`
   <!-- Track additional files touched for business-event logging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+  - `.gitignore`
+  - `backend/src/modules/logs/log-writer.service.ts`
+  - `backend/src/modules/logs/audit-log.interceptor.ts`
+  - `backend/src/modules/logs/logs.service.ts`
+  - `backend/src/bootstrap.ts`
   - `backend/src/modules/repositories/repositories.controller.ts`
   - `backend/src/modules/repositories/repositories-http.module.ts`
   - `backend/src/modules/users/users.controller.ts`
@@ -92,6 +102,7 @@
   - `backend/src/tests/integration/repoAutomationRuleRobotRequired.test.ts`
   - `backend/src/tests/integration/repoRobotNoDefaultAutomationRules.test.ts`
   - `docs/en/developer/plans/logs-audit-20260302/findings.md`
+  - `frontend/src/components/settings/SettingsLogsPanel.tsx`
 
 ### Phase 4: Testing & Verification
 - **Status:** complete

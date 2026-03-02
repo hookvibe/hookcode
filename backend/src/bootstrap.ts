@@ -10,6 +10,7 @@ import { NestFactory } from '@nestjs/core';
 import { verifyToken } from './auth/authService';
 import { closeDb, ensureSchema } from './db';
 import { isTruthy } from './utils/env';
+import { parsePositiveInt } from './utils/parse'; // Reuse numeric parsing helpers for env-configured retention. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 import { isAdminToolsEmbeddedEnabled } from './adminTools/config';
 import { startAdminTools, type AdminToolsHandle } from './adminTools/startAdminTools';
 import { createOpenApiSpec } from './adminTools/openapi';
@@ -244,7 +245,7 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
 
   if (logsService) {
     // Schedule log retention cleanup to enforce 30-day policy. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-    const retentionDays = 30;
+    const retentionDays = parsePositiveInt(process.env.LOG_RETENTION_DAYS, 30);
     const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
     const runRetention = async () => {
       try {

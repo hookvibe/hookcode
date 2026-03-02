@@ -199,6 +199,8 @@ export const SettingsLogsPanel: FC = () => {
             <Switch checked={live} onChange={setLive} />
             <Typography.Text type="secondary">Live</Typography.Text>
           </Space>
+          {/* Explain the live stream retention cap. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
+          <Typography.Text type="secondary">Live mode keeps the newest 200 entries.</Typography.Text>
         </Space>
 
         {error ? <Alert type="error" showIcon message={error} /> : null}

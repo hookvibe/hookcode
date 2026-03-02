@@ -21,6 +21,10 @@ const MAX_STRING = 1000;
 @Injectable()
 // Centralize log writes so new features always emit audit/system entries. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 export class LogWriterService {
+  // Throttle log write failure reports to avoid noisy output during outages. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+  private lastErrorAt = 0;
+  private suppressedErrors = 0;
+
   constructor(private readonly logsService: LogsService) {}
 
   async logSystem(input: LogWriterInput): Promise<void> {
@@ -50,6 +54,17 @@ export class LogWriterService {
       });
     } catch (err) {
       // Best-effort logging: never let audit failures break core flows. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      const now = Date.now();
+      if (now - this.lastErrorAt > 60_000) {
+        if (this.suppressedErrors > 0) {
+          console.error(`[logs] suppressed ${this.suppressedErrors} log write errors`);
+        }
+        this.lastErrorAt = now;
+        this.suppressedErrors = 0;
+        console.error('[logs] log write failed', err);
+      } else {
+        this.suppressedErrors += 1;
+      }
     }
   }
 
