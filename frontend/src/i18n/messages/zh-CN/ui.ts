@@ -27,6 +27,8 @@ export const zhCNUi = {
   'panel.tabs.tools': '工具',
   'panel.tabs.environment': '环境',
   'panel.tabs.settings': '设置',
+  // Admin log tab label. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+  'panel.tabs.logs': '日志',
   'panel.header.desc.account': '个人资料与安全',
   'panel.header.desc.credentials': '模型密钥、仓库平台 Token 与 API 访问令牌',
   'panel.header.desc.tools': '管理工具（本地端口）',

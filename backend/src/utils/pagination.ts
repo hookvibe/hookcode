@@ -5,6 +5,11 @@ export type UpdatedAtCursor = {
   updatedAt: Date;
 };
 
+export type CreatedAtCursor = {
+  id: string;
+  createdAt: Date;
+};
+
 export type NameCursor = {
   id: string;
   name: string;
@@ -13,6 +18,12 @@ export type NameCursor = {
 // Encode an updated-at cursor for API pagination responses. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 export const encodeUpdatedAtCursor = (cursor: UpdatedAtCursor): string => {
   const payload = JSON.stringify({ id: cursor.id, updatedAt: cursor.updatedAt.toISOString() });
+  return Buffer.from(payload, 'utf8').toString('base64url');
+};
+
+// Encode a created-at cursor for log/event pagination. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+export const encodeCreatedAtCursor = (cursor: CreatedAtCursor): string => {
+  const payload = JSON.stringify({ id: cursor.id, createdAt: cursor.createdAt.toISOString() });
   return Buffer.from(payload, 'utf8').toString('base64url');
 };
 
@@ -29,6 +40,24 @@ export const decodeUpdatedAtCursor = (raw: unknown): UpdatedAtCursor | null => {
     const updatedAt = new Date(updatedAtRaw);
     if (Number.isNaN(updatedAt.getTime())) return null;
     return { id, updatedAt };
+  } catch {
+    return null;
+  }
+};
+
+// Decode a created-at cursor from API query params, returning null when invalid. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+export const decodeCreatedAtCursor = (raw: unknown): CreatedAtCursor | null => {
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  if (!value) return null;
+  try {
+    const payload = Buffer.from(value, 'base64url').toString('utf8');
+    const parsed = JSON.parse(payload) as { id?: unknown; createdAt?: unknown };
+    const id = typeof parsed.id === 'string' ? parsed.id.trim() : '';
+    const createdAtRaw = typeof parsed.createdAt === 'string' ? parsed.createdAt.trim() : '';
+    if (!id || !createdAtRaw || !isUuidLike(id)) return null;
+    const createdAt = new Date(createdAtRaw);
+    if (Number.isNaN(createdAt.getTime())) return null;
+    return { id, createdAt };
   } catch {
     return null;
   }

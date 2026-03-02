@@ -13,6 +13,7 @@ import { OpenApiModule } from './modules/openapi/openapi.module';
 import { UsersHttpModule } from './modules/users/users-http.module';
 import { WebhookHttpModule } from './modules/webhook/webhook-http.module';
 import { SkillsHttpModule } from './modules/skills/skills-http.module';
+import { LogsHttpModule } from './modules/logs/logs-http.module';
 
 @Module({
   imports: [
@@ -33,7 +34,9 @@ import { SkillsHttpModule } from './modules/skills/skills-http.module';
     OpenApiModule,
     WebhookHttpModule,
     // Expose skill registry endpoints for the console UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-    SkillsHttpModule
+    SkillsHttpModule,
+    // Expose admin system log APIs for the settings log tab. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    LogsHttpModule
   ]
 })
 export class AppModule {}

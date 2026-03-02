@@ -6,6 +6,7 @@ import { RepoWebhookDeliveryService } from '../repositories/repo-webhook-deliver
 import { RepositoryService } from '../repositories/repository.service';
 import { TaskRunner } from '../tasks/task-runner.service';
 import { TaskService } from '../tasks/task.service';
+import { LogWriterService } from '../logs/log-writer.service';
 import { handleGithubWebhook, handleGitlabWebhook } from './webhook.handlers';
 
 @Injectable()
@@ -16,7 +17,9 @@ export class WebhookService {
     private readonly repositoryService: RepositoryService,
     private readonly repoRobotService: RepoRobotService,
     private readonly repoAutomationService: RepoAutomationService,
-    private readonly repoWebhookDeliveryService: RepoWebhookDeliveryService
+    private readonly repoWebhookDeliveryService: RepoWebhookDeliveryService,
+    // Provide log writer so webhook handlers emit system logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    private readonly logWriter: LogWriterService
   ) {}
 
   handleGitlabWebhook(req: Request, res: Response) {
@@ -26,7 +29,8 @@ export class WebhookService {
       repositoryService: this.repositoryService,
       repoRobotService: this.repoRobotService,
       repoAutomationService: this.repoAutomationService,
-      repoWebhookDeliveryService: this.repoWebhookDeliveryService
+      repoWebhookDeliveryService: this.repoWebhookDeliveryService,
+      logWriter: this.logWriter
     });
   }
 
@@ -37,8 +41,8 @@ export class WebhookService {
       repositoryService: this.repositoryService,
       repoRobotService: this.repoRobotService,
       repoAutomationService: this.repoAutomationService,
-      repoWebhookDeliveryService: this.repoWebhookDeliveryService
+      repoWebhookDeliveryService: this.repoWebhookDeliveryService,
+      logWriter: this.logWriter
     });
   }
 }
-

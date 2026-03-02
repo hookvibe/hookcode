@@ -27,6 +27,8 @@ export const enUSUi = {
   'panel.tabs.tools': 'Tools',
   'panel.tabs.environment': 'Environment',
   'panel.tabs.settings': 'Settings',
+  // Admin log tab label. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+  'panel.tabs.logs': 'Logs',
   'panel.header.desc.account': 'Profile & security',
   'panel.header.desc.credentials': 'Provider secrets, repo tokens, and API access tokens',
   'panel.header.desc.tools': 'Admin tools (local ports)',

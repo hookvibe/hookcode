@@ -3,6 +3,7 @@ import { AgentExecutionError } from '../../agent/agent';
 import { Task, type TaskResult, type TaskStatus } from '../../types/task';
 import { AgentService } from './agent.service';
 import { TaskService } from './task.service';
+import { LogWriterService } from '../logs/log-writer.service';
 
 export interface TaskRunnerFinishInfo {
   status: TaskStatus;
@@ -49,7 +50,11 @@ export class TaskRunner {
   // Configure per-process task concurrency to enable parallel task-group runs. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
   private readonly maxConcurrency = resolveWorkerConcurrency();
 
-  constructor(private readonly taskService: TaskService, private readonly agentService: AgentService) {}
+  constructor(
+    private readonly taskService: TaskService,
+    private readonly agentService: AgentService,
+    private readonly logWriter: LogWriterService
+  ) {}
 
   setHooks(hooks: TaskRunnerHooks | null): void {
     this.hooks = hooks;
@@ -149,6 +154,16 @@ export class TaskRunner {
   private async processTask(task: Task): Promise<void> {
     const startedAt = Date.now();
     await this.runHookStart(task);
+    // Emit an execution log for task start to keep admin logs complete. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    void this.logWriter.logExecution({
+      level: 'info',
+      message: 'Task started',
+      code: 'TASK_STARTED',
+      repoId: task.repoId,
+      taskId: task.id,
+      taskGroupId: task.groupId,
+      meta: { eventType: task.eventType, robotId: task.robotId, retries: task.retries }
+    });
 
     let abortReason: TaskAbortReason | null = null;
     const abortController = new AbortController();
@@ -177,6 +192,16 @@ export class TaskRunner {
         signal: abortController.signal
       });
       await this.finalizeWithRetry(task.id, 'succeeded', { logs, logsSeq, providerCommentUrl, outputText, gitStatus });
+      // Record successful task completion in the audit log. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logExecution({
+        level: 'info',
+        message: 'Task succeeded',
+        code: 'TASK_SUCCEEDED',
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { durationMs: Date.now() - startedAt, retries: task.retries }
+      });
       await this.runHookFinish(task, {
         status: 'succeeded',
         providerCommentUrl,
@@ -204,6 +229,16 @@ export class TaskRunner {
           providerCommentUrl,
           gitStatus
         });
+        // Persist pause events for audit visibility. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+        void this.logWriter.logExecution({
+          level: 'warn',
+          message: pauseMessage,
+          code: 'TASK_PAUSED',
+          repoId: task.repoId,
+          taskId: task.id,
+          taskGroupId: task.groupId,
+          meta: { durationMs: Date.now() - startedAt, retries: task.retries }
+        });
         await this.runHookFinish(task, {
           status: 'paused',
           message: pauseMessage,
@@ -215,6 +250,16 @@ export class TaskRunner {
 
       if (abortReason === 'deleted') {
         console.warn('[taskRunner] task removed during execution; skip finalize', task.id);
+        // Capture delete interruptions as error-level execution logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+        void this.logWriter.logExecution({
+          level: 'error',
+          message: 'Task deleted during execution.',
+          code: 'TASK_DELETED',
+          repoId: task.repoId,
+          taskId: task.id,
+          taskGroupId: task.groupId,
+          meta: { durationMs: Date.now() - startedAt, retries: task.retries }
+        });
         await this.runHookFinish(task, {
           status: 'failed',
           message: 'Task deleted during execution.',
@@ -226,6 +271,16 @@ export class TaskRunner {
 
       console.error('[taskRunner] task failed', task.id, err);
       await this.finalizeWithRetry(task.id, 'failed', { logs, logsSeq, message, providerCommentUrl, gitStatus });
+      // Capture failures in the execution log stream for debugging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logExecution({
+        level: 'error',
+        message,
+        code: 'TASK_FAILED',
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { durationMs: Date.now() - startedAt, retries: task.retries }
+      });
       await this.runHookFinish(task, {
         status: 'failed',
         message,

@@ -70,6 +70,30 @@ model TaskGroup {
   @@index([repoId, issueId, archivedAt], map: "task_groups_repo_issue_archived_idx")
 }
 
+/// Store system/audit logs for admin review and diagnostics. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+model SystemLog {
+  id          String   @id @db.Uuid
+  category    String
+  level       String
+  message     String   @db.Text
+  code        String?
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  repoId      String?  @map("repo_id") @db.Uuid
+  taskId      String?  @map("task_id") @db.Uuid
+  taskGroupId String?  @map("task_group_id") @db.Uuid
+  meta        Json?    @map("meta_json") @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("system_logs")
+  @@index([createdAt], map: "system_logs_created_at_idx")
+  @@index([category, createdAt], map: "system_logs_category_created_at_idx")
+  @@index([level, createdAt], map: "system_logs_level_created_at_idx")
+  @@index([actorUserId, createdAt], map: "system_logs_actor_created_at_idx")
+  @@index([repoId, createdAt], map: "system_logs_repo_created_at_idx")
+  @@index([taskId, createdAt], map: "system_logs_task_created_at_idx")
+  @@index([taskGroupId, createdAt], map: "system_logs_task_group_created_at_idx")
+}
+
 /// Store global extra skill metadata + prompt injection flags for the skills registry. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
 model ExtraSkill {
   id            String   @id @db.Uuid // Extra skills use app-generated UUIDs for consistent ID creation. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225

@@ -8,3 +8,4 @@ export * from './api/credentials';
 export * from './api/system';
 export * from './api/repos';
 export * from './api/skills'; // Expose skills API helpers for the Skills page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+export * from './api/logs'; // Expose system log API helpers for admin log UI. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
