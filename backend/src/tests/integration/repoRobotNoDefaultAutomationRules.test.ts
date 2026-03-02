@@ -43,15 +43,26 @@ describeDb('Robot creation does not auto-generate automation rules', () => {
 
     const userService = new UserService();
     const repositoryService = new RepositoryService();
+    // Provide repo controller dependency stubs for integration tests. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    const repoAccessService = { requireRepoManage: jest.fn().mockResolvedValue(undefined) };
+    const repoMemberService = {} as any;
     const repoRobotService = new RepoRobotService();
     const repoAutomationService = new RepoAutomationService();
     const repoWebhookDeliveryService = new RepoWebhookDeliveryService();
+    const previewService = {} as any;
+    const skillsService = {} as any;
+    const logWriter = { logOperation: jest.fn(), logSystem: jest.fn(), logExecution: jest.fn() }; // Provide LogWriterService stub for integration coverage. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
     const repositoriesController = new RepositoriesController(
       repositoryService,
+      repoAccessService as any,
+      repoMemberService,
       repoRobotService,
       repoAutomationService,
       repoWebhookDeliveryService,
-      userService
+      userService,
+      previewService,
+      skillsService,
+      logWriter
     );
 
     const owner = await userService.createUser({

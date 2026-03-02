@@ -16,7 +16,8 @@ build
 coverage
 tmp
 .tmp
-logs
+# Ignore the repo-root logs directory only to avoid hiding modules. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+/logs
 # Persist uploaded extra skill bundles outside git. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
 backend/storage/skills/
 .codex_prompt.txt

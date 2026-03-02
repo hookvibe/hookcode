@@ -10,6 +10,7 @@ import { NestFactory } from '@nestjs/core';
 import { verifyToken } from './auth/authService';
 import { closeDb, ensureSchema } from './db';
 import { isTruthy } from './utils/env';
+import { parsePositiveInt } from './utils/parse'; // Reuse numeric parsing helpers for env-configured retention. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 import { isAdminToolsEmbeddedEnabled } from './adminTools/config';
 import { startAdminTools, type AdminToolsHandle } from './adminTools/startAdminTools';
 import { createOpenApiSpec } from './adminTools/openapi';
@@ -20,6 +21,9 @@ import { OpenApiSpecStore } from './modules/openapi/openapi-spec.store';
 import { PreviewWsProxyService } from './modules/tasks/preview-ws-proxy.service';
 import { PreviewHostProxyService } from './modules/tasks/preview-host-proxy.service';
 import { HttpErrorMessageFilter } from './modules/common/filters/http-error-message.filter';
+import { AuditLogInterceptor } from './modules/logs/audit-log.interceptor';
+import { LogsService } from './modules/logs/logs.service';
+import { LogWriterService } from './modules/logs/log-writer.service';
 
 dotenv.config();
 
@@ -83,6 +87,7 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
 
   let adminTools: AdminToolsHandle | null = null;
   let staleReaperTimer: NodeJS.Timeout | null = null;
+  let logRetentionTimer: NodeJS.Timeout | null = null;
 
   await ensureSchema();
 
@@ -119,6 +124,13 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
       transform: true
     })
   );
+
+  try {
+    // Register audit log interceptor for write operations. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    app.useGlobalInterceptors(app.get(AuditLogInterceptor));
+  } catch (err) {
+    console.warn(`${logTag} audit log interceptor registration failed`, err);
+  }
   // Register a global HttpException message fallback for code-only error payloads. docs/en/developer/plans/im5mpw0g5827wu95w4ki/task_plan.md im5mpw0g5827wu95w4ki
   app.useGlobalFilters(new HttpErrorMessageFilter());
 
@@ -150,6 +162,16 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
     console.warn(`${logTag} openapi spec generation failed`, err);
   }
 
+  let logWriter: LogWriterService | null = null;
+  let logsService: LogsService | null = null;
+  try {
+    // Resolve log services for system/audit logging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    logWriter = app.get(LogWriterService);
+    logsService = app.get(LogsService);
+  } catch (err) {
+    console.warn(`${logTag} log services unavailable`, err);
+  }
+
   const runtimeService = app.get(RuntimeService);
   try {
     // Detect available runtimes once on startup for dependency installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
@@ -157,6 +179,13 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
     console.log(`${logTag} detected runtimes`, runtimes.map((rt) => `${rt.language}@${rt.version}`));
   } catch (err) {
     console.warn(`${logTag} runtime detection failed`, err);
+    // Record runtime detection failures in system logs for auditing. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    void logWriter?.logSystem({
+      level: 'warn',
+      message: 'Runtime detection failed',
+      code: 'RUNTIME_DETECT_FAILED',
+      meta: { error: err instanceof Error ? err.message : String(err) }
+    });
   }
 
   const userService = app.get(UserService);
@@ -171,20 +200,80 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
     const recovered = await taskService.recoverStaleProcessing(staleMs);
     if (recovered > 0) {
       console.warn(`${logTag} recovered ${recovered} stuck task(s) (processing timeout)`);
+      // Emit system logs when stale task recovery succeeds. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void logWriter?.logSystem({
+        level: 'warn',
+        message: `Recovered ${recovered} stuck task(s) (processing timeout)`,
+        code: 'TASK_STALE_RECOVERED',
+        meta: { recovered, staleMs }
+      });
     }
   } catch (err) {
     console.error(`${logTag} recoverStaleProcessing failed`, err);
+    // Emit system logs when stale task recovery fails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    void logWriter?.logSystem({
+      level: 'error',
+      message: 'recoverStaleProcessing failed',
+      code: 'TASK_STALE_RECOVERY_FAILED',
+      meta: { error: err instanceof Error ? err.message : String(err) }
+    });
   }
   staleReaperTimer = setInterval(async () => {
     try {
       const recovered = await taskService.recoverStaleProcessing(staleMs);
       if (recovered > 0) {
         console.warn(`${logTag} recovered ${recovered} stuck task(s) (processing timeout)`);
+        // Emit system logs when scheduled recovery succeeds. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+        void logWriter?.logSystem({
+          level: 'warn',
+          message: `Recovered ${recovered} stuck task(s) (processing timeout)`,
+          code: 'TASK_STALE_RECOVERED',
+          meta: { recovered, staleMs }
+        });
       }
     } catch (err) {
       console.error(`${logTag} recoverStaleProcessing failed`, err);
+      // Emit system logs when scheduled recovery fails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void logWriter?.logSystem({
+        level: 'error',
+        message: 'recoverStaleProcessing failed',
+        code: 'TASK_STALE_RECOVERY_FAILED',
+        meta: { error: err instanceof Error ? err.message : String(err) }
+      });
     }
   }, intervalMs);
+
+  if (logsService) {
+    // Schedule log retention cleanup to enforce 30-day policy. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    const retentionDays = parsePositiveInt(process.env.LOG_RETENTION_DAYS, 30);
+    const retentionMs = retentionDays * 24 * 60 * 60 * 1000;
+    const runRetention = async () => {
+      try {
+        const deleted = await logsService!.purgeExpired(new Date(Date.now() - retentionMs));
+        if (deleted > 0) {
+          // Emit system logs when retention cleanup removes entries. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+          void logWriter?.logSystem({
+            level: 'info',
+            message: `Purged ${deleted} expired system log entries`,
+            code: 'LOG_RETENTION_PURGE',
+            meta: { deleted, retentionDays }
+          });
+        }
+      } catch (err) {
+        console.error(`${logTag} log retention purge failed`, err);
+        // Emit system logs when retention cleanup fails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+        void logWriter?.logSystem({
+          level: 'error',
+          message: 'Log retention purge failed',
+          code: 'LOG_RETENTION_PURGE_FAILED',
+          meta: { error: err instanceof Error ? err.message : String(err) }
+        });
+      }
+    };
+
+    await runRetention();
+    logRetentionTimer = setInterval(runRetention, 24 * 60 * 60 * 1000);
+  }
 
   await app.listen(port, host);
   console.log(`${logTag} listening on http://${host}:${port}`);
@@ -207,6 +296,7 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
 
   const stop = async () => {
     if (staleReaperTimer) clearInterval(staleReaperTimer);
+    if (logRetentionTimer) clearInterval(logRetentionTimer);
     try {
       await adminTools?.stop();
     } catch (err) {

@@ -27,6 +27,16 @@ export const enUSUi = {
   'panel.tabs.tools': 'Tools',
   'panel.tabs.environment': 'Environment',
   'panel.tabs.settings': 'Settings',
+  // Admin log tab label. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+  'panel.tabs.logs': 'Logs',
+  // Notifications tab label. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  'panel.tabs.notifications': 'Notifications',
+  'panel.notifications.title': 'Notifications',
+  'panel.notifications.readAll': 'Mark all read',
+  'panel.notifications.viewAll': 'View all',
+  'panel.notifications.empty': 'No notifications yet',
+  'panel.notifications.unreadOnly': 'Unread only',
+  'panel.notifications.live': 'Live',
   'panel.header.desc.account': 'Profile & security',
   'panel.header.desc.credentials': 'Provider secrets, repo tokens, and API access tokens',
   'panel.header.desc.tools': 'Admin tools (local ports)',

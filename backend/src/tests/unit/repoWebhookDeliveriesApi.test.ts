@@ -13,12 +13,15 @@ import { UserService } from '../../modules/users/user.service';
 // Use PreviewService token for controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
 import { PreviewService } from '../../modules/tasks/preview.service';
 import { SkillsService } from '../../modules/skills/skills.service';
+import { LogWriterService } from '../../modules/logs/log-writer.service'; // Provide log writer mock for webhook delivery tests. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 
 describe('Repo webhook deliveries API', () => {
   // Provide a stable PreviewService mock to satisfy controller DI across tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
   const previewService = {};
   // Provide a stable SkillsService mock to satisfy controller DI across tests. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   const skillsService = {};
+  // Provide a stable LogWriterService mock for audit logging dependencies. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+  const logWriter = { logOperation: jest.fn(), logSystem: jest.fn(), logExecution: jest.fn() };
   // Provide a request user for RBAC-protected endpoints in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
   const req = { user: { id: 'u1', username: 'u1', roles: [] } } as any;
   test('returns 404 when repo is missing', async () => {
@@ -41,7 +44,8 @@ describe('Repo webhook deliveries API', () => {
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
-        { provide: SkillsService, useValue: skillsService }
+        { provide: SkillsService, useValue: skillsService },
+        { provide: LogWriterService, useValue: logWriter } // Inject LogWriterService mock for audit logging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
@@ -103,7 +107,8 @@ describe('Repo webhook deliveries API', () => {
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
-        { provide: SkillsService, useValue: skillsService }
+        { provide: SkillsService, useValue: skillsService },
+        { provide: LogWriterService, useValue: logWriter } // Inject LogWriterService mock for audit logging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);
@@ -158,7 +163,8 @@ describe('Repo webhook deliveries API', () => {
         { provide: UserService, useValue: {} },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
-        { provide: SkillsService, useValue: skillsService }
+        { provide: SkillsService, useValue: skillsService },
+        { provide: LogWriterService, useValue: logWriter } // Inject LogWriterService mock for audit logging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       ]
     }).compile();
     const controller = moduleRef.get(RepositoriesController);

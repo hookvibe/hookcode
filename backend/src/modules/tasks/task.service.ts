@@ -33,6 +33,8 @@ export interface TaskCreateMeta {
   repoProvider?: RepoProvider;
   repoId?: string;
   robotId?: string;
+  // Persist the triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  actorUserId?: string;
   ref?: string;
   mrId?: number;
   issueId?: number;
@@ -163,6 +165,8 @@ const taskRecordToTask = (row: any): Task => ({
   repoProvider: row.repoProvider ?? undefined,
   repoId: row.repoId ?? undefined,
   robotId: row.robotId ?? undefined,
+  // Map actor user id for notification recipients. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  actorUserId: row.actorUserId ?? row.actor_user_id ?? undefined,
   ref: row.ref ?? undefined,
   mrId: row.mrId ?? undefined,
   issueId: row.issueId ?? undefined,
@@ -188,6 +192,8 @@ const rowToTaskFromSql = (row: any): Task => ({
   repoProvider: row.repo_provider ?? undefined,
   repoId: row.repo_id ?? undefined,
   robotId: row.robot_id ?? undefined,
+  // Preserve actor user id when loading tasks via raw SQL. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  actorUserId: row.actor_user_id ?? undefined,
   ref: row.ref ?? undefined,
   mrId: row.mr_id ?? undefined,
   issueId: row.issue_id ?? undefined,
@@ -611,6 +617,8 @@ export class TaskService {
         repoProvider: meta?.repoProvider ?? null,
         repoId: meta?.repoId ?? null,
         robotId: meta?.robotId ?? null,
+        // Capture triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        actorUserId: meta?.actorUserId ?? null,
         ref: meta?.ref ?? null,
         mrId: meta?.mrId ?? null,
         issueId: meta?.issueId ?? null,
@@ -680,6 +688,8 @@ export class TaskService {
         repoProvider: meta?.repoProvider ?? null,
         repoId: meta?.repoId ?? null,
         robotId: meta?.robotId ?? null,
+        // Capture triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        actorUserId: meta?.actorUserId ?? null,
         ref: meta?.ref ?? null,
         mrId: meta?.mrId ?? null,
         issueId: meta?.issueId ?? null,

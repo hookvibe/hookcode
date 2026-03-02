@@ -53,6 +53,8 @@
               "en/api-reference/auth-users",
               "en/api-reference/repositories",
               "en/api-reference/tasks-and-groups",
+              "en/api-reference/logs",
+              "en/api-reference/notifications",
               "en/api-reference/webhooks-events-tools",
               "en/api-reference/openapi"
             ]
