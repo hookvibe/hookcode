@@ -288,6 +288,10 @@ export class TaskWithMetaDto {
   @ApiPropertyOptional({ nullable: true })
   robotId?: string | null;
 
+  // Expose triggering user for notifications and audit contexts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  @ApiPropertyOptional({ nullable: true })
+  actorUserId?: string | null;
+
   @ApiPropertyOptional({ nullable: true })
   ref?: string | null;
 

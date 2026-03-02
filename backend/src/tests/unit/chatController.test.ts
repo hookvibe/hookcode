@@ -30,7 +30,8 @@ describe('ChatController.execute', () => {
 
     const controller = new ChatController(taskService, repositoryService, repoRobotService, taskRunner);
 
-    const res = await controller.execute({ repoId: 'r1', robotId: 'rb1', text: 'hello' } as any);
+    const req = { user: { id: 'u1' } } as any; // Provide request user for actor attribution. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+    const res = await controller.execute(req, { repoId: 'r1', robotId: 'rb1', text: 'hello' } as any);
     expect(taskService.createManualTaskGroup).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'chat', repoId: 'r1', robotId: 'rb1' })
     );
@@ -38,7 +39,7 @@ describe('ChatController.execute', () => {
       'g1',
       'chat',
       expect.any(Object),
-      expect.objectContaining({ repoId: 'r1', robotId: 'rb1', title: expect.stringContaining('Chat') }),
+      expect.objectContaining({ repoId: 'r1', robotId: 'rb1', title: expect.stringContaining('Chat'), actorUserId: 'u1' }),
       expect.objectContaining({ updateGroupRobotId: true })
     );
     expect(res).toEqual({ task: { id: 't1' }, taskGroup: { id: 'g1', kind: 'chat', repoId: 'r1' } });
@@ -71,7 +72,8 @@ describe('ChatController.execute', () => {
 
     const controller = new ChatController(taskService, repositoryService, repoRobotService, taskRunner);
 
-    const res = await controller.execute({ repoId: 'r1', robotId: 'rb1', taskGroupId: 'g2', text: 'hello' } as any);
+    const req = { user: { id: 'u2' } } as any; // Provide request user for actor attribution. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+    const res = await controller.execute(req, { repoId: 'r1', robotId: 'rb1', taskGroupId: 'g2', text: 'hello' } as any);
     expect(taskService.createManualTaskGroup).not.toHaveBeenCalled();
     expect(taskService.createTaskInGroup).toHaveBeenCalledWith(
       'g2',

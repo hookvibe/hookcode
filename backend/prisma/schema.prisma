@@ -20,6 +20,8 @@ model Task {
   repoProvider String?  @map("repo_provider")
   repoId       String?  @map("repo_id") @db.Uuid
   robotId      String?  @map("robot_id") @db.Uuid
+  /// Track the triggering user for task notifications. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
   ref          String?
   mrId         Int?     @map("mr_id")
   issueId      Int?     @map("issue_id")
@@ -92,6 +94,28 @@ model SystemLog {
   @@index([repoId, createdAt], map: "system_logs_repo_created_at_idx")
   @@index([taskId, createdAt], map: "system_logs_task_created_at_idx")
   @@index([taskGroupId, createdAt], map: "system_logs_task_group_created_at_idx")
+}
+
+/// Store per-user notifications for task result alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+model Notification {
+  id          String   @id @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  type        String
+  level       String
+  message     String   @db.Text
+  code        String?
+  repoId      String?  @map("repo_id") @db.Uuid
+  taskId      String?  @map("task_id") @db.Uuid
+  taskGroupId String?  @map("task_group_id") @db.Uuid
+  meta        Json?    @map("meta_json") @db.JsonB
+  readAt      DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("notifications")
+  @@index([userId, createdAt], map: "notifications_user_created_at_idx")
+  @@index([userId, readAt], map: "notifications_user_read_at_idx")
+  @@index([repoId, createdAt], map: "notifications_repo_created_at_idx")
+  @@index([taskId, createdAt], map: "notifications_task_created_at_idx")
 }
 
 /// Store global extra skill metadata + prompt injection flags for the skills registry. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225

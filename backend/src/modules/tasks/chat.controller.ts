@@ -1,5 +1,6 @@
-import { BadRequestException, Controller, HttpException, InternalServerErrorException, NotFoundException, Post, Body } from '@nestjs/common';
+import { BadRequestException, Controller, HttpException, InternalServerErrorException, NotFoundException, Post, Body, Req } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { RepoRobotService } from '../repositories/repo-robot.service';
 import { RepositoryService } from '../repositories/repository.service';
 import { buildChatTaskPayload } from '../../services/chatPayload';
@@ -73,7 +74,7 @@ export class ChatController {
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async execute(@Body() body: ChatExecuteRequestDto) {
+  async execute(@Req() req: Request, @Body() body: ChatExecuteRequestDto) {
     try {
       const repoId = normalizeString((body as any)?.repoId);
       const robotId = normalizeString((body as any)?.robotId);
@@ -138,7 +139,9 @@ export class ChatController {
           repoId,
           repoProvider: repo.provider,
           robotId,
-          promptCustom
+          promptCustom,
+          // Attribute manual chat tasks to the triggering user for notifications. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+          actorUserId: req.user?.id
         },
         { updateGroupRobotId: group.kind === 'chat' }
       );

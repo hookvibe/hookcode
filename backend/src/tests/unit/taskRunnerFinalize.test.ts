@@ -52,6 +52,14 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     logSystem: jest.fn().mockResolvedValue(undefined)
   }); // Provide a noop log writer for TaskRunner audit hooks. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 
+  const createNotificationsService = () => ({
+    createNotification: jest.fn().mockResolvedValue(undefined)
+  }); // Provide notification stubs for TaskRunner tests. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+
+  const createNotificationRecipients = () => ({
+    resolveRecipientsForTask: jest.fn().mockResolvedValue([])
+  }); // Provide recipient stubs for TaskRunner tests. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+
   beforeEach(() => {
     jest.restoreAllMocks();
     jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -82,7 +90,13 @@ describe('TaskRunner (finalization + DB write retry)', () => {
         .mockResolvedValueOnce({ ...task, status: 'failed' } as any)
     };
 
-    const taskRunner = new TaskRunner(taskService as any, agentService as any, createLogWriter() as any);
+    const taskRunner = new TaskRunner(
+      taskService as any,
+      agentService as any,
+      createLogWriter() as any,
+      createNotificationsService() as any,
+      createNotificationRecipients() as any
+    );
 
     const promise = taskRunner.trigger();
     await Promise.resolve();
@@ -123,7 +137,13 @@ describe('TaskRunner (finalization + DB write retry)', () => {
         .mockResolvedValueOnce({ ...task, status: 'succeeded' } as any)
     };
 
-    const taskRunner = new TaskRunner(taskService as any, agentService as any, createLogWriter() as any);
+    const taskRunner = new TaskRunner(
+      taskService as any,
+      agentService as any,
+      createLogWriter() as any,
+      createNotificationsService() as any,
+      createNotificationRecipients() as any
+    );
 
     await taskRunner.trigger();
 
@@ -161,7 +181,13 @@ describe('TaskRunner (finalization + DB write retry)', () => {
         .mockResolvedValueOnce({ ...task, status: 'succeeded' } as any)
     };
 
-    const taskRunner = new TaskRunner(taskService as any, agentService as any, createLogWriter() as any);
+    const taskRunner = new TaskRunner(
+      taskService as any,
+      agentService as any,
+      createLogWriter() as any,
+      createNotificationsService() as any,
+      createNotificationRecipients() as any
+    );
     taskRunner.setHooks({
       onTaskStart: (t) => {
         events.push(`start:${t.id}`);
@@ -223,7 +249,13 @@ describe('TaskRunner (finalization + DB write retry)', () => {
         patchResult: jest.fn().mockResolvedValue({ ...task1, status: 'processing' } as any)
       };
 
-      const taskRunner = new TaskRunner(taskService as any, agentService as any, createLogWriter() as any);
+      const taskRunner = new TaskRunner(
+        taskService as any,
+        agentService as any,
+        createLogWriter() as any,
+        createNotificationsService() as any,
+        createNotificationRecipients() as any
+      );
       const triggerPromise = taskRunner.trigger();
 
       await new Promise((resolve) => setImmediate(resolve));
@@ -270,7 +302,13 @@ describe('TaskRunner (finalization + DB write retry)', () => {
         .mockResolvedValueOnce({ ...task, status: 'failed' } as any)
     };
 
-    const taskRunner = new TaskRunner(taskService as any, agentService as any, createLogWriter() as any);
+    const taskRunner = new TaskRunner(
+      taskService as any,
+      agentService as any,
+      createLogWriter() as any,
+      createNotificationsService() as any,
+      createNotificationRecipients() as any
+    );
     taskRunner.setHooks({
       onTaskStart: (t) => {
         events.push(`start:${t.id}`);
@@ -317,7 +355,13 @@ describe('TaskRunner (finalization + DB write retry)', () => {
       patchResult: jest.fn().mockResolvedValue({ ...task, status: 'processing' } as any)
     };
 
-    const taskRunner = new TaskRunner(taskService as any, agentService as any, createLogWriter() as any);
+    const taskRunner = new TaskRunner(
+      taskService as any,
+      agentService as any,
+      createLogWriter() as any,
+      createNotificationsService() as any,
+      createNotificationRecipients() as any
+    );
     const promise = taskRunner.trigger();
 
     await Promise.resolve();

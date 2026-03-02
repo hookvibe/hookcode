@@ -74,6 +74,7 @@ import { uuid as generateUuid } from '../components/repoAutomation/utils';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { UserSettingsSidebar } from '../components/settings/UserSettingsSidebar';
 import { SettingsLogsPanel } from '../components/settings/SettingsLogsPanel';
+import { SettingsNotificationsPanel } from '../components/settings/SettingsNotificationsPanel';
 import { buildHomeHash, type SettingsTab } from '../router';
 
 // Re-use type aliases from the original panel component. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
@@ -198,7 +199,9 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         environment: 'panel.tabs.environment',
         settings: 'panel.tabs.settings',
         // Add admin log tab label mapping for settings. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-        logs: 'panel.tabs.logs'
+        logs: 'panel.tabs.logs',
+        // Add notifications tab label mapping for settings. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        notifications: 'panel.tabs.notifications'
       }) as const,
     []
   );
@@ -963,6 +966,15 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           </div>
         );
 
+      case 'notifications':
+        // Render per-user notifications inside the settings page. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        return (
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.tabs.notifications')}</div>
+            <SettingsNotificationsPanel />
+          </div>
+        );
+
       case 'settings':
       default:
         return (
@@ -1012,7 +1024,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
             title={t(tabTitleKey[activeTab] as any)}
             actions={
               // Avoid showing the global refresh button on the log tab (it has its own controls). docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-              activeTab !== 'settings' && activeTab !== 'logs' ? (
+              activeTab !== 'settings' && activeTab !== 'logs' && activeTab !== 'notifications' ? (
                 <Button
                   type="text"
                   icon={<ReloadOutlined />}

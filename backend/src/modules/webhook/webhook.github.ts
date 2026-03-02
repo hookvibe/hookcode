@@ -18,7 +18,7 @@ import {
 // Split GitHub webhook handler into a provider-specific module for maintainability. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
 export const handleGithubWebhook = async (req: Request, res: Response, deps: WebhookDeps) => {
   // Include log writer so webhook rejects emit system logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-  const { taskService, taskRunner, repositoryService, repoRobotService, repoAutomationService, repoWebhookDeliveryService, logWriter } = deps;
+  const { taskService, taskRunner, repositoryService, repoRobotService, repoAutomationService, repoWebhookDeliveryService, logWriter, notificationRecipients } = deps;
   const repoId = String(req.params.repoId ?? '').trim();
   const eventName = safeString(req.header('x-github-event') ?? '').trim();
   const deliveryId = safeString(req.header('x-github-delivery') ?? '').trim();
@@ -161,6 +161,8 @@ export const handleGithubWebhook = async (req: Request, res: Response, deps: Web
     }
 
     const baseMeta = buildGithubTaskMeta(eventType, payload);
+    // Resolve trigger user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+    const actorUserId = (await notificationRecipients.resolveActorUserIdFromPayload(repoId, payload)) ?? undefined;
     const created: Array<{ id: string; robotId: string }> = [];
 
     for (const action of actions) {
@@ -193,7 +195,9 @@ export const handleGithubWebhook = async (req: Request, res: Response, deps: Web
         repoId,
         repoProvider: 'github',
         robotId: action.robotId,
-        promptCustom: action.promptCustom ?? null
+        promptCustom: action.promptCustom ?? null,
+        // Attach trigger ownership for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        actorUserId
       });
       created.push({ id: task.id, robotId: action.robotId });
     }

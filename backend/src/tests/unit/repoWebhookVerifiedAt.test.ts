@@ -42,7 +42,10 @@ describe('Webhook verification marker', () => {
       },
       logWriter: {
         logSystem: jest.fn().mockResolvedValue(undefined)
-      } // Stub system log writer for webhook tests. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      }, // Stub system log writer for webhook tests. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      notificationRecipients: {
+        resolveActorUserIdFromPayload: jest.fn().mockResolvedValue(null)
+      } // Stub notification recipient resolver for webhook tests. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
     } as any;
 
     const req = {

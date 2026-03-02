@@ -6,6 +6,7 @@ type Subscriber = {
   id: string;
   res: Response;
   topics?: Set<string>;
+  userId?: string;
 };
 
 /**
@@ -23,10 +24,11 @@ export class EventStreamService {
   private readonly subscribers = new Map<string, Subscriber>();
   private heartbeatTimer: NodeJS.Timeout | null = null;
 
-  subscribe(res: Response, options?: { topics?: string[] }): () => void {
+  subscribe(res: Response, options?: { topics?: string[]; userId?: string }): () => void {
     const id = randomUUID();
     const topics = options?.topics?.length ? new Set(options.topics) : undefined;
-    this.subscribers.set(id, { id, res, topics });
+    // Track optional user identity to support per-user SSE notifications. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+    this.subscribers.set(id, { id, res, topics, userId: options?.userId });
     this.ensureHeartbeat();
 
     return () => {
@@ -43,10 +45,13 @@ export class EventStreamService {
     return count;
   }
 
-  publish(params: { topic: string; event: string; data: unknown }): void {
+  publish(params: { topic: string; event: string; data: unknown; userIds?: string[] }): void {
     const payload = `event: ${params.event}\ndata: ${JSON.stringify(params.data)}\n\n`;
+    // Filter events by user id for private notification streams. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+    const userFilter = params.userIds?.length ? new Set(params.userIds) : null;
     for (const sub of this.subscribers.values()) {
       if (sub.topics && !sub.topics.has(params.topic)) continue;
+      if (userFilter && (!sub.userId || !userFilter.has(sub.userId))) continue;
       try {
         sub.res.write(payload);
       } catch (err) {

@@ -43,6 +43,11 @@ const ZH_SUMMARY_BY_OPERATION_ID: Record<string, string> = {
   logs_list: '系统日志列表',
   logs_stream: 'SSE：系统日志流',
 
+  // Add notification summaries for user alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  notifications_list: '通知列表',
+  notifications_unread_count: '未读通知数量',
+  notifications_read_all: '通知全部已读',
+
   task_groups_list: '任务分组列表',
   task_groups_get: '任务分组详情',
   task_groups_tasks: '任务分组下的任务列表',
@@ -94,6 +99,7 @@ export const createOpenApiSpec = (params: {
     .addTag('Tasks', s(locale, '任务队列与日志', 'Tasks & logs'))
     .addTag('Task Groups', s(locale, '任务分组', 'Task groups'))
     .addTag('Logs', s(locale, '系统日志', 'System logs')) // Tag system log APIs for admin audit view. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    .addTag('Notifications', s(locale, '通知', 'Notifications')) // Tag notification APIs for user alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
     .addTag('Webhook', s(locale, 'Webhook 入口（GitLab/GitHub）', 'Webhook endpoints (GitLab/GitHub)'))
     .addTag('OpenAPI', s(locale, 'OpenAPI 文档', 'OpenAPI docs')); // Include the OpenAPI docs tag for spec consumers. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126
 

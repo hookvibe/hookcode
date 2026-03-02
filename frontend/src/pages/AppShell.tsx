@@ -8,6 +8,7 @@ import {
   type RouteState
 } from '../router';
 import { UserPanelPopover } from '../components/UserPanelPopover';
+import { NotificationsPopover } from '../components/notifications/NotificationsPopover';
 import { LoginCardSkeleton } from '../components/skeletons/LoginCardSkeleton';
 import { ModernSidebar } from '../components/ModernSidebar';
 import { LoginPage } from './LoginPage';
@@ -151,8 +152,12 @@ export const AppShell: FC<AppShellProps> = ({
     return <AcceptInvitePage email={route.inviteEmail} token={route.inviteToken} isAuthenticated={Boolean(authToken)} />;
   }
 
+  // Compose header user panel with notifications trigger. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   const userPanel = (
-    <UserPanelPopover themePreference={themePreference} onThemePreferenceChange={onThemePreferenceChange} />
+    <div className="hc-nav-user-stack">
+      <NotificationsPopover />
+      <UserPanelPopover themePreference={themePreference} onThemePreferenceChange={onThemePreferenceChange} />
+    </div>
   );
 
   const openMobileNav = () => setMobileNavOpen(true);

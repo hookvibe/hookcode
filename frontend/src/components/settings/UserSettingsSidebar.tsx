@@ -28,6 +28,7 @@ import {
   SettingOutlined,
   UserOutlined,
   FileTextOutlined,
+  BellOutlined,
 } from '@ant-design/icons';
 import { useT } from '../../i18n';
 import { buildHomeHash, buildSettingsHash, type SettingsTab, SETTINGS_TABS } from '../../router';
@@ -69,6 +70,8 @@ const SETTINGS_NAV_GROUPS: NavGroup[] = [
   {
     titleKey: 'panel.nav.group.preferences',
     items: [
+      // Add notifications tab next to logs in settings navigation. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+      { key: 'notifications', icon: <BellOutlined />, labelKey: 'panel.tabs.notifications' },
       { key: 'logs', icon: <FileTextOutlined />, labelKey: 'panel.tabs.logs' },
       { key: 'settings', icon: <SettingOutlined />, labelKey: 'panel.tabs.settings' },
     ],

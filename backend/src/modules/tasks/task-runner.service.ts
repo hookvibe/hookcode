@@ -4,6 +4,8 @@ import { Task, type TaskResult, type TaskStatus } from '../../types/task';
 import { AgentService } from './agent.service';
 import { TaskService } from './task.service';
 import { LogWriterService } from '../logs/log-writer.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationRecipientService } from '../notifications/notification-recipient.service';
 
 export interface TaskRunnerFinishInfo {
   status: TaskStatus;
@@ -42,6 +44,11 @@ const getErrorMessage = (err: unknown): string => {
   return String(err);
 };
 
+const buildTaskLabel = (task: Task): string => {
+  // Compose stable task labels for notification messages. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  return task.title ? task.title : `Task ${task.id}`;
+};
+
 @Injectable()
 export class TaskRunner {
   private running = false;
@@ -53,7 +60,9 @@ export class TaskRunner {
   constructor(
     private readonly taskService: TaskService,
     private readonly agentService: AgentService,
-    private readonly logWriter: LogWriterService
+    private readonly logWriter: LogWriterService,
+    private readonly notificationsService: NotificationsService,
+    private readonly notificationRecipients: NotificationRecipientService
   ) {}
 
   setHooks(hooks: TaskRunnerHooks | null): void {
@@ -202,6 +211,14 @@ export class TaskRunner {
         taskGroupId: task.groupId,
         meta: { durationMs: Date.now() - startedAt, retries: task.retries }
       });
+      // Notify the triggering user (or repo owner) about successful execution. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+      void this.emitTaskNotification(task, {
+        type: 'TASK_SUCCEEDED',
+        level: 'info',
+        message: `Task succeeded: ${buildTaskLabel(task)}`,
+        code: 'TASK_SUCCEEDED',
+        meta: { durationMs: Date.now() - startedAt, retries: task.retries }
+      });
       await this.runHookFinish(task, {
         status: 'succeeded',
         providerCommentUrl,
@@ -239,6 +256,14 @@ export class TaskRunner {
           taskGroupId: task.groupId,
           meta: { durationMs: Date.now() - startedAt, retries: task.retries }
         });
+        // Notify the triggering user (or repo owner) about paused execution. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        void this.emitTaskNotification(task, {
+          type: 'TASK_PAUSED',
+          level: 'warn',
+          message: `Task paused: ${buildTaskLabel(task)}`,
+          code: 'TASK_PAUSED',
+          meta: { durationMs: Date.now() - startedAt, retries: task.retries }
+        });
         await this.runHookFinish(task, {
           status: 'paused',
           message: pauseMessage,
@@ -258,6 +283,14 @@ export class TaskRunner {
           repoId: task.repoId,
           taskId: task.id,
           taskGroupId: task.groupId,
+          meta: { durationMs: Date.now() - startedAt, retries: task.retries }
+        });
+        // Notify the triggering user (or repo owner) about deleted execution. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        void this.emitTaskNotification(task, {
+          type: 'TASK_DELETED',
+          level: 'error',
+          message: `Task deleted: ${buildTaskLabel(task)}`,
+          code: 'TASK_DELETED',
           meta: { durationMs: Date.now() - startedAt, retries: task.retries }
         });
         await this.runHookFinish(task, {
@@ -281,6 +314,14 @@ export class TaskRunner {
         taskGroupId: task.groupId,
         meta: { durationMs: Date.now() - startedAt, retries: task.retries }
       });
+      // Notify the triggering user (or repo owner) about failed execution. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+      void this.emitTaskNotification(task, {
+        type: 'TASK_FAILED',
+        level: 'error',
+        message: `Task failed: ${buildTaskLabel(task)}`,
+        code: 'TASK_FAILED',
+        meta: { durationMs: Date.now() - startedAt, retries: task.retries, error: message }
+      });
       await this.runHookFinish(task, {
         status: 'failed',
         message,
@@ -289,6 +330,40 @@ export class TaskRunner {
       });
     } finally {
       stopControlPolling();
+    }
+  }
+
+  private async emitTaskNotification(
+    task: Task,
+    params: { type: 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_PAUSED' | 'TASK_DELETED'; level: 'info' | 'warn' | 'error'; message: string; code: string; meta?: Record<string, unknown> }
+  ): Promise<void> {
+    // Best-effort: emit user notifications without blocking task completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+    try {
+      const recipients = await this.notificationRecipients.resolveRecipientsForTask({
+        repoId: task.repoId,
+        actorUserId: task.actorUserId,
+        payload: task.payload
+      });
+      const uniqueRecipients = Array.from(new Set(recipients.filter(Boolean)));
+      if (!uniqueRecipients.length) return;
+
+      await Promise.all(
+        uniqueRecipients.map((userId) =>
+          this.notificationsService.createNotification({
+            userId,
+            type: params.type,
+            level: params.level,
+            message: params.message,
+            code: params.code,
+            repoId: task.repoId,
+            taskId: task.id,
+            taskGroupId: task.groupId,
+            meta: params.meta
+          })
+        )
+      );
+    } catch (err) {
+      console.warn('[taskRunner] notification emit failed', task.id, err);
     }
   }
 

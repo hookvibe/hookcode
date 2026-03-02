@@ -106,6 +106,107 @@
   gap: 12px;
 }
 
+/* Notifications trigger + panel styling. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */
+.hc-nav-user-stack {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hc-notifications-trigger {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hc-notifications-trigger:hover {
+  background-color: var(--surface-hover);
+  color: var(--text);
+}
+
+.hc-notifications-popover {
+  width: 320px;
+}
+
+.hc-notifications-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.hc-notifications-popover__body {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.hc-notifications-popover__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hc-notifications-popover__item {
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.hc-notifications-popover__item.is-unread {
+  border-color: var(--border-hover);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
+}
+
+.hc-notifications-popover__item-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.hc-notifications-popover__level {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.hc-notifications-popover__level--error {
+  color: #dc2626;
+}
+
+.hc-notifications-popover__level--warn {
+  color: #d97706;
+}
+
+.hc-notifications-popover__level--info {
+  color: #2563eb;
+}
+
+.hc-notifications-popover__message {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.hc-notifications-popover__empty,
+.hc-notifications-popover__loading {
+  padding: 12px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
 /* User Trigger */
 .hc-user-trigger-btn {
   background: transparent;
@@ -184,6 +285,16 @@
   }
   
   .hc-modern-nav__actions {
+    gap: 8px;
+  }
+
+  .hc-notifications-trigger {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+  }
+
+  .hc-nav-user-stack {
     gap: 8px;
   }
 }
