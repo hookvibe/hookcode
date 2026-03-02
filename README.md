@@ -194,3 +194,9 @@ Copy `backend/.env.example` to `backend/.env`, keep local frontend/backend ports
 ## License
 
 MIT (see `LICENSE`).
+
+<!-- Add a current event entry for commit/push verification. docs/en/developer/plans/readme-event-20260302/task_plan.md readme-event-20260302 -->
+
+## Current Event
+
+- 2026-03-02 23:44:07 +0800: Test commit to verify branch/commit/push workflow.
