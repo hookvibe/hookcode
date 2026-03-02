@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. open-api-pat-design */}
@@ -9,7 +10,7 @@
 
 ## Session: 2026-01-30
 
-<!-- Update phase logs with completed PAT implementation details and artifacts. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design -->
+{/* Update phase logs with completed PAT implementation details and artifacts. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
 ### Phase 1: Requirements & Discovery
 - **Status:** complete
 - **Started:** 2026-01-30 11:05
@@ -59,7 +60,7 @@
   - Added backend unit coverage for PAT scope enforcement.
   - Added frontend unit coverage for PAT panel rendering/flow.
   - Documented Open API access tokens in user docs.
-  <!-- Note user-doc usage expansion for PATs. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design -->
+  {/* Note user-doc usage expansion for PATs. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
   - Expanded PAT usage steps (create/copy/use token, API header example).
 - Files created/modified:
   - backend/src/tests/unit/authGuardPatScope.test.ts
@@ -78,7 +79,7 @@
   - docs/en/change-log/0.0.0.md
 
 ## Test Results
-<!-- Record PAT frontend/backend unit test runs for this session. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design -->
+{/* Record PAT frontend/backend unit test runs for this session. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | pnpm --filter hookcode-backend test -- authGuardPatScope | authGuardPatScope | pass | pass | passed |

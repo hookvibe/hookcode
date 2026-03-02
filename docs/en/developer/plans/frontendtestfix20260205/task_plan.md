@@ -1,4 +1,5 @@
 # Task Plan: Fix frontend test failures
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. frontendtestfix20260205 */}
@@ -17,7 +18,7 @@ Fix frontend test failures by aligning tests and components with the latest inte
 Phase 5 (Complete)
 
 ## Phases
-<!-- Update phase statuses after completing test fixes. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 -->
+{/* Update phase statuses after completing test fixes. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 */}
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
 
 ### Phase 1: Requirements & Discovery
@@ -63,7 +64,7 @@ Phase 5 (Complete)
 3. What is the intended "new style" baseline for snapshots/selectors?
 
 ## Decisions Made
-<!-- Record decisions for aligning tests with modern sidebar behavior. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 -->
+{/* Record decisions for aligning tests with modern sidebar behavior. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 */}
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
 | Decision | Rationale |
 |----------|-----------|
@@ -71,7 +72,7 @@ Phase 5 (Complete)
 | Use mockResolvedValue for sidebar refresh snapshot. | Prevent in-flight polling calls from consuming the updated mock once. |
 
 ## Errors Encountered
-<!-- Log errors encountered while fixing frontend tests. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 -->
+{/* Log errors encountered while fixing frontend tests. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205 */}
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
 | Error | Attempt | Resolution |
 |-------|---------|------------|

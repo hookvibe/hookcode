@@ -1,5 +1,6 @@
 # Progress Log
-<!-- Track execution steps and tests for the task-group root fix. docs/en/developer/plans/codexoutputdirfix20260205/task_plan.md codexoutputdirfix20260205 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Track execution steps and tests for the task-group root fix. docs/en/developer/plans/codexoutputdirfix20260205/task_plan.md codexoutputdirfix20260205 */}
 
 ## Session Metadata
 - **Session Title:** Fix task-group workspace root path expansion

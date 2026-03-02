@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. claudecode-log-display20260123 */}
@@ -15,7 +16,7 @@
 - **Status:** complete
 - **Started:** 2026-01-23
 {/* STATUS: Same as task_plan.md (pending, in_progress, complete) TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00") */}
-<!-- Log discovery and parsing implementation steps for Claude Code logs. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 -->
+{/* Log discovery and parsing implementation steps for Claude Code logs. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 */}
 - Actions taken:
   {/* WHAT: List of specific actions you performed. EXAMPLE: - Created todo.py with basic structure - Implemented add functionality - Fixed FileNotFoundError */}
   - Reviewed TaskLogViewer, ExecutionTimeline, and executionLog parsing flow to locate structured log rendering.

@@ -1,4 +1,5 @@
 # Task Plan: Investigate slow repo page requests
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. repo-page-slow-requests-20260128 */}
@@ -40,7 +41,7 @@ Phase 5
 - [x] Write code to files before executing
 - [x] Test incrementally
 - **Status:** complete
-<!-- Mark implementation phase complete after extending caching and list optimizations. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+{/* Mark implementation phase complete after extending caching and list optimizations. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Verify everything works and meets requirements. WHY: Catching issues early saves time. Document test results in progress.md. */}
@@ -48,7 +49,7 @@ Phase 5
 - [x] Document test results in progress.md
 - [x] Fix any issues found
 - **Status:** complete
-<!-- Confirm verification phase completion after running updated frontend tests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+{/* Confirm verification phase completion after running updated frontend tests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
 
 ### Phase 5: Delivery
 {/* WHAT: Final review and handoff to user. WHY: Ensures nothing is forgotten and deliverables are complete. */}
@@ -56,7 +57,7 @@ Phase 5
 - [x] Ensure deliverables are complete
 - [x] Deliver to user
 - **Status:** complete
-<!-- Mark delivery phase complete once changes and documentation are finalized. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+{/* Mark delivery phase complete once changes and documentation are finalized. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
@@ -74,8 +75,8 @@ Phase 5
 | Add includeQueue toggle for tasks list | Allow dashboards to skip expensive queue diagnosis when not needed. |
 | Cache repo GET endpoints with short TTL + invalidation | Reduce duplicate requests across pages while keeping repo data fresh. |
 | Suppress known test warning noise in CI | Filter AntD/Vite/Jest warning output while keeping failures visible. |
-<!-- Document CI warning suppression decision for traceability. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
-<!-- Record the repo-level caching decision for traceability. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+{/* Document CI warning suppression decision for traceability. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
+{/* Record the repo-level caching decision for traceability. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}

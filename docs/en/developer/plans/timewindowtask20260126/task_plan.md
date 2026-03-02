@@ -1,4 +1,5 @@
 # Task Plan: time windowed task execution
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. timewindowtask20260126 */}
@@ -14,8 +15,8 @@ Implement hour-level time-window execution for tasks with precedence (chat > tri
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-<!-- Update current phase after completing planning and entering implementation. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
-<!-- Reopen the plan to cover the chat composer time-window icon redesign. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Update current phase after completing planning and entering implementation. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
+{/* Reopen the plan to cover the chat composer time-window icon redesign. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 Phase 3
 
 ## Phases
@@ -31,7 +32,7 @@ Phase 3
 
 ### Phase 2: Planning & Structure
 {/* WHAT: Decide how you'll approach the problem and what structure you'll use. WHY: Good planning prevents rework. Document decisions so you remember why you chose them. */}
-<!-- Mark planning checklist as complete after documenting approach and affected modules. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Mark planning checklist as complete after documenting approach and affected modules. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - [x] Define technical approach
 - [x] Identify affected backend/frontend modules
 - [x] Document decisions with rationale
@@ -39,7 +40,7 @@ Phase 3
 
 ### Phase 3: Implementation
 {/* WHAT: Actually build/create/write the solution. WHY: This is where the work happens. Break into smaller sub-tasks if needed. */}
-<!-- Resume implementation for the chat composer time-window icon change. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Resume implementation for the chat composer time-window icon change. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - [x] Execute the plan step by step
 - [x] Update backend scheduling logic and APIs
 - [x] Update frontend configuration and queue UI
@@ -48,7 +49,7 @@ Phase 3
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Verify everything works and meets requirements. WHY: Catching issues early saves time. Document test results in progress.md. */}
-<!-- Reopen testing phase for the new chat UI tweak. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Reopen testing phase for the new chat UI tweak. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - [ ] Verify all requirements met
 - [ ] Document test results in progress.md
 - [ ] Fix any issues found
@@ -56,7 +57,7 @@ Phase 3
 
 ### Phase 5: Delivery
 {/* WHAT: Final review and handoff to user. WHY: Ensures nothing is forgotten and deliverables are complete. */}
-<!-- Pause delivery until the new UI change is finished. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Pause delivery until the new UI change is finished. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - [ ] Review all output files
 - [ ] Ensure deliverables are complete
 - [ ] Deliver to user
@@ -88,5 +89,5 @@ Phase 3
 - Update phase status as you progress: pending → in_progress → complete
 - Re-read this plan before major decisions (attention manipulation)
 - Log ALL errors - they help avoid repetition
-<!-- Capture the follow-up UI requirement for the chat composer time-window icon. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Capture the follow-up UI requirement for the chat composer time-window icon. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Additional requirement: redesign task-group composer time window to a leftmost icon + popover picker, only showing selected window inline when set.

@@ -1,4 +1,5 @@
 # Task Plan: Reorganize task-groups layout
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. taskgroups-reorg-20260131 */}
@@ -10,8 +11,8 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-<!-- Define the workspace layout change target for this task. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
-Restructure task-group workspaces to use a taskgroup-id directory containing the repo clone and Codex artifacts, add a task-group .env + AGENTS template with PAT config, update command execution to run inside that folder, and document the new layout while wiring codex-schema outputSchema handling + frontend next-action suggestions. <!-- Extend goal for codex-schema output schema + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Define the workspace layout change target for this task. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
+Restructure task-group workspaces to use a taskgroup-id directory containing the repo clone and Codex artifacts, add a task-group .env + AGENTS template with PAT config, update command execution to run inside that folder, and document the new layout while wiring codex-schema outputSchema handling + frontend next-action suggestions. {/* Extend goal for codex-schema output schema + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
@@ -25,7 +26,7 @@ Phase 4
 - [x] Understand user intent
 - [x] Identify constraints and requirements
 - [x] Document findings in findings.md
-<!-- Mark discovery complete and move to planning. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Mark discovery complete and move to planning. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 - **Status:** complete
 {/* STATUS VALUES: - pending: Not started yet - in_progress: Currently working on this - complete: Finished this phase */}
 
@@ -34,7 +35,7 @@ Phase 4
 - [x] Define technical approach
 - [x] Create project structure if needed
 - [x] Document decisions with rationale
-<!-- Mark planning complete and start implementation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Mark planning complete and start implementation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 - **Status:** complete
 
 ### Phase 3: Implementation
@@ -43,7 +44,7 @@ Phase 4
 - [x] Write code to files before executing
 - [x] Wire codex-schema.json into Codex TurnOptions outputSchema + frontend structured output/suggestions
 - [x] Update tests for structured output + suggestion click behavior
-<!-- Implementation done for .env + AGENTS template updates. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Implementation done for .env + AGENTS template updates. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 - **Status:** complete
 
 ### Phase 4: Testing & Verification
@@ -51,7 +52,7 @@ Phase 4
 - [ ] Verify all requirements met
 - [x] Document test results in progress.md
 - [ ] Fix any issues found
-<!-- Tests executed with environment-related failures; keep verification open. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Tests executed with environment-related failures; keep verification open. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 - **Status:** in_progress
 
 ### Phase 5: Delivery
@@ -72,7 +73,7 @@ Phase 4
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
-<!-- Record structural decisions for the new task-group layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Record structural decisions for the new task-group layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 | Decision | Rationale |
 |----------|-----------|
 | Store task-group roots at `task-groups/<taskGroupId>` and place repo clones under that root using the repo-name segment derived from `repoSlug`. | Matches requested folder layout while keeping repo root available for config/git operations. |
@@ -80,13 +81,13 @@ Phase 4
 | Run Codex/Claude/Gemini with working directory set to the task-group root and allow output files to be moved into that root after execution. | Satisfies the requirement to execute commands at the task-group level and store artifacts alongside the repo. |
 | Build task-group `.env` and AGENTS template from runtime `HOOKCODE_API_BASE_URL`/`HOOKCODE_PAT` values, emitting the same env content verbatim into AGENTS. | Keeps secrets out of source control while meeting the requirement to surface runtime credentials for skills. |
 | Include `HOOKCODE_TASK_GROUP_ID` in the task-group `.env` derived from the current task group id. | Ensures skills can scope API calls to the active task group. |
-<!-- Record base URL normalization choice for task-group env generation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Record base URL normalization choice for task-group env generation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 | Normalize task-group API base URLs to host roots (strip `/api` when present). | Aligns with skill usage that appends `/api` paths and matches the requirement to use the backend's running address. |
-<!-- Record .codex seeding and per-skill env sync decisions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Record .codex seeding and per-skill env sync decisions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 | Seed task-group `.codex` from backend/src/agent/example/.codex and copy task-group .env into each `.codex/skills/*/.env`. | Keeps bundled skills available in every task group and ensures skill scripts inherit the same API/PAT configuration. |
-<!-- Record PAT scope change required for highlight POST endpoints. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Record PAT scope change required for highlight POST endpoints. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 | Require task-group PATs to include tasks:write and rotate existing tasks:read tokens. | Enables preview highlight POST APIs that need write-level task scope. |
-<!-- Record codex-schema structured output decision. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Record codex-schema structured output decision. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 | Use codex-schema.json to define structured output (output + next_actions) and parse it in the frontend for suggestions. | Keeps Codex outputs structured while preserving existing result rendering. |
 
 ## Errors Encountered
@@ -94,13 +95,13 @@ Phase 4
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | previewPortPool/previewWsProxy jest failures (EPERM/no_available_preview_ports) | 2 | Pending; likely environment port binding restrictions. |
-<!-- Log latest backend test timeout with preview port pool failure. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Log latest backend test timeout with preview port pool failure. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 | previewPortPool jest failure (no_available_preview_ports) with pnpm test timeout | 3 | Pending; likely environment port binding restrictions. |
-<!-- Log full-suite test rerun failures for preview port + ws proxy. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Log full-suite test rerun failures for preview port + ws proxy. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 | previewPortPool no_available_preview_ports + previewWsProxy EPERM/timeout on full test rerun | 4 | Pending; likely environment port binding restrictions. |
-<!-- Log additional test rerun failure after AGENTS changes. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Log additional test rerun failure after AGENTS changes. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 | previewPortPool no_available_preview_ports + previewWsProxy EPERM/timeout on rerun after AGENTS update | 5 | Pending; likely environment port binding restrictions. |
-<!-- Log test rerun after PAT scope update. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 -->
+{/* Log test rerun after PAT scope update. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
 | previewPortPool no_available_preview_ports + previewWsProxy EPERM/timeout on rerun after PAT scope update | 6 | Pending; likely environment port binding restrictions. |
 
 ## Notes

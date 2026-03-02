@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. multiuserauth20260226 */}
@@ -37,7 +38,7 @@
   - docs/en/developer/plans/multiuserauth20260226/task_plan.md
 
 ### Phase 3: Implementation
-<!-- Record implementation completion after RBAC + auth flows were delivered. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Record implementation completion after RBAC + auth flows were delivered. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 - **Status:** complete
 - **Started:** 2026-02-26 11:05
 - **Completed:** 2026-02-26 15:40
@@ -57,7 +58,7 @@
   - docs/en/developer/plans/multiuserauth20260226/findings.md
 
 ### Phase 4: Testing & Verification
-<!-- Capture test run outcomes and fixes for RBAC work. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Capture test run outcomes and fixes for RBAC work. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 - **Status:** complete
 - **Started:** 2026-02-26 15:10
 - **Completed:** 2026-02-26 16:05
@@ -73,7 +74,7 @@
   - backend/src/tests/unit/dashboardController.test.ts
 
 ### Phase 5: Delivery
-<!-- Record delivery updates (changelog + summary). docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Record delivery updates (changelog + summary). docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 - **Status:** complete
 - **Started:** 2026-02-26 16:05
 - **Completed:** 2026-02-26 16:20
@@ -85,7 +86,7 @@
 
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
-<!-- Record backend test suite results after RBAC updates. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Record backend test suite results after RBAC updates. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | Backend tests | `pnpm --filter hookcode-backend test` | All suites pass | 88/88 suites passed (note: Jest reported open handles warning) | ✅ |
@@ -94,7 +95,7 @@
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
 {/* Keep ALL errors - they help avoid repetition */}
-<!-- Track test failures encountered during RBAC rollout. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Track test failures encountered during RBAC rollout. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
 | 2026-02-26 15:15 | Backend unit tests failed due to missing RepoMemberService mocks and updated controller signatures. | 1 | Added RepoMemberService mocks and updated unit test method parameters. |
@@ -105,7 +106,7 @@
 {/* If you can answer these, context is solid */}
 | Question | Answer |
 |----------|--------|
-<!-- Refresh reboot answers after delivery completion. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Refresh reboot answers after delivery completion. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 | Where am I? | Phase 5 (complete). |
 | Where am I going? | Task delivered (no remaining phases). |
 | What's the goal? | Implement RBAC + registration + invites with email delivery. |

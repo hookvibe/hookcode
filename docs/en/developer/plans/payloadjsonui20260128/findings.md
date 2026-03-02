@@ -98,13 +98,13 @@
 ## Session Findings (2026-01-28)
 - Confirmed planning-with-files skill must be used; session initialized via init-session.sh and traceability comments must include docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128.
 - Repository root contains frontend/backend and docs; task likely impacts frontend payload display UI.
-- Payload display for task detail appears in `frontend/src/pages/TaskDetailPage.tsx` using a `<pre>` with `payloadPretty`.
-- Webhook delivery detail payload shows in `frontend/src/components/repos/RepoWebhookDeliveriesPanel.tsx` via `safeJson(detail.payload)` in a `<pre>`.
-- Task detail payload panel currently renders `payloadPretty` inside `<pre className="hc-task-code-block hc-task-code-block--expanded">` in `frontend/src/pages/TaskDetailPage.tsx`.
-- Webhook delivery payload and response render via inline `<pre>` blocks in `frontend/src/components/repos/RepoWebhookDeliveriesPanel.tsx`.
+- Payload display for task detail appears in `frontend/src/pages/TaskDetailPage.tsx` using a `&lt;pre>` with `payloadPretty`.
+- Webhook delivery detail payload shows in `frontend/src/components/repos/RepoWebhookDeliveriesPanel.tsx` via `safeJson(detail.payload)` in a `&lt;pre>`.
+- Task detail payload panel currently renders `payloadPretty` inside `&lt;pre className="hc-task-code-block hc-task-code-block--expanded">` in `frontend/src/pages/TaskDetailPage.tsx`.
+- Webhook delivery payload and response render via inline `&lt;pre>` blocks in `frontend/src/components/repos/RepoWebhookDeliveriesPanel.tsx`.
 - No existing JSON viewer component found via `rg` in `frontend/src`.
 - Frontend dependencies do not include a JSON viewer library; only Ant Design, React, etc.
-- Task payload uses `.hc-task-code-block` styles defined in `frontend/src/styles.css` for `<pre>` blocks.
+- Task payload uses `.hc-task-code-block` styles defined in `frontend/src/styles.css` for `&lt;pre>` blocks.
 - There is no existing JSON viewer-specific styling; would need new component/style for structured view.
 - TaskDetailPage tests assert the payload panel shows text like `user_name` after clicking the Raw webhook payload tab.
 - Existing tests do not assert JSON layout, so new viewer must still surface key/value text for queries.
@@ -114,7 +114,7 @@
 - `workflowPanels` useMemo dependencies included `payloadPretty` (now removed) and should rely on `task` for payload updates.
 - `docs/en/change-log/0.0.0.md` is the unreleased changelog that needs a new entry for this session.
 - `progress.md` template still has placeholder phase sections and test table to be filled for this session.
-- Repo webhook delivery detail modal renders payload/response via `safeJson` + `<pre>` blocks in `frontend/src/components/repos/RepoWebhookDeliveriesPanel.tsx`.
+- Repo webhook delivery detail modal renders payload/response via `safeJson` + `&lt;pre>` blocks in `frontend/src/components/repos/RepoWebhookDeliveriesPanel.tsx`.
 - No existing tests reference RepoWebhookDeliveriesPanel; it is used in `RepoDetailPage.tsx` and will need new coverage if required.
 - `RepoWebhookDeliverySummary` requires repoId and taskIds fields, so tests should include these fields in mocks.
 - No existing repo detail tests cover the webhook delivery detail modal; a dedicated test will be needed for JsonViewer usage.

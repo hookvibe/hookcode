@@ -1,4 +1,5 @@
 # Task Plan: Adapt Claude Code log display page to structured log format
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. claudecode-log-display20260123 */}
@@ -11,7 +12,7 @@
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
 Update the existing Claude Codex execution log display page to properly render Claude Code structured logs with correct parsing, layout, and data mapping.
-<!-- Define the target outcome for the Claude Code log display work. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 -->
+{/* Define the target outcome for the Claude Code log display work. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 */}
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
@@ -61,14 +62,14 @@ Phase 5
 1. Which frontend page/component currently renders the Claude Codex thought chain and what data format does it expect? (TaskLogViewer -> executionLog JSONL `item.*` parsing.)
 2. What is the exact structured log schema for Claude Code output and how should it map to the UI? (Claude Code emits `system|assistant|user|result` JSONL with `message.content` entries; map to ExecutionItem types.)
 3. Do backend/API payloads need to change to carry Claude Code structured logs, or is this purely a frontend parsing issue? (Current backend logs already store Claude Code JSONL; frontend parser needs enhancement.)
-<!-- Track discovery questions for Claude Code structured log adaptation. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 -->
+{/* Track discovery questions for Claude Code structured log adaptation. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 */}
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
 | Decision | Rationale |
 |----------|-----------|
 | Extend frontend execution log parsing to map Claude Code JSONL events into existing ExecutionItem kinds. | Reuses the ThoughtChain renderer without changing backend log storage or UI components. |
-<!-- Record Claude Code parsing strategy decision. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 -->
+{/* Record Claude Code parsing strategy decision. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 */}
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}

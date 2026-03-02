@@ -1,4 +1,5 @@
 # Findings & Decisions: Fix Live logs 404 in CI
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your knowledge base for the task. Stores everything you discover and decide. WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited. WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule). */}
 
 {/* Link discoveries to code changes via this session hash. 0nazpc53wnvljv5yh7c6 */}
@@ -22,7 +23,7 @@
 - Backend declares a matching route `@Get(':id/logs/stream')` in `backend/src/modules/tasks/tasks.controller.ts`, so a 404 is likely caused by runtime conditions (e.g., task/logs not found) or by CI proxy/routing differences rather than missing code.
 - Backend `logsStream` explicitly returns HTTP 404 JSON when `isTaskLogsEnabled()` is false (“Task logs are disabled”) or when the task id does not exist; this matches the observed `404 (Not Found)` symptom if logs are disabled in CI.
 - Frontend `TaskLogViewer` passes auth via `?token=` (because `EventSource` cannot set headers) and `tail` via query; it treats any `error` event (including 404) as “Connection error. Auto reconnecting…”.
-<!-- Update legacy env references to the new task log toggles. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Update legacy env references to the new task log toggles. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - The task logs feature is gated by `TASK_LOGS_DB_ENABLED` and `TASK_LOGS_VISIBLE_ENABLED` (effective enablement requires both), so CI deployments return 404 when visibility is disabled.
 - CI env generation script `docker/ci/write-ci-env.sh` writes `TASK_LOGS_DB_ENABLED=true` and `TASK_LOGS_VISIBLE_ENABLED=false` by default, which explains why the CI site’s Live logs endpoint 404s.
 - CI Nginx config `docker/nginx/frontend.conf` does proxy `/api/*` to `backend:4000` and explicitly disables buffering for SSE (`proxy_buffering off`), so the 404 is unlikely to be caused by missing proxy rules.
@@ -40,7 +41,7 @@
 {/* Decisions made with rationale */}
 | Decision | Rationale |
 |----------|-----------|
-<!-- Clarify task logs visibility defaults without legacy toggle references. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Clarify task logs visibility defaults without legacy toggle references. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 | Enable task logs visibility in CI by default (`TASK_LOGS_VISIBLE_ENABLED=true`) | CI site is used for debugging; current default disables log capture + SSE endpoints (404). |
 | Frontend renders Live logs only when `features.taskLogsEnabled=true` (or preflight `/tasks/:id/logs` passes) | Avoids confusing 404/reconnect behavior when logs are disabled; `canViewLogs` is not present in the frontend Task DTO today. |
 

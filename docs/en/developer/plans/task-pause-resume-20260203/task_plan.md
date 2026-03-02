@@ -1,5 +1,6 @@
 # Task Plan: Add pause/resume for task group executions
-<!-- Track pause/resume task controls in task group + task detail UI. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Track pause/resume task controls in task group + task detail UI. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. task-pause-resume-20260203 */}
@@ -12,12 +13,12 @@
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
 Add in-progress pause/stop (without deletion) for task-group executions with resume support, fix deletion/resumeThread and empty-group display issues, and confirm worker reuse/environment warnings for task groups.
-<!-- Expand the goal to cover pause/resume, deletion stop, and empty-group display fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Expand the goal to cover pause/resume, deletion stop, and empty-group display fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
 Phase 5
-<!-- Advance the current phase as implementation begins. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Advance the current phase as implementation begins. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -28,8 +29,8 @@ Phase 5
 - [x] Identify constraints and requirements across backend + frontend
 - [x] Document findings in findings.md
 - **Status:** complete
-<!-- Mark Phase 1 complete after capturing requirements. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
-<!-- Broaden Phase 1 to include all user-requested behaviors. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Mark Phase 1 complete after capturing requirements. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
+{/* Broaden Phase 1 to include all user-requested behaviors. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 {/* STATUS VALUES: - pending: Not started yet - in_progress: Currently working on this - complete: Finished this phase */}
 
 ### Phase 2: Planning & Structure
@@ -39,9 +40,9 @@ Phase 5
 - [x] Define log empty-state stage hints for early execution
 - [x] Document decisions with rationale
 - **Status:** complete
-<!-- Mark Phase 2 complete after finalizing log empty-state copy. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
-<!-- Track Phase 2 planning updates for pause/resume and log empty-state copy. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
-<!-- Update Phase 2 planning tasks to cover pause/resume and empty-group UX. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Mark Phase 2 complete after finalizing log empty-state copy. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
+{/* Track Phase 2 planning updates for pause/resume and log empty-state copy. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
+{/* Update Phase 2 planning tasks to cover pause/resume and empty-group UX. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 
 ### Phase 3: Implementation
 {/* WHAT: Actually build/create/write the solution. WHY: This is where the work happens. Break into smaller sub-tasks if needed. */}
@@ -49,7 +50,7 @@ Phase 5
 - [x] Write code to files before executing
 - [x] Test incrementally
 - **Status:** complete
-<!-- Mark Phase 3 complete after implementing pause/resume and empty-group fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Mark Phase 3 complete after implementing pause/resume and empty-group fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Verify everything works and meets requirements. WHY: Catching issues early saves time. Document test results in progress.md. */}
@@ -57,7 +58,7 @@ Phase 5
 - [x] Document test results in progress.md
 - [x] Fix any issues found
 - **Status:** complete
-<!-- Mark Phase 4 complete after running full test suite. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Mark Phase 4 complete after running full test suite. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 
 ### Phase 5: Delivery
 {/* WHAT: Final review and handoff to user. WHY: Ensures nothing is forgotten and deliverables are complete. */}
@@ -65,7 +66,7 @@ Phase 5
 - [x] Ensure deliverables are complete
 - [x] Deliver to user
 - **Status:** complete
-<!-- Mark Phase 5 complete after changelog update and delivery prep. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Mark Phase 5 complete after changelog update and delivery prep. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
@@ -74,8 +75,8 @@ Phase 5
 3. How should empty task-group views behave when all tasks are deleted?
 4. Where should resumeThread be suppressed after deletions?
 5. What stage hint copy should be shown when logs are still empty for new tasks?
-<!-- Add a key question for log empty-state stage hints. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
-<!-- Add key questions for pause control, empty display, and resumeThread behavior. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Add a key question for log empty-state stage hints. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
+{/* Add key questions for pause control, empty display, and resumeThread behavior. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
@@ -85,13 +86,13 @@ Phase 5
 | Resume sets status back to queued and re-runs the same task. | Keeps task identity intact while leveraging the existing queue pipeline. |
 | Exclude archived tasks from resumeThread/workspace reuse and task-group task lists. | Prevents deleted/archived items from keeping threads alive or showing stale chat items. |
 | Show explicit empty-group messaging (including 404 groups) in TaskGroupChatPage. | Fixes “dialog-only” view and clarifies next steps for users. |
-<!-- Record key implementation choices for pause/resume and empty-group fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Record key implementation choices for pause/resume and empty-group fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-<!-- Log pause/resume test label mismatch and resolution. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Log pause/resume test label mismatch and resolution. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 | Pause/Resume button tests could not find accessible names. | 1 | Updated tests to match AntD icon-labeled button names. |
 
 ## Notes

@@ -1,6 +1,7 @@
 ---
 title: Repository Configuration
 ---
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -58,7 +59,7 @@ Branches are used for:
   - Mutating operations (robot changes, automation edits, retries) are blocked.
   - Archived items are hidden from default lists unless you filter for archived.
 
-<!-- Document repo member management roles. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Document repo member management roles. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 ## Member management
 
 Repository member management is available in the repo detail page:

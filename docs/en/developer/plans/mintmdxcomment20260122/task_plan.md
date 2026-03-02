@@ -1,4 +1,5 @@
 # Task Plan: Make MD comments Mintlify-compatible
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. mintmdxcomment20260122 */}
@@ -10,7 +11,7 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Make Mintlify (MDX) docs render correctly by converting incompatible HTML comments (`<!-- ... -->`) into MDX-safe non-rendered comments and fixing internal doc links so cross-page navigation works.
+Make Mintlify (MDX) docs render correctly by converting incompatible HTML comments (`{/* ... */}`) into MDX-safe non-rendered comments and fixing internal doc links so cross-page navigation works.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
@@ -68,7 +69,7 @@ Phase 5
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
 | Decision | Rationale |
 |----------|-----------|
-| Convert `<!-- ... -->` to `{/* ... */}` in plan pages/templates | Mintlify MDX parsing rejects `<!` and recommends `{/* text */}` for comments; this keeps comments non-rendered. |
+| Convert `{/* ... */}` to `{/* ... */}` in plan pages/templates | Mintlify MDX parsing rejects `<!` and recommends `{/* text */}` for comments; this keeps comments non-rendered. |
 | Collapse multi-line `{/* ... */}` blocks into single-line comments | Avoid Mintlify/MDX "lazy line in expression in container" parsing errors inside lists/quotes. |
 | Use Mintlify page routes for internal links (no `.md`) | Mintlify routes are based on `docs.json` page IDs; linking to `*.md` does not reliably navigate. |
 | Prefer `./<page>` for same-directory links | `mint broken-links` treats bare `findings`/`progress` as broken in some contexts; `./` is accepted and works. |
@@ -78,7 +79,7 @@ Phase 5
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-| `mint validate` fails with `Unexpected character '!'` due to `<!-- ... -->` | 1 | Replace HTML comments with MDX-safe comments (`{/* ... */}`) in all affected Markdown files. |
+| `mint validate` fails with `Unexpected character '!'` due to `{/* ... */}` | 1 | Replace HTML comments with MDX-safe comments (`{/* ... */}`) in all affected Markdown files. |
 | `mint validate` fails with "Unexpected lazy line in expression in container" | 2 | Collapse multi-line `{/* ... */}` blocks into single-line comments in Markdown files rendered by Mintlify. |
 | `mint broken-links` reports `.md` internal links in docs | 3 | Replace links to `*.md` with Mintlify routes and use `./` for same-directory navigation. |
 

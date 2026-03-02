@@ -1,4 +1,5 @@
 # Task Plan: Split task log config (DB vs visibility)
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. nykx5svtlgh050cstyht */}
@@ -10,7 +11,7 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-<!-- Rephrase goal without the removed legacy toggle name. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Rephrase goal without the removed legacy toggle name. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 Maintain two independent task log toggles: (1) whether task logs are persisted to DB, and (2) whether task logs are visible to users; defaults are enabled, but in CI we persist to DB while hiding from users.
 
 ## Current Phase
@@ -58,7 +59,7 @@ Phase 5
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
 1. What are the existing code paths for "write task logs" vs "read/show task logs" (backend + frontend)?
-<!-- Remove legacy alias question now that the fallback is dropped. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Remove legacy alias question now that the fallback is dropped. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 2. What naming + precedence rules should we use for the task log env vars?
 3. Which environments define CI behavior today (e.g. `.env.ci`, CI workflow env), and where should we set `visible=false`?
 
@@ -68,7 +69,7 @@ Phase 5
 |----------|-----------|
 | Use `TASK_LOGS_DB_ENABLED` + `TASK_LOGS_VISIBLE_ENABLED` env vars (defaults: true) | Separates persistence from user-facing exposure while keeping local/dev behavior simple. |
 | Visibility is effectively `DB && VISIBLE` | Prevents "visible but no logs captured" footguns, and matches intended use cases (CI: persist=true, visible=false). |
-<!-- Remove legacy alias decision to match current config policy. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Remove legacy alias decision to match current config policy. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}

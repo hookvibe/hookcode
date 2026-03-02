@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. split-long-files-20260203 */}
@@ -15,7 +16,7 @@
 - **Status:** complete
 - **Started:** 2026-02-03 10:00
 {/* STATUS: Same as task_plan.md (pending, in_progress, complete) TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00") */}
-<!-- Summarize discovery/scan actions and artifacts for this session. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 -->
+{/* Summarize discovery/scan actions and artifacts for this session. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */}
 - Actions taken:
   - Initialized the split-long-files-20260203 planning session and captured long-file inventory findings.
   - Split large frontend/docs/shared files into smaller modules and updated related tests/docs.
@@ -36,7 +37,7 @@
 
 ### Phase 2: Planning & Structure
 {/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
-<!-- Record the latest test fix actions in the planning/structure phase. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 -->
+{/* Record the latest test fix actions in the planning/structure phase. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */}
 - **Status:** in_progress
 - Actions taken:
   - Fixed missing AntD imports in RepoDetailProviderActivityRow after helper extraction.
@@ -54,7 +55,7 @@
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-<!-- Document test runs for this session. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 -->
+{/* Document test runs for this session. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */}
 | pnpm --filter hookcode-frontend test -- --run src/tests/repoDetailPage.test.tsx | RepoDetailPage test run | Pass | Pass | ✓ |
 | pnpm --filter hookcode-frontend test -- --run src/tests/taskGroupChatPage.timeline.test.tsx | TaskGroupChatPage timeline tests | Pass | Pass | ✓ |
 | pnpm --filter hookcode-frontend test -- --run src/tests/taskGroupChatPage.composer.test.tsx src/tests/taskGroupChatPage.preview.test.tsx | TaskGroupChatPage composer/preview tests | Pass | Pass | ✓ |
@@ -66,7 +67,7 @@
 {/* Keep ALL errors - they help avoid repetition */}
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-<!-- Capture the repo detail page test failures and resolutions. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 -->
+{/* Capture the repo detail page test failures and resolutions. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */}
 | 2026-02-03 19:35 | RepoDetailPage tests failed (missing Typography/Tooltip imports) | 1 | Added missing AntD imports and re-ran focused tests | 
 | 2026-02-03 20:05 | TaskGroupChatPage tests failed (vi.mock hoisting NOW TDZ + scroll selector mismatch) | 1 | Inlined mock timestamps and updated timeline scroll/observer expectations | 
 | 2026-02-03 20:08 | Full test suite failed (AppShell.tsx JSX comment without fragment) | 1 | Wrapped user panel slot in a fragment and re-ran pnpm test |

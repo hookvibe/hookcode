@@ -1,5 +1,6 @@
 # Findings & Decisions: Fix task-group workspace root path expansion
-<!-- Capture task-group workspace root findings and decisions. docs/en/developer/plans/codexoutputdirfix20260205/task_plan.md codexoutputdirfix20260205 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Capture task-group workspace root findings and decisions. docs/en/developer/plans/codexoutputdirfix20260205/task_plan.md codexoutputdirfix20260205 */}
 
 ## Session Metadata
 - **Session Hash:** codexoutputdirfix20260205

@@ -1,0 +1,88 @@
+{
+  "name": "HookCode",
+  "theme": "mint",
+  "colors": {
+    "primary": "#2563EB"
+  },
+  "logo": {
+    "light": "/logo/logo-light-512.png",
+    "dark": "/logo/logo-dark-512.png"
+  },
+  "favicon": "/logo/logo-light-512.png",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "user-docs",
+        "groups": [
+          {
+            "group": "Start Here",
+            "pages": [
+              "index",
+              "en/user-docs/quickstart",
+              "en/user-docs/index"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "en/user-docs/config/repositories",
+              "en/user-docs/config/robots",
+              "en/user-docs/config/triggers",
+              "en/user-docs/config/hookcode-yml"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "en/user-docs/features",
+              "en/user-docs/preview",
+              "en/user-docs/environment",
+              "en/user-docs/custom-dockerfile",
+              "en/user-docs/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "api-reference",
+        "groups": [
+          {
+            "group": "API Reference",
+            "pages": [
+              "en/api-reference/index",
+              "en/api-reference/auth-users",
+              "en/api-reference/repositories",
+              "en/api-reference/tasks-and-groups",
+              "en/api-reference/webhooks-events-tools",
+              "en/api-reference/openapi"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "developer",
+        "groups": [
+          {
+            "group": "Developer",
+            "pages": [
+              "en/developer/index",
+              "en/developer/plans/index"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "change-log",
+        "groups": [
+          {
+            "group": "Changelog",
+            "pages": [
+              "en/change-log/index",
+              "en/change-log/0.0.0"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

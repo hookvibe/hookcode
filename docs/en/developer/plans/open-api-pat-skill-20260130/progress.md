@@ -1,5 +1,6 @@
 # Progress Log
-<!-- Track progress for the PAT API debug skill work. docs/en/developer/plans/open-api-pat-skill-20260130/task_plan.md open-api-pat-skill-20260130 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Track progress for the PAT API debug skill work. docs/en/developer/plans/open-api-pat-skill-20260130/task_plan.md open-api-pat-skill-20260130 */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. open-api-pat-skill-20260130 */}
 

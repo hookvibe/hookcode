@@ -1,4 +1,5 @@
 # Findings & Decisions: open-api-pat-design
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your knowledge base for the task. Stores everything you discover and decide. WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited. WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule). */}
 
 {/* Link discoveries to code changes via this session hash. open-api-pat-design */}
@@ -51,11 +52,11 @@
 
 ---
 *Update this file after every 2 view/browser/search operations*
-<!-- Track remaining work and completion verification after resume. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design -->
+{/* Track remaining work and completion verification after resume. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
 - Resumed session after prior implementation; remaining work is to rerun frontend unit test (userPanelPopover) and update plan/progress completion status. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
-<!-- Sync phase status in plan/progress after implementation completion. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design -->
+{/* Sync phase status in plan/progress after implementation completion. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
 - Noted task_plan/progress still show Phase 1 in_progress with later phases pending; needs synchronization to completion.
-<!-- Log test rerun and completion sync for the session. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design -->
+{/* Log test rerun and completion sync for the session. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
 - Frontend PAT panel unit test rerun passed and plan/progress were updated to complete.
-<!-- Record discovery of existing features doc section for PATs. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design -->
+{/* Record discovery of existing features doc section for PATs. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
 - Found existing "Open API access tokens" section in docs/en/user-docs/features.md, needs usage details expansion.

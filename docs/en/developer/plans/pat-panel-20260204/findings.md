@@ -1,4 +1,5 @@
 # Findings & Decisions: Move auto-generated PATs to repo area
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -16,7 +17,7 @@
 {/* Captured from user request */}
 - Panel PAT page should only show manually created user PATs.
 - Auto-generated TaskGroup PATs should be moved to a repository-level area for management.
-<!-- Capture baseline requirements for separating panel vs repo PATs. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 -->
+{/* Capture baseline requirements for separating panel vs repo PATs. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 */}
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
@@ -45,8 +46,8 @@
 - `RepoDetailPage` has a dedicated refresh effect for preview config, so adding a separate auto-PAT refresh effect will fit the existing async pattern.
 - `common.refresh` i18n key exists in `frontend/src/i18n/messages/*/core.ts`, so the auto-PAT card can reuse it for a refresh action.
 - Root `pnpm test` runs backend + frontend tests; frontend tests run via `node ./scripts/run-vitest.cjs`.
-<!-- Record auto-generated PAT naming and location in agent service. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 -->
-<!-- Record initial code locations for PAT list and schema. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 -->
+{/* Record auto-generated PAT naming and location in agent service. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 */}
+{/* Record initial code locations for PAT list and schema. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 */}
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}

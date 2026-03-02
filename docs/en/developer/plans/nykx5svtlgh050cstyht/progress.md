@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. nykx5svtlgh050cstyht */}
@@ -16,7 +17,7 @@
 - **Started:** 2026-01-17 11:00 CST
 {/* STATUS: Same as task_plan.md (pending, in_progress, complete) TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00") */}
 - Actions taken:
-  <!-- Remove legacy toggle naming from historical action notes. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+  {/* Remove legacy toggle naming from historical action notes. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
   - Searched for task log toggle usages across backend/frontend/CI scripts.
   - Confirmed the single toggle currently gates both DB persistence (agent patch) and user-facing APIs/UI.
 - Files created/modified:
@@ -28,7 +29,7 @@
 - **Status:** complete
 - Actions taken:
   - Decided new env vars: `TASK_LOGS_DB_ENABLED` + `TASK_LOGS_VISIBLE_ENABLED` (defaults: true).
-  <!-- Update planning notes to drop legacy fallback mention. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+  {/* Update planning notes to drop legacy fallback mention. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
   - Decided effective visibility rule: `enabled = db && visible`.
 - Files created/modified:
   - `docs/en/developer/plans/nykx5svtlgh050cstyht/task_plan.md` (updated)
@@ -52,7 +53,7 @@
 ### Phase 4: Testing & Verification
 - **Status:** complete
 - Actions taken:
-  <!-- Align test notes with removal of legacy fallback. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+  {/* Align test notes with removal of legacy fallback. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
   - Updated backend unit tests to cover the new split toggles.
   - Ran backend and frontend test suites.
 - Files created/modified:

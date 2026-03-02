@@ -1,4 +1,5 @@
 # Task Plan: skills registry + prompt text
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 ## Session Metadata
 - **Session Hash:** skills-registry-20260225
@@ -6,11 +7,11 @@
 
 ## Goal
 Deliver a skills registry (built-in + extra) with a console page, enable/disable controls, prompt-text injection per skill for new task groups, per-repo + per-task-group skill selection, and a Skills UI aligned to the SkillsMP-style marketplace layout.
-<!-- Extend the skills registry goal to include selection scopes and marketplace-style UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Extend the skills registry goal to include selection scopes and marketplace-style UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 
 ## Current Phase
 Phase 5
-<!-- Move to delivery after completing verification and fixes. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Move to delivery after completing verification and fixes. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 
 ## Phases
 
@@ -35,7 +36,7 @@ Phase 5
 - [x] Build frontend Skills page + API client + sidebar link
 - [x] Update i18n strings and styling
 - [x] Add skill tags with API + UI filtering support
-<!-- Track tag filtering work in the implementation phase. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Track tag filtering work in the implementation phase. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 - [x] Add repo-level default skill selection storage + APIs
 - [x] Add task-group-level skill selection storage + APIs
 - [x] Apply repo defaults to new task groups and filter prompts by selected skills
@@ -45,22 +46,22 @@ Phase 5
 - [x] Add task-group skill selection UI in the chat composer
 - [x] Build a shared selection panel with tags + search filtering
 - [x] Redesign Skills page to match SkillsMP-style marketplace layout
-<!-- Track selection + UI redesign work in implementation. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Track selection + UI redesign work in implementation. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 - **Status:** complete
-<!-- Close implementation after the SkillsMP-style layout work landed. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Close implementation after the SkillsMP-style layout work landed. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 
 ### Phase 4: Testing & Verification
 - [x] Add/update unit tests for skills registry + prompt injection
 - [x] Run full test suite and record results
 - [x] Fix any issues found
-<!-- Close verification after the latest test run and fixes. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Close verification after the latest test run and fixes. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 - **Status:** complete
 
 ### Phase 5: Delivery
 - [x] Update progress.md and changelog entry
 - [x] Summarize changes for user
 - **Status:** complete
-<!-- Mark delivery complete after updating logs and final response. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Mark delivery complete after updating logs and final response. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 
 ## Key Questions
 1. Where to store extra skill metadata and prompt text? (Answer: new DB table + storage path; built-ins read from SKILL.md frontmatter.)

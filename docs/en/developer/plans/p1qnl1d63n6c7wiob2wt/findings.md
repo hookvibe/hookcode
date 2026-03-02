@@ -1,4 +1,5 @@
 # Findings & Decisions: Swagger启动方式
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -20,7 +21,7 @@
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
 {/* Key discoveries during exploration */}
-<!-- Capture Swagger startup and auth discoveries for this session. docs/en/developer/plans/p1qnl1d63n6c7wiob2wt/task_plan.md p1qnl1d63n6c7wiob2wt -->
+{/* Capture Swagger startup and auth discoveries for this session. docs/en/developer/plans/p1qnl1d63n6c7wiob2wt/task_plan.md p1qnl1d63n6c7wiob2wt */}
 - 项目要求使用 planning-with-files 工作流并记录计划与发现。
 - Swagger 由后端 Admin Tools 启动：`startAdminTools` 在启用后创建 Swagger 应用并监听 `cfg.host:cfg.swaggerPort`，日志打印 `swagger listening on http://<host>:<port>`。
 - 存在独立的 Admin Tools 启动入口：`backend/src/adminTools/standalone.ts`，加载 `.env` 后调用 `startAdminTools` 并保持进程运行。

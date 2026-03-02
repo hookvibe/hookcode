@@ -23,7 +23,7 @@
 - ThoughtChain rendering is handled in `frontend/src/components/execution/ExecutionTimeline.tsx`.
 - There are existing comments referencing exec-json text snippets for message/reasoning in prior ThoughtChain refactor.
 - ExecutionTimeline filters out `kind === 'reasoning'` unless `showReasoning` is true.
-- Reasoning items render inside `ExecutionThink` as a `<pre>` with `item.text`, while agent_message uses MarkdownViewer.
+- Reasoning items render inside `ExecutionThink` as a `&lt;pre>` with `item.text`, while agent_message uses MarkdownViewer.
 - `showReasoning` is controlled by `TaskLogViewer` and defaults to false in at least one usage.
 - `TaskLogViewer` uses `showReasoning={false}` unconditionally for `variant="flat"` (no toggle), which likely hides reasoning in inline ThoughtChain views.
 - `TaskConversationItem` renders the ThoughtChain in chat via `TaskLogViewer` with `variant="flat"`, so chat views currently hide reasoning by default.

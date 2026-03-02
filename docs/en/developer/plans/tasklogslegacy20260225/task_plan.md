@@ -1,5 +1,6 @@
 # Task Plan: Remove legacy task logs env toggle
-<!-- Rename plan wording to avoid the legacy env name. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Rename plan wording to avoid the legacy env name. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. tasklogslegacy20260225 */}
@@ -13,7 +14,7 @@
 Remove the legacy task logs env toggle so only `TASK_LOGS_DB_ENABLED` and `TASK_LOGS_VISIBLE_ENABLED` remain, and clean up all related logic, env examples, docs, and tests accordingly.
 
 ## Current Phase
-<!-- Mark the plan complete after delivery updates. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Mark the plan complete after delivery updates. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 Complete
 
 ## Phases
@@ -29,19 +30,19 @@ Complete
 - **Status:** complete
 
 ### Phase 3: Implementation
-<!-- Mark implementation completion for legacy toggle removal tasks. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Mark implementation completion for legacy toggle removal tasks. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - [x] Remove legacy env fallback logic in backend config
 - [x] Update CI/env examples/docs to drop legacy toggle references
 - [x] Update tests to validate only the new toggles
 - **Status:** complete
 
 ### Phase 4: Testing & Verification
-<!-- Mark test completion for the legacy toggle cleanup. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Mark test completion for the legacy toggle cleanup. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - [x] Run relevant tests or note if skipped
 - [x] Document test results in progress.md
 - **Status:** complete
 
-<!-- Record delivery completion for the legacy toggle cleanup. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Record delivery completion for the legacy toggle cleanup. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 ### Phase 5: Delivery
 - [x] Update changelog entry
 - [x] Summarize changes and follow-ups

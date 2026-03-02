@@ -1,6 +1,7 @@
 ---
 title: Features
 ---
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -45,7 +46,7 @@ This page summarizes key HookCode features from a user perspective.
 - Run tasks manually from the console without Webhooks
 - Chat-style timeline view for a task group
 
-<!-- Document PAT creation and usage steps for API access. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design -->
+{/* Document PAT creation and usage steps for API access. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
 ## Open API access tokens
 
 - Issue personal access tokens (PATs) from the top-right panel

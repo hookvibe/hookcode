@@ -1,10 +1,9 @@
 ---
 title: Repositories
 ---
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
-import { OpenApiOperation, OpenApiProvider, OpenApiSettings } from '@site/src/components/openapi';
-
-<!-- Render per-repository operations as OpenAPI cards. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+{/* Replace legacy OpenAPI MDX components with Mintlify endpoint mapping. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -19,90 +18,39 @@ Repository APIs manage:
 - Repo member management + invite acceptance
 - Provider metadata/activity and webhook delivery troubleshooting
 
-<OpenApiProvider>
-<OpenApiSettings />
+<Callout type="info" title="OpenAPI-backed details">
+  Full request/response schemas are available under the **Endpoints** group in the sidebar (powered by `/api/openapi.json`).
+</Callout>
 
-## APIs
+## Endpoint Map
 
-### GET `/api/repos`
-<OpenApiOperation operationId="repos_list" />
-
-### POST `/api/repos`
-<OpenApiOperation operationId="repos_create" />
-
-### GET `/api/repos/:id`
-<OpenApiOperation operationId="repos_get" />
-
-### PATCH `/api/repos/:id`
-<OpenApiOperation operationId="repos_patch" />
-
-### DELETE `/api/repos/:id`
-<OpenApiOperation operationId="repos_delete" />
-
-### POST `/api/repos/:id/archive`
-<OpenApiOperation operationId="repos_archive" />
-
-### POST `/api/repos/:id/unarchive`
-<OpenApiOperation operationId="repos_unarchive" />
-
-### GET `/api/repos/:id/provider-meta`
-<OpenApiOperation operationId="repos_get_provider_meta" />
-
-### GET `/api/repos/:id/provider-activity`
-<OpenApiOperation operationId="repos_get_provider_activity" />
-
-### GET `/api/repos/:id/webhook-deliveries`
-<OpenApiOperation operationId="repos_list_webhook_deliveries" />
-
-### GET `/api/repos/:id/webhook-deliveries/:deliveryId`
-<OpenApiOperation operationId="repos_get_webhook_delivery" />
-
-### POST `/api/repos/:id/model-credentials/models`
-<OpenApiOperation operationId="repos_list_model_provider_models" />
-
-### GET `/api/repos/:id/robots`
-<OpenApiOperation operationId="repos_list_robots" />
-
-### POST `/api/repos/:id/robots`
-<OpenApiOperation operationId="repos_create_robot" />
-
-### PATCH `/api/repos/:id/robots/:robotId`
-<OpenApiOperation operationId="repos_patch_robot" />
-
-### POST `/api/repos/:id/robots/:robotId/test`
-<OpenApiOperation operationId="repos_test_robot" />
-
-### DELETE `/api/repos/:id/robots/:robotId`
-<OpenApiOperation operationId="repos_delete_robot" />
-
-<!-- Document repo member + invite operations. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
-### GET `/api/repos/:id/members`
-<OpenApiOperation operationId="repos_list_members" />
-
-### PATCH `/api/repos/:id/members/:userId`
-<OpenApiOperation operationId="repos_update_member_role" />
-
-### DELETE `/api/repos/:id/members/:userId`
-<OpenApiOperation operationId="repos_remove_member" />
-
-### GET `/api/repos/:id/invites`
-<OpenApiOperation operationId="repos_list_invites" />
-
-### POST `/api/repos/:id/invites`
-<OpenApiOperation operationId="repos_create_invite" />
-
-### DELETE `/api/repos/:id/invites/:inviteId`
-<OpenApiOperation operationId="repos_revoke_invite" />
-
-### POST `/api/repos/invites/accept`
-<OpenApiOperation operationId="repos_accept_invite" />
-
-### GET `/api/repos/:id/automation`
-<OpenApiOperation operationId="repos_get_automation" />
-
-### PUT `/api/repos/:id/automation`
-<OpenApiOperation operationId="repos_put_automation" />
-</OpenApiProvider>
+- `GET /api/repos` — List repositories visible to the user.
+- `POST /api/repos` — Create a new repository record.
+- `GET /api/repos/:id` — Fetch repository details (including robots and automation).
+- `PATCH /api/repos/:id` — Update repository settings.
+- `DELETE /api/repos/:id` — Delete a repository.
+- `POST /api/repos/:id/archive` — Archive a repository (read-only).
+- `POST /api/repos/:id/unarchive` — Unarchive a repository.
+- `GET /api/repos/:id/provider-meta` — Fetch provider metadata (branches, info).
+- `GET /api/repos/:id/provider-activity` — Fetch provider activity feed.
+- `GET /api/repos/:id/webhook-deliveries` — List webhook delivery attempts.
+- `GET /api/repos/:id/webhook-deliveries/:deliveryId` — Inspect a webhook delivery.
+- `POST /api/repos/:id/model-credentials/models` — List available models for a provider.
+- `GET /api/repos/:id/robots` — List robots under a repository.
+- `POST /api/repos/:id/robots` — Create a robot.
+- `PATCH /api/repos/:id/robots/:robotId` — Update a robot.
+- `POST /api/repos/:id/robots/:robotId/test` — Test a robot's credentials.
+- `DELETE /api/repos/:id/robots/:robotId` — Delete a robot.
+{/* Document repo member + invite operations. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+- `GET /api/repos/:id/members` — List repository members.
+- `PATCH /api/repos/:id/members/:userId` — Update a member role.
+- `DELETE /api/repos/:id/members/:userId` — Remove a member.
+- `GET /api/repos/:id/invites` — List pending invites.
+- `POST /api/repos/:id/invites` — Invite a member.
+- `DELETE /api/repos/:id/invites/:inviteId` — Revoke an invite.
+- `POST /api/repos/invites/accept` — Accept an invite.
+- `GET /api/repos/:id/automation` — Fetch automation configuration.
+- `PUT /api/repos/:id/automation` — Update automation configuration.
 
 ## Notes
 

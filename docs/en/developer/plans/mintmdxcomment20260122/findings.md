@@ -1,4 +1,5 @@
 # Findings & Decisions: Make MD comments Mintlify-compatible
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -21,7 +22,7 @@
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
 {/* Key discoveries during exploration */}
-- Mintlify validates Markdown as MDX; HTML comments (`<!-- ... -->`) trigger an MDX parse error: `Unexpected character '!' ...` (CLI suggests `{/* text */}`).
+- Mintlify validates Markdown as MDX; HTML comments (`{/* ... */}`) trigger an MDX parse error: `Unexpected character '!' ...` (CLI suggests `{/* text */}`).
 - `mint build` is not a supported command; use `mint validate` for strict build validation.
 - Multi-line `{/* ... */}` blocks can still fail MDX parsing inside lists/quotes with "Unexpected lazy line in expression in container"; collapsing to single-line comments avoids this.
 - Mintlify internal navigation is based on `docs.json` page IDs; markdown links pointing to `*.md` files do not reliably resolve as doc routes (use route links without `.md`).
@@ -33,7 +34,7 @@
 {/* Decisions made with rationale */}
 | Decision | Rationale |
 |----------|-----------|
-| Use MDX comments `{/* ... */}` instead of HTML comments `<!-- ... -->` | Keeps comments non-rendered while satisfying Mintlify's MDX parser requirements. |
+| Use MDX comments `{/* ... */}` instead of HTML comments `{/* ... */}` | Keeps comments non-rendered while satisfying Mintlify's MDX parser requirements. |
 | Force all MDX comments to be single-line | Avoid MDX container indentation/lazy-line pitfalls across existing plan pages. |
 
 ## Issues Encountered
@@ -50,7 +51,7 @@
 {/* WHAT: URLs, file paths, API references, documentation links you've found useful. WHY: Easy reference for later. Don't lose important links in context. WHEN: Add as you discover useful resources. EXAMPLE: - Python argparse docs: https://docs.python.org/3/library/argparse.html - Project structure: src/main.py, src/utils.py */}
 {/* URLs, file paths, API references */}
 - `.codex/skills/planning-with-files/templates/*.md` (source templates; comment blocks converted to MDX-safe `{/* ... */}` for Mintlify)
-- `docs/en/developer/plans/**` (Mintlify navigation pages; previously used `<!-- ... -->`, now converted to `{/* ... */}`)
+- `docs/en/developer/plans/**` (Mintlify navigation pages; previously used `{/* ... */}`, now converted to `{/* ... */}`)
 - `docs/docs.json` (Mintlify navigation; includes many `plans` pages)
 
 ## Visual/Browser Findings

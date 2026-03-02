@@ -1,8 +1,9 @@
 # Task Plan: Diagnose CI failures: node-pty build + TasksController DI
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. cierrtasklogs20260124 */}
-<!-- Track CI fix planning updates for this session. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124 -->
+{/* Track CI fix planning updates for this session. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124 */}
 
 ## Session Metadata
 {/* WHAT: Stable identifiers for traceability (code comments ↔ plan folder). WHY: Makes it easy to find the plan that explains a change. */}
@@ -73,7 +74,7 @@ Phase 1
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | node-pty node-gyp rebuild failed: make not found | 1 | Added build-essential install step in CI workflow |
-<!-- Document the CI build-tools fix for node-pty. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124 -->
+{/* Document the CI build-tools fix for node-pty. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124 */}
 
 ## Notes
 {/* REMINDERS: - Update phase status as you progress: pending → in_progress → complete - Re-read this plan before major decisions (attention manipulation) - Log ALL errors - they help avoid repetition - Never repeat a failed action - mutate your approach instead */}
