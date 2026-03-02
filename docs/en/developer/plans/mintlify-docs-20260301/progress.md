@@ -131,10 +131,26 @@
   - Resolved the changelog merge conflict by preserving the Mintlify entry plus the widescreen/sidebar entries and staged the file for merge.
   {/* Record merge commit and pushes to main/dev. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
   - Created the merge commit on main and pushed updates to `origin/main` (dev already up to date).
+  {/* Record skill markdown fix commit and push. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+  - Committed and pushed the skill Markdown MDX-comment fixes to `origin/main`.
 - Files created/modified:
   - docs/en/change-log/0.0.0.md
   - docs/en/developer/plans/mintlify-docs-20260301/findings.md
   - docs/en/developer/plans/mintlify-docs-20260301/task_plan.md
+  - .codex/skills/hookcode-pat-api-debug/SKILL.md
+  - .codex/skills/hookcode-preview-highlight/SKILL.md
+  - .codex/skills/hookcode-preview-highlight/references/highlight-protocol.md
+  - .codex/skills/hookcode-yml-generator/SKILL.md
+  - .codex/skills/hookcode-yml-generator/references/hookcode-yml-logic.md
+  - .claude/skills/file-context-planning/SKILL.md
+  - .claude/skills/hookcode-pat-api-debug/SKILL.md
+  - .claude/skills/hookcode-preview-highlight/SKILL.md
+  - .claude/skills/hookcode-preview-highlight/references/highlight-protocol.md
+  - .claude/skills/hookcode-yml-generator/SKILL.md
+  - .claude/skills/hookcode-yml-generator/references/hookcode-yml-logic.md
+  - .claude/skills/ui-ux-pro-max/SKILL.md
+  - .gemini/skills/hookcode-preview-highlight/references/highlight-protocol.md
+  - .gemini/skills/hookcode-yml-generator/references/hookcode-yml-logic.md
 
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
