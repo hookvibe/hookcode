@@ -111,6 +111,8 @@
   - Added changelog entry for Mintlify docs refactor.
   {/* Record changelog merge conflict resolution. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
   - Resolved the changelog merge conflict by preserving the Mintlify entry plus the widescreen/sidebar entries and staged the file for merge.
+  {/* Record merge commit and pushes to main/dev. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+  - Created the merge commit on main and pushed updates to `origin/main` (dev already up to date).
 - Files created/modified:
   - docs/en/change-log/0.0.0.md
   - docs/en/developer/plans/mintlify-docs-20260301/findings.md
