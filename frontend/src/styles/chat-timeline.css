@@ -81,6 +81,10 @@
   justify-content: flex-start;
 }
 
+.hc-chat-item__assistant_margin {
+  margin-top: 10px;
+}
+
 .hc-chat-bubble {
   /* Enhance visual distinction between conversation bubbles for better readability. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
   max-width: min(720px, 100%);

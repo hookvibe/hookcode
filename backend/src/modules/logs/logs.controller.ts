@@ -6,24 +6,10 @@ import { RepoAccessService } from '../repositories/repo-access.service';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { decodeCreatedAtCursor } from '../../utils/pagination';
 import { normalizeString, parsePositiveInt } from '../../utils/parse';
-import type { SystemLogCategory, SystemLogLevel } from '../../types/systemLog';
+import { normalizeSystemLogCategory, normalizeSystemLogLevel } from '../../types/systemLog';
 import { LogsService } from './logs.service';
 import { ListSystemLogsResponseDto } from './dto/logs-swagger.dto';
 import { EventStreamService } from '../events/event-stream.service';
-
-// Normalize log category filters from query params. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-const normalizeCategory = (value: unknown): SystemLogCategory | undefined => {
-  const raw = normalizeString(value);
-  if (raw === 'system' || raw === 'operation' || raw === 'execution') return raw;
-  return undefined;
-};
-
-// Normalize log level filters from query params. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-const normalizeLevel = (value: unknown): SystemLogLevel | undefined => {
-  const raw = normalizeString(value);
-  if (raw === 'info' || raw === 'warn' || raw === 'error') return raw;
-  return undefined;
-};
 
 @AuthScopeGroup('system') // Scope system log APIs for PAT access control. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 @Controller('logs')
@@ -77,12 +63,13 @@ export class LogsController {
     const cursor = decodeCreatedAtCursor(cursorRaw);
     if (cursorRaw && !cursor) throw new BadRequestException({ error: 'Invalid cursor' });
 
-    const category = normalizeCategory(categoryRaw);
+    // Use shared system log normalizers to keep parsing consistent. docs/en/developer/plans/systemlog-typefix-20260302/task_plan.md systemlog-typefix-20260302
+    const category = normalizeSystemLogCategory(categoryRaw);
     if (normalizeString(categoryRaw) && !category) {
       throw new BadRequestException({ error: 'Invalid category' });
     }
 
-    const level = normalizeLevel(levelRaw);
+    const level = normalizeSystemLogLevel(levelRaw);
     if (normalizeString(levelRaw) && !level) {
       throw new BadRequestException({ error: 'Invalid level' });
     }

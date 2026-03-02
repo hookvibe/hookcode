@@ -3,7 +3,13 @@ import { Injectable } from '@nestjs/common';
 import type { SystemLog } from '@prisma/client';
 import { db } from '../../db';
 import { EventStreamService } from '../events/event-stream.service';
-import type { SystemLogCategory, SystemLogEntry, SystemLogLevel } from '../../types/systemLog';
+import {
+  coerceSystemLogCategory,
+  coerceSystemLogLevel,
+  type SystemLogCategory,
+  type SystemLogEntry,
+  type SystemLogLevel
+} from '../../types/systemLog';
 import type { CreatedAtCursor } from '../../utils/pagination';
 import { encodeCreatedAtCursor } from '../../utils/pagination';
 
@@ -143,10 +149,14 @@ export class LogsService {
   }
 
   private toEntry(row: SystemLog): SystemLogEntry {
+    // Coerce persisted log values into safe enums for API responses. docs/en/developer/plans/systemlog-typefix-20260302/task_plan.md systemlog-typefix-20260302
+    const category = coerceSystemLogCategory(row.category, 'system');
+    const level = coerceSystemLogLevel(row.level, 'info');
+
     return {
       id: String(row.id),
-      category: row.category,
-      level: row.level,
+      category,
+      level,
       message: row.message,
       code: row.code ?? undefined,
       actorUserId: row.actorUserId ?? undefined,

@@ -114,8 +114,7 @@ export const TaskConversationItem: FC<Props> = ({
       </div>
 
       {/* 3) Dialog-style execution logs (non-bubble work area). docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
-      <div className="hc-chat-item__assistant">
-        <Card size="small" className="hc-chat-logs-card" styles={{ body: { padding: 12 } }}>
+      <div className="hc-chat-item__assistant hc-chat-item__assistant_margin">
           {/* Always render the dialog-style logs inline to keep TaskGroup parity with Task Detail. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
           {/* Guard SSE logs viewer when backend task logs are disabled. 0nazpc53wnvljv5yh7c6 */}
           {effectiveTaskLogsEnabled === false ? (
@@ -135,7 +134,6 @@ export const TaskConversationItem: FC<Props> = ({
               emptyHint={emptyLogHint}
             />
           )}
-        </Card>
       </div>
 
       {/* 4) Final text output */}
