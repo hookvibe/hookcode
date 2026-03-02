@@ -18,7 +18,8 @@
 - Actions taken:
   {/* WHAT: List of specific actions you performed. EXAMPLE: - Created todo.py with basic structure - Implemented add functionality - Fixed FileNotFoundError */}
   - Ran ui-ux-pro-max design-system search for glassmorphism docs direction.
-  - Audited Docusaurus theme files and existing pixel-art styles.
+  {/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+  - Audited legacy docs theme files and existing pixel-art styles.
 - Files created/modified:
   {/* WHAT: Which files you created or changed. WHY: Quick reference for what was touched. Helps with debugging and review. EXAMPLE: - todo.py (created) - todos.json (created by app) - task_plan.md (updated) */}
   - docs/en/developer/plans/glassdocs20260126/task_plan.md (updated)
@@ -82,7 +83,8 @@
 | Where am I? | Phase 4 (Testing & Verification) |
 | Where am I going? | Phase 5 |
 | What's the goal? | Refactor the docs UI to a cohesive glassmorphism style across all pages while preserving content structure and improving overall visual quality. |
-| What have I learned? | Docusaurus styling is centralized in custom.css and the landing page module. |
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+| What have I learned? | Legacy docs styling is centralized in custom.css and the landing page module. |
 | What have I done? | Updated the theme and landing page styles, plus solidified the page background. |
 
 ---

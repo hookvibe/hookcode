@@ -21,14 +21,15 @@
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
 {/* Key discoveries during exploration */}
-- The docs site uses Docusaurus (presence of `docs/docusaurus.config.ts`, `docs/sidebars.ts`, and `docs/src`).
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- The docs site used a legacy docs framework before Mintlify, with a dedicated config file, a sidebar registry, and a `docs/src` content tree.
 - ui-ux-pro-max design-system output suggests clean, high-contrast docs patterns and Inter typography; will adapt to glassmorphism while preserving readability.
 - Docs styling is likely centralized in `docs/src/css/custom.css`, with components under `docs/src/components`.
 - `docs/src/css/custom.css` currently defines a full pixel-art theme (fonts, colors, borders, shadows, grid background, OpenAPI UI styles) tied to session `pixeldocs20260126`.
 - OpenAPI UI is implemented in `docs/src/components/openapi/index.tsx`, so styling changes may need component-aware CSS updates.
 - OpenAPI components rely on CSS classes like `.openapi-settings`, `.openapi-operation`, `.openapi-input`, `.openapi-response-box`, which can be restyled in `custom.css` without changing TSX.
 - The docs landing page styles live in `docs/src/pages/index.module.css` and currently implement pixel-art hero styling and animations.
-- Docusaurus loads only `docs/src/css/custom.css` for theming (via `docs/docusaurus.config.ts`), so glassmorphism updates can be centralized there plus the landing page CSS module.
+- The legacy docs build loaded only `docs/src/css/custom.css` for theming (via the legacy docs config), so glassmorphism updates could be centralized there plus the landing page CSS module.
 - Remaining `pixeldocs` references live only in comments inside `docs/src/components/openapi/index.tsx`, which was not modified.
 - `docs/package.json` provides a `typecheck` script but no dedicated test runner, so verification will rely on typecheck/manual review.
 - ui-ux-pro-max guidance for scroll-heavy pages emphasizes smooth color progression; the fix should ensure gradients flow through long pages without hard breaks.
@@ -52,7 +53,8 @@
 ## Resources
 {/* WHAT: URLs, file paths, API references, documentation links you've found useful. WHY: Easy reference for later. Don't lose important links in context. WHEN: Add as you discover useful resources. EXAMPLE: - Python argparse docs: https://docs.python.org/3/library/argparse.html - Project structure: src/main.py, src/utils.py */}
 {/* URLs, file paths, API references */}
-- docs/docusaurus.config.ts
+{/* Remove legacy docs filename while keeping context. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- Legacy docs config file (removed in Mintlify refactor)
 - docs/src
 - docs/src/css/custom.css
 

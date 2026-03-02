@@ -37,9 +37,9 @@
 - **Status:** complete
 - Actions taken:
   - Added JsonViewer component and styles for structured payload display.
-  - Replaced payload <pre> block with JsonViewer in TaskDetailPage.
+  - Replaced payload &lt;pre> block with JsonViewer in TaskDetailPage.
   - Updated task detail test to assert JsonViewer presence.
-  - Replaced webhook delivery payload/response <pre> blocks with JsonViewer.
+  - Replaced webhook delivery payload/response &lt;pre> blocks with JsonViewer.
   - Added RepoWebhookDeliveriesPanel test coverage for JsonViewer usage.
 - Files created/modified:
   - frontend/src/components/JsonViewer.tsx
@@ -89,7 +89,7 @@
 |----------|--------|
 | Where am I? | Delivery complete. |
 | Where am I going? | N/A (session complete). |
-| What's the goal? | Replace raw payload <pre> blocks with a structured JSON viewer UI. |
+| What's the goal? | Replace raw payload &lt;pre> blocks with a structured JSON viewer UI. |
 | What have I learned? | See findings.md. |
 | What have I done? | Implemented JsonViewer, wired TaskDetailPage, updated styles/tests, ran tests. |
 

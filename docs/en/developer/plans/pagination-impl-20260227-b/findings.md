@@ -96,7 +96,8 @@
 *This prevents visual information from being lost*
 
 ## 2026-02-27
-- The file-context-planning skill mandates session files under docs/en/developer/plans/<hash>/ and inline traceability comments linking to the plan file.
+{/* Wrap <hash> in inline code to avoid MDX tag parsing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- The file-context-planning skill mandates session files under docs/en/developer/plans/`<hash>`/ and inline traceability comments linking to the plan file.
 - After every two information-gathering actions, findings.md must be updated (2-Action Rule).
 - Repositories list API is in backend/src/modules/repositories/repositories.controller.ts (`GET /repos`) and currently returns `{ repos }` with no cursor/limit support.
 - Skills list API in backend/src/modules/skills/skills.controller.ts (`GET /skills`) returns combined list via skillsService.listSkills() with no pagination.

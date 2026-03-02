@@ -1,5 +1,6 @@
 # Findings & Decisions: Fix resumeThread after task deletion
-<!-- Capture resumeThread findings for deleted task-group tasks. docs/en/developer/plans/taskgroup-resume-thread-20260203/task_plan.md taskgroup-resume-thread-20260203 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Capture resumeThread findings for deleted task-group tasks. docs/en/developer/plans/taskgroup-resume-thread-20260203/task_plan.md taskgroup-resume-thread-20260203 */}
 
 
 

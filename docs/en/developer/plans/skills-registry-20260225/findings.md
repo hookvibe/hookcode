@@ -1,4 +1,5 @@
 # Findings & Decisions: skills registry + prompt text
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 ## Session Metadata
 - **Session Hash:** skills-registry-20260225
@@ -11,21 +12,21 @@
 - Prompt text should be prepended to the prompt when enabled.
 - Apply enabled extra skills to newly created task groups.
 - Skills need tag metadata for management and filtering in the UI.
-<!-- Capture tag management requirement for skills. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Capture tag management requirement for skills. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 - Skills page styling should match the existing console theme palette.
-<!-- Capture the requirement to align Skills page styling with the app theme. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Capture the requirement to align Skills page styling with the app theme. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 - Skill defaults must be configurable per repository and overrideable per task-group conversation.
-<!-- Capture repo/task-group skill selection requirements. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Capture repo/task-group skill selection requirements. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 - Skill selection UI should live in the repo detail dashboard and the chat composer action area for task groups.
-<!-- Capture selection UI placement requirement. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Capture selection UI placement requirement. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 - Skills page UI should follow the SkillsMP marketplace layout and terminal-like aesthetic.
-<!-- Capture SkillsMP reference requirement for the registry UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Capture SkillsMP reference requirement for the registry UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 - Built-in skills must include hookcode-pat-api-debug, hookcode-yml-generator, and hookcode-preview-highlight.
-<!-- Capture explicit built-in skill list requirement. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Capture explicit built-in skill list requirement. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 - Built-in skills must move to a backend-managed folder with base + provider-specific overrides (.codex/.claude/.gemini).
-<!-- Capture built-in skill relocation and override structure. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Capture built-in skill relocation and override structure. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 - Extra skills must support archive uploads, validate the bundle structure, and persist to a git-ignored server storage folder.
-<!-- Capture extra skill upload + storage requirement. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Capture extra skill upload + storage requirement. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 
 ## Research Findings
 - Built-in skills are seeded into task-group workspaces from `backend/src/agent/example/.codex/skills` (plus `.claude`/`.gemini`).
@@ -42,7 +43,7 @@
 | Prepend enabled skill prompt text before the rendered prompt | Aligns with requirement for strong, front-loaded instructions. |
 | Inject enabled extra skills into new task-group `.codex/.claude/.gemini` | Ensures skills are available at execution time. |
 | Store skill tags in built-in frontmatter + extra-skill DB rows | Enables tag-based filtering and categorization in the console. |
-<!-- Record tag storage decision for the skills registry. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Record tag storage decision for the skills registry. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 
 ## Issues Encountered
 | Issue | Resolution |

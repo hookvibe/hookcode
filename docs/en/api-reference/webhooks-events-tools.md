@@ -1,10 +1,9 @@
 ---
 title: Webhooks, Events, Tools & Health
 ---
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
-import { OpenApiOperation, OpenApiProvider, OpenApiSettings } from '@site/src/components/openapi';
-
-<!-- Render webhook/event/tool APIs with per-operation OpenAPI cards. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+{/* Replace legacy OpenAPI MDX components with Mintlify endpoint mapping. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -17,26 +16,17 @@ These endpoints cover:
 - System tools meta (admin tools ports)
 - Health checks
 
-<OpenApiProvider>
-<OpenApiSettings />
+<Callout type="info" title="OpenAPI-backed details">
+  Full request/response schemas are available under the **Endpoints** group in the sidebar (powered by `/api/openapi.json`).
+</Callout>
 
-## APIs
+## Endpoint Map
 
-### POST `/api/webhook/gitlab/:repoId`
-<OpenApiOperation operationId="webhook_gitlab" />
-
-### POST `/api/webhook/github/:repoId`
-<OpenApiOperation operationId="webhook_github" />
-
-### GET `/api/events/stream`
-<OpenApiOperation operationId="events_stream" />
-
-### GET `/api/tools/meta`
-<OpenApiOperation operationId="tools_meta" />
-
-### GET `/api/health`
-<OpenApiOperation operationId="health_get" />
-</OpenApiProvider>
+- `POST /api/webhook/gitlab/:repoId` — GitLab webhook ingestion endpoint.
+- `POST /api/webhook/github/:repoId` — GitHub webhook ingestion endpoint.
+- `GET /api/events/stream` — Global SSE stream for events.
+- `GET /api/tools/meta` — Admin tools metadata.
+- `GET /api/health` — Health check endpoint.
 
 ## Notes
 

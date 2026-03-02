@@ -1,4 +1,5 @@
 # Findings & Decisions: Fix todo_list event display in exec logs
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -14,21 +15,21 @@
 ## Requirements
 {/* WHAT: What the user asked for, broken down into specific requirements. WHY: Keeps requirements visible so you don't forget what you're building. WHEN: Fill this in during Phase 1 (Requirements & Discovery). EXAMPLE: - Command-line interface - Add tasks - List all tasks - Delete tasks - Python implementation */}
 {/* Captured from user request */}
-<!-- Capture the user-facing requirement for log rendering. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Capture the user-facing requirement for log rendering. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - Update exec log rendering so todo_list events no longer display as "Unknown event" in `example/codex/exec-todo.txt`.
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
 {/* Key discoveries during exploration */}
-<!-- Log the current known artifact and issue location. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Log the current known artifact and issue location. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - The user provided `example/codex/exec-todo.txt`, which is a string-converted execution log where the second event's `todo_list` is rendered as "Unknown event".
-<!-- Note where the unknown label lives for exec log items. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Note where the unknown label lives for exec log items. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - The frontend i18n string for unknown exec items is `execViewer.item.unknown` in `frontend/src/i18n/messages/en-US.ts`.
-<!-- Record where todo_list events fall through to unknown rendering. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Record where todo_list events fall through to unknown rendering. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - `frontend/src/utils/executionLog.ts` parses `item.started|updated|completed` into typed items, but only handles `command_execution`, `file_change`, `agent_message`, and `reasoning`, so `todo_list` becomes `unknown`.
-<!-- Note the timeline UI mapping for item kinds. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Note the timeline UI mapping for item kinds. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - `frontend/src/components/execution/ExecutionTimeline.tsx` renders titles/content based on `item.kind`, with a generic fallback that uses `execViewer.item.unknown`.
-<!-- Capture todo_list event repetition in the sample log. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Capture todo_list event repetition in the sample log. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - `example/codex/exec-todo.txt` emits repeated `item.updated` events for the same `todo_list` id with changing completion flags.
 
 ## Technical Decisions
@@ -43,26 +44,26 @@
 {/* Errors and how they were resolved */}
 | Issue | Resolution |
 |-------|------------|
-<!-- Note unrelated working tree changes to avoid accidental edits. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Note unrelated working tree changes to avoid accidental edits. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 | Repo contains unrelated modified backend/frontend files | Avoid touching unrelated paths while implementing todo_list updates |
 
 ## Resources
 {/* WHAT: URLs, file paths, API references, documentation links you've found useful. WHY: Easy reference for later. Don't lose important links in context. WHEN: Add as you discover useful resources. EXAMPLE: - Python argparse docs: https://docs.python.org/3/library/argparse.html - Project structure: src/main.py, src/utils.py */}
 {/* URLs, file paths, API references */}
-<!-- Track relevant local artifacts for debugging. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Track relevant local artifacts for debugging. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - `example/codex/exec-todo.txt`
-<!-- Track source locations related to the unknown event label. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Track source locations related to the unknown event label. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - `frontend/src/i18n/messages/en-US.ts`
-<!-- Capture primary parsing and rendering files for the exec timeline. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Capture primary parsing and rendering files for the exec timeline. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - `frontend/src/utils/executionLog.ts`
 - `frontend/src/components/execution/ExecutionTimeline.tsx`
 - `frontend/src/i18n/messages/zh-CN.ts`
 - `frontend/src/styles.css`
-<!-- Record i18n key location for exec viewer labels. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Record i18n key location for exec viewer labels. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - `frontend/src/i18n/messages/en-US.ts` and `frontend/src/i18n/messages/zh-CN.ts` contain exec viewer item labels under `execViewer.item.*`.
-<!-- Note available frontend test script for validation. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Note available frontend test script for validation. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - `frontend/package.json` exposes `pnpm -C frontend test` (vitest run) for timeline tests.
-<!-- Track release note destination for this session. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Track release note destination for this session. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - `docs/en/change-log/0.0.0.md` is the unreleased changelog entry target.
 
 ## Visual/Browser Findings

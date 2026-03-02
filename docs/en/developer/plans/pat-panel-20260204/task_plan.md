@@ -1,4 +1,5 @@
 # Task Plan: Move auto-generated PATs to repo area
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. pat-panel-20260204 */}
@@ -11,12 +12,12 @@
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
 Move auto-generated TaskGroup PATs to a repository-specific management area and keep the panel PAT list limited to manually created user tokens.
-<!-- Define the PAT separation goal for panel vs repo management. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 -->
+{/* Define the PAT separation goal for panel vs repo management. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 */}
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
 Phase 5
-<!-- Update phase status after implementation/testing completion. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 -->
+{/* Update phase status after implementation/testing completion. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 */}
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -56,7 +57,7 @@ Phase 5
 - [x] Ensure deliverables are complete
 - [x] Deliver to user
 - **Status:** complete
-<!-- Close delivery phase after changelog + test updates. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 -->
+{/* Close delivery phase after changelog + test updates. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 */}
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
@@ -70,7 +71,7 @@ Phase 5
 |----------|-----------|
 | Filter task-group PATs in the UI using the `task-group-<taskGroupId>` naming pattern plus repo task-group lookups (no backend schema change). | Auto-generated PATs currently lack source metadata; frontend filtering avoids migrations while meeting the panel/repo display requirement. |
 | Add a shared frontend helper to parse task-group PAT names and reuse it in the panel and repo detail views. | Prevents duplicated parsing logic and keeps filtering consistent across surfaces. |
-<!-- Record approach decisions for PAT filtering and UI placement. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 -->
+{/* Record approach decisions for PAT filtering and UI placement. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204 */}
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}

@@ -1,4 +1,5 @@
 # Findings & Decisions: Diagnose CI failures: node-pty build + TasksController DI
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -6,7 +7,7 @@
 {/* WHAT: Your knowledge base for the task. Stores everything you discover and decide. WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited. WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule). */}
 
 {/* Link discoveries to code changes via this session hash. cierrtasklogs20260124 */}
-<!-- Track CI fix discoveries for this session. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124 -->
+{/* Track CI fix discoveries for this session. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124 */}
 
 ## Session Metadata
 - **Session Hash:** cierrtasklogs20260124

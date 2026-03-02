@@ -1,5 +1,6 @@
 # Findings & Decisions: Claude skills compatibility audit and fixes
-<!-- Capture finalized audit findings for Claude skill path compatibility and cleanup. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Capture finalized audit findings for Claude skill path compatibility and cleanup. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 */}
 
 ## Session Metadata
 - **Session Hash:** claude-skills-audit-20260227

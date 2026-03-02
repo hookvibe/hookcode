@@ -106,4 +106,3 @@ Inline worker:
 Standalone worker:
 
 - Set `INLINE_WORKER_ENABLED=false` and run a worker process.
-

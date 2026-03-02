@@ -27,7 +27,8 @@
 - Sidebar styles define fixed button heights and padding without explicit mobile overrides.
 
 ## Header/Nav Observations
-- `frontend/src/styles/page-nav.css` hides meta content on <=768px but keeps action buttons in a single row; may still be tight on 375px when multiple actions exist.
+{/* Wrap <= in inline code to avoid MDX parsing errors. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- `frontend/src/styles/page-nav.css` hides meta content on `<=768px` but keeps action buttons in a single row; may still be tight on 375px when multiple actions exist.
 - Sidebar section styles are fixed-width/padding without mobile-specific adjustments; collapsed behavior exists but no auto-collapse on small screens.
 
 ## Cards/Tables Notes

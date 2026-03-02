@@ -1,16 +1,22 @@
 ---
 title: Open API Docs
 ---
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Refresh API reference overview for Mintlify OpenAPI navigation. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
 This section documents HookCode’s backend APIs (served under the `/api` global prefix by default).
 
-<!-- Highlight the OpenAPI-driven docs workflow. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+{/* Highlight the OpenAPI-driven docs workflow. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+
+<Callout type="info" title="OpenAPI spec location">
+  The OpenAPI JSON is served by the backend at `/api/openapi.json`. See the **OpenAPI Spec** page for access details.
+</Callout>
 
 ## OpenAPI-linked docs
-
-Each API page now renders per-operation sections powered by the OpenAPI spec. Configure the spec URL, API base, and token once at the top of each page to enable Try It requests.
+{/* Link the OpenAPI spec page now that auto-generated endpoints are disabled locally. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+Each API page summarizes the endpoint surface for its domain. For full request/response schemas, use the live OpenAPI JSON served at `/api/openapi.json`.
 Default spec URL: `/api/openapi.json` (requires auth when `AUTH_ENABLED=true`).
 
 ## Base URL
@@ -43,6 +49,7 @@ These support `?token=<token>` for clients that cannot set headers (e.g. `EventS
 
 ## Sections
 
+- [OpenAPI Spec](./openapi)
 - [Auth & Users](./auth-users)
 - [Repositories](./repositories)
 - [Tasks, Task Groups & Chat](./tasks-and-groups)

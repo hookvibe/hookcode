@@ -1,8 +1,9 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. cierrtasklogs20260124 */}
-<!-- Track CI fix execution updates for this session. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124 -->
+{/* Track CI fix execution updates for this session. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124 */}
 
 ## Session Metadata
 - **Session Title:** Diagnose CI failures: node-pty build + TasksController DI

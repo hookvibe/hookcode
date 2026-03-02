@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. netflapui20260126 */}
@@ -10,7 +11,7 @@
 ## Session: 2026-01-26
 {/* WHAT: The date of this work session. WHY: Helps track when work happened, useful for resuming after time gaps. EXAMPLE: 2026-01-15 */}
 
-<!-- Log phase progress for the network flap UX fix. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126 -->
+{/* Log phase progress for the network flap UX fix. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126 */}
 ### Phase 1: Requirements & Discovery
 {/* WHAT: Detailed log of actions taken during this phase. WHY: Provides context for what was done, making it easier to resume or debug. WHEN: Update as you work through the phase, or at least when you complete it. */}
 - **Status:** complete
@@ -52,7 +53,7 @@
   - docs/en/developer/plans/netflapui20260126/progress.md
 
 ### Phase 5: Delivery
-<!-- Track delivery tasks for the network flap UX change. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126 -->
+{/* Track delivery tasks for the network flap UX change. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126 */}
 - **Status:** complete
 - **Started:** 2026-01-26 23:50
 - Actions taken:
@@ -64,7 +65,7 @@
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-<!-- Capture the focused frontend test run for this change. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126 -->
+{/* Capture the focused frontend test run for this change. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126 */}
 | TaskGroupChatPage tests | `pnpm --filter hookcode-frontend test -- src/tests/taskGroupChatPage.test.tsx` | Pass | Pass (warnings: Vite CJS deprecation, missing sourcemap, antd message deprecation, XNotification unsupported, console error from simulated network failure) | ✓ |
 
 ## Error Log
@@ -72,7 +73,7 @@
 {/* Keep ALL errors - they help avoid repetition */}
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-<!-- Log test failures encountered while iterating on the new polling test. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126 -->
+{/* Log test failures encountered while iterating on the new polling test. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126 */}
 | 2026-01-26 23:35 | Vitest timed out when using fake timers in polling test. | 1 | Reworked the test to use a targeted `setInterval` spy. |
 | 2026-01-26 23:37 | RangeError: maximum call stack size exceeded due to recursive timer spy. | 2 | Captured original timer methods before spying. |
 

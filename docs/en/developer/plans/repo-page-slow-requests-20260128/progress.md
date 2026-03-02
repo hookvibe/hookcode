@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. repo-page-slow-requests-20260128 */}
@@ -37,7 +38,7 @@
 
 ### Phase 3: Implementation
 - **Status:** complete
-<!-- Mark implementation phase complete after expanding caching and tests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+{/* Mark implementation phase complete after expanding caching and tests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
 - Actions taken:
   - Added build-time performance requirements into AGENTS.md with traceability comment.
   - Implemented `includeQueue` toggle and skipped queue diagnosis for dashboard/task summaries.
@@ -85,7 +86,7 @@
 
 ### Phase 4: Testing & Verification
 - **Status:** complete
-<!-- Mark verification phase complete after running frontend tests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+{/* Mark verification phase complete after running frontend tests. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
 - Actions taken:
   - Ran updated frontend tests for task list params and API cache behavior.
 - Files created/modified:
@@ -93,7 +94,7 @@
 
 ### Phase 5: Delivery
 - **Status:** complete
-<!-- Mark delivery phase complete after logging changes and preparing handoff. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+{/* Mark delivery phase complete after logging changes and preparing handoff. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
 - Actions taken:
   - Prepared final response with implementation/testing summary.
 - Files created/modified:
@@ -130,7 +131,7 @@
 | Question | Answer |
 |----------|--------|
 | Where am I? | Phase 5 |
-<!-- Update reboot status to match completed delivery phase. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+{/* Update reboot status to match completed delivery phase. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
 | Where am I going? | Phases 4-5 |
 | What's the goal? | Identify backend/DB bottlenecks for slow repo page and propose fixes with evidence. |
 | What have I learned? | See findings.md |

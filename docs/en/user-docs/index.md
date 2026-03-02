@@ -2,10 +2,23 @@
 title: User Docs
 ---
 
-{/* Fix internal links for Docusaurus doc routes. docs/en/developer/plans/dsim8xybp9oa18nz1gfq/task_plan.md dsim8xybp9oa18nz1gfq */}
+{/* Normalize internal links for Mintlify routing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
+{/* Add Mintlify landing cards for the user docs section. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 User-facing documentation for HookCode (deployment, configuration, and day-to-day usage).
+
+<CardGroup>
+  <Card title="Quickstart" href="/en/user-docs/quickstart">
+    Deploy the stack and connect your first repository.
+  </Card>
+  <Card title="Configuration" href="/en/user-docs/config/repositories">
+    Set up repos, robots, triggers, and .hookcode.yml.
+  </Card>
+  <Card title="TaskGroup Preview" href="/en/user-docs/preview">
+    Run previews and debug dev servers from tasks.
+  </Card>
+</CardGroup>
 
 ## Getting started
 

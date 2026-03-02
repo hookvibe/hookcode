@@ -10,7 +10,7 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Replace the raw SSE live-log `<pre>` with a structured execution viewer in `frontend/` (Codex JSONL parsing + web diff rendering), and emit backend diff artifacts (`hookcode.file.diff`) so TaskGroup chat and TaskDetail pages can show rich diffs. {/* Update goal to reflect implemented scope. yjlphd6rbkrq521ny796 */}
+Replace the raw SSE live-log `&lt;pre>` with a structured execution viewer in `frontend/` (Codex JSONL parsing + web diff rendering), and emit backend diff artifacts (`hookcode.file.diff`) so TaskGroup chat and TaskDetail pages can show rich diffs. {/* Update goal to reflect implemented scope. yjlphd6rbkrq521ny796 */}
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}

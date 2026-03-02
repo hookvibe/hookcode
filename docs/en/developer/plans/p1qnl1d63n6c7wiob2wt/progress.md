@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. p1qnl1d63n6c7wiob2wt */}
@@ -9,7 +10,7 @@
 
 ## Session: 2026-01-26
 {/* WHAT: The date of this work session. WHY: Helps track when work happened, useful for resuming after time gaps. EXAMPLE: 2026-01-15 */}
-<!-- Log Swagger startup guidance progress for this session. docs/en/developer/plans/p1qnl1d63n6c7wiob2wt/task_plan.md p1qnl1d63n6c7wiob2wt -->
+{/* Log Swagger startup guidance progress for this session. docs/en/developer/plans/p1qnl1d63n6c7wiob2wt/task_plan.md p1qnl1d63n6c7wiob2wt */}
 
 ### Phase 1: Requirements & Discovery
 {/* WHAT: Detailed log of actions taken during this phase. WHY: Provides context for what was done, making it easier to resume or debug. WHEN: Update as you work through the phase, or at least when you complete it. */}

@@ -19,7 +19,7 @@
 
 
 - `frontend/src/pages/TaskDetailPage.tsx` renders the 4 sections via Ant Design `Steps` (`workflowSteps`) in the right pane.
-- The "Webhook raw" and "Prompt snippets" panels render `<pre className="hc-task-code-block">` which enforces `max-height: 360px; overflow: auto;` in `frontend/src/styles.css`.
+- The "Webhook raw" and "Prompt snippets" panels render `&lt;pre className="hc-task-code-block">` which enforces `max-height: 360px; overflow: auto;` in `frontend/src/styles.css`.
 - The "Realtime logs" panel uses `frontend/src/components/TaskLogViewer.tsx` with a fixed `height` prop and a built-in toolbar (pause/reconnect/raw/copy/clear).
 
 ## Technical Decisions

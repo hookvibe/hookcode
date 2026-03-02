@@ -1,4 +1,5 @@
 # Findings & Decisions: TaskGroup Dev preview plan evaluation
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -14,21 +15,21 @@
 ## Requirements
 {/* WHAT: What the user asked for, broken down into specific requirements. WHY: Keeps requirements visible so you don't forget what you're building. WHEN: Fill this in during Phase 1 (Requirements & Discovery). EXAMPLE: - Command-line interface - Add tasks - List all tasks - Delete tasks - Python implementation */}
 {/* Captured from user request */}
-<!-- Capture preview highlight bridge requirements. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture preview highlight bridge requirements. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Provide a backend API to send highlight commands and a shared bridge script (stored in repo root `shared/`) that users can import manually to enable cross-origin DOM highlighting.
-<!-- Capture request to package highlight operations into a reusable skill. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture request to package highlight operations into a reusable skill. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Create a dedicated skill that documents preview highlight operations and ships JS request scripts with env loading.
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
 {/* Key discoveries during exploration */}
-<!-- Note current plan status and scope shift for preview access. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Note current plan status and scope shift for preview access. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - task_plan.md shows Phase 22 complete; new work must add a follow-up phase for local direct-port previews and production subdomain routing.
-<!-- Capture current preview iframe URL composition for the new routing plan. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture current preview iframe URL composition for the new routing plan. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - TaskGroupChatPage currently builds preview iframe URLs from API_BASE_URL + preview path + token, so local direct-port and subdomain routing need a new URL builder.
-<!-- Record preview summary fields that will drive new URL routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record preview summary fields that will drive new URL routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - PreviewInstanceSummary currently returns port + path (path = /preview/:taskGroup/:instance/); new direct-port + subdomain routing must either add a publicUrl field or re-derive from port and config.
-<!-- Capture new preview host mode environment configuration for routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture new preview host mode environment configuration for routing. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Subdomain preview routing relies on HOOKCODE_PREVIEW_HOST_MODE + HOOKCODE_PREVIEW_BASE_DOMAIN (optional scheme override) to build public URLs.
 
 ## Technical Decisions
@@ -36,9 +37,9 @@
 {/* Decisions made with rationale */}
 | Decision | Rationale |
 |----------|-----------|
-<!-- Record preview routing strategy for local vs production deployments. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record preview routing strategy for local vs production deployments. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Use direct localhost ports for local previews and subdomain routing in production | Avoid path rewrite failures locally while enabling shareable, wildcard-hosted previews in production |
-<!-- Record the preview highlight bridge integration approach. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record the preview highlight bridge integration approach. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Require manual bridge script integration + postMessage handshake for DOM highlights | Cross-origin iframes cannot be manipulated directly, so a user-provided bridge is the safest stable path |
 
 ## Issues Encountered
@@ -107,36 +108,36 @@
 
 *Update this file after every 2 view/browser/search operations*
 *This prevents visual information from being lost*
-<!-- Record initial repo context and skill rules for traceability. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record initial repo context and skill rules for traceability. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Noted repository root contains backend, frontend, docs, and planning skill assets; no existing session referenced in chat.
 - Read planning-with-files skill: requires session folder updates and inline traceability comments with the plan path + hash.
-<!-- Capture planning file templates observed for this session. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture planning file templates observed for this session. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Planning templates include phase tracking, key questions, decisions, and error logs; updates must keep phase statuses in sync with progress.md.
-<!-- Capture user clarifications on scope and constraints. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture user clarifications on scope and constraints. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Deployment is single-instance; preview should support dependency installation and frameworks beyond Vite/Webpack; preview links can be shared externally.
-<!-- Note existing .hookcode.yml parsing scope for dependency config. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Note existing .hookcode.yml parsing scope for dependency config. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - HookcodeConfigService currently validates version=1 and dependency.runtimes (language/version/install/workdir); no preview schema exists yet.
-<!-- Summarize existing dependency types and installer references for reuse. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Summarize existing dependency types and installer references for reuse. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Dependency types are defined in backend/src/types/dependency.ts and dependency installs are implemented in backend/src/agent/dependencyInstaller.ts; hookcodeConfigService is the entry point for parsing .hookcode.yml.
-<!-- Note dependency installer behaviors useful for preview dependency installs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Note dependency installer behaviors useful for preview dependency installs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - dependencyInstaller validates workdir confinement, enforces allowed install commands, and logs step results; it may be reusable for preview install preflight.
-<!-- Record existing SSE infrastructure for log streaming. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record existing SSE infrastructure for log streaming. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - EventStreamService provides shared SSE publish/subscribe with topic filtering and heartbeat; tasks module also uses SSE for log streaming.
-<!-- Capture task log SSE pattern for reuse in preview log streaming. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture task log SSE pattern for reuse in preview log streaming. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - tasks.controller implements SSE log streaming with init snapshot, keep-alive, and DB polling fallback; TaskLogStream is an in-memory pub/sub helper.
-<!-- Note module wiring for adding new HTTP controllers. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Note module wiring for adding new HTTP controllers. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - AppModule imports TasksHttpModule; TasksHttpModule wires controllers (TasksController, TaskGroupsController, ChatController, DashboardController) and depends on TasksModule + RepositoriesModule.
-<!-- Capture TasksModule exports and TaskGroupsController for preview endpoints placement. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture TasksModule exports and TaskGroupsController for preview endpoints placement. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - TasksModule provides TaskService, TaskLogStream, and HookcodeConfigService; TaskGroupsController currently handles list/get/tasks endpoints only.
-<!-- Note auth helper for query-token SSE usage. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Note auth helper for query-token SSE usage. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - AllowQueryToken decorator exists for SSE/EventSource to accept ?token=; it is used by tasks and events SSE endpoints.
-<!-- Note auth guard/token extraction behavior for preview share links. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Note auth guard/token extraction behavior for preview share links. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - AuthGuard enforces bearer/x-hookcode-token/query token when allowed; extractAuthToken only recognizes bearer/header/query tokens, so share-link auth may need a separate guard or token mode.
-<!-- Capture workspace and repo slug helpers used for preview workspace resolution. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture workspace and repo slug helpers used for preview workspace resolution. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - buildTaskGroupWorkspaceDir and getRepoSlug (backend/src/agent/agent.ts) are the existing helpers for task-group workspaces; they require repo provider + payload to compute workspace paths.
-<!-- Record frontend location for preview UI integration. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record frontend location for preview UI integration. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - TaskGroupChatPage is the main chat UI; it renders PageNav actions and a single scrollable chat body, making it the integration point for preview controls + iframe panel.
-<!-- Note preview proxy auth and path rewrite approach for MVP. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Note preview proxy auth and path rewrite approach for MVP. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Preview proxy routes use AllowQueryToken for iframe auth and rewrite HTML asset paths to keep `/preview/:group/:instance` working without HMR in Phase 1.
 - Resuming session 3ldcl6h5d61xj2hsu6as with Phase 2 scope (WS proxy, multi-instance tabs, logs SSE, repo preview config).
 - task_plan.md currently marks Phase 2 pending; needs update to in_progress when starting Phase 2 work.
@@ -156,7 +157,7 @@
 - Updated preview UI references to use aggregate status and active instance; remaining updates needed mainly in CSS/i18n/tests and new modal styles.
 - CSS theme defines --hc-accent-* variables for active states; preview tabs can use these for active styling.
 - Theme defines --hc-accent-soft/--hc-accent-border for active-state styling; preview tabs can reuse these tokens for active/hover states.
-- i18n uses {{var}} interpolation; new preview log/share labels should follow that format in en-US/zh-CN.
+- i18n uses `{{var}}` interpolation; new preview log/share labels should follow that format in en-US/zh-CN.
 - RepoDetailPage builds section items array for dashboard regions; preview config card can be added as a new standalone region without touching summary strip keys if kept outside section() mapping.
 - RepoDetailPage state hooks are near top; preview config state and fetch effect can be added alongside repo/webhook state without touching pagination logic.
 - appShell and repoDetail tests mock ../api; new fetchRepoPreviewConfig export must be added to both mocks to avoid undefined calls.
@@ -181,7 +182,8 @@
 - Jest unit tests live under backend/src/tests/unit; preview log stream test style can be reused for new PreviewService tests. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 - Reviewed progress/task plan to update Phase 3 completion and new test results for preview enhancements. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 - Checked for ws module; not installed, so Phase 4 WS proxy validation needs adding dev dependency or alternate handshake implementation. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-- Located user-docs index and Docusaurus sidebars to add a new TaskGroup preview guide under docs/en/user-docs and update navigation. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- Located user-docs index and legacy docs sidebars to add a new TaskGroup preview guide under docs/en/user-docs and update navigation. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 - New requirement: preview panel should stay closed by default and only open after explicit user action post-start. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 - 2026-01-29: User wants Start Preview and Open Preview Panel merged into a single action that opens the panel when starting preview.
 - 2026-01-29: Current UI uses separate preview panel toggle (previewPanelOpen) with i18n keys and tests/docs referencing "Open preview panel"; merging will require removing these references and auto-opening panel when preview starts.
@@ -194,14 +196,15 @@
 - PreviewService.getStatus resolves preview config via resolvePreviewConfig; it returns available=false when hookcode config parse fails or preview instances missing.
 - Repo preview config detection uses the latest task group workspace and HookcodeConfigService.parseConfig; parsing errors return reason=config_invalid, missing preview returns config_missing.
 - resolvePreviewConfig always resolves workspace via latest task in the group; if hookcodeConfigService.parseConfig throws, status reason=config_invalid; if preview.instances missing, reason=config_missing.
-- resolveWorkspaceDir derives repoSlug from latest task payload + provider; workspace path is buildTaskGroupWorkspaceDir({taskGroupId, taskId, provider, repoSlug}) and must exist or preview returns workspace_missing.
+{/* Wrap object literal in inline code to avoid MDX parsing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- resolveWorkspaceDir derives repoSlug from latest task payload + provider; workspace path is `buildTaskGroupWorkspaceDir({taskGroupId, taskId, provider, repoSlug})` and must exist or preview returns workspace_missing.
 - buildTaskGroupWorkspaceDir uses TASK_GROUP_WORKSPACE_ROOT + `${taskGroupId}__${provider}__${repoSlug}`; repoSlug is derived from task payload.
 - getRepoSlug for GitHub uses payload.repository.full_name with '/' replaced by '__', so repo hookvibe/hookcode-test becomes hookvibe__hookcode-test in workspace path.
 - TASK_GROUP_WORKSPACE_ROOT is backend/src/agent/build/task-groups, matching the provided workspace location.
 - HookcodeConfigService validates preview.instances with required name/command/workdir; .hookcode.yml in workspace matches schema so parseConfig should succeed.
-- startPreviewInternal stops existing preview, runs installDependenciesIfNeeded, then spawns each preview instance with env PORT/HOST=127.0.0.1; command supports {{PORT}} replacement.
+- startPreviewInternal stops existing preview, runs installDependenciesIfNeeded, then spawns each preview instance with env PORT/HOST=127.0.0.1; command supports `{{PORT}}` replacement.
 - Dependency installs run via dependencyInstaller before preview start when dependency config exists; failures surface as dependency_failed.
-<!-- Clarify preview port contract: system-assigned only, no fixed ports in config. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Clarify preview port contract: system-assigned only, no fixed ports in config. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Preview instances must use system-assigned ports exposed via `PORT`/`{{PORT}}`; `.hookcode.yml` must not set fixed ports.
 - Preview services allocate from the port pool and rely on commands honoring `PORT` to avoid readiness stalls.
 - TaskGroupChatPage shows "Preview unavailable" when previewStatus.available=false; refreshPreviewStatus sets available=false on 404/409 responses (config_missing/config_invalid/workspace_missing).
@@ -209,23 +212,23 @@
 - BUILD_ROOT is derived from __dirname in agent.ts, so running API/worker from different build outputs (dist vs src) can point to different task-group workspace roots.
 - Preview status returns workspace_missing when TASK_GROUP_WORKSPACE_ROOT differs from the directory where the worker cloned the repo; a robust fix should resolve build root from repo paths or env instead of __dirname only.
 - User observed preview status response `{error:"Task group workspace missing", code:"workspace_missing"}` for group 53a3147d-d36b-4edd-a868-7221201c7c25, confirming backend couldn't resolve workspace path at runtime.
-<!-- Capture preview startup stall root cause for fixed-port dev servers. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture preview startup stall root cause for fixed-port dev servers. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Preview instances that ignore the assigned `PORT` (e.g., defaulting to 5173) can hang in "starting" until timeout; configs must use placeholders instead of fixed ports.
-<!-- Record env placeholder rule for preview configs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record env placeholder rule for preview configs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Preview instance env overrides are supported; any env value that includes a port must use the `{{PORT}}` placeholder (no hardcoded ports).
-<!-- Note skill updates for .hookcode.yml generation rules. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Note skill updates for .hookcode.yml generation rules. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - hookcode-yml-generator skill now mirrors the no-fixed-port rule and injects PORT placeholders in commands/env.
-<!-- Capture iframe auth fix for preview assets. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture iframe auth fix for preview assets. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Preview iframes now persist query tokens into a scoped cookie so asset requests can authenticate without headers.
-<!-- Capture preview base href duplication root cause. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture preview base href duplication root cause. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Preview HTML rewriting was double-prefixing base href because it derived the prefix from req.baseUrl; it now derives from originalUrl to preserve `/api/preview/...` once.
-<!-- Capture asset path rewrite requirement for preview proxying. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture asset path rewrite requirement for preview proxying. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Preview asset requests must strip the full `/api/preview/{group}/{instance}` prefix before proxying, otherwise Vite returns 404 and the iframe stays blank.
-<!-- Capture JS/CSS rewrite requirement for Vite dev assets. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture JS/CSS rewrite requirement for Vite dev assets. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Vite dev JS/CSS responses include absolute paths (`/src/...`, `/@react-refresh`); these must be rewritten to include the preview prefix.
-<!-- Capture double-prefix pitfall for preview path rewrites. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture double-prefix pitfall for preview path rewrites. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Preview path rewrite must avoid re-prefixing URLs already starting with `/api/preview/...`, otherwise assets 404 with duplicated prefixes.
-<!-- Capture base href double-prefix issue. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Capture base href double-prefix issue. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - Injected base href can be double-prefixed unless attribute rewriting skips already-prefixed paths.
 
 - 2026-01-30: Confirmed session folder exists for hash 3ldcl6h5d61xj2hsu6as; will reuse it for the preview install-path investigation.

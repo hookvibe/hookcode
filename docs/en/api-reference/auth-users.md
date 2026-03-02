@@ -1,10 +1,9 @@
 ---
 title: Auth & Users
 ---
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
-import { OpenApiOperation, OpenApiProvider, OpenApiSettings } from '@site/src/components/openapi';
-
-<!-- Render per-operation OpenAPI cards instead of a flat table. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+{/* Replace legacy OpenAPI MDX components with Mintlify endpoint mapping. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -16,39 +15,22 @@ These endpoints cover:
 - Current user profile updates (`/users/me`)
 - Credential profile management for model/repo providers (redacted in responses)
 
-<OpenApiProvider>
-<OpenApiSettings />
+<Callout type="info" title="OpenAPI-backed details">
+  Full request/response schemas are available under the **Endpoints** group in the sidebar (powered by `/api/openapi.json`).
+</Callout>
 
-## APIs
+## Endpoint Map
 
-### POST `/api/auth/login`
-<OpenApiOperation operationId="auth_login" />
-
-<!-- Document registration + verification endpoints. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
-### POST `/api/auth/register`
-<OpenApiOperation operationId="auth_register" />
-
-### POST `/api/auth/verify-email`
-<OpenApiOperation operationId="auth_verify_email" />
-
-### GET `/api/auth/me`
-<OpenApiOperation operationId="auth_me" />
-
-### PATCH `/api/users/me`
-<OpenApiOperation operationId="users_patch_me" />
-
-### PATCH `/api/users/me/password`
-<OpenApiOperation operationId="users_change_password" />
-
-### GET `/api/users/me/model-credentials`
-<OpenApiOperation operationId="users_get_model_credentials" />
-
-### PATCH `/api/users/me/model-credentials`
-<OpenApiOperation operationId="users_patch_model_credentials" />
-
-### POST `/api/users/me/model-credentials/models`
-<OpenApiOperation operationId="users_list_model_provider_models" />
-</OpenApiProvider>
+- `POST /api/auth/login` — Authenticate and return an access token.
+{/* Document registration + verification endpoints. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
+- `POST /api/auth/register` — Register a new user (when registration is enabled).
+- `POST /api/auth/verify-email` — Verify a pending registration email.
+- `GET /api/auth/me` — Fetch current auth status and user profile.
+- `PATCH /api/users/me` — Update profile details for the current user.
+- `PATCH /api/users/me/password` — Change the current user password.
+- `GET /api/users/me/model-credentials` — Fetch stored model credentials (redacted).
+- `PATCH /api/users/me/model-credentials` — Update model credentials for the current user.
+- `POST /api/users/me/model-credentials/models` — List available models for a provider.
 
 ## Notes
 

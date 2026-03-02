@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. task-pause-resume-20260203 */}
@@ -11,7 +12,7 @@
 {/* WHAT: The date of this work session. WHY: Helps track when work happened, useful for resuming after time gaps. EXAMPLE: 2026-01-15 */}
 
 ### Phase 1: Requirements & Discovery
-<!-- Summarize requirement capture for pause/resume and empty-group fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Summarize requirement capture for pause/resume and empty-group fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - **Status:** complete
 - **Started:** 2026-02-04 09:30
 - Actions taken:
@@ -22,7 +23,7 @@
   - docs/en/developer/plans/task-pause-resume-20260203/findings.md
 
 ### Phase 2: Planning & Structure
-<!-- Document planning decisions for pause/resume control flow and UI. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Document planning decisions for pause/resume control flow and UI. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - **Status:** complete
 - Actions taken:
   - Planned backend paused status, control polling, and archived-task filtering.
@@ -32,7 +33,7 @@
   - docs/en/developer/plans/task-pause-resume-20260203/findings.md
 
 ### Phase 3: Implementation
-<!-- Log implementation work for pause/resume and empty-state fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Log implementation work for pause/resume and empty-state fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - **Status:** complete
 - Actions taken:
   - Implemented paused status, pause/resume APIs, control polling, and abort handling in the backend.
@@ -58,7 +59,7 @@
   - frontend/src/tests/taskDetailPage.test.tsx
 
 ### Phase 4: Testing & Verification
-<!-- Log full-suite test runs and verification notes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Log full-suite test runs and verification notes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - **Status:** complete
 - Actions taken:
   - Ran full test suite (`pnpm test`) and resolved pause/resume button accessibility name mismatches.
@@ -67,7 +68,7 @@
   - frontend/src/tests/taskDetailPage.test.tsx
 
 ### Phase 5: Delivery
-<!-- Record changelog update and delivery prep. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Record changelog update and delivery prep. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - **Status:** complete
 - Actions taken:
   - Added changelog entry for task-pause-resume-20260203.
@@ -79,7 +80,7 @@
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-<!-- Record full-suite test run for pause/resume changes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Record full-suite test run for pause/resume changes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 | Full test suite | pnpm test | Backend + frontend tests pass | Passed (backend + frontend); jest warned about a worker process not exiting cleanly. | ✓ |
 
 ## Error Log
@@ -87,7 +88,7 @@
 {/* Keep ALL errors - they help avoid repetition */}
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-<!-- Log pause/resume test failure and fix. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Log pause/resume test failure and fix. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 | 2026-02-04 11:20 | Pause/Resume button tests failed to match accessible names with icon labels. | 1 | Updated tests to use regex name matching for AntD icon buttons. |
 
 ## 5-Question Reboot Check
@@ -95,7 +96,7 @@
 {/* If you can answer these, context is solid */}
 | Question | Answer |
 |----------|--------|
-<!-- Update reboot answers after implementation and testing. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Update reboot answers after implementation and testing. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 | Where am I? | Phase 5 (Delivery) |
 | Where am I going? | Changelog update and final handoff. |
 | What's the goal? | Add pause/resume controls, fix task-group delete/resume issues, and improve log/empty states. |

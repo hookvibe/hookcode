@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. pixeldocs20260126 */}
@@ -17,8 +18,9 @@
 {/* STATUS: Same as task_plan.md (pending, in_progress, complete) TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00") */}
 - Actions taken:
   {/* WHAT: List of specific actions you performed. EXAMPLE: - Created todo.py with basic structure - Implemented add functionality - Fixed FileNotFoundError */}
-  - Confirmed Pixel Art style availability via UI-UX Pro Max search. <!-- Log style discovery for traceability. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Verified docs framework is Docusaurus and identified theme entry points. <!-- Record docs framework discovery. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+  - Confirmed Pixel Art style availability via UI-UX Pro Max search. {/* Log style discovery for traceability. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  {/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+  - Verified docs framework is legacy docs and identified theme entry points. {/* Record docs framework discovery. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
 - Files created/modified:
   {/* WHAT: Which files you created or changed. WHY: Quick reference for what was touched. Helps with debugging and review. EXAMPLE: - todo.py (created) - todos.json (created by app) - task_plan.md (updated) */}
   - docs/en/developer/plans/pixeldocs20260126/task_plan.md (updated)
@@ -28,24 +30,24 @@
 {/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
 - **Status:** complete
 - Actions taken:
-  - Planned pixel theme implementation around `docs/src/css/custom.css` and homepage module styles. <!-- Capture the chosen implementation approach. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+  - Planned pixel theme implementation around `docs/src/css/custom.css` and homepage module styles. {/* Capture the chosen implementation approach. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
 - Files created/modified:
   - docs/en/developer/plans/pixeldocs20260126/task_plan.md (updated)
 
 ### Phase 3: Implementation
 - **Status:** complete
-<!-- Mark implementation phase as complete after applying OpenAPI and styling updates. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+{/* Mark implementation phase as complete after applying OpenAPI and styling updates. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
 - Actions taken:
-  - Implemented pixel-art global theme tokens and component styling in docs CSS. <!-- Log global theme implementation work. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Added pixel hero animations and layout tweaks on the docs landing page. <!-- Log homepage pixel styling changes. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Refined palette, typography, and navigation colors to fix readability issues. <!-- Log pixel theme refinements for legibility. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Tuned hero layout and button grid for cleaner docs landing layout. <!-- Log layout optimization changes. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Reduced heading font sizes to address oversized titles. <!-- Log heading size adjustments. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Forced inline code and inline-code links to use explicit readable colors. <!-- Log inline code visibility fix. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Unified code block, table, and blockquote styling for better readability. <!-- Log syntax block styling improvements. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Balanced long doc and hero titles to reduce excessive line wrapping. <!-- Log long-title layout tuning. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Added OpenAPI-driven components and per-endpoint API doc sections with Try It support. <!-- Log API docs enhancements. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Added a backend OpenAPI JSON endpoint for docs consumption. <!-- Log backend linkage for OpenAPI. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+  - Implemented pixel-art global theme tokens and component styling in docs CSS. {/* Log global theme implementation work. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  - Added pixel hero animations and layout tweaks on the docs landing page. {/* Log homepage pixel styling changes. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  - Refined palette, typography, and navigation colors to fix readability issues. {/* Log pixel theme refinements for legibility. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  - Tuned hero layout and button grid for cleaner docs landing layout. {/* Log layout optimization changes. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  - Reduced heading font sizes to address oversized titles. {/* Log heading size adjustments. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  - Forced inline code and inline-code links to use explicit readable colors. {/* Log inline code visibility fix. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  - Unified code block, table, and blockquote styling for better readability. {/* Log syntax block styling improvements. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  - Balanced long doc and hero titles to reduce excessive line wrapping. {/* Log long-title layout tuning. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  - Added OpenAPI-driven components and per-endpoint API doc sections with Try It support. {/* Log API docs enhancements. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  - Added a backend OpenAPI JSON endpoint for docs consumption. {/* Log backend linkage for OpenAPI. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
 - Files created/modified:
   - docs/src/css/custom.css (updated)
   - docs/src/pages/index.module.css (updated)
@@ -67,15 +69,15 @@
 ### Phase 4: Testing & Verification
 - **Status:** in_progress
 - Actions taken:
-  - Logged test status as not_run for the UI-only change. <!-- Record the current testing state. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-  - Ran backend Jest tests for the OpenAPI controller. <!-- Record backend test execution for new API docs feature. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+  - Logged test status as not_run for the UI-only change. {/* Record the current testing state. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+  - Ran backend Jest tests for the OpenAPI controller. {/* Record backend test execution for new API docs feature. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
 - Files created/modified:
   - docs/en/developer/plans/pixeldocs20260126/progress.md (updated)
 
 ### Phase 5: Delivery
 - **Status:** in_progress
 - Actions taken:
-  - Added the pixel theme entry to the unreleased changelog. <!-- Track delivery checklist updates. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+  - Added the pixel theme entry to the unreleased changelog. {/* Track delivery checklist updates. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
 - Files created/modified:
   - docs/en/change-log/0.0.0.md (updated)
 
@@ -85,8 +87,8 @@
 |------|-------|----------|--------|--------|
 | Not run (UI-only change) | N/A | N/A | N/A | not_run |
 | backend jest (openapiController) | `pnpm -C backend test -- openapiController` | Pass | Pass | ✓ |
-<!-- Log backend test coverage for OpenAPI docs. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
-<!-- Record the test status for the theme-only change. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+{/* Log backend test coverage for OpenAPI docs. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
+{/* Record the test status for the theme-only change. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
@@ -94,7 +96,7 @@
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
 | 2026-01-26 10:45 | apply_patch context mismatch on custom.css | 1 | Re-opened file and re-applied patch with exact context. |
-<!-- Log the patch context error for future reference. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+{/* Log the patch context error for future reference. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}
@@ -106,7 +108,7 @@
 | What's the goal? | Deliver a pixel-art themed docs system and OpenAPI-driven API reference with backend linkage. |
 | What have I learned? | See findings.md |
 | What have I done? | Completed styling refinements, OpenAPI docs integration, and backend spec endpoint work. |
-<!-- Refresh the reboot answers to match the OpenAPI docs phase. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+{/* Refresh the reboot answers to match the OpenAPI docs phase. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 */}
 
 ---
 {/* REMINDER: - Update after completing each phase or encountering errors - Be detailed - this is your "what happened" log - Include timestamps for errors to track when issues occurred */}

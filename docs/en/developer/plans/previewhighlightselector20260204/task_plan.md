@@ -1,8 +1,9 @@
 # Task Plan: Improve preview highlight selector fallbacks
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. previewhighlightselector20260204 */}
-<!-- Maintain phase tracking for selector fallback improvements. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Maintain phase tracking for selector fallback improvements. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 
 ## Session Metadata
 {/* WHAT: Stable identifiers for traceability (code comments ↔ plan folder). WHY: Makes it easy to find the plan that explains a change. */}
@@ -11,12 +12,12 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-<!-- Extend the goal to include advanced targetUrl route matching updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Extend the goal to include advanced targetUrl route matching updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 Improve preview highlight selector resolution, add preview auto-navigation with a lock toggle, clarify the rules in the skill documentation, and expand targetUrl route matching rules.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-<!-- Update the current phase to track targetUrl route matching changes. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Update the current phase to track targetUrl route matching changes. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 Phase 8 (complete)
 
 ## Phases
@@ -58,7 +59,7 @@ Phase 8 (complete)
 - [x] Deliver to user
 - **Status:** complete
 
-<!-- Track follow-up matcher phase updates for selector rules. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Track follow-up matcher phase updates for selector rules. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 ### Phase 6: Follow-up Matching Rules
 {/* WHAT: Add more selector matching rules and update documentation/tests. WHY: Follow-up user request. */}
 - [x] Define additional matching rules
@@ -68,7 +69,7 @@ Phase 8 (complete)
 - [x] Add/adjust tests and rerun full suite
 - **Status:** complete
 
-<!-- Track preview auto-navigation and lock updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Track preview auto-navigation and lock updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 ### Phase 7: Preview Auto-Navigation + Lock
 {/* WHAT: Auto-navigate previews based on target URLs and add a lock toggle. WHY: Ensure highlights land on the correct page. */}
 - [x] Add target URL field to highlight requests/responses
@@ -77,7 +78,7 @@ Phase 8 (complete)
 - [x] Add/adjust tests and rerun full suite
 - **Status:** complete
 
-<!-- Track advanced targetUrl route matching updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Track advanced targetUrl route matching updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 ### Phase 8: Advanced TargetUrl Route Matching
 {/* WHAT: Expand route matching rules for targetUrl comparisons. WHY: Avoid unnecessary auto-navigation when routes already match with dynamic segments. */}
 - [x] Define route matching rules for targetUrl (wildcards, params, query/hash handling)
@@ -101,7 +102,7 @@ Phase 8 (complete)
 | Prefer vertical bubble placement and flip when space is insufficient. | Keeps tooltip bubbles visible near viewport edges. |
 | Add targetUrl-based preview auto-navigation with a lock toggle. | Keeps highlights aligned with the intended route without forcing navigation when locked. |
 | Add wildcard/param route matching for targetUrl comparisons. | Avoids unnecessary navigation when dynamic routes already match. |
-<!-- Record advanced targetUrl matching decision for Phase 8. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Record advanced targetUrl matching decision for Phase 8. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 | Use ||-separated targetUrl candidates and query/hash wildcards for match checks. | Lets auto-navigation skip route changes when any acceptable pattern matches. |
 
 ## Errors Encountered
@@ -111,7 +112,7 @@ Phase 8 (complete)
 | Vitest could not read the bridge script via URL (non-file scheme). | 1 | Switched to a path resolved from `process.cwd()` in the test helper. |
 | Visible match test failed because empty computed opacity parsed to 0. | 1 | Guarded opacity parsing with `Number.isFinite` before treating opacity as zero. |
 | Visible match test still failed because empty opacity string parsed to 0. | 2 | Ignore empty opacity tokens before numeric parsing. |
-<!-- Track the test runner warning observed during Phase 8 validation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Track the test runner warning observed during Phase 8 validation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 | Jest worker failed to exit gracefully warning during full test runs. | 1 | Logged warning; tests passed and no new timers were added. |
 
 ## Notes

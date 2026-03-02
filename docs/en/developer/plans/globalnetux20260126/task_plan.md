@@ -1,4 +1,5 @@
 # Task Plan: Global network flap UX handling
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. globalnetux20260126 */}
@@ -10,7 +11,7 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-<!-- Define the goal for global network flap handling and i18n copy. docs/en/developer/plans/globalnetux20260126/task_plan.md globalnetux20260126 -->
+{/* Define the goal for global network flap handling and i18n copy. docs/en/developer/plans/globalnetux20260126/task_plan.md globalnetux20260126 */}
 Centralize network flap notifications and i18n copy so transient disconnects show a throttled "retrying" message without forcing page resets.
 
 ## Current Phase
@@ -58,7 +59,7 @@ Phase 1
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
-<!-- Capture scope questions for global network handling. docs/en/developer/plans/globalnetux20260126/task_plan.md globalnetux20260126 -->
+{/* Capture scope questions for global network handling. docs/en/developer/plans/globalnetux20260126/task_plan.md globalnetux20260126 */}
 1. Should network-flap notifications be shown globally for all API calls, or only for polling/refresh flows?
 2. Should local "load failed" toasts be suppressed when a network retry notice is already shown?
 3. What final copy should distinguish "retrying" vs "load failed"?

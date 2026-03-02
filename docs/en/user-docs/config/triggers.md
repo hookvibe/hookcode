@@ -59,4 +59,3 @@ Best practices:
 - Keep rules small and specific.
 - Prefer multiple small rules over one complex rule.
 - Avoid placing secrets in prompts or patches.
-

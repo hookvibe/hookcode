@@ -1,4 +1,5 @@
 # Findings & Decisions: 
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your knowledge base for the task. Stores everything you discover and decide. WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited. WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule). */}
 
 {/* Link discoveries to code changes via this session hash. nykx5svtlgh050cstyht */}
@@ -10,7 +11,7 @@
 ## Requirements
 {/* WHAT: What the user asked for, broken down into specific requirements. WHY: Keeps requirements visible so you don't forget what you're building. WHEN: Fill this in during Phase 1 (Requirements & Discovery). EXAMPLE: - Command-line interface - Add tasks - List all tasks - Delete tasks - Python implementation */}
 {/* Captured from user request */}
-<!-- Replace legacy toggle references with the current dual-toggle framing. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Replace legacy toggle references with the current dual-toggle framing. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - Maintain two configs: (1) enable persisting task logs to DB, (2) enable exposing task logs to users.
 - Support "persist=true, visible=false" so logs are stored but not visible to users.
 - Defaults: both `true`.
@@ -19,7 +20,7 @@
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
 {/* Key discoveries during exploration */}
-<!-- Remove legacy toggle naming while keeping the historical behavior description. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Remove legacy toggle naming while keeping the historical behavior description. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - Previous design: a single toggle gated both DB persistence and user-facing visibility, defaulting to `false`.
 - Updated design: split into `TASK_LOGS_DB_ENABLED` and `TASK_LOGS_VISIBLE_ENABLED` (defaults: `true`), with effective enablement `db && visible`.
 - CI env generation now defaults to `TASK_LOGS_DB_ENABLED=true` and `TASK_LOGS_VISIBLE_ENABLED=false` in `docker/ci/write-ci-env.sh`.
@@ -35,7 +36,7 @@
 |----------|-----------|
 | Split into `TASK_LOGS_DB_ENABLED` + `TASK_LOGS_VISIBLE_ENABLED` (defaults: true) | Allows "persist but not visible" deployments (CI) while keeping logs available for debugging. |
 | Treat effective visibility as `DB && VISIBLE` | Avoids exposing empty/non-existent logs when persistence is disabled. |
-<!-- Drop legacy fallback decision to reflect current configuration policy. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Drop legacy fallback decision to reflect current configuration policy. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}

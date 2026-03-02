@@ -1,10 +1,11 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. tasklogslegacy20260225 */}
 
 ## Session Metadata
-<!-- Update session title wording without the legacy env name. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Update session title wording without the legacy env name. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - **Session Title:** Remove legacy task logs env toggle
 - **Session Hash:** tasklogslegacy20260225
 
@@ -12,7 +13,7 @@
 {/* WHAT: The date of this work session. WHY: Helps track when work happened, useful for resuming after time gaps. EXAMPLE: 2026-01-15 */}
 
 ### Phase 1: Requirements & Discovery
-<!-- Log Phase 1 discovery actions for the legacy toggle removal. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Log Phase 1 discovery actions for the legacy toggle removal. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - **Status:** complete
 - **Started:** 2026-02-26 00:40 CST
 {/* STATUS: Same as task_plan.md (pending, in_progress, complete) TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00") */}
@@ -24,7 +25,7 @@
   - `docs/en/developer/plans/tasklogslegacy20260225/findings.md` (modified)
 
 ### Phase 2: Planning & Structure
-<!-- Record the removal approach and scope decisions. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Record the removal approach and scope decisions. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - **Status:** complete
 - **Started:** 2026-02-26 00:45 CST
 - Actions taken:
@@ -35,7 +36,7 @@
   - `docs/en/developer/plans/tasklogslegacy20260225/findings.md` (modified)
 
 ### Phase 3: Implementation
-<!-- Summarize the code and doc changes for legacy toggle removal. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Summarize the code and doc changes for legacy toggle removal. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - **Status:** complete
 - **Started:** 2026-02-26 00:50 CST
 - Actions taken:
@@ -55,7 +56,7 @@
   - `docs/en/developer/plans/tasklogslegacy20260225/findings.md`
 
 ### Phase 4: Testing & Verification
-<!-- Record test execution after updating unit tests. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Record test execution after updating unit tests. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - **Status:** complete
 - **Started:** 2026-02-26 00:56 CST
 - Actions taken:
@@ -64,7 +65,7 @@
   - `docs/en/developer/plans/tasklogslegacy20260225/progress.md`
 
 ### Phase 5: Delivery
-<!-- Track final delivery steps like changelog updates. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Track final delivery steps like changelog updates. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 - **Status:** complete
 - Actions taken:
   - Updated `docs/en/change-log/0.0.0.md` with the session entry.
@@ -74,7 +75,7 @@
   - `docs/en/developer/plans/tasklogslegacy20260225/progress.md` (modified)
 
 ## Test Results
-<!-- Capture full test suite results for this change. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+{/* Capture full test suite results for this change. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | Full test suite | `pnpm test` | Pass | Pass (backend + frontend) | ✓ |

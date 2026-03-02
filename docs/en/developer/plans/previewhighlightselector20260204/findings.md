@@ -1,8 +1,9 @@
 # Findings & Decisions: Improve preview highlight selector fallbacks
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your knowledge base for the task. Stores everything you discover and decide. WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited. WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule). */}
 
 {/* Link discoveries to code changes via this session hash. previewhighlightselector20260204 */}
-<!-- Capture selector fallback findings for preview highlight updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Capture selector fallback findings for preview highlight updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 
 ## Session Metadata
 - **Session Hash:** previewhighlightselector20260204
@@ -10,7 +11,7 @@
 
 ## Requirements
 {/* Captured from user request */}
-<!-- Track follow-up matcher requirements for selector updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Track follow-up matcher requirements for selector updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 - Improve hookcode-preview-highlight behavior when some elements cannot be targeted.
 - Add fallback element selection strategies (for example, querySelectorAll-based selection).
 - Sync changes in `shared/preview-bridge.js` and update related skill documentation.
