@@ -77,6 +77,28 @@ describe('TaskGroupChatPage timeline', () => {
     expect(screen.queryByText('What can I do for you?')).not.toBeInTheDocument();
   });
 
+  // Refresh chat timeline when SSE pushes a task-group update. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+  test('refreshes task group on SSE update events', async () => {
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    await waitFor(() => expect(api.fetchTaskGroup).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(api.fetchTaskGroupTasks).toHaveBeenCalledTimes(1));
+
+    const sources = ((globalThis as any).__eventSourceInstances ?? []) as Array<{
+      url?: string;
+      emit: (type: string, ev?: any) => void;
+    }>;
+    const stream = sources.find((source) => source.url?.includes('/events/stream'));
+    expect(stream).toBeTruthy();
+
+    act(() => {
+      stream!.emit('task-group.refresh', { data: JSON.stringify({ groupId: 'g1' }) });
+    });
+
+    await waitFor(() => expect(api.fetchTaskGroup).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.fetchTaskGroupTasks).toHaveBeenCalledTimes(2));
+  });
+
   test('clears loading when navigating away (no stuck loading after switching)', async () => {
     const now = '2026-01-11T00:00:00.000Z';
 

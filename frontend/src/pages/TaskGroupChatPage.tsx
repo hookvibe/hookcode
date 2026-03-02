@@ -110,6 +110,9 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [taskDetailsById, setTaskDetailsById] = useState<Record<string, Task | null>>({});
   // Track the latest sent task so it can animate into its final chat position. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
   const [recentTaskId, setRecentTaskId] = useState<string | null>(null);
+  // Track SSE connectivity for task-group timeline updates. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+  const [taskGroupStreamConnected, setTaskGroupStreamConnected] = useState(false);
+  const taskGroupStreamRef = useRef<EventSource | null>(null);
 
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -1241,6 +1244,48 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   }, [activePreviewInstance?.name, postPreviewBridgeMessage, previewPanelOpen, taskGroupId]);
 
   useEffect(() => {
+    // Stream task-group updates so chat timelines refresh without manual reloads. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+    if (!taskGroupId) {
+      taskGroupStreamRef.current?.close();
+      taskGroupStreamRef.current = null;
+      setTaskGroupStreamConnected(false);
+      return;
+    }
+
+    const topic = `task-group:${taskGroupId}`;
+    const source = createAuthedEventSource('/events/stream', { topics: topic });
+    taskGroupStreamRef.current = source;
+
+    const handleReady = () => {
+      setTaskGroupStreamConnected(true);
+    };
+
+    const handleRefresh = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data || '{}') as { groupId?: string };
+        if (payload.groupId && payload.groupId !== taskGroupId) return;
+        void refreshGroupDetail(taskGroupId, { mode: 'refreshing' });
+      } catch {
+        // Ignore malformed events to keep the stream stable. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      }
+    };
+
+    source.addEventListener('ready', handleReady);
+    source.addEventListener('task-group.refresh', handleRefresh);
+    source.onerror = () => {
+      setTaskGroupStreamConnected(false);
+    };
+
+    return () => {
+      source.removeEventListener('ready', handleReady);
+      source.removeEventListener('task-group.refresh', handleRefresh);
+      source.close();
+      taskGroupStreamRef.current = null;
+      setTaskGroupStreamConnected(false);
+    };
+  }, [refreshGroupDetail, taskGroupId]);
+
+  useEffect(() => {
     void refreshRepos();
   }, [refreshRepos]);
 
@@ -1265,17 +1310,19 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       void refreshPromise;
     }
 
-    // Poll for task status changes to update the chat view.
+    // Poll for task status changes when SSE is unavailable. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
     if (pollTimerRef.current) {
       window.clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
     }
-    pollTimerRef.current = window.setInterval(() => refreshGroupDetail(taskGroupId, { mode: 'refreshing' }), 5000);
+    if (!taskGroupStreamConnected) {
+      pollTimerRef.current = window.setInterval(() => refreshGroupDetail(taskGroupId, { mode: 'refreshing' }), 5000);
+    }
     return () => {
       if (pollTimerRef.current) window.clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
     };
-  }, [refreshGroupDetail, taskGroupId]);
+  }, [refreshGroupDetail, taskGroupId, taskGroupStreamConnected]);
 
   useEffect(() => {
     // Clear preview state on group changes so panel visibility does not leak between groups. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as

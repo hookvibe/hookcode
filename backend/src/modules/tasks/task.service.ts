@@ -19,6 +19,9 @@ import { isTruthy } from '../../utils/env';
 import { extractTaskSchedule, isTimeWindowActive } from '../../utils/timeWindow';
 import type { TaskScheduleSnapshot } from '../../types/timeWindow';
 import { isUuidLike } from '../../utils/uuid'; // Share UUID validation across pagination and list filters. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+import { EventStreamService } from '../events/event-stream.service';
+import { LogWriterService } from '../logs/log-writer.service';
+import { NotificationRecipientService } from '../notifications/notification-recipient.service';
 
 /**
  * tasks table access layer (the "source of truth" for the queue/task state machine):
@@ -242,7 +245,12 @@ type TaskGroupBinding = {
   commitSha?: string;
 };
 
+type TaskGroupEventReason = 'created' | 'status';
+
 const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
+// Define the SSE event name for task-group timeline refresh pushes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+const TASK_GROUP_EVENT_NAME = 'task-group.refresh';
 
 const toFiniteInt = (value: unknown): number | null => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
@@ -335,6 +343,63 @@ const TASK_LIST_SELECT = {
 
 @Injectable()
 export class TaskService {
+  // Wire SSE/log helpers for task-group push updates. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+  constructor(
+    private readonly eventStream?: EventStreamService,
+    private readonly logWriter?: LogWriterService,
+    private readonly notificationRecipients?: NotificationRecipientService
+  ) {}
+
+  private buildTaskGroupTopic(groupId: string): string {
+    return `task-group:${groupId}`;
+  }
+
+  // Emit per-user task-group SSE updates so chat timelines refresh without manual reloads. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+  private async emitTaskGroupUpdate(task: Task, reason: TaskGroupEventReason): Promise<void> {
+    if (!this.eventStream || !this.notificationRecipients || !this.logWriter) return;
+    const groupId = safeTrim(task.groupId);
+    if (!groupId) return;
+
+    try {
+      const recipients = await this.notificationRecipients.resolveRecipientsForTask({
+        repoId: task.repoId,
+        actorUserId: task.actorUserId,
+        payload: task.payload
+      });
+      const uniqueRecipients = Array.from(new Set((recipients ?? []).filter(Boolean)));
+      if (!uniqueRecipients.length) return;
+
+      const payload = {
+        groupId,
+        taskId: task.id,
+        status: task.status,
+        updatedAt: toIso(task.updatedAt),
+        reason
+      };
+
+      this.eventStream.publish({
+        topic: this.buildTaskGroupTopic(groupId),
+        event: TASK_GROUP_EVENT_NAME,
+        data: payload,
+        userIds: uniqueRecipients
+      });
+
+      // Record task-group push activity for audit visibility. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      void this.logWriter.logSystem({
+        level: 'info',
+        message: 'Task group update pushed',
+        code: 'TASK_GROUP_UPDATE_PUSHED',
+        actorUserId: task.actorUserId,
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: groupId,
+        meta: { reason, recipients: uniqueRecipients.length }
+      });
+    } catch (err) {
+      console.warn('[tasks] task-group update push failed', task.id, err);
+    }
+  }
+
   private async resolveOrCreateGroupId(params: {
     taskId: string;
     eventType: TaskEventType;
@@ -627,7 +692,10 @@ export class TaskService {
         updatedAt: now
       }
     });
-    return taskRecordToTask(created);
+    const task = taskRecordToTask(created);
+    // Push task-group refresh events for new tasks. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+    void this.emitTaskGroupUpdate(task, 'created');
+    return task;
   }
 
   /**
@@ -698,7 +766,10 @@ export class TaskService {
         updatedAt: now
       }
     });
-    return taskRecordToTask(created);
+    const task = taskRecordToTask(created);
+    // Push task-group refresh events for group-bound tasks. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+    void this.emitTaskGroupUpdate(task, 'created');
+    return task;
   }
 
   /**
@@ -1332,7 +1403,12 @@ export class TaskService {
       RETURNING *;
     `;
 
-    return rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+    const task = rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+    if (task && status) {
+      // Broadcast status-driven task-group updates to active chat sessions. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      void this.emitTaskGroupUpdate(task, 'status');
+    }
+    return task;
   }
 
   async retryTask(id: string): Promise<Task | undefined> {
@@ -1346,7 +1422,10 @@ export class TaskService {
           updatedAt: now
         }
       });
-      return taskRecordToTask(row);
+      const task = taskRecordToTask(row);
+      // Notify chat clients about retry status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      void this.emitTaskGroupUpdate(task, 'status');
+      return task;
     } catch (err) {
       if (isNotFoundError(err)) return undefined;
       throw err;
@@ -1361,7 +1440,10 @@ export class TaskService {
         where: { id },
         data: { status: 'paused', updatedAt: now }
       });
-      return taskRecordToTask(row);
+      const task = taskRecordToTask(row);
+      // Notify chat clients about pause status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      void this.emitTaskGroupUpdate(task, 'status');
+      return task;
     } catch (err) {
       if (isNotFoundError(err)) return undefined;
       throw err;
@@ -1376,7 +1458,10 @@ export class TaskService {
         where: { id },
         data: { status: 'queued', updatedAt: now }
       });
-      return taskRecordToTask(row);
+      const task = taskRecordToTask(row);
+      // Notify chat clients about resume status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      void this.emitTaskGroupUpdate(task, 'status');
+      return task;
     } catch (err) {
       if (isNotFoundError(err)) return undefined;
       throw err;
