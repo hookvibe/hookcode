@@ -6,7 +6,7 @@ tags:
   - debug
   - auth
 ---
-<!-- Add tags metadata for built-in skill filtering. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Add tags metadata for built-in skill filtering. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 
 # Hookcode PAT API Debug
 

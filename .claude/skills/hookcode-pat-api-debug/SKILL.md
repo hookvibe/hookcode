@@ -6,11 +6,11 @@ tags:
   - debug
   - auth
 ---
-<!-- Add tags metadata for built-in skill filtering. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Add tags metadata for built-in skill filtering. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 
 # Hookcode PAT API Debug
 
-<!-- Align this Claude skill's path examples with the .claude directory layout. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 -->
+{/* Align this Claude skill's path examples with the .claude directory layout. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 */}
 
 ## Overview
 

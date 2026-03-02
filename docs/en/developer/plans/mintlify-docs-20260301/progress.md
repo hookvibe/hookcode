@@ -52,6 +52,8 @@
   - Switched docs.json navigation to four top-level tabs (user-docs, api-reference, developer, change-log).
   {/* Record logo swap to root /logo folder. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
   - Pointed docs.json logo + favicon to the root `/logo` assets.
+  {/* Record MDX-safe comment conversion in skill markdown files. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+  - Converted HTML comments in skill Markdown files under `.codex/.claude/.gemini` to MDX-safe `{/* ... */}` for Mintlify rendering.
 - Files created/modified:
   - docs/docs.json
   - docs/index.md
@@ -88,6 +90,20 @@
   - docs/en/developer/plans/dsim8xybp9oa18nz1gfq/task_plan.md
   - docs/en/developer/plans/dsim8xybp9oa18nz1gfq/progress.md
   - docs/en/developer/plans/index.md
+  - .codex/skills/hookcode-pat-api-debug/SKILL.md
+  - .codex/skills/hookcode-preview-highlight/SKILL.md
+  - .codex/skills/hookcode-preview-highlight/references/highlight-protocol.md
+  - .codex/skills/hookcode-yml-generator/SKILL.md
+  - .codex/skills/hookcode-yml-generator/references/hookcode-yml-logic.md
+  - .claude/skills/file-context-planning/SKILL.md
+  - .claude/skills/hookcode-pat-api-debug/SKILL.md
+  - .claude/skills/hookcode-preview-highlight/SKILL.md
+  - .claude/skills/hookcode-preview-highlight/references/highlight-protocol.md
+  - .claude/skills/hookcode-yml-generator/SKILL.md
+  - .claude/skills/hookcode-yml-generator/references/hookcode-yml-logic.md
+  - .claude/skills/ui-ux-pro-max/SKILL.md
+  - .gemini/skills/hookcode-preview-highlight/references/highlight-protocol.md
+  - .gemini/skills/hookcode-yml-generator/references/hookcode-yml-logic.md
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Capture verification steps and known gaps. WHY: Makes it explicit what was (and was not) validated. */}
@@ -101,6 +117,8 @@
   {/* Record additional MDX safety and keyword scans. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
   - Ran a brace scan to confirm no stray `{}` outside code fences.
   - Ran a keyword scan to ensure the previous docs framework term no longer appears in markdown.
+  {/* Record skill markdown comment scan verification. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+  - Verified no HTML comments remain in skill Markdown files (only in scripts).
 - Files created/modified:
   - docs/en/developer/plans/mintlify-docs-20260301/progress.md
 
@@ -128,6 +146,8 @@
 | Legacy framework keyword scan | `rg -i "<legacy-framework-term>" docs -g "*.md"` | No matches | No matches | ✓ |
 {/* Record Mintlify dev run after config fixes. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 | Mintlify dev | `cd docs && npx mintlify dev` | Starts preview | Preview ready at http://localhost:3000 | ✓ |
+{/* Record skill markdown HTML comment scan. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+| Skill MDX comment scan | `rg -n "<!--" .codex/skills .claude/skills .gemini/skills` | Only script hits | Only script hits | ✓ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}

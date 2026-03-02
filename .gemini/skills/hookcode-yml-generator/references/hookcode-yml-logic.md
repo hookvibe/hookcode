@@ -1,6 +1,6 @@
 # Hookcode.yml Logic Reference
 
-<!-- Summarize HookCode .hookcode.yml behavior for this repo. docs/en/developer/plans/hookcode-yml-skill-20260129/task_plan.md hookcode-yml-skill-20260129 -->
+{/* Summarize HookCode .hookcode.yml behavior for this repo. docs/en/developer/plans/hookcode-yml-skill-20260129/task_plan.md hookcode-yml-skill-20260129 */}
 
 ## Schema Summary (version 1)
 

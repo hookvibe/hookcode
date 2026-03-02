@@ -6,11 +6,11 @@ tags:
   - yaml
   - preview
 ---
-<!-- Add tags metadata for built-in skill filtering. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 -->
+{/* Add tags metadata for built-in skill filtering. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
 
 # Hookcode Yml Generator
 
-<!-- Guide generating repo-specific .hookcode.yml using the audited config behavior. docs/en/developer/plans/hookcode-yml-skill-20260129/task_plan.md hookcode-yml-skill-20260129 -->
+{/* Guide generating repo-specific .hookcode.yml using the audited config behavior. docs/en/developer/plans/hookcode-yml-skill-20260129/task_plan.md hookcode-yml-skill-20260129 */}
 
 ## Overview
 
