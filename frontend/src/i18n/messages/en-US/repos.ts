@@ -358,6 +358,8 @@ export const enUSRepos = {
   'repos.robotForm.defaultBranchPlaceholder': 'Defaults to repo default branch',
   'repos.robotForm.isDefault': 'Set as default',
   'repos.robotForm.section.prompt': 'Default prompt',
+  // Add missing Credentials section i18n key for the robot editor. docs/en/developer/plans/robotform-i18n-fix-20260302/task_plan.md robotform-i18n-fix-20260302
+  'repos.robotForm.section.credentials': 'Credentials',
   'repos.robotForm.promptRequired': 'Please enter default prompt template',
   'repos.robotForm.promptPlaceholder': 'You can use variables like {{repo.name}}, {{robot.name}}, {{issue.number}}',
   'repos.robotForm.section.model': 'Model settings',
