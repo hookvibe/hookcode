@@ -1,26 +1,108 @@
-/* Split global styles into modular files for maintainability. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */
 /* =============================================================================
  * Markdown output
  * ========================================================================== */
 
 .markdown-result {
-  width: 100%;
+  /* Expand markdown output width for better code readability. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
+  width: min(960px, 100%);
   color: var(--text);
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.markdown-result p {
+  margin-bottom: 12px;
+}
+
+.markdown-result h1,
+.markdown-result h2,
+.markdown-result h3,
+.markdown-result h4 {
+  margin-top: 20px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.markdown-result h1 {
+  font-size: 24px;
+  border-bottom: 2px solid var(--hc-border);
+  padding-bottom: 8px;
+}
+
+.markdown-result h2 {
+  font-size: 20px;
+  border-bottom: 1px solid var(--hc-border);
+  padding-bottom: 6px;
+}
+
+.markdown-result h3 {
+  font-size: 18px;
+}
+
+.markdown-result ul,
+.markdown-result ol {
+  margin: 12px 0;
+  padding-left: 24px;
+}
+
+.markdown-result li {
+  margin: 6px 0;
 }
 
 .markdown-result code {
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 6px;
   background: var(--hc-code-bg);
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 13px;
+  border: 1px solid var(--hc-border);
+}
+
+.markdown-result pre {
+  margin: 16px 0;
+  border-radius: 8px;
+  background: var(--hc-code-bg);
+  border: 1px solid var(--hc-border);
+  overflow: hidden;
 }
 
 .markdown-result pre code {
   display: block;
-  padding: 10px 12px;
+  padding: 16px;
   overflow: auto;
+  border: none;
+  background: transparent;
+  line-height: 1.6;
+}
+
+.markdown-result blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-left: 4px solid var(--hc-border);
+  background: var(--hc-surface);
+  color: var(--text-secondary);
+}
+
+.markdown-result table {
+  width: 100%;
+  margin: 16px 0;
+  border-collapse: collapse;
+}
+
+.markdown-result th,
+.markdown-result td {
+  padding: 8px 12px;
+  border: 1px solid var(--hc-border);
+  text-align: left;
+}
+
+.markdown-result th {
+  background: var(--hc-surface);
+  font-weight: 600;
 }
 
 .markdown-result--expanded {
-  padding-top: 6px;
+  padding-top: 8px;
 }
 
