@@ -10,8 +10,8 @@ dependency:
 preview:
   instances:
     - name: frontend
-      # Run Vite on the HookCode-assigned port and bind IPv4 for 127.0.0.1 access. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
-      command: "pnpm dev -- --host 127.0.0.1 --port {{PORT:frontend}}"
+      # Pass host and port directly so Vite applies IPv4 binding instead of treating "--" as a literal arg. docs/en/developer/plans/preview-loopback-host-20260303/task_plan.md preview-loopback-host-20260303
+      command: "pnpm dev --host 127.0.0.1 --port {{PORT:frontend}}"
       workdir: "frontend"
       readyPattern: "Local:"
       # Mirror frontend env overrides while keeping dynamic ports. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
