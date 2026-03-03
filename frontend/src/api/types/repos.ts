@@ -89,6 +89,17 @@ export interface RepoScopedCredentialsPublic {
   };
 }
 
+export interface RepoPreviewEnvVarPublic {
+  key: string;
+  isSecret: boolean;
+  hasValue: boolean;
+  value?: string;
+} // Public preview env var shape with secret redaction. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+
+export interface RepoPreviewEnvConfigPublic {
+  variables: RepoPreviewEnvVarPublic[];
+} // Repo-scoped preview env config payload for repo settings. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+
 export interface RepoRobot {
   id: string;
   repoId: string;

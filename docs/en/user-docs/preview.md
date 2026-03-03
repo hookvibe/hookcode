@@ -5,7 +5,7 @@ title: TaskGroup Preview
 
 {/* Add user-facing guidance for TaskGroup dev previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 
-TaskGroup Preview lets you run your frontend dev server during a task so you can see UI changes immediately.
+TaskGroup Preview lets you run frontend or backend dev services during a task so you can validate changes immediately.
 
 ## Prerequisites
 
@@ -45,15 +45,52 @@ Preview links will look like `https://<taskGroupId>--<instance>.preview.example.
 
 If `preview.instances` declares more than one entry, each instance appears as a tab in the preview panel. Switch tabs to view different apps (for example, `frontend` and `admin`).
 
+{/* Document per-instance preview display modes backed by .hookcode.yml display config. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
+## Display modes (`.hookcode.yml`)
+
+Each preview instance can declare a render mode with `display`:
+
+- `webview` (default): iframe-style browser preview, URL bar/navigation, copy/open-link actions.
+- `terminal`: plain terminal log output in the preview panel (recommended for backend services).
+
+Example:
+
+```yaml
+preview:
+  instances:
+    - name: frontend
+      command: "pnpm dev --host 127.0.0.1 --port {{PORT:frontend}}"
+      workdir: "frontend"
+      display: webview
+    - name: backend
+      command: "pnpm run prisma:generate && pnpm exec nest start"
+      workdir: "backend"
+      display: terminal
+```
+
+## Management views
+
+{/* Document repo/admin preview management surfaces so user docs match the new runtime management features. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
+- **Repository detail (Overview tab)**: shows preview config discovery plus currently active preview task groups for that repository, including per-instance status and allocated ports.
+- **Admin settings preview panel**: shows all active preview task groups across repositories and the global preview port pool snapshot (`range`, `in use`, `available`, and task-group-to-port allocations).
+- Port allocation currently uses the backend pool range (`10000-10999` by default).
+
 ## Logs and diagnostics
 
-Use **View logs** to open the live log stream. When a preview fails or times out, a diagnostics block shows the exit code, signal, and recent log tail to help troubleshooting.
+Use **View logs** to open the live log stream for any instance.
+
+- For `webview` instances, logs are usually opened from the logs modal.
+- For `terminal` instances, logs are shown inline by default and auto-follow the latest output.
+  - Auto-follow pauses if you scroll up.
+  - Auto-follow resumes after you scroll back to the bottom.
+
+When a preview fails or times out, a diagnostics block shows the exit code, signal, and recent log tail to help troubleshooting.
 
 ## Shareable preview links
 
-The **Copy link** action produces a preview URL with a `token` query parameter. Treat it like a password: anyone with the link can view the preview while the token is valid.
+The **Copy link** action is available for `webview` instances and produces a preview URL with a `token` query parameter. Treat it like a password: anyone with the link can view the preview while the token is valid.
 
-## DOM highlight bridge (optional)
+## DOM highlight bridge (optional, `webview` only)
 
 To enable DOM highlighting inside the preview iframe, import the bridge script from this repository:
 
@@ -102,7 +139,7 @@ Model commands run from the task-group root, so repo-relative paths live under `
 - **Starting**: process launched, waiting for readiness.
 - **Running**: dev server is ready.
 - **Failed**: process exited or crashed.
-- **Timeout**: readiness not detected in time.
+- **Timeout**: readiness not detected within 5 minutes.
 - **Stopped**: preview not running.
 - **Unavailable**: no preview config detected.
 
@@ -110,5 +147,6 @@ Model commands run from the task-group root, so repo-relative paths live under `
 
 - **Preview unavailable**: `.hookcode.yml` is missing the `preview` section.
 - **Preview config invalid**: schema validation failed (check `name`, `command`, `workdir`).
+- **Expected terminal output but got iframe**: set `preview.instances[].display: terminal` for that instance.
 - **Workspace missing**: run a task at least once to clone the repo.
 - **Dependency install failed**: verify the `dependency` commands in `.hookcode.yml`.

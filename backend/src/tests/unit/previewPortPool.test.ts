@@ -26,4 +26,25 @@ describe('PreviewPortPool', () => {
     expect([portA, portB]).toContain(portC);
   });
 
+  test('returns deterministic allocation snapshots', async () => {
+    // Validate admin preview management can read range/capacity/allocation snapshots. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const pool = new PreviewPortPool(12100, 12102);
+    const first = await pool.allocatePort('group-a');
+    const second = await pool.allocatePort('group-b');
+
+    const snapshot = pool.getSnapshot();
+    expect(snapshot.rangeStart).toBe(12100);
+    expect(snapshot.rangeEnd).toBe(12102);
+    expect(snapshot.capacity).toBe(3);
+    expect(snapshot.inUseCount).toBe(2);
+    expect(snapshot.availableCount).toBe(1);
+    expect(snapshot.inUsePorts).toEqual([first, second].sort((a, b) => a - b));
+    expect(snapshot.allocations).toEqual(
+      expect.arrayContaining([
+        { taskGroupId: 'group-a', ports: [first] },
+        { taskGroupId: 'group-b', ports: [second] }
+      ])
+    );
+  });
+
 });

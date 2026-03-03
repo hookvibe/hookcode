@@ -449,18 +449,21 @@ export class RepositoriesController {
       await this.repoAccessService.requireRepoRead(user, repoId);
 
       // Parallelize repo detail hydration to reduce initial repo dashboard latency. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
-      const [robots, automationConfig, repoSecretRow, repoScopedCredentialsRow] = await Promise.all([
+      // Load repo preview env config alongside credentials for the detail response. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      const [robots, automationConfig, repoSecretRow, repoScopedCredentialsRow, repoPreviewEnvRow] = await Promise.all([
         this.repoRobotService.listByRepo(repoId),
         this.repoAutomationService.getConfig(repoId),
         this.repositoryService.getByIdWithSecret(repoId),
-        this.repositoryService.getRepoScopedCredentials(repoId)
+        this.repositoryService.getRepoScopedCredentials(repoId),
+        this.repositoryService.getRepoPreviewEnvConfig(repoId)
       ]);
       const webhookPath = `/api/webhook/${repo.provider}/${repoId}`;
       const webhookSecret = repoSecretRow?.webhookSecret ?? null;
       const repoScopedCredentials = repoScopedCredentialsRow?.public ?? undefined;
+      const previewEnvConfig = repoPreviewEnvRow?.public ?? undefined;
 
       const [decorated] = await this.attachRepoPermissions([repo], user);
-      return { repo: decorated, robots, automationConfig, webhookSecret, webhookPath, repoScopedCredentials };
+      return { repo: decorated, robots, automationConfig, webhookSecret, webhookPath, repoScopedCredentials, previewEnvConfig };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get failed', err);
@@ -1121,6 +1124,8 @@ export class RepositoriesController {
       // Change record: repo-scoped credentials are now updated via profile patch objects (profiles/remove/default).
       const repoProviderCredential = body?.repoProviderCredential as any;
       const modelProviderCredential = body?.modelProviderCredential as any;
+      // Accept preview env config updates from repo settings. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      const previewEnvConfig = body?.previewEnvConfig as any;
       // Summarize repo update inputs for audit metadata. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       const changedFields = [
         body?.name !== undefined ? 'name' : null,
@@ -1130,7 +1135,8 @@ export class RepositoriesController {
         body?.enabled !== undefined ? 'enabled' : null,
         body?.webhookSecret !== undefined ? 'webhookSecret' : null,
         body?.repoProviderCredential !== undefined ? 'repoProviderCredential' : null,
-        body?.modelProviderCredential !== undefined ? 'modelProviderCredential' : null
+        body?.modelProviderCredential !== undefined ? 'modelProviderCredential' : null,
+        body?.previewEnvConfig !== undefined ? 'previewEnvConfig' : null
       ].filter((field): field is string => Boolean(field));
 
       const updated = await this.repositoryService.updateRepository(repoId, {
@@ -1141,11 +1147,13 @@ export class RepositoriesController {
         enabled,
         webhookSecret,
         repoProviderCredential,
-        modelProviderCredential
+        modelProviderCredential,
+        previewEnvConfig
       });
       if (!updated) throw new NotFoundException({ error: 'Repo not found' });
 
       const repoScopedCredentials = (await this.repositoryService.getRepoScopedCredentials(repoId))?.public ?? undefined;
+      const updatedPreviewEnvConfig = (await this.repositoryService.getRepoPreviewEnvConfig(repoId))?.public ?? undefined;
       const [decorated] = await this.attachRepoPermissions([updated.repo], user);
 
       // Log repo updates while avoiding sensitive credential details. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
@@ -1158,14 +1166,16 @@ export class RepositoriesController {
         meta: {
           changedFields,
           enabled: enabled,
-          branchesCount: Array.isArray(branches) ? branches.length : null
+          branchesCount: Array.isArray(branches) ? branches.length : null,
+          previewEnvEntries: Array.isArray(previewEnvConfig?.entries) ? previewEnvConfig.entries.length : null
         }
       });
 
       return {
         repo: decorated,
         webhookSecret: updated.webhookSecret,
-        repoScopedCredentials
+        repoScopedCredentials,
+        previewEnvConfig: updatedPreviewEnvConfig
       };
     } catch (err: any) {
       if (err instanceof HttpException) throw err;
@@ -1176,10 +1186,17 @@ export class RepositoriesController {
       if (message.includes('name is required')) {
         throw new BadRequestException({ error: message });
       }
+      // Match repo env validation errors precisely for 400 responses. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      const isRepoEnvError =
+        message.includes('repo env key') ||
+        message.includes('repo env value is required') ||
+        message.includes('must not hardcode local preview ports');
       if (
         message.includes('repo provider credential profile remark is required') ||
-        message.includes('model provider credential profile remark is required')
+        message.includes('model provider credential profile remark is required') ||
+        isRepoEnvError
       ) {
+        // Surface repo env validation failures as 400s for the settings UI. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
         throw new BadRequestException({ error: message });
       }
       console.error('[repos] update failed', err);

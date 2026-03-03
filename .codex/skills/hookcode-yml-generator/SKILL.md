@@ -6,15 +6,13 @@ tags:
   - yaml
   - preview
 ---
-{/* Add tags metadata for built-in skill filtering. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+<!-- Sync hookcode-yml-generator workflow with current .hookcode.yml parser/runtime behavior. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
 
 # Hookcode Yml Generator
 
-{/* Guide generating repo-specific .hookcode.yml using the audited config behavior. docs/en/developer/plans/hookcode-yml-skill-20260129/task_plan.md hookcode-yml-skill-20260129 */}
-
 ## Overview
 
-Generate a valid `.hookcode.yml` tailored to this repository's dependency install workflow and preview dev server setup.
+Generate a valid `.hookcode.yml` tailored to this repository's dependency install workflow and preview dev-server setup, using the latest parser/runtime rules (`display`, named `{{PORT:<instance>}}`, and no fixed local ports).
 
 ## Workflow
 
@@ -27,13 +25,28 @@ Generate a valid `.hookcode.yml` tailored to this repository's dependency instal
    - Prefer `failureMode: soft` unless the user explicitly wants hard failure.
    - Add one Node runtime with `install: "pnpm install --frozen-lockfile"` at repo root (workdir optional).
 4. Build the preview section:
-   - Add one instance named `frontend`.
-   - Set `workdir: "frontend"` and `command: "pnpm dev"`.
-   - Optionally add `readyPattern: "Local:"` and `port: 5173` for clarity.
+   - Define 1-5 `preview.instances` entries with unique `name` values.
+   - For frontend, prefer:
+     - `name: frontend`
+     - `workdir: "frontend"`
+     - `command: "pnpm dev --host 127.0.0.1 --port {{PORT:frontend}}"`
+     - `display: webview`
+     - `readyPattern: "Local:"`
+   - For backend (optional), prefer:
+     - `name: backend`
+     - `workdir: "backend"`
+     - `command: "pnpm run prisma:generate && pnpm exec nest start"`
+     - `display: terminal`
+     - `env.PORT: "{{PORT:backend}}"`
+   - Do not use `port:` in preview instances (unsupported by schema).
+   - Do not use the deprecated `-- --port` CLI pattern.
 5. Validate constraints:
    - `workdir` is relative and inside the repo.
    - No blocked shell characters in install commands.
    - Max 5 runtimes and 5 preview instances.
+   - Any env key ending with `PORT` must use `{{PORT}}` or `{{PORT:<instance>}}`.
+   - Loopback URLs such as `localhost`, `127.0.0.1`, `0.0.0.0`, and `::1` must not hardcode numeric ports.
+   - Named placeholders must reference defined preview instance names.
 6. Output `.hookcode.yml` at repo root and list assumptions (e.g., pnpm workspace install).
 
 ## Quick Start Template
@@ -44,11 +57,13 @@ Copy `assets/hookcode.yml.template` to `<repo-root>/.hookcode.yml`, then adjust 
 
 - Package manager: pnpm workspace install from repo root.
 - Runtime: Node (engine >= 18 from `package.json`).
-- Preview: Vite frontend in `frontend/`.
+- Preview: Vite frontend in `frontend/` and optional backend preview in `backend/`.
 
 ## Output Checklist
 
 - `.hookcode.yml` includes `version: 1`.
 - Dependency install command is allowlisted and uses pnpm.
-- Preview instance `frontend` runs in `frontend/` with `pnpm dev`.
+- Preview instances use explicit `display` modes (`webview` for frontend, `terminal` for backend when enabled).
+- Preview command/env values do not hardcode local fixed ports and do not include deprecated `port:` fields.
+- Placeholder usage is valid (`{{PORT}}` and `{{PORT:<instance>}}` target defined instances).
 - Notes mention robot overrides can change dependency behavior.

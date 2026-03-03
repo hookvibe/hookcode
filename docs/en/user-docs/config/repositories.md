@@ -84,3 +84,30 @@ Robots can choose credentials from:
 - Repo-scoped profiles
 
 See [Robot configuration](./robots) for details.
+
+{/* Document repo preview env injection for preview-only dev servers. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 */}
+## Preview environment variables
+
+Use the **Env** tab in the repository detail page to inject environment variables into **preview dev servers only**.
+
+Key rules:
+
+{/* Clarify repo preview env placeholder semantics. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 */}
+- Variables apply only when HookCode starts preview instances (they do not affect tasks or analysis runs).
+- Fixed local preview ports are blocked; use `{{PORT:frontend}}` / `{{PORT:backend}}` placeholders instead.
+- `{{PORT}}` resolves to the current preview instance port; use `{{PORT:<name>}}` to reference a specific instance.
+- Reserved keys such as `PORT`, `HOST`, and any `HOOKCODE_*` variables are not allowed.
+- All values are treated as secrets: the UI shows “configured” but never reveals stored values.
+
+For sensitive configuration (for example `DATABASE_URL`), prefer this Env tab instead of committing secrets in `.hookcode.yml`.
+
+{/* Document repo-level preview runtime visibility so repository docs cover active task-group management UI. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
+## Preview runtime visibility
+
+In the repository detail **Overview** tab, the Preview section now includes:
+
+- Detected preview instances from `.hookcode.yml`
+- Active preview task groups for this repository
+- Per-instance runtime status and assigned ports for each active task group
+
+Use this section to quickly find which task groups currently hold preview resources for the repository.

@@ -160,6 +160,24 @@ export class RepoScopedCredentialsPublicSwaggerDto {
   modelProvider!: RepoScopedModelProviderCredentialsPublicSwaggerDto;
 }
 
+// Swagger DTO for repo preview env vars (public redacted shape). docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+export class RepoPreviewEnvVarPublicSwaggerDto {
+  @ApiProperty()
+  key!: string;
+
+  @ApiProperty()
+  isSecret!: boolean;
+
+  @ApiProperty()
+  hasValue!: boolean;
+}
+
+// Swagger DTO for repo preview env config payloads. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+export class RepoPreviewEnvConfigPublicSwaggerDto {
+  @ApiProperty({ type: RepoPreviewEnvVarPublicSwaggerDto, isArray: true })
+  variables!: RepoPreviewEnvVarPublicSwaggerDto[];
+}
+
 // Describe repo provider activity payload for the repo detail dashboard row. kzxac35mxk0fg358i7zs
 export class RepoProviderActivityTaskSwaggerDto {
   @ApiProperty()
@@ -382,6 +400,10 @@ export class GetRepositoryResponseDto {
 
   @ApiPropertyOptional({ type: RepoScopedCredentialsPublicSwaggerDto })
   repoScopedCredentials?: RepoScopedCredentialsPublicSwaggerDto;
+
+  @ApiPropertyOptional({ type: RepoPreviewEnvConfigPublicSwaggerDto })
+  // Surface repo preview env config in repo detail responses. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  previewEnvConfig?: RepoPreviewEnvConfigPublicSwaggerDto;
 }
 
 export class UpdateRepositoryResponseDto {
@@ -393,6 +415,10 @@ export class UpdateRepositoryResponseDto {
 
   @ApiPropertyOptional({ type: RepoScopedCredentialsPublicSwaggerDto })
   repoScopedCredentials?: RepoScopedCredentialsPublicSwaggerDto;
+
+  @ApiPropertyOptional({ type: RepoPreviewEnvConfigPublicSwaggerDto })
+  // Surface repo preview env config in update responses. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  previewEnvConfig?: RepoPreviewEnvConfigPublicSwaggerDto;
 }
 
 export class ArchiveRepositoryResponseDto {

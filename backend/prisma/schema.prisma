@@ -200,6 +200,7 @@ model Repository {
   webhookSecret          String?  @map("webhook_secret")
   repoProviderCredentials  Json?  @map("repo_provider_credentials_json") @db.JsonB
   modelProviderCredentials Json?  @map("model_provider_credentials_json") @db.JsonB
+  previewEnv             Json?    @map("preview_env_json") @db.JsonB // Store repo-scoped preview env vars (secrets redacted in API). docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
   webhookVerifiedAt      DateTime? @map("webhook_verified_at") @db.Timestamptz(6)
   archivedAt             DateTime? @map("archived_at") @db.Timestamptz(6)
   skillDefaults          Json?    @map("skill_defaults") // Store repo-level default skills as JSON to preserve null semantics. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225

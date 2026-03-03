@@ -31,6 +31,8 @@ export const zhCNUi = {
   'panel.tabs.logs': '日志',
   // Notifications tab label. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   'panel.tabs.notifications': '通知',
+  // Admin preview tab label for preview runtime management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  'panel.tabs.preview': '预览管理',
   'panel.notifications.title': '通知',
   'panel.notifications.readAll': '全部标记已读',
   'panel.notifications.viewAll': '查看全部',
@@ -167,6 +169,19 @@ export const zhCNUi = {
   'panel.environment.empty': '未检测到运行时。',
   'panel.environment.detectedAt': '检测时间',
   'panel.environment.customImageHint': '需要更多运行时？请构建自定义 Docker 镜像并重建 backend/worker 容器。',
+  // Provide admin preview management copy for active groups and port allocation diagnostics. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  'panel.preview.generatedAt': '生成时间',
+  'panel.preview.refresh': '刷新',
+  'panel.preview.error.loadFailed': '加载预览管理数据失败。',
+  'panel.preview.port.title': '端口分配',
+  'panel.preview.port.range': '范围：{{range}}',
+  'panel.preview.port.capacity': '容量：{{count}}',
+  'panel.preview.port.inUse': '使用中：{{count}}',
+  'panel.preview.port.available': '可用：{{count}}',
+  'panel.preview.port.allocationsEmpty': '暂无端口分配记录。',
+  'panel.preview.groups.title': '开启预览的任务组（{{count}}）',
+  'panel.preview.groups.repo': '仓库：{{repoId}}',
+  'panel.preview.groups.empty': '暂无开启预览的任务组。',
   'panel.settings.generalTitle': '通用',
   'panel.settings.languageTitle': '语言',
   'panel.settings.lang.zhCN': '简体中文',

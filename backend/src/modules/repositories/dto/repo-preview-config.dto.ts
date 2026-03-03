@@ -8,6 +8,44 @@ export class RepoPreviewInstanceDto {
 
   @ApiProperty()
   workdir!: string;
+
+  // Expose repo-level preview display hints before runtime starts. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  @ApiProperty({ enum: ['webview', 'terminal'] })
+  display!: 'webview' | 'terminal';
+}
+
+// Describe active preview instances for repo-level preview management cards. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+export class RepoPreviewActiveInstanceDto {
+  @ApiProperty()
+  name!: string;
+
+  // Document runtime display mode so repo detail cards can render terminal/webview badges consistently. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  @ApiProperty({ enum: ['webview', 'terminal'] })
+  display!: 'webview' | 'terminal';
+
+  @ApiProperty({ enum: ['stopped', 'starting', 'running', 'failed', 'timeout'] })
+  status!: 'stopped' | 'starting' | 'running' | 'failed' | 'timeout';
+
+  @ApiPropertyOptional()
+  port?: number;
+}
+
+// Describe active preview task groups returned by the repo preview config endpoint. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+export class RepoPreviewActiveTaskGroupDto {
+  @ApiProperty()
+  taskGroupId!: string;
+
+  @ApiPropertyOptional()
+  taskGroupTitle?: string;
+
+  @ApiPropertyOptional()
+  repoId?: string;
+
+  @ApiProperty({ enum: ['stopped', 'starting', 'running', 'failed', 'timeout'] })
+  aggregateStatus!: 'stopped' | 'starting' | 'running' | 'failed' | 'timeout';
+
+  @ApiProperty({ type: RepoPreviewActiveInstanceDto, isArray: true })
+  instances!: RepoPreviewActiveInstanceDto[];
 }
 
 export class RepoPreviewConfigResponseDto {
@@ -19,4 +57,7 @@ export class RepoPreviewConfigResponseDto {
 
   @ApiProperty({ type: RepoPreviewInstanceDto, isArray: true })
   instances!: RepoPreviewInstanceDto[];
+
+  @ApiProperty({ type: RepoPreviewActiveTaskGroupDto, isArray: true })
+  activeTaskGroups!: RepoPreviewActiveTaskGroupDto[];
 }

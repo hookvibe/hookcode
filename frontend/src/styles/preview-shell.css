@@ -202,6 +202,26 @@
   background: var(--hc-surface);
 }
 
+/* Reuse preview body layout for inline terminal log rendering. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */
+.hc-preview-terminal {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: #0b0f16;
+}
+
+/* Keep terminal-mode preview output plain and continuous like a real terminal stream. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */
+.hc-preview-terminal-output {
+  margin: 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #e2e8f0;
+}
+
 .hc-preview-iframe-shell {
   flex: 1 1 auto;
   min-height: 0;

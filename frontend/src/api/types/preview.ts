@@ -1,33 +1,38 @@
-// Isolate preview-related API types for task group dev preview features. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+// Keep preview API contracts aligned with backend runtime/admin preview endpoints. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
 
-// Define preview API response types for TaskGroup dev server status. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export type PreviewInstanceStatus = 'stopped' | 'starting' | 'running' | 'failed' | 'timeout';
+// Mirror backend display mode so preview tabs can render iframe or terminal output per instance. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+export type PreviewInstanceDisplayMode = 'webview' | 'terminal';
 
-// Surface preview diagnostics and log payloads for Phase 3 UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+// Capture preview log rows used by diagnostics and SSE snapshots. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
 export interface PreviewLogEntry {
   timestamp: string;
   level: 'stdout' | 'stderr' | 'system';
   message: string;
 }
 
-// Attach diagnostics to preview status payloads for failed/timeout sessions. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+// Expose startup diagnostics for failed or timeout preview instances. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
 export interface PreviewDiagnostics {
   exitCode?: number | null;
   signal?: string | null;
-  errors?: string[];
   logs?: PreviewLogEntry[];
 }
 
 export interface PreviewInstanceSummary {
-  instanceId: string;
+  name: string;
+  display: PreviewInstanceDisplayMode;
   status: PreviewInstanceStatus;
-  updatedAt: string;
+  port?: number;
+  path?: string;
+  publicUrl?: string;
+  message?: string;
+  diagnostics?: PreviewDiagnostics;
 }
 
 export interface PreviewStatusResponse {
-  status: PreviewInstanceStatus;
-  logs?: PreviewLogEntry[];
-  diagnostics?: PreviewDiagnostics;
+  available: boolean;
+  instances: PreviewInstanceSummary[];
+  reason?: 'config_missing' | 'config_invalid' | 'workspace_missing' | 'invalid_group' | 'missing_task';
 }
 
 export type PreviewHighlightMode = 'outline' | 'mask';
@@ -36,9 +41,17 @@ export type PreviewHighlightBubbleAlign = 'start' | 'center' | 'end';
 export type PreviewHighlightBubbleTheme = 'dark' | 'light';
 
 export interface PreviewHighlightBubble {
+  text?: string;
   placement?: PreviewHighlightBubblePlacement;
   align?: PreviewHighlightBubbleAlign;
+  offset?: number;
+  maxWidth?: number;
   theme?: PreviewHighlightBubbleTheme;
+  background?: string;
+  textColor?: string;
+  borderColor?: string;
+  radius?: number;
+  arrow?: boolean;
 }
 
 export interface PreviewHighlightCommand {
@@ -58,14 +71,47 @@ export interface PreviewHighlightEvent {
   instanceName?: string;
 }
 
-// Shape repo preview config responses for the repo detail dashboard. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+// Describe one active preview task group for repo/admin management surfaces. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+export interface PreviewManagedTaskGroupSummary {
+  taskGroupId: string;
+  taskGroupTitle?: string;
+  repoId?: string;
+  aggregateStatus: PreviewInstanceStatus;
+  instances: PreviewInstanceSummary[];
+}
+
+// Shape repo preview config responses for the repo detail dashboard. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
 export interface RepoPreviewInstanceSummary {
   name: string;
   workdir: string;
+  display: PreviewInstanceDisplayMode;
 }
 
 export interface RepoPreviewConfigResponse {
   available: boolean;
   instances: RepoPreviewInstanceSummary[];
   reason?: 'no_workspace' | 'config_missing' | 'config_invalid' | 'workspace_missing';
+  activeTaskGroups: PreviewManagedTaskGroupSummary[];
+}
+
+// Describe global preview port allocation diagnostics for admin management pages. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+export interface PreviewPortAllocationOwner {
+  taskGroupId: string;
+  ports: number[];
+}
+
+export interface PreviewPortAllocationSnapshot {
+  rangeStart: number;
+  rangeEnd: number;
+  capacity: number;
+  inUseCount: number;
+  availableCount: number;
+  inUsePorts: number[];
+  allocations: PreviewPortAllocationOwner[];
+}
+
+export interface PreviewAdminOverviewResponse {
+  generatedAt: string;
+  activeTaskGroups: PreviewManagedTaskGroupSummary[];
+  portAllocation: PreviewPortAllocationSnapshot;
 }

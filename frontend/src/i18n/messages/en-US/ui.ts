@@ -31,6 +31,8 @@ export const enUSUi = {
   'panel.tabs.logs': 'Logs',
   // Notifications tab label. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   'panel.tabs.notifications': 'Notifications',
+  // Admin preview tab label for preview runtime management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  'panel.tabs.preview': 'Preview',
   'panel.notifications.title': 'Notifications',
   'panel.notifications.readAll': 'Mark all read',
   'panel.notifications.viewAll': 'View all',
@@ -167,6 +169,19 @@ export const enUSUi = {
   'panel.environment.empty': 'No runtimes detected.',
   'panel.environment.detectedAt': 'Detected at',
   'panel.environment.customImageHint': 'Need more runtimes? Build a custom Docker image and rebuild the backend/worker containers.',
+  // Provide admin preview management copy for active groups and port allocation diagnostics. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  'panel.preview.generatedAt': 'Generated at',
+  'panel.preview.refresh': 'Refresh',
+  'panel.preview.error.loadFailed': 'Failed to load preview management data.',
+  'panel.preview.port.title': 'Port allocation',
+  'panel.preview.port.range': 'Range: {{range}}',
+  'panel.preview.port.capacity': 'Capacity: {{count}}',
+  'panel.preview.port.inUse': 'In use: {{count}}',
+  'panel.preview.port.available': 'Available: {{count}}',
+  'panel.preview.port.allocationsEmpty': 'No active port allocations.',
+  'panel.preview.groups.title': 'Active preview task groups ({{count}})',
+  'panel.preview.groups.repo': 'Repo: {{repoId}}',
+  'panel.preview.groups.empty': 'No active preview task groups.',
   'panel.settings.generalTitle': 'General',
   'panel.settings.languageTitle': 'Language',
   'panel.settings.lang.zhCN': '简体中文',

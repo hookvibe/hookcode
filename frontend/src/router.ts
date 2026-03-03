@@ -25,12 +25,35 @@ export type RoutePage =
   | 'skills'
   | 'settings'; // Add settings page route for standalone user settings panel. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 
-// Define the available sub-tabs for the repo detail page sidebar navigation. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
-// Add a repo tab for task-group API tokens in the sidebar navigation. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
-export type RepoTab = 'overview' | 'basic' | 'branches' | 'credentials' | 'robots' | 'automation' | 'skills' | 'webhooks' | 'members' | 'taskGroupTokens' | 'settings';
+// Preserve both preview env and task-group token repo tabs when reconciling main/dev routing. docs/en/developer/plans/sync-main-dev-20260303/task_plan.md sync-main-dev-20260303
+export type RepoTab =
+  | 'overview'
+  | 'basic'
+  | 'branches'
+  | 'credentials'
+  | 'env'
+  | 'robots'
+  | 'automation'
+  | 'skills'
+  | 'webhooks'
+  | 'members'
+  | 'taskGroupTokens'
+  | 'settings';
 
-// Keep repo tab ordering stable and expose the task-group token page. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
-export const REPO_TABS: RepoTab[] = ['overview', 'basic', 'branches', 'credentials', 'robots', 'automation', 'skills', 'webhooks', 'members', 'taskGroupTokens', 'settings'];
+export const REPO_TABS: RepoTab[] = [
+  'overview',
+  'basic',
+  'branches',
+  'credentials',
+  'env',
+  'robots',
+  'automation',
+  'skills',
+  'webhooks',
+  'members',
+  'taskGroupTokens',
+  'settings'
+];
 
 // Define the available sub-tabs for the archive page sidebar navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
 export type ArchiveTab = 'repos' | 'tasks';
@@ -43,9 +66,10 @@ export type SkillsTab = 'overview' | 'built-in' | 'extra';
 export const SKILLS_TABS: SkillsTab[] = ['overview', 'built-in', 'extra'];
 
 // Define the available sub-tabs for the user settings page sidebar navigation. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
-export type SettingsTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings' | 'logs' | 'notifications'; // Add notifications tab for user alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+// Add an admin preview tab for global preview runtime/port management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+export type SettingsTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings' | 'logs' | 'notifications' | 'preview'; // Add notifications tab for user alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
 
-export const SETTINGS_TABS: SettingsTab[] = ['account', 'credentials', 'tools', 'environment', 'settings', 'logs', 'notifications'];
+export const SETTINGS_TABS: SettingsTab[] = ['account', 'credentials', 'tools', 'environment', 'settings', 'logs', 'notifications', 'preview'];
 
 export interface RouteState {
   page: RoutePage;
