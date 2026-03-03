@@ -26,7 +26,8 @@
 - User docs include `docs/en/user-docs/config` for configuration topics, likely the right place for `.hookcode.yml` guidance.
 - `docs/en/user-docs/environment.md` covers runtime configuration, while repository configuration lives in `docs/en/user-docs/config/repositories.md`.
 - No existing user-docs mention `.hookcode.yml`, so new documentation is needed.
-- Docusaurus navigation is defined in `docs/sidebars.ts`, so new user docs must be added there.
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- Legacy docs navigation is defined in `docs/sidebars.ts`, so new user docs must be added there.
 - Docker Compose builds backend/worker from `backend/Dockerfile`, so runtime extensions should target that image or a custom Dockerfile used by those services.
 - There are no existing references to `hookcode:latest` or `Dockerfile.custom`, so new docs must define the convention explicitly.
 - The changelog format in `docs/en/change-log/0.0.0.md` uses single-line bullets with plan links, without extra HTML comments.

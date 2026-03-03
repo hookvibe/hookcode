@@ -73,6 +73,10 @@ export const enUSRepos = {
   'repos.preview.reason.configMissing': 'Missing preview section in .hookcode.yml.',
   'repos.preview.reason.configInvalid': 'Invalid .hookcode.yml preview configuration.',
   'repos.preview.reason.workspaceMissing': 'Workspace folder not found (run a task to clone).',
+  // Add repo-level running preview task-group copy for preview management visibility. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  'repos.preview.activeGroups.title': 'Active preview task groups',
+  'repos.preview.activeGroups.empty': 'No active preview task groups for this repository.',
+  'repos.preview.activeGroups.repo': 'Repo {{repoId}}',
   'repos.detail.robotsTitle': 'Robots',
   'repos.detail.robotsEmpty': 'No robots',
   'repos.detail.robot.default': 'Default',
@@ -125,6 +129,7 @@ export const enUSRepos = {
   'repos.detail.tabs.basic': 'Basic',
   'repos.detail.tabs.branches': 'Branches',
   'repos.detail.tabs.credentials': 'Credentials',
+  'repos.detail.tabs.env': 'Environment',
   'repos.detail.tabs.robots': 'Robots',
   'repos.detail.tabs.automation': 'Automation',
   'repos.detail.tabs.webhooks': 'Webhooks',
@@ -132,6 +137,8 @@ export const enUSRepos = {
   'repos.detail.tabs.overview': 'Overview',
   'repos.detail.tabs.skills': 'Skills',
   'repos.detail.tabs.members': 'Members',
+  // Add sidebar label for task-group API tokens tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
+  'repos.detail.tabs.taskGroupTokens': 'Task-group API tokens',
   'repos.detail.tabs.settings': 'Settings',
   'repos.detail.sidebar.backToRepos': 'Repositories',
   'repos.detail.sidebar.groupIntegration': 'Integration',
@@ -149,6 +156,27 @@ export const enUSRepos = {
   'repos.detail.credentials.modelProviderStatus': 'Status',
   'repos.detail.credentials.codexApiKeyRequired': 'Please enter API key',
   'repos.detail.credentials.claudeCodeApiKeyRequired': 'Please enter API key',
+
+  // --- Repo detail (preview env tab) ---
+  // Copy for preview env injection UI. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  'repos.detail.env.title': 'Preview environment variables',
+  // Explain that preview env values are always secret and hidden after save. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  'repos.detail.env.desc': 'Injected into preview dev servers only. Values are stored as secrets and hidden after save (supports {{PORT:frontend}} / {{PORT:backend}} placeholders).',
+  'repos.detail.env.add': 'Add variable',
+  'repos.detail.env.key': 'Key',
+  'repos.detail.env.keyPlaceholder': 'e.g. VITE_API_BASE_URL',
+  'repos.detail.env.keyRequired': 'Please enter a key',
+  'repos.detail.env.keyInvalid': 'Keys must use A-Z, 0-9, underscore',
+  'repos.detail.env.keyReserved': 'This key is reserved by the system',
+  // Add env-specific duplicate key copy for preview env editor. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  'repos.detail.env.keyDuplicate': 'Duplicate key: {{name}}',
+  'repos.detail.env.value': 'Value',
+  'repos.detail.env.valuePlaceholder': 'Enter value',
+  'repos.detail.env.valueRequired': 'Please enter a value',
+  'repos.detail.env.secret': 'Secret',
+  'repos.detail.env.secretPlaceholder': 'Configured (hidden)',
+  'repos.detail.env.remove': 'Remove',
+  'repos.detail.env.save': 'Save variables',
 
   // --- Repo branches ---
   'repos.branches.title': 'Branches',

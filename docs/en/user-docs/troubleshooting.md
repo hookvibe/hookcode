@@ -38,4 +38,3 @@ Common causes:
 
 - Configure `ALLOWED_ORIGIN` on the backend.
 - In production, prefer explicit origins instead of `*`.
-

@@ -11,6 +11,7 @@ import type {
   RepoProviderVisibility,
   RepoRole,
   RepoRobot,
+  RepoPreviewEnvConfigPublic,
   RepoScopedCredentialsPublic,
   RepoWebhookDeliveryDetail,
   RepoWebhookDeliverySummary,
@@ -100,6 +101,7 @@ export const fetchRepo = async (
   webhookSecret?: string | null;
   webhookPath?: string;
   repoScopedCredentials?: RepoScopedCredentialsPublic;
+  previewEnvConfig?: RepoPreviewEnvConfigPublic;
 }> => {
   // Cache repo detail snapshots briefly to avoid N+1 summary storms. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   const data = await getCached<{
@@ -109,6 +111,7 @@ export const fetchRepo = async (
     webhookSecret?: string | null;
     webhookPath?: string;
     repoScopedCredentials?: RepoScopedCredentialsPublic;
+    previewEnvConfig?: RepoPreviewEnvConfigPublic;
   }>(`/repos/${id}`, { cacheTtlMs: 5000 });
   return data;
 };
@@ -223,12 +226,28 @@ export const updateRepo = async (
             | null;
         }
       | null;
+    // Patch repo-scoped preview env vars (write-only secrets). docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    previewEnvConfig:
+      | {
+          entries?: Array<{
+            key?: string | null;
+            value?: string | null;
+            secret?: boolean | null;
+          }> | null;
+          removeKeys?: string[] | null;
+        }
+      | null;
   }>
-): Promise<{ repo: Repository; repoScopedCredentials?: RepoScopedCredentialsPublic }> => {
-  const { data } = await api.patch<{ repo: Repository; repoScopedCredentials?: RepoScopedCredentialsPublic }>(
-    `/repos/${id}`,
-    params
-  );
+): Promise<{
+  repo: Repository;
+  repoScopedCredentials?: RepoScopedCredentialsPublic;
+  previewEnvConfig?: RepoPreviewEnvConfigPublic;
+}> => {
+  const { data } = await api.patch<{
+    repo: Repository;
+    repoScopedCredentials?: RepoScopedCredentialsPublic;
+    previewEnvConfig?: RepoPreviewEnvConfigPublic;
+  }>(`/repos/${id}`, params);
   // Refresh repo caches after settings updates so list/detail views stay in sync. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   invalidateRepoCaches();
   return data;

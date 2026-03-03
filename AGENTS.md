@@ -105,6 +105,8 @@ Required content checklist (as applicable):
 - When a file grows large (roughly 400+ lines) or mixes multiple responsibilities, split it into smaller modules by functional purpose; keep stable barrel re-exports when needed and update any doc links if paths change.
 - Do not revert or delete changes you did not make in this conversation. It is normal to have unrelated changes in the working tree; do not touch or destroy them. If they affect your changes, make your changes compatible on top of them.
 - When changing backend code, check whether frontend code also needs updates.
+<!-- Ensure new functionality emits system logs via the shared log writer. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+- When adding or modifying behavior, emit a meaningful entry through the system log writer so new changes are auditable.
 - The project is usually run via `dev` scripts; you do not need to run them unless requested.
 - When adding new entries to `.env.*.example`, add a Chinese comment for each entry.
 - New features must include tests.

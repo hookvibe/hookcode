@@ -1,5 +1,6 @@
 # Task Plan: Add pagination/load-more to archive, repos, skills, sidebar status
-<!-- Define the pagination scope and phases for the remaining list views. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Define the pagination scope and phases for the remaining list views. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. pagination-impl-20260227-b */}

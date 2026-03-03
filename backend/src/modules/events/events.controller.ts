@@ -47,7 +47,8 @@ export class EventsController {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const unsubscribe = this.eventStream.subscribe(res, { topics });
+    // Attach user identity for per-user notification filtering. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+    const unsubscribe = this.eventStream.subscribe(res, { topics, userId: req.user?.id });
 
     // Ensure the dashboard producer loop is running when clients subscribe to it. kxthpiu4eqrmu0c6bboa
     if (!topics || topics.includes('dashboard')) {

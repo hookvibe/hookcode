@@ -20,26 +20,26 @@
 }
 
 .hc-chat-footer-composer {
-  /* Keep the composer footer on a flat surface for the neutral theme. docs/en/developer/plans/uiuxflat20260203/task_plan.md uiuxflat20260203 */
-  border-top: 1px solid var(--hc-border);
-  background: var(--hc-surface);
-  padding: 16px 24px 24px;
+  /* Remove all backgrounds to show only the composer box. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
+  background: transparent !important;
+  padding: 0px 24px 24px;
   flex: 0 0 auto;
 }
 
 .hc-composer-container {
   width: 100%;
-  max-width: 800px;
+  /* Extend composer width to cover chat content. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
+  max-width: 960px;
   margin: 0 auto;
 }
 
 .hc-composer-box {
-  /* Change record (2026-01-12): use the shared surface token; `--hc-card-bg` was never defined. */
+  /* Use adaptive background that works in both light and dark modes. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
   background: var(--hc-surface-elevated);
   border: 1px solid var(--hc-border);
   border-radius: 16px;
   padding: 12px 16px;
-  box-shadow: var(--hc-shadow-sm);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
@@ -47,32 +47,57 @@
 }
 
 .hc-composer-box--inline {
-  /* UX (Chat / Task group): keep the footer composer compact like modern messengers. */
+  /* Keep inline composer with elevated surface for consistency. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
   padding: 10px 12px;
   gap: 8px;
-  /* Visual style: avoid a heavy "filled card" in the timeline footer; let the footer surface be the backdrop. */
-  background: transparent;
-  box-shadow: none;
+  background: var(--hc-surface-elevated);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* Dark mode shadow adjustments for better visibility. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
+:root[data-theme='dark'] .hc-composer-box {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+:root[data-theme='dark'] .hc-composer-box--inline {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .hc-composer-box:focus-within {
   border-color: var(--hc-accent-border);
-  box-shadow: var(--hc-shadow-md), var(--hc-focus-ring);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), var(--hc-focus-ring);
 }
 
 .hc-composer-box--inline:focus-within {
-  /* Visual style: keep the inline composer focus ring light-weight to avoid overpowering the chat content. */
-  box-shadow: var(--hc-focus-ring);
+  /* Enhanced focus shadow for inline composer. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), var(--hc-focus-ring);
+}
+
+/* Dark mode focus state enhancements. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
+:root[data-theme='dark'] .hc-composer-box:focus-within {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1), var(--hc-focus-ring);
+}
+
+:root[data-theme='dark'] .hc-composer-box--inline:focus-within {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1), var(--hc-focus-ring);
 }
 
 .hc-composer-box--focused {
-  /* UX note: `:focus-within` is not reliable on some mobile keyboards; keep a class hook for parity. */
+  /* Enhanced focus state for better visual feedback. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
   border-color: var(--hc-accent-border);
-  box-shadow: var(--hc-shadow-md), var(--hc-focus-ring);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), var(--hc-focus-ring);
 }
 
 .hc-composer-box--inline.hc-composer-box--focused {
-  box-shadow: var(--hc-focus-ring);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), var(--hc-focus-ring);
+}
+
+:root[data-theme='dark'] .hc-composer-box--focused {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1), var(--hc-focus-ring);
+}
+
+:root[data-theme='dark'] .hc-composer-box--inline.hc-composer-box--focused {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1), var(--hc-focus-ring);
 }
 
 /* Chat composer input (AntD):

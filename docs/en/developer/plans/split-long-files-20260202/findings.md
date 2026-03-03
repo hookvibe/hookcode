@@ -1,4 +1,5 @@
 # Findings & Decisions: Split long files for maintainability
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your knowledge base for the task. Stores everything you discover and decide. WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited. WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule). */}
 
 {/* Link discoveries to code changes via this session hash. split-long-files-20260202 */}
@@ -14,7 +15,7 @@
 - Keep inline traceability comments in every changed area with plan path + session hash.
 
 ## Research Findings
-- <!-- Record test failure context for webhook meta changes. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202 -->
+- {/* Record test failure context for webhook meta changes. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202 */}
 - Failing test `webhookTaskMeta` expects GitHub commit titles to include `head_commit.message`; buildGithubTaskTitle now prefers `head_commit` when available.
 - Longest code files (by lines) include `frontend/src/pages/RepoDetailPage.tsx`, `backend/src/agent/agent.ts`, `backend/src/modules/repositories/repositories.controller.ts`, `frontend/src/components/UserPanelPopover.tsx`, `frontend/src/pages/TaskGroupChatPage.tsx`, `frontend/src/api.ts`, `frontend/src/pages/TaskDetailPage.tsx`, `backend/src/modules/tasks/task.service.ts`, and `backend/src/modules/webhook/webhook.handlers.ts`.
 - `frontend/src/api.ts` contains axios client setup, GET cache helpers, shared API types, and a large set of exported request helpers.

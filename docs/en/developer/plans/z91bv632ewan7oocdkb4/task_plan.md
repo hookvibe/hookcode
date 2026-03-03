@@ -1,4 +1,5 @@
-# Task Plan: Docusaurus: Split docs into 4 navbar categories
+# Task Plan: Legacy Docs: Split docs into 4 navbar categories
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. z91bv632ewan7oocdkb4 */}
@@ -10,7 +11,7 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Split docs navigation into 4 top-level Docusaurus navbar entries (User Docs / API Reference / Developer Docs / Change Log) so users can switch sections without browsing one combined sidebar.
+Split docs navigation into 4 top-level legacy docs navbar entries (User Docs / API Reference / Developer Docs / Change Log) so users can switch sections without browsing one combined sidebar.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
@@ -36,7 +37,8 @@ Complete
 ### Phase 3: Implementation
 {/* WHAT: Actually build/create/write the solution. WHY: This is where the work happens. Break into smaller sub-tasks if needed. */}
 - [x] Split `docs/sidebars.ts` into 4 sidebars
-- [x] Update `docs/docusaurus.config.ts` navbar items
+{/* Replace legacy docs file reference with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- [x] Update legacy docs navbar items (pre-Mintlify config)
 - [x] Update homepage links (optional)
 - **Status:** complete
 
@@ -63,7 +65,8 @@ Complete
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
 | Decision | Rationale |
 |----------|-----------|
-| Use 4 Docusaurus sidebars + 4 navbar `docSidebar` items | Provides a top-level section switcher while keeping docs routing simple (single docs plugin) |
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+| Use 4 legacy docs sidebars + 4 navbar sidebar items | Provides a top-level section switcher while keeping docs routing simple (single docs plugin) |
 | Keep routes under `/docs/*` | Avoids multi-instance docs complexity and preserves existing doc IDs/routes |
 
 ## Errors Encountered

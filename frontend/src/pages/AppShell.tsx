@@ -8,6 +8,7 @@ import {
   type RouteState
 } from '../router';
 import { UserPanelPopover } from '../components/UserPanelPopover';
+import { NotificationsPopover } from '../components/notifications/NotificationsPopover';
 import { LoginCardSkeleton } from '../components/skeletons/LoginCardSkeleton';
 import { ModernSidebar } from '../components/ModernSidebar';
 import { LoginPage } from './LoginPage';
@@ -151,8 +152,12 @@ export const AppShell: FC<AppShellProps> = ({
     return <AcceptInvitePage email={route.inviteEmail} token={route.inviteToken} isAuthenticated={Boolean(authToken)} />;
   }
 
+  // Compose header user panel with notifications trigger. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   const userPanel = (
-    <UserPanelPopover themePreference={themePreference} onThemePreferenceChange={onThemePreferenceChange} />
+    <div className="hc-nav-user-stack">
+      <NotificationsPopover />
+      <UserPanelPopover themePreference={themePreference} onThemePreferenceChange={onThemePreferenceChange} />
+    </div>
   );
 
   const openMobileNav = () => setMobileNavOpen(true);
@@ -165,8 +170,8 @@ export const AppShell: FC<AppShellProps> = ({
       }
     : undefined;
 
-  // Determine if the global sidebar should be hidden (repo detail and settings use their own sidebar). docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
-  const hideGlobalSidebar = route.page === 'repo' || route.page === 'settings';
+  // Determine if the global sidebar should be hidden (repo detail, settings, archive, and skills use their own sidebar). docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  const hideGlobalSidebar = route.page === 'repo' || route.page === 'settings' || route.page === 'archive' || route.page === 'skills';
 
   return (
     <div className="hc-shell-modern">
@@ -205,13 +210,13 @@ export const AppShell: FC<AppShellProps> = ({
           <RepoDetailPage repoId={route.repoId} repoTab={route.repoTab} userPanel={userPanel} navToggle={navToggle} />
         ) : null}
         {route.page === 'skills' ? (
-          <SkillsPage userPanel={userPanel} navToggle={navToggle} />
-        ) : null /* Render the skills registry page inside the shell. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */}
+          <SkillsPage skillsTab={route.skillsTab} userPanel={userPanel} navToggle={navToggle} />
+        ) : null /* Render the skills registry page with sidebar sub-navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301 */}
         {/* Render standalone user settings page with its own sidebar. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */}
         {route.page === 'settings' ? (
           <UserSettingsPage settingsTab={route.settingsTab} themePreference={themePreference} onThemePreferenceChange={onThemePreferenceChange} navToggle={navToggle} />
         ) : null}
-        {route.page === 'archive' ? <ArchivePage tab={route.archiveTab} userPanel={userPanel} navToggle={navToggle} /> : null}
+        {route.page === 'archive' ? <ArchivePage archiveTab={route.archiveTab} userPanel={userPanel} navToggle={navToggle} /> : null}
         {route.page === 'tasks' ? (
           <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} navToggle={navToggle} />
         ) : null}

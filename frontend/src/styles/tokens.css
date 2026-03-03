@@ -24,6 +24,7 @@
 
   /* Layout */
   --page-padding: 24px;
+  /* Base page-content cap; grows on wider viewports so card grids fill more columns. docs/en/developer/plans/widescreen-layout-20260301/task_plan.md widescreen-layout-20260301 */
   --hc-page-max: 1200px;
 
   /* HookCode Semantic Variables */
@@ -185,5 +186,24 @@
 @media (max-width: 768px) {
   :root {
     --hc-top-right-safe: 56px;
+  }
+}
+
+/* Progressive page-max for wide screens — list/grid pages automatically show more columns. docs/en/developer/plans/widescreen-layout-20260301/task_plan.md widescreen-layout-20260301 */
+@media (min-width: 1600px) {
+  :root {
+    --hc-page-max: 1400px;
+  }
+}
+
+@media (min-width: 1920px) {
+  :root {
+    --hc-page-max: 1600px;
+  }
+}
+
+@media (min-width: 2560px) {
+  :root {
+    --hc-page-max: 1920px;
   }
 }

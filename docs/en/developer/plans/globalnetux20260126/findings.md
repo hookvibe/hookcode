@@ -1,4 +1,5 @@
 # Findings & Decisions: Global network flap UX handling
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -14,7 +15,7 @@
 ## Requirements
 {/* WHAT: What the user asked for, broken down into specific requirements. WHY: Keeps requirements visible so you don't forget what you're building. WHEN: Fill this in during Phase 1 (Requirements & Discovery). EXAMPLE: - Command-line interface - Add tasks - List all tasks - Delete tasks - Python implementation */}
 {/* Captured from user request */}
-<!-- Record the follow-up request to globalize network flap handling and i18n copy. docs/en/developer/plans/globalnetux20260126/task_plan.md globalnetux20260126 -->
+{/* Record the follow-up request to globalize network flap handling and i18n copy. docs/en/developer/plans/globalnetux20260126/task_plan.md globalnetux20260126 */}
 - Consider moving network flap notifications into a shared request layer to apply across pages.
 - Add i18n copy that differentiates "network retrying" vs "load failed".
 

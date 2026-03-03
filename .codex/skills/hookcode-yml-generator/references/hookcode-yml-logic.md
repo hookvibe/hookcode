@@ -1,6 +1,6 @@
 # Hookcode.yml Logic Reference
 
-<!-- Summarize HookCode .hookcode.yml behavior for this repo. docs/en/developer/plans/hookcode-yml-skill-20260129/task_plan.md hookcode-yml-skill-20260129 -->
+<!-- Align hookcode-yml-generator reference rules with the latest parser/runtime behavior. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
 
 ## Schema Summary (version 1)
 
@@ -17,8 +17,16 @@
     - `name`: unique string
     - `command`: required (<= 500 chars)
     - `workdir`: required relative path inside repo
-    - `port`: optional (informational)
+    - `env`: optional key/value map
     - `readyPattern`: optional regex
+    - `display`: optional enum (`webview` | `terminal`), defaults to `webview`
+    - `port`: not supported (fixed ports are rejected by schema)
+
+Preview validation rules:
+- `preview.instances[].name` must be unique.
+- `{{PORT:<instance>}}` placeholders must reference defined instance names.
+- Env keys ending with `PORT` must include `{{PORT}}` or `{{PORT:<instance>}}`.
+- Loopback URLs (for example `localhost:5173`, `127.0.0.1:5173`) cannot hardcode numeric ports.
 
 ## Dependency Install Behavior
 
@@ -45,16 +53,27 @@ Blocked characters (always rejected):
 
 - Config path: `<workspace>/.hookcode.yml`.
 - Preview reloads on config changes (debounced) via watcher in `backend/src/modules/tasks/preview.service.ts`.
-- Invalid config or missing preview config logs \"config reload skipped\".
+- Invalid config or missing preview config logs "config reload skipped".
 - HookCode injects `PORT` and `HOST=127.0.0.1` for preview commands.
+- HookCode also injects `BROWSER=none` for preview child processes.
+- Command/env placeholders `{{PORT}}` and `{{PORT:<instance>}}` are resolved before spawn.
+- Startup readiness uses `readyPattern` when present, otherwise port probing.
+- Startup timeout is 5 minutes per preview instance.
 - Idle previews stop after 30 minutes of inactivity.
+- Hidden previews also auto-stop after 30 minutes to reclaim ports.
 
 ## Repo-Specific Defaults
 
 - Root uses pnpm workspaces (`package.json`), Node engine >= 18.
-- Frontend dev command is `vite` (`frontend/package.json`), so prefer:
+- Frontend dev command is `vite` (`frontend/package.json`), so recommended frontend preview:
   - `workdir: "frontend"`
-  - `command: "pnpm dev"`
+  - `command: "pnpm dev --host 127.0.0.1 --port {{PORT:frontend}}"`
+  - `display: webview`
+- Optional backend preview:
+  - `workdir: "backend"`
+  - `command: "pnpm run prisma:generate && pnpm exec nest start"`
+  - `display: terminal`
+  - `env.PORT: "{{PORT:backend}}"`
 - Dependency install should run once at repo root:
   - `install: "pnpm install --frozen-lockfile"`
 

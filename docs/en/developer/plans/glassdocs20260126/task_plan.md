@@ -65,7 +65,8 @@ Phase 4
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
 | Decision | Rationale |
 |----------|-----------|
-| Refactor Docusaurus theme via `docs/src/css/custom.css` plus landing page module styles | Centralized glassmorphism styling without changing React components |
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+| Refactor legacy docs theme via `docs/src/css/custom.css` plus landing page module styles | Centralized glassmorphism styling without changing React components |
 | Drive page background through shared gradient variables and transparent wrappers | Smooths long-scroll transitions and removes hard color breaks |
 | Use a solid page background instead of gradients | Guarantees uniform color across long docs pages per user request |
 

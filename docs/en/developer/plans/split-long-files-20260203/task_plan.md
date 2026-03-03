@@ -1,4 +1,5 @@
 # Task Plan: Split long files for maintainability
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 ## Session Metadata
 - **Session Hash:** split-long-files-20260203
@@ -8,7 +9,7 @@
 Refactor long or multi-responsibility files into smaller, purpose-focused modules, update doc references, and run the full automated test suite.
 
 ## Current Phase
-<!-- Move the current phase marker to implementation after completing planning tasks. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 -->
+{/* Move the current phase marker to implementation after completing planning tasks. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203 */}
 Phase 3
 
 ## Phases

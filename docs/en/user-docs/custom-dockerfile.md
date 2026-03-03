@@ -1,8 +1,9 @@
 ---
 title: Custom Docker Images for Additional Runtimes
 ---
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
-<!-- Describe how to extend the backend image for extra runtimes. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 -->
+{/* Describe how to extend the backend image for extra runtimes. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
 
 HookCode runs tasks inside the **backend** and **worker** containers. The default Dockerfile is optimized for Node.js only, so projects that require Python/Java/Ruby/Go must use a custom image.
 

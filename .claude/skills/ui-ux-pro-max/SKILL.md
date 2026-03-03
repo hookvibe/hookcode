@@ -5,7 +5,7 @@ description: "UI/UX design intelligence. 50 styles, 21 palettes, 50 font pairing
 
 # UI/UX Pro Max - Design Intelligence
 
-<!-- Align this Claude skill's path examples with the .claude directory layout. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 -->
+{/* Align this Claude skill's path examples with the .claude directory layout. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 */}
 Comprehensive design guide for web and mobile applications. Contains 50+ styles, 97 color palettes, 57 font pairings, 99 UX guidelines, and 25 chart types across 9 technology stacks. Searchable database with priority-based recommendations.
 
 ## When to Apply

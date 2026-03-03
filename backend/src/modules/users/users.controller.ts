@@ -38,13 +38,19 @@ import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '.
 import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
 import { CreateUserApiTokenDto, CreateUserApiTokenResponseDto, ListUserApiTokensResponseDto, UpdateUserApiTokenDto, UserApiTokenResponseDto } from './dto/api-tokens.dto';
 import { UserApiTokenService } from './user-api-token.service';
+import { LogWriterService } from '../logs/log-writer.service'; // Emit user account operation logs for admins. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 
 @Controller('users')
 @ApiTags('Users')
 @ApiBearerAuth('bearerAuth')
 @AuthScopeGroup('account') // Scope user APIs under the account group for PAT access. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
 export class UsersController {
-  constructor(private readonly userService: UserService, private readonly apiTokenService: UserApiTokenService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly apiTokenService: UserApiTokenService,
+    // Log user/account changes with system log writer. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    private readonly logWriter: LogWriterService
+  ) {}
 
   @Patch('me')
   @ApiOperation({
@@ -66,6 +72,14 @@ export class UsersController {
 
       const updated = await this.userService.updateUser(req.user.id, { displayName: body.displayName });
       if (!updated) throw new NotFoundException({ error: 'User not found' });
+      // Log account profile updates without storing the raw display name. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'User profile updated',
+        code: 'USER_PROFILE_UPDATED',
+        actorUserId: req.user.id,
+        meta: { displayNameUpdated: body?.displayName !== undefined }
+      });
       return { user: updated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -108,6 +122,13 @@ export class UsersController {
       }
 
       await this.userService.setPassword(req.user.id, newPassword);
+      // Log password changes without storing secrets. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'warn',
+        message: 'User password changed',
+        code: 'USER_PASSWORD_CHANGED',
+        actorUserId: req.user.id
+      });
       return { success: true };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -160,6 +181,17 @@ export class UsersController {
         ...(body.github !== undefined ? { github: body.github as any } : {})
       });
       if (!credentials) throw new NotFoundException({ error: 'User not found' });
+      // Track which provider credential groups were touched without storing secrets. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      const providersTouched = ['codex', 'claude_code', 'gemini_cli', 'gitlab', 'github'].filter(
+        (provider) => (body as any)?.[provider] !== undefined
+      );
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'User model credentials updated',
+        code: 'USER_MODEL_CREDENTIALS_UPDATED',
+        actorUserId: req.user.id,
+        meta: { providers: providersTouched }
+      });
       return { credentials };
     } catch (err: any) {
       if (err instanceof HttpException) throw err;
@@ -263,6 +295,14 @@ export class UsersController {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const result = await this.apiTokenService.createToken(req.user.id, body);
+      // Log API token creation without recording the token secret. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'User API token created',
+        code: 'USER_API_TOKEN_CREATED',
+        actorUserId: req.user.id,
+        meta: { tokenId: result.apiToken.id, name: result.apiToken.name ?? null, scopes: result.apiToken.scopes ?? [] }
+      });
       return { token: result.token, apiToken: result.apiToken };
     } catch (err: any) {
       if (err instanceof HttpException) throw err;
@@ -290,6 +330,14 @@ export class UsersController {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const token = await this.apiTokenService.updateToken(req.user.id, id, body);
       if (!token) throw new NotFoundException({ error: 'API token not found' });
+      // Log API token updates without recording token secrets. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'User API token updated',
+        code: 'USER_API_TOKEN_UPDATED',
+        actorUserId: req.user.id,
+        meta: { tokenId: token.id, name: token.name ?? null, scopes: token.scopes ?? [] }
+      });
       return { apiToken: token };
     } catch (err: any) {
       if (err instanceof HttpException) throw err;
@@ -316,6 +364,14 @@ export class UsersController {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const token = await this.apiTokenService.revokeToken(req.user.id, id);
       if (!token) throw new NotFoundException({ error: 'API token not found' });
+      // Log API token revocations for audit trails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'warn',
+        message: 'User API token revoked',
+        code: 'USER_API_TOKEN_REVOKED',
+        actorUserId: req.user.id,
+        meta: { tokenId: token.id }
+      });
       return { apiToken: token };
     } catch (err) {
       if (err instanceof HttpException) throw err;

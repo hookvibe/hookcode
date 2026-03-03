@@ -3,7 +3,8 @@
 
 ## 2026-02-03
 - The ui-ux-pro-max design-system search recommends glassmorphism and Inter, but this conflicts with the request to remove non-essential gradients; we will treat it as a baseline and override with flat neutrals.
-- Planning init script indicates docs/docs.json is absent (likely Docusaurus), so docs navigation updates should avoid Mintlify sync steps.
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- Planning init script indicates docs/docs.json is absent (likely legacy docs), so docs navigation updates should avoid Mintlify sync steps.
 - User requirements: simplify style, remove gradients where non-essential, enforce light (white/gray) and dark (black/gray) palettes, and remove the panel setting for style color.
 - Gradient usage appears in both docs (`docs/src/pages/index.module.css`, `docs/src/css/custom/buttons.css`, `docs/src/css/custom/background.css`) and frontend styles (`frontend/src/styles/tokens.css`, `page-nav.css`, `cards.css`, `repo-detail-activity.css`, `preview-shell.css`).
 - Accent color selection is wired through `frontend/src/theme/accent.ts`, `frontend/src/App.tsx`, and the settings UI in `frontend/src/components/UserPanelPopover.tsx`, with translations in `frontend/src/i18n/messages/*/ui.ts`.

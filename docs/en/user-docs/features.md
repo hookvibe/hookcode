@@ -1,6 +1,7 @@
 ---
 title: Features
 ---
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -44,8 +45,13 @@ This page summarizes key HookCode features from a user perspective.
 
 - Run tasks manually from the console without Webhooks
 - Chat-style timeline view for a task group
+{/* Document preview display-mode support under user-facing chat capabilities. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
+- TaskGroup preview tabs support both `webview` (iframe UI) and `terminal` (plain log stream) instance modes
+{/* Document preview management surfaces so feature docs include repo/admin runtime visibility and port allocation monitoring. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
+- Repository detail shows active preview task groups for that repository (status + allocated ports)
+- Admin settings include a preview management panel with global active task groups and port allocation snapshots
 
-<!-- Document PAT creation and usage steps for API access. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design -->
+{/* Document PAT creation and usage steps for API access. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
 ## Open API access tokens
 
 - Issue personal access tokens (PATs) from the top-right panel

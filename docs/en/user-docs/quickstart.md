@@ -85,4 +85,3 @@ Examples:
 - Trigger a matching event (create an issue, push a commit, comment, etc.).
 - Open **Tasks** to see the queued/processing results.
 - Open a task detail page to inspect logs and outputs (if task logs are enabled).
-

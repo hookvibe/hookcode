@@ -35,6 +35,8 @@ export interface Task {
   repoProvider?: RepoProvider;
   repoId?: string;
   robotId?: string;
+  // Track the triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  actorUserId?: string;
   ref?: string;
   mrId?: number;
   issueId?: number;

@@ -1,4 +1,5 @@
 # Findings & Decisions: time windowed task execution
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your knowledge base for the task. Stores everything you discover and decide. WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited. WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule). */}
 
 {/* Link discoveries to code changes via this session hash. timewindowtask20260126 */}
@@ -13,11 +14,11 @@
 - Configuration precedence: chat-level time window overrides trigger-level, which overrides robot-level.
 - When outside the allowed window, keep the task queued, record the reason, and expose a direct-execute action/button.
 - "Trigger 1" should only enqueue one task; after triggering once it remains queued waiting (with reason + direct execute) until executed.
-<!-- Add follow-up UI requirement for chat composer time-window icon. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Add follow-up UI requirement for chat composer time-window icon. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Task-group chat composer should show only a leftmost time-window icon; clicking opens selection, and only selected window is displayed inline.
-<!-- Record UI tweak to avoid tooltip/popover overlap and move selectors left. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Record UI tweak to avoid tooltip/popover overlap and move selectors left. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Updated composer layout to remove hover tooltip (avoids popover overlap) and keep repo/robot selectors next to the left icon.
-<!-- Track latest layout adjustment moving repo/robot selectors to the right with Send. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Track latest layout adjustment moving repo/robot selectors to the right with Send. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Adjusted composer so time window stays left while repo/robot selectors group with Send on the far right.
 
 ## Research Findings
@@ -42,61 +43,61 @@
 ## Research Findings (2026-01-26)
 - Located automation config handling in `backend/src/services/automationEngine.ts` and `backend/src/modules/repositories/repo-automation.service.ts`.
 - Automation config is fetched/updated via `backend/src/modules/repositories/repositories.controller.ts` endpoints (`/repos/:id/automation`).
-<!-- Record the latest session context refresh for continued implementation. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Record the latest session context refresh for continued implementation. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Reconfirmed active session `timewindowtask20260126` with Phase 2 in progress and remaining TODOs across backend/frontend/tests.
-<!-- Track pending controller mapping check for robot time windows. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Track pending controller mapping check for robot time windows. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Need to verify `repositories.controller.ts` maps robot `timeWindow` fields in create/update handlers after DTO changes.
-<!-- Confirm missing timeWindow handling in repositories controller for follow-up. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm missing timeWindow handling in repositories controller for follow-up. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `repositories.controller.ts` currently has no `timeWindow` reference, so robot create/update mapping must be added manually.
-<!-- Note that repo-robot service already normalizes timeWindow and expects controller input. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Note that repo-robot service already normalizes timeWindow and expects controller input. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `repo-robot.service.ts` already normalizes `input.timeWindow`, so controller must pass through `body.timeWindow` to activate robot-level scheduling.
-<!-- Confirm DTOs already expose robot timeWindow for controller mapping. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm DTOs already expose robot timeWindow for controller mapping. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `CreateRepoRobotDto` and `UpdateRepoRobotDto` already include `timeWindow`, reinforcing the need to wire controller payload mapping.
-<!-- Confirm controller patch flow still lacks timeWindow mapping. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm controller patch flow still lacks timeWindow mapping. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `patchRobot` in `repositories.controller.ts` maps many fields but omits `timeWindow`, so the update payload will currently drop the new setting.
-<!-- Capture createRobot payload gap for timeWindow. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Capture createRobot payload gap for timeWindow. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `createRobot` calls `repoRobotService.createRobot` without `timeWindow`, so robot-level scheduling is not persisted yet.
-<!-- Capture updateRobot payload gap for timeWindow. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Capture updateRobot payload gap for timeWindow. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `patchRobot` calls `repoRobotService.updateRobot` without `timeWindow`, so robot-level updates will ignore the new window.
-<!-- Record that error mapping still needs to include timeWindow validation. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Record that error mapping still needs to include timeWindow validation. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Both create/update robot error filters currently omit `timeWindow` validation messages, which would surface as 500 instead of 400.
-<!-- Confirm repositories swagger DTO exposes timeWindow for robots. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm repositories swagger DTO exposes timeWindow for robots. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `repositories-swagger.dto.ts` already exposes `timeWindow` on robot records, so API docs are aligned once controller mapping is added.
-<!-- Note that execute-now endpoint already enforces queued/time-window conditions. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Note that execute-now endpoint already enforces queued/time-window conditions. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `/tasks/:id/execute-now` checks queued status and presence of a schedule before overriding, aligning with direct-run requirement.
-<!-- Confirm RepoDetailPage includes timeWindow picker wired to form. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm RepoDetailPage includes timeWindow picker wired to form. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Repo robot editor UI renders `TimeWindowPicker` with form name `timeWindow`, so payload mapping depends on form submit logic.
-<!-- Confirm robot form submit includes timeWindow payload. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm robot form submit includes timeWindow payload. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `RepoDetailPage` submit logic already includes `timeWindow: values.timeWindow ?? null` in create/update payloads.
-<!-- Confirm trigger rule modal persists timeWindow into rule payloads. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm trigger rule modal persists timeWindow into rule payloads. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `TriggerRuleModal` includes `timeWindow` in the rule payload, ensuring trigger-level configuration persists.
-<!-- Confirm rule summary surfaces timeWindow label. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm rule summary surfaces timeWindow label. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `RepoAutomationPanel` uses `formatTimeWindowLabel` to display trigger-level time windows in rule summaries.
-<!-- Note current tests and gaps for queue reason coverage. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Note current tests and gaps for queue reason coverage. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `taskServiceListTasks.test.ts` still asserts existing queue reason codes; no scenario yet covers `outside_time_window`.
-<!-- Confirm time window utility tests exist. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm time window utility tests exist. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `timeWindow.test.ts` covers normalization and active-window evaluation including wrap-around and full-day behavior.
-<!-- Note missing repo automation validation tests for timeWindow. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Note missing repo automation validation tests for timeWindow. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `repoAutomationValidation.test.ts` has no coverage for rule `timeWindow` validation yet.
-<!-- Confirm automation config validation now enforces timeWindow ranges. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm automation config validation now enforces timeWindow ranges. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `validateAutomationConfigOrThrow` rejects invalid `rule.timeWindow` with code `RULE_TIME_WINDOW_INVALID`.
-<!-- Note existing chat page test already includes timeWindow in execute payload. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Note existing chat page test already includes timeWindow in execute payload. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `taskGroupChatPage.test.tsx` already asserts `executeChat` receives `timeWindow: null`.
-<!-- Flag missing TasksPage test coverage for execute-now. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Flag missing TasksPage test coverage for execute-now. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `tasksPage.test.tsx` does not yet cover the new queued “execute now” button for time-window blocks.
-<!-- Flag missing TaskDetailPage test coverage for execute-now. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Flag missing TaskDetailPage test coverage for execute-now. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `taskDetailPage.test.tsx` still only asserts retry; needs coverage for queued `outside_time_window` execute-now UI.
-<!-- Confirm TaskDetailPage uses executeNow label for time-window blocks. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm TaskDetailPage uses executeNow label for time-window blocks. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `TaskDetailPage` renders a `tasks.executeNow` button when `queue.reasonCode === 'outside_time_window'`.
-<!-- Note frontend task tests need executeTaskNow mocks. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Note frontend task tests need executeTaskNow mocks. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Task page/detail tests mock `retryTask` only, so they need `executeTaskNow` mocks for new execute-now button coverage.
-<!-- Confirm task service uses outside_time_window reason and schedule gating. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm task service uses outside_time_window reason and schedule gating. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `task.service.ts` now resolves schedule state and uses `outside_time_window` reason + timeWindow details when blocked, and skips blocked tasks in `takeNextQueued`.
-<!-- Confirm webhook handlers avoid duplicate queued tasks for trigger-level windows. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Confirm webhook handlers avoid duplicate queued tasks for trigger-level windows. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Webhook handlers resolve trigger/robot windows and call `hasQueuedTaskForRule` to prevent duplicate queued tasks when a trigger window is inactive.
-<!-- Note takeNextQueued scans first 50 queued tasks to find eligible window. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Note takeNextQueued scans first 50 queued tasks to find eligible window. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - `takeNextQueued` now scans up to 50 queued tasks and skips blocked schedules until it can claim an eligible one.
-<!-- Record test runners for backend/frontend. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 -->
+{/* Record test runners for backend/frontend. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */}
 - Backend tests run via `jest -c jest.config.cjs`, frontend tests via `vitest run`.
 
 ## Research Findings (config schema)

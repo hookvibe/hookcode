@@ -168,6 +168,12 @@ export const enUSCore = {
   'skills.description.empty': 'No description provided.',
   'skills.toast.fetchFailed': 'Failed to load skills',
   'skills.toast.updateFailed': 'Failed to update skill',
+  // Sidebar sub-navigation labels for skills page. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  'skills.sidebar.overview': 'Overview',
+  'skills.sidebar.builtIn': 'Built-in',
+  'skills.sidebar.extra': 'Extra',
+  'skills.sidebar.desc': 'Skill marketplace & registry',
+  'skills.sidebar.group.registry': 'Registry',
   'skills.source.builtIn': 'Built-in',
   'skills.source.extra': 'Extra',
   'skills.selection.repo.title': 'Repository skills',

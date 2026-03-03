@@ -1,4 +1,5 @@
 # Task Plan: Multi-user roles, repo control, registration, invites
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. multiuserauth20260226 */}
@@ -14,7 +15,7 @@ Implement end-to-end multi-user RBAC with repo membership, invite-based onboardi
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-<!-- Track post-review fixes as a follow-on phase. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Track post-review fixes as a follow-on phase. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 Phase 6 (Review Fixes)
 
 ## Phases
@@ -39,7 +40,7 @@ Phase 6 (Review Fixes)
 
 ### Phase 3: Implementation
 {/* WHAT: Actually build/create/write the solution. WHY: This is where the work happens. Break into smaller sub-tasks if needed. */}
-<!-- Mark implementation tasks complete after RBAC/registration/invite rollout. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Mark implementation tasks complete after RBAC/registration/invite rollout. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 - [x] Update Prisma schema + migrations
 - [x] Implement RBAC services + controller guards
 - [x] Implement registration + email verification + invite flow
@@ -50,7 +51,7 @@ Phase 6 (Review Fixes)
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Verify everything works and meets requirements. WHY: Catching issues early saves time. Document test results in progress.md. */}
-<!-- Mark test phase complete after backend suite passes. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Mark test phase complete after backend suite passes. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 - [x] Verify RBAC matrix for repo/task APIs
 - [x] Verify registration + email flow (mocked)
 - [x] Document test results in progress.md
@@ -59,14 +60,14 @@ Phase 6 (Review Fixes)
 
 ### Phase 5: Delivery
 {/* WHAT: Final review and handoff to user. WHY: Ensures nothing is forgotten and deliverables are complete. */}
-<!-- Close delivery phase after changelog + summary. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Close delivery phase after changelog + summary. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 - [x] Update changelog entry with plan link
 - [x] Review output files + doc updates
 - [x] Deliver summary + next steps
 - **Status:** complete
 
 ### Phase 6: Review Fixes
-<!-- Apply review feedback for auth-disabled mode, role validation, and register conflict responses. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Apply review feedback for auth-disabled mode, role validation, and register conflict responses. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 - [x] Fix auth-disabled repo access regression
 - [x] Validate member/invite roles at controller boundaries
 - [x] Map duplicate registration to 409
@@ -91,15 +92,15 @@ Phase 6 (Review Fixes)
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-<!-- Log command failures to avoid repeating lookup mistakes. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Log command failures to avoid repeating lookup mistakes. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 | `rg frontend/src/i18n/zh-CN.ts` failed (file not found) | 1 | List `frontend/src/i18n` to locate the actual locale files. |
 | `apply_patch` failed to match the empty error row | 1 | Re-open the error table section and patch with the exact context lines. |
-<!-- Track apply_patch context mismatch when updating findings. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Track apply_patch context mismatch when updating findings. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 | `apply_patch` failed to update findings.md (context mismatch) | 1 | Append the findings entry directly with `cat >>` to avoid context mismatches. |
-<!-- Track missing swagger file lookup and follow-up patch failure. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Track missing swagger file lookup and follow-up patch failure. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 | `cat backend/src/modules/repositories/dto/repository.swagger.ts` failed (file not found) | 1 | Use `rg` to locate the actual Swagger DTO file. |
 | `apply_patch` failed to append the swagger lookup error row (context mismatch) | 1 | Re-open the error table and patch with exact context lines. |
-<!-- Track failed repoReadOnly insertion attempt. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 -->
+{/* Track failed repoReadOnly insertion attempt. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
 | `apply_patch` failed to insert repoReadOnly helpers in RepoDetailPage | 1 | Locate the exact lines with `rg`/`sed` and re-apply the patch with correct context. |
 
 ## Notes

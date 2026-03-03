@@ -90,6 +90,7 @@ import { PreviewService } from '../tasks/preview.service';
 import { SkillsService } from '../skills/skills.service';
 import { SkillSelectionPatchDto, SkillSelectionResponseDto } from '../skills/dto/skill-selection.dto';
 import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
+import { LogWriterService } from '../logs/log-writer.service'; // Record repo business events in system logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
 import {
   ensureGithubForkRepo,
@@ -223,7 +224,9 @@ export class RepositoriesController {
     private readonly repoWebhookDeliveryService: RepoWebhookDeliveryService,
     private readonly userService: UserService,
     private readonly previewService: PreviewService,
-    private readonly skillsService: SkillsService
+    private readonly skillsService: SkillsService,
+    // Log repo mutations with a shared audit writer for admin visibility. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+    private readonly logWriter: LogWriterService
   ) {}
 
   // Attach repo-level permissions for UI actions. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
@@ -389,6 +392,22 @@ export class RepositoriesController {
         await this.repoMemberService.addMember({ repoId: created.repo.id, userId: user.id, role: 'owner' });
       }
 
+      // Log repo creation metadata without emitting secrets. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Repository created',
+        code: 'REPO_CREATED',
+        actorUserId: user.id,
+        repoId: created.repo.id,
+        meta: {
+          provider: created.repo.provider,
+          name: created.repo.name,
+          enabled: created.repo.enabled,
+          branchesCount: Array.isArray(branches) ? branches.length : null,
+          webhookSecretProvided: body?.webhookSecret !== undefined
+        }
+      });
+
       // Use a relative webhook path; the frontend can prefix with current origin / VITE_API_BASE_URL.
       const webhookPath = `/api/webhook/${created.repo.provider}/${created.repo.id}`;
       const [decorated] = await this.attachRepoPermissions([created.repo], user);
@@ -430,18 +449,21 @@ export class RepositoriesController {
       await this.repoAccessService.requireRepoRead(user, repoId);
 
       // Parallelize repo detail hydration to reduce initial repo dashboard latency. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
-      const [robots, automationConfig, repoSecretRow, repoScopedCredentialsRow] = await Promise.all([
+      // Load repo preview env config alongside credentials for the detail response. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      const [robots, automationConfig, repoSecretRow, repoScopedCredentialsRow, repoPreviewEnvRow] = await Promise.all([
         this.repoRobotService.listByRepo(repoId),
         this.repoAutomationService.getConfig(repoId),
         this.repositoryService.getByIdWithSecret(repoId),
-        this.repositoryService.getRepoScopedCredentials(repoId)
+        this.repositoryService.getRepoScopedCredentials(repoId),
+        this.repositoryService.getRepoPreviewEnvConfig(repoId)
       ]);
       const webhookPath = `/api/webhook/${repo.provider}/${repoId}`;
       const webhookSecret = repoSecretRow?.webhookSecret ?? null;
       const repoScopedCredentials = repoScopedCredentialsRow?.public ?? undefined;
+      const previewEnvConfig = repoPreviewEnvRow?.public ?? undefined;
 
       const [decorated] = await this.attachRepoPermissions([repo], user);
-      return { repo: decorated, robots, automationConfig, webhookSecret, webhookPath, repoScopedCredentials };
+      return { repo: decorated, robots, automationConfig, webhookSecret, webhookPath, repoScopedCredentials, previewEnvConfig };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get failed', err);
@@ -542,6 +564,18 @@ export class RepositoriesController {
       await this.repoAccessService.requireRepoManage(user, id);
       const result = await this.repositoryService.archiveRepo(id, req.user ?? null);
       if (!result) throw new NotFoundException({ error: 'Repo not found' });
+      // Log repo archive actions with affected record counts. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Repository archived',
+        code: 'REPO_ARCHIVED',
+        actorUserId: user.id,
+        repoId: result.repo.id,
+        meta: {
+          tasksArchived: result.tasksArchived,
+          taskGroupsArchived: result.taskGroupsArchived
+        }
+      });
       return result;
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -565,6 +599,18 @@ export class RepositoriesController {
       await this.repoAccessService.requireRepoManage(user, id);
       const result = await this.repositoryService.unarchiveRepo(id, req.user ?? null);
       if (!result) throw new NotFoundException({ error: 'Repo not found' });
+      // Log repo restore actions with affected record counts. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Repository unarchived',
+        code: 'REPO_UNARCHIVED',
+        actorUserId: user.id,
+        repoId: result.repo.id,
+        meta: {
+          tasksRestored: result.tasksRestored,
+          taskGroupsRestored: result.taskGroupsRestored
+        }
+      });
       return result;
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -591,6 +637,15 @@ export class RepositoriesController {
       const deleted = await this.repositoryService.deleteRepo(id);
       if (!deleted) throw new NotFoundException({ error: 'Repo not found' });
       const [decorated] = await this.attachRepoPermissions([deleted], user);
+      // Log repo deletions for audit trails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'warn',
+        message: 'Repository deleted',
+        code: 'REPO_DELETED',
+        actorUserId: user.id,
+        repoId: deleted.id,
+        meta: { name: deleted.name, provider: deleted.provider }
+      });
       return { repo: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -1069,6 +1124,20 @@ export class RepositoriesController {
       // Change record: repo-scoped credentials are now updated via profile patch objects (profiles/remove/default).
       const repoProviderCredential = body?.repoProviderCredential as any;
       const modelProviderCredential = body?.modelProviderCredential as any;
+      // Accept preview env config updates from repo settings. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      const previewEnvConfig = body?.previewEnvConfig as any;
+      // Summarize repo update inputs for audit metadata. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      const changedFields = [
+        body?.name !== undefined ? 'name' : null,
+        body?.externalId !== undefined ? 'externalId' : null,
+        body?.apiBaseUrl !== undefined ? 'apiBaseUrl' : null,
+        body?.branches !== undefined ? 'branches' : null,
+        body?.enabled !== undefined ? 'enabled' : null,
+        body?.webhookSecret !== undefined ? 'webhookSecret' : null,
+        body?.repoProviderCredential !== undefined ? 'repoProviderCredential' : null,
+        body?.modelProviderCredential !== undefined ? 'modelProviderCredential' : null,
+        body?.previewEnvConfig !== undefined ? 'previewEnvConfig' : null
+      ].filter((field): field is string => Boolean(field));
 
       const updated = await this.repositoryService.updateRepository(repoId, {
         name,
@@ -1078,17 +1147,35 @@ export class RepositoriesController {
         enabled,
         webhookSecret,
         repoProviderCredential,
-        modelProviderCredential
+        modelProviderCredential,
+        previewEnvConfig
       });
       if (!updated) throw new NotFoundException({ error: 'Repo not found' });
 
       const repoScopedCredentials = (await this.repositoryService.getRepoScopedCredentials(repoId))?.public ?? undefined;
+      const updatedPreviewEnvConfig = (await this.repositoryService.getRepoPreviewEnvConfig(repoId))?.public ?? undefined;
       const [decorated] = await this.attachRepoPermissions([updated.repo], user);
+
+      // Log repo updates while avoiding sensitive credential details. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Repository updated',
+        code: 'REPO_UPDATED',
+        actorUserId: user.id,
+        repoId: updated.repo.id,
+        meta: {
+          changedFields,
+          enabled: enabled,
+          branchesCount: Array.isArray(branches) ? branches.length : null,
+          previewEnvEntries: Array.isArray(previewEnvConfig?.entries) ? previewEnvConfig.entries.length : null
+        }
+      });
 
       return {
         repo: decorated,
         webhookSecret: updated.webhookSecret,
-        repoScopedCredentials
+        repoScopedCredentials,
+        previewEnvConfig: updatedPreviewEnvConfig
       };
     } catch (err: any) {
       if (err instanceof HttpException) throw err;
@@ -1099,10 +1186,17 @@ export class RepositoriesController {
       if (message.includes('name is required')) {
         throw new BadRequestException({ error: message });
       }
+      // Match repo env validation errors precisely for 400 responses. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      const isRepoEnvError =
+        message.includes('repo env key') ||
+        message.includes('repo env value is required') ||
+        message.includes('must not hardcode local preview ports');
       if (
         message.includes('repo provider credential profile remark is required') ||
-        message.includes('model provider credential profile remark is required')
+        message.includes('model provider credential profile remark is required') ||
+        isRepoEnvError
       ) {
+        // Surface repo env validation failures as 400s for the settings UI. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
         throw new BadRequestException({ error: message });
       }
       console.error('[repos] update failed', err);
@@ -1379,6 +1473,23 @@ export class RepositoriesController {
         await this.repoRobotService.setDefaultRobot(repoId, robot.id);
       }
 
+      // Log robot creation for repo audit trails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Repository robot created',
+        code: 'REPO_ROBOT_CREATED',
+        actorUserId: user.id,
+        repoId,
+        meta: {
+          robotId: robot.id,
+          name: robot.name,
+          enabled: robot.enabled,
+          isDefault: robot.isDefault,
+          repoCredentialSource: robot.repoCredentialSource ?? null,
+          modelProvider: robot.modelProvider ?? null
+        }
+      });
+
       return { robot };
     } catch (err: any) {
       if (err instanceof HttpException) throw err;
@@ -1482,6 +1593,26 @@ export class RepositoriesController {
       const isDefault = typeof body?.isDefault === 'boolean' ? body.isDefault : undefined;
       // Forward robot-level time window updates to the service for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
       const timeWindow = body?.timeWindow;
+      // Summarize robot patch inputs for audit metadata. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      const changedFields = [
+        body?.name !== undefined ? 'name' : null,
+        body?.token !== undefined ? 'token' : null,
+        body?.repoCredentialSource !== undefined ? 'repoCredentialSource' : null,
+        body?.repoCredentialProfileId !== undefined ? 'repoCredentialProfileId' : null,
+        body?.repoCredentialRemark !== undefined ? 'repoCredentialRemark' : null,
+        body?.cloneUsername !== undefined ? 'cloneUsername' : null,
+        body?.language !== undefined ? 'language' : null,
+        body?.modelProvider !== undefined ? 'modelProvider' : null,
+        body?.modelProviderConfig !== undefined ? 'modelProviderConfig' : null,
+        body?.dependencyConfig !== undefined ? 'dependencyConfig' : null,
+        body?.defaultBranch !== undefined ? 'defaultBranch' : null,
+        body?.defaultBranchRole !== undefined ? 'defaultBranchRole' : null,
+        body?.repoWorkflowMode !== undefined ? 'repoWorkflowMode' : null,
+        body?.promptDefault !== undefined ? 'promptDefault' : null,
+        body?.enabled !== undefined ? 'enabled' : null,
+        body?.isDefault !== undefined ? 'isDefault' : null,
+        body?.timeWindow !== undefined ? 'timeWindow' : null
+      ].filter((field): field is string => Boolean(field));
 
       const token =
         body?.token === undefined ? undefined : normalizeNullableTrimmedString(body?.token, 'token');
@@ -1639,6 +1770,23 @@ export class RepositoriesController {
       if (robot.isDefault) {
         await this.repoRobotService.setDefaultRobot(repoId, robot.id);
       }
+
+      // Log robot updates without leaking credentials. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Repository robot updated',
+        code: 'REPO_ROBOT_UPDATED',
+        actorUserId: user.id,
+        repoId,
+        meta: {
+          robotId: robot.id,
+          changedFields,
+          enabled: robot.enabled,
+          isDefault: robot.isDefault,
+          repoCredentialSource: robot.repoCredentialSource ?? null,
+          modelProvider: robot.modelProvider ?? null
+        }
+      });
 
       return { robot };
     } catch (err: any) {
@@ -2028,6 +2176,19 @@ export class RepositoriesController {
 
       const deleted = await this.repoRobotService.deleteRobot(existing.id);
       if (!deleted) throw new NotFoundException({ error: 'Robot not found' });
+      // Log robot deletions for audit trails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'warn',
+        message: 'Repository robot deleted',
+        code: 'REPO_ROBOT_DELETED',
+        actorUserId: user.id,
+        repoId,
+        meta: {
+          robotId: existing.id,
+          name: existing.name,
+          wasDefault: existing.isDefault
+        }
+      });
       return { ok: true };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -2084,6 +2245,15 @@ export class RepositoriesController {
         await this.repoAccessService.requireRepoOwner(user, id);
       }
       await this.repoMemberService.updateMemberRole({ repoId: id, userId, role: role as any });
+      // Log membership role changes for audit visibility. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Repository member role updated',
+        code: 'REPO_MEMBER_ROLE_UPDATED',
+        actorUserId: user.id,
+        repoId: id,
+        meta: { memberUserId: userId, role }
+      });
       return { ok: true };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -2112,6 +2282,15 @@ export class RepositoriesController {
         await this.repoAccessService.requireRepoOwner(user, id);
       }
       await this.repoMemberService.removeMember({ repoId: id, userId });
+      // Log repo member removals for audit trails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'warn',
+        message: 'Repository member removed',
+        code: 'REPO_MEMBER_REMOVED',
+        actorUserId: user.id,
+        repoId: id,
+        meta: { memberUserId: userId, previousRole: existing.role }
+      });
       return { ok: true };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -2170,6 +2349,15 @@ export class RepositoriesController {
         email: String(body?.email ?? '').trim(),
         role: roleRaw as any
       });
+      // Log invite creation without recording email addresses. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Repository invite created',
+        code: 'REPO_INVITE_CREATED',
+        actorUserId: user.id,
+        repoId: id,
+        meta: { inviteId: invite.id, role: invite.role }
+      });
       return { invite };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -2193,6 +2381,15 @@ export class RepositoriesController {
       const user = ensureRequestUser(req);
       await this.repoAccessService.requireRepoManage(user, id);
       await this.repoMemberService.revokeInvite({ repoId: id, inviteId });
+      // Log invite revocations for audit trails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'warn',
+        message: 'Repository invite revoked',
+        code: 'REPO_INVITE_REVOKED',
+        actorUserId: user.id,
+        repoId: id,
+        meta: { inviteId }
+      });
       return { ok: true };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -2221,6 +2418,15 @@ export class RepositoriesController {
       const token = String(body?.token ?? '').trim();
       if (!email || !token) throw new BadRequestException({ error: 'email and token are required' });
       const repoId = await this.repoMemberService.acceptInvite({ token, email, userId: user.id });
+      // Log invite acceptance without storing invite tokens or emails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Repository invite accepted',
+        code: 'REPO_INVITE_ACCEPTED',
+        actorUserId: user.id,
+        repoId,
+        meta: { inviteeUserId: user.id }
+      });
       return { repoId };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -2283,6 +2489,28 @@ export class RepositoriesController {
       }
 
       const saved = await this.repoAutomationService.updateConfig(repoId, config as any);
+      // Summarize automation rule counts for audit metadata. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      const eventEntries = Object.entries(saved?.events ?? {});
+      const ruleCounts: Record<string, number> = {};
+      let totalRules = 0;
+      eventEntries.forEach(([key, value]) => {
+        const rules = Array.isArray((value as any)?.rules) ? (value as any).rules.length : 0;
+        ruleCounts[key] = rules;
+        totalRules += rules;
+      });
+      // Log automation config updates with rule counts only. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Repository automation updated',
+        code: 'REPO_AUTOMATION_UPDATED',
+        actorUserId: user.id,
+        repoId,
+        meta: {
+          version: (saved as any)?.version ?? null,
+          totalRules,
+          ruleCounts
+        }
+      });
       return { config: saved };
     } catch (err: any) {
       if (err instanceof RepoAutomationConfigValidationError) {

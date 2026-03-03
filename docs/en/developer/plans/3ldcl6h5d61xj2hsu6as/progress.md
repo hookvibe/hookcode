@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. 3ldcl6h5d61xj2hsu6as */}
@@ -10,7 +11,7 @@
 ## Session: 2026-01-29
 {/* WHAT: The date of this work session. WHY: Helps track when work happened, useful for resuming after time gaps. EXAMPLE: 2026-01-15 */}
 
-<!-- Log initial planning/setup work that happened before MVP build. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log initial planning/setup work that happened before MVP build. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Preparation: Planning Setup
 {/* WHAT: Detailed log of actions taken during this phase. WHY: Provides context for what was done, making it easier to resume or debug. WHEN: Update as you work through the phase, or at least when you complete it. */}
 - **Status:** complete
@@ -28,18 +29,18 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/findings.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Start Phase 1 (MVP) implementation. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Start Phase 1 (MVP) implementation. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 1 (MVP)
 {/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
 - **Status:** complete
 - **Started:** 2026-01-29 17:05
 - **Completed:** 2026-01-29 18:15
 - Actions taken:
-  <!-- Note user-provided constraints used for build planning. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+  {/* Note user-provided constraints used for build planning. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
   - Recorded constraints: single-instance deployment, dependency installation required, framework-agnostic preview, and shareable preview links.
-  <!-- Note plan alignment with user-defined phases. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+  {/* Note plan alignment with user-defined phases. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
   - Updated task_plan.md to align Phase 1-3 checklists with the user-provided scope.
-  <!-- Log Phase 1 implementation steps as they land. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+  {/* Log Phase 1 implementation steps as they land. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
   - Added preview config schema/types, preview orchestration service, and proxy utility on the backend.
   - Added preview UI panel, toggle, and API bindings on the frontend.
   - Extended user docs for .hookcode.yml preview configuration.
@@ -67,7 +68,7 @@
   - docs/en/user-docs/config/hookcode-yml.md
   - docs/en/user-docs/index.md
 
-<!-- Log Phase 2 implementation work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 2 implementation work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 2
 - **Status:** complete
 - **Started:** 2026-01-29 18:25
@@ -101,7 +102,7 @@
   - frontend/src/tests/appShell.test.tsx
   - backend/src/tests/unit/previewLogStream.test.ts
 
-<!-- Log Phase 3 implementation work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 3 implementation work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 3
 - **Status:** complete
 - **Started:** 2026-01-29 19:50
@@ -129,7 +130,7 @@
   - frontend/src/tests/taskGroupChatPage.test.tsx
   - docs/en/user-docs/config/hookcode-yml.md
 
-<!-- Log Phase 4 verification activity. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 4 verification activity. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 4: Testing & Verification
 - **Status:** complete
 - **Started:** 2026-01-29 19:30
@@ -143,7 +144,7 @@
   - Added TaskGroup preview user docs and navigation links.
   - Added ws/@types/ws dev dependencies for WebSocket proxy tests.
 
-<!-- Log delivery tasks for Phase 5 completion. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log delivery tasks for Phase 5 completion. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 5: Delivery
 - **Status:** complete
 - **Completed:** 2026-01-29 20:40
@@ -152,7 +153,7 @@
 - Files created/modified:
   - docs/en/change-log/0.0.0.md
 
-<!-- Log Phase 7 merge-control updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 7 merge-control updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 7: Merge Preview Start + Panel Open
 - **Status:** complete
 - **Started:** 2026-01-29 21:20
@@ -169,7 +170,7 @@
   - frontend/src/i18n/messages/zh-CN.ts
   - docs/en/user-docs/preview.md
 
-<!-- Log Phase 8 preview debugging work for port mismatches. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 8 preview debugging work for port mismatches. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 8: Debug Preview Failure
 - **Status:** complete
 - **Started:** 2026-01-29 23:55
@@ -189,7 +190,7 @@
   - backend/src/tests/unit/buildRootResolution.test.ts
 
 ## Session: 2026-01-30
-<!-- Log Phase 9 dependency install path investigation actions. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 9 dependency install path investigation actions. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 9: Dependency Install Path Check
 - **Status:** complete
 - **Started:** 2026-01-30 23:10
@@ -199,7 +200,7 @@
   - Switched dependency install command execution to explicit cwd for agent + preview flows.
   - Added a runCommandCapture unit test to cover cwd handling.
 
-<!-- Log Phase 23 preview routing updates for local direct ports and production subdomains. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 23 preview routing updates for local direct ports and production subdomains. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 23: Direct Port + Subdomain Preview Routing
 - **Status:** complete
 - **Started:** 2026-01-30 01:40
@@ -231,8 +232,8 @@
   - `pnpm --filter hookcode-backend test -- previewHost`
   - `pnpm --filter hookcode-frontend test -- taskGroupChatPage`
 
-<!-- Log Phase 24 highlight bridge implementation and test results. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
-<!-- Log Phase 25 highlight skill packaging and script coverage. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 24 highlight bridge implementation and test results. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
+{/* Log Phase 25 highlight skill packaging and script coverage. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 25: Preview Highlight Skill + Scripts
 - **Status:** complete
 - **Started:** 2026-02-01 21:40
@@ -256,7 +257,7 @@
 - Tests:
   - `HOOKCODE_API_BASE_URL=http://127.0.0.1:4000 HOOKCODE_PAT=redacted node .codex/skills/hookcode-preview-highlight/scripts/preview_highlight.mjs --task-group test-task --selector .page-kicker --dry-run` (passed)
 
-<!-- Log Phase 24 highlight bridge implementation and test results. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 24 highlight bridge implementation and test results. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 24: Preview Highlight Bridge + API
 - **Status:** complete
 - **Started:** 2026-01-31 18:05
@@ -294,7 +295,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/findings.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 10 preview reinstall action work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 10 preview reinstall action work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 10: Preview Manual Reinstall
 - **Status:** complete
 - **Started:** 2026-01-30 23:55
@@ -317,7 +318,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 11 pnpm workspace ignore fix work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 11 pnpm workspace ignore fix work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 11: pnpm Workspace Escape Guard
 - **Status:** complete
 - **Started:** 2026-01-31 00:30
@@ -333,7 +334,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 12 preview availability refresh fixes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 12 preview availability refresh fixes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 12: Preview Availability Refresh
 - **Status:** complete
 - **Started:** 2026-01-31 01:05
@@ -347,7 +348,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 13 preview port honoring work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 13 preview port honoring work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 13: Honor Preview Config Ports
 - **Status:** complete
 - **Started:** 2026-01-31 01:25
@@ -364,7 +365,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 14 removal of fixed preview ports. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 14 removal of fixed preview ports. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 14: Remove Fixed Preview Ports
 - **Status:** complete
 - **Started:** 2026-01-31 02:00
@@ -387,7 +388,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 15 preview env placeholder enforcement. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 15 preview env placeholder enforcement. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 15: Preview Env Port Placeholders
 - **Status:** complete
 - **Started:** 2026-01-31 02:25
@@ -407,7 +408,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 16 hookcode-yml-generator alignment. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 16 hookcode-yml-generator alignment. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 16: Update hookcode-yml-generator Skill
 - **Status:** complete
 - **Started:** 2026-01-31 02:50
@@ -422,7 +423,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 17 preview auth cookie work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 17 preview auth cookie work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 17: Preview Proxy Token Cookie
 - **Status:** complete
 - **Started:** 2026-01-31 03:15
@@ -438,7 +439,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 18 preview HTML base prefix fix. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 18 preview HTML base prefix fix. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 18: Preview HTML Base Prefix Fix
 - **Status:** complete
 - **Started:** 2026-01-31 03:40
@@ -453,7 +454,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 19 preview asset rewrite work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 19 preview asset rewrite work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 19: Preview Asset Path Rewrite
 - **Status:** complete
 - **Started:** 2026-01-31 04:05
@@ -468,7 +469,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 20 preview JS/CSS rewrite work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 20 preview JS/CSS rewrite work. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 20: Preview Text Response Rewrites
 - **Status:** complete
 - **Started:** 2026-01-31 04:25
@@ -484,7 +485,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 21 double-prefix prevention. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 21 double-prefix prevention. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 21: Prevent Double Preview Prefixes
 - **Status:** complete
 - **Started:** 2026-01-31 04:50
@@ -499,7 +500,7 @@
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md
   - docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/progress.md
 
-<!-- Log Phase 22 base href rewrite fix. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Log Phase 22 base href rewrite fix. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 ### Phase 22: Prevent Base Href Double Prefix
 - **Status:** complete
 - **Started:** 2026-01-31 05:10
@@ -518,31 +519,31 @@
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
-<!-- Record build root resolution unit test run. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record build root resolution unit test run. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (buildRootResolution) | `pnpm --filter hookcode-backend test -- buildRootResolution` | Tests pass | Passed | ✓ |
-<!-- Record PreviewService unit test run for workspace fallback. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record PreviewService unit test run for workspace fallback. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (previewService) | `pnpm --filter hookcode-backend test -- previewService` | Tests pass | Passed | ✓ |
-<!-- Record previewPortPool unit test run after workspace fallback changes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record previewPortPool unit test run after workspace fallback changes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (previewPortPool) | `pnpm --filter hookcode-backend test -- previewPortPool` | Tests pass | Passed | ✓ |
-<!-- Record runCommandCapture unit test for cwd handling. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record runCommandCapture unit test for cwd handling. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (runCommandCapture) | `pnpm --filter hookcode-backend test -- runCommandCapture` | Tests pass | Passed | ✓ |
-<!-- Record previewService unit test rerun for manual reinstall action. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record previewService unit test rerun for manual reinstall action. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (previewService) | `pnpm --filter hookcode-backend test -- previewService` | Tests pass | Passed | ✓ |
-<!-- Record TaskGroupChatPage frontend test for preview reinstall modal. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record TaskGroupChatPage frontend test for preview reinstall modal. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Frontend unit tests (taskGroupChatPage) | `pnpm --filter hookcode-frontend test -- taskGroupChatPage` | Tests pass | Passed | ✓ |
-<!-- Record dependencyInstaller unit test run for pnpm workspace ignore. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record dependencyInstaller unit test run for pnpm workspace ignore. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (dependencyInstaller) | `pnpm --filter hookcode-backend test -- dependencyInstaller` | Tests pass | Passed | ✓ |
-<!-- Record TaskGroupChatPage frontend test rerun after preview availability tweaks. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record TaskGroupChatPage frontend test rerun after preview availability tweaks. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Frontend unit tests (taskGroupChatPage) | `pnpm --filter hookcode-frontend test -- taskGroupChatPage` | Tests pass | Passed | ✓ |
-<!-- Record PreviewPortPool test run after honoring configured ports. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record PreviewPortPool test run after honoring configured ports. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (previewPortPool) | `pnpm --filter hookcode-backend test -- previewPortPool` | Tests pass | Passed | ✓ |
-<!-- Record HookcodeConfigService test run after env placeholder updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record HookcodeConfigService test run after env placeholder updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (hookcodeConfigService) | `pnpm --filter hookcode-backend test -- hookcodeConfigService` | Tests pass | Passed | ✓ |
-<!-- Record previewEnv helper test run. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record previewEnv helper test run. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (previewEnv) | `pnpm --filter hookcode-backend test -- previewEnv` | Tests pass | Passed | ✓ |
-<!-- Record authToken test run for preview cookie support. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record authToken test run for preview cookie support. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (authToken) | `pnpm --filter hookcode-backend test -- authToken` | Tests pass | Passed | ✓ |
-<!-- Record preview proxy controller test run. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as -->
+{/* Record preview proxy controller test run. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 | Backend unit tests (previewProxyController) | `pnpm --filter hookcode-backend test -- previewProxyController` | Tests pass | Passed | ✓ |
 | Backend unit tests (previewPortPool) | `pnpm --filter hookcode-backend test -- previewPortPool` | Tests pass | Passed | ✓ |
 | Frontend unit tests (TaskGroupChatPage) | `pnpm --filter hookcode-frontend test -- run src/tests/taskGroupChatPage.test.tsx` | Tests pass | Passed after fix | ✓ |

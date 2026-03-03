@@ -27,6 +27,9 @@ import {
   MenuUnfoldOutlined,
   SettingOutlined,
   UserOutlined,
+  FileTextOutlined,
+  BellOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { useT } from '../../i18n';
 import { buildHomeHash, buildSettingsHash, type SettingsTab, SETTINGS_TABS } from '../../router';
@@ -68,6 +71,11 @@ const SETTINGS_NAV_GROUPS: NavGroup[] = [
   {
     titleKey: 'panel.nav.group.preferences',
     items: [
+      // Add notifications tab next to logs in settings navigation. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+      { key: 'notifications', icon: <BellOutlined />, labelKey: 'panel.tabs.notifications' },
+      // Add preview management navigation for admin users in settings. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+      { key: 'preview', icon: <EyeOutlined />, labelKey: 'panel.tabs.preview' },
+      { key: 'logs', icon: <FileTextOutlined />, labelKey: 'panel.tabs.logs' },
       { key: 'settings', icon: <SettingOutlined />, labelKey: 'panel.tabs.settings' },
     ],
   },
@@ -107,7 +115,8 @@ export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
 
   // Derive user display strings. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
   const displayName = user?.displayName || user?.username || t('panel.anonymous');
-  const roleText = user?.roles?.includes('admin') ? t('panel.role.admin') : t('panel.role.user');
+  const isAdmin = Boolean(user?.roles?.includes('admin'));
+  const roleText = isAdmin ? t('panel.role.admin') : t('panel.role.user');
 
   return (
     <nav className={`hc-modern-sidebar hc-settings-sidebar ${collapsed ? 'hc-settings-sidebar--collapsed' : ''} ${className}`}>
@@ -154,7 +163,10 @@ export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
             {group.titleKey && !collapsed && (
               <span className="hc-sidebar-section-title">{t(group.titleKey as any)}</span>
             )}
-            {group.items.map((item) => (
+            {group.items.map((item) => {
+              // Hide admin-only preview/log navigation for non-admin users. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+              if ((item.key === 'logs' || item.key === 'preview') && !isAdmin) return null;
+              return (
               <button
                 key={item.key}
                 className={`hc-nav-item ${activeTab === item.key ? 'hc-nav-item--active' : ''}`}
@@ -164,7 +176,8 @@ export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
                 <span className="hc-nav-icon">{item.icon}</span>
                 {!collapsed && <span className="hc-nav-label">{t(item.labelKey as any)}</span>}
               </button>
-            ))}
+              );
+            })}
           </div>
         ))}
 

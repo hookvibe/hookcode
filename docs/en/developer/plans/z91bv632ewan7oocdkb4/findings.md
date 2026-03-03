@@ -1,8 +1,9 @@
-# Findings & Decisions: Docusaurus: Split docs into 4 navbar categories
+# Findings & Decisions: Legacy Docs: Split docs into 4 navbar categories
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
-# Findings & Decisions: Docusaurus: Split docs into 4 navbar categories
+# Findings & Decisions: Legacy Docs: Split docs into 4 navbar categories
 {/* WHAT: Your knowledge base for the task. Stores everything you discover and decide. WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited. WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule). */}
 
 {/* Link discoveries to code changes via this session hash. z91bv632ewan7oocdkb4 */}
@@ -20,7 +21,8 @@
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
 {/* Key discoveries during exploration */}
-- Docusaurus supports multiple sidebars in `sidebars.ts`, and the navbar can expose each via `type: "docSidebar"` items.
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- The legacy docs framework supports multiple sidebars in `sidebars.ts`, and the navbar can expose each via sidebar navigation items.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}

@@ -1,6 +1,7 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
-<!-- Keep phase status updates in sync with task_plan.md for this session. repo-detail-subnav-20260228 -->
+{/* Keep phase status updates in sync with task_plan.md for this session. repo-detail-subnav-20260228 */}
 
 ## Session Metadata
 - **Session Title:** Refactor repo detail page into sidebar sub-navigation tabs

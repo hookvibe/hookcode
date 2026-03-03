@@ -1,5 +1,6 @@
 # Progress Log
-<!-- Log completed audit actions and verification evidence for the Claude skills cleanup session. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Log completed audit actions and verification evidence for the Claude skills cleanup session. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 */}
 
 ## Session Metadata
 - **Session Title:** Claude skills compatibility audit and fixes

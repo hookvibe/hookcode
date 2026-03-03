@@ -40,11 +40,13 @@ describe('PreviewService', () => {
       ])
     };
 
+    // Provide repo-env stub for preview construction. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     const previewService = new PreviewService(
       taskService as any,
       new HookcodeConfigService(),
       {} as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
 
     const status = await previewService.getStatus(taskGroupId);
@@ -94,12 +96,15 @@ describe('PreviewService', () => {
       taskService as any,
       new HookcodeConfigService(),
       {} as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
 
     const status = await previewService.getStatus(taskGroupId);
     expect(status.available).toBe(true);
     expect(status.instances[0]?.name).toBe('app');
+    // Ensure runtime summaries expose a stable default display mode when config omits it. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    expect(status.instances[0]?.display).toBe('webview');
 
     await previewService.onModuleDestroy();
     await rm(workspaceDir, { recursive: true, force: true });
@@ -148,7 +153,8 @@ describe('PreviewService', () => {
       taskService as any,
       new HookcodeConfigService(),
       runtimeService as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
 
     const result = await previewService.installPreviewDependencies(taskGroupId);
@@ -169,7 +175,8 @@ describe('PreviewService', () => {
       {} as any,
       new HookcodeConfigService(),
       {} as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
     clearInterval((previewService as any).idleTimer);
     const stopPreviewSpy = jest.spyOn(previewService, 'stopPreview').mockResolvedValue();
@@ -208,7 +215,8 @@ describe('PreviewService', () => {
       {} as any,
       new HookcodeConfigService(),
       {} as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
     clearInterval((previewService as any).idleTimer);
     const stopPreviewSpy = jest.spyOn(previewService, 'stopPreview').mockResolvedValue();
@@ -221,6 +229,10 @@ describe('PreviewService', () => {
       snapshot: { available: true, instances: [] }
     });
     jest.spyOn(previewService as any, 'installDependenciesIfNeeded').mockResolvedValue(null);
+    // Stub new port-map + repo-env hooks so hidden-timeout coverage remains deterministic. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    jest.spyOn(previewService as any, 'allocatePreviewPorts').mockResolvedValue({ app: 12347 });
+    jest.spyOn(previewService as any, 'resolveRepoPreviewEnv').mockResolvedValue({});
+    jest.spyOn(previewService as any, 'assertNamedPortPlaceholders').mockImplementation(() => {});
     jest.spyOn(previewService as any, 'startInstance').mockResolvedValue({
       config: instanceConfig,
       port: 12347,
@@ -251,7 +263,8 @@ describe('PreviewService', () => {
       {} as any,
       new HookcodeConfigService(),
       {} as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
     clearInterval((previewService as any).idleTimer);
     const stopPreviewSpy = jest.spyOn(previewService, 'stopPreview').mockResolvedValue();
@@ -281,5 +294,177 @@ describe('PreviewService', () => {
     stopPreviewSpy.mockRestore();
     (previewService as any).groups.delete(taskGroupId);
     jest.useRealTimers();
+  });
+
+  test('returns admin overview with active groups and port allocation snapshots', async () => {
+    // Verify preview management overview combines runtime groups and port pool snapshots. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const taskService = {
+      getTaskGroup: jest.fn(async (id: string) => ({
+        id,
+        title: id === 'group-a' ? 'Group A' : 'Group B',
+        repoId: id === 'group-a' ? 'repo-1' : 'repo-2'
+      }))
+    };
+    const previewService = new PreviewService(
+      taskService as any,
+      new HookcodeConfigService(),
+      {} as any,
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any
+    );
+    clearInterval((previewService as any).idleTimer);
+
+    (previewService as any).groups.set('group-a', {
+      taskGroupId: 'group-a',
+      workspaceDir: '/tmp/a',
+      configPath: '/tmp/a/.hookcode.yml',
+      instances: [
+        {
+          config: { name: 'frontend', command: 'pnpm dev', workdir: '.' },
+          port: 10000,
+          status: 'running',
+          startedAt: new Date().toISOString(),
+          lastAccessAt: Date.now(),
+          logs: []
+        }
+      ]
+    });
+    (previewService as any).groups.set('group-b', {
+      taskGroupId: 'group-b',
+      workspaceDir: '/tmp/b',
+      configPath: '/tmp/b/.hookcode.yml',
+      instances: [
+        {
+          config: { name: 'admin', command: 'pnpm dev', workdir: '.' },
+          port: 10001,
+          status: 'starting',
+          startedAt: new Date().toISOString(),
+          lastAccessAt: Date.now(),
+          logs: []
+        }
+      ]
+    });
+    (previewService as any).portPool.inUse.add(10000);
+    (previewService as any).portPool.inUse.add(10001);
+    (previewService as any).portPool.allocations.set('group-a', [10000]);
+    (previewService as any).portPool.allocations.set('group-b', [10001]);
+
+    const overview = await previewService.getPreviewAdminOverview();
+    expect(overview.activeTaskGroups).toHaveLength(2);
+    expect(overview.activeTaskGroups[0]?.taskGroupId).toBe('group-a');
+    expect(overview.activeTaskGroups[0]?.aggregateStatus).toBe('running');
+    expect(overview.activeTaskGroups[1]?.taskGroupId).toBe('group-b');
+    expect(overview.activeTaskGroups[1]?.aggregateStatus).toBe('starting');
+    // Keep admin snapshots explicit about display mode for per-instance terminal/webview management. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    expect(overview.activeTaskGroups[0]?.instances[0]?.display).toBe('webview');
+    expect(overview.portAllocation.inUseCount).toBe(2);
+    expect(overview.portAllocation.allocations).toEqual(
+      expect.arrayContaining([
+        { taskGroupId: 'group-a', ports: [10000] },
+        { taskGroupId: 'group-b', ports: [10001] }
+      ])
+    );
+
+    await previewService.onModuleDestroy();
+  });
+
+  test('includes active preview groups in repo preview config responses', async () => {
+    // Ensure repo detail preview APIs can show running preview task groups even when config discovery is unavailable. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const taskService = {
+      listTaskGroups: jest.fn(async () => []),
+      getTaskGroup: jest.fn(async () => ({ id: 'group-a', title: 'Group A', repoId: 'repo-1' }))
+    };
+    const previewService = new PreviewService(
+      taskService as any,
+      new HookcodeConfigService(),
+      {} as any,
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any
+    );
+    clearInterval((previewService as any).idleTimer);
+
+    (previewService as any).groups.set('group-a', {
+      taskGroupId: 'group-a',
+      workspaceDir: '/tmp/a',
+      configPath: '/tmp/a/.hookcode.yml',
+      instances: [
+        {
+          config: { name: 'frontend', command: 'pnpm dev', workdir: '.' },
+          port: 10002,
+          status: 'running',
+          startedAt: new Date().toISOString(),
+          lastAccessAt: Date.now(),
+          logs: []
+        }
+      ]
+    });
+
+    const response = await previewService.getRepoPreviewConfig('repo-1');
+    expect(response.available).toBe(false);
+    expect(response.reason).toBe('no_workspace');
+    expect(response.activeTaskGroups).toHaveLength(1);
+    expect(response.activeTaskGroups[0]?.taskGroupId).toBe('group-a');
+    expect(response.activeTaskGroups[0]?.instances[0]?.status).toBe('running');
+    // Ensure repo preview management payloads include display mode for active runtime entries. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    expect(response.activeTaskGroups[0]?.instances[0]?.display).toBe('webview');
+
+    await previewService.onModuleDestroy();
+  });
+
+  test('returns repo preview config instances with explicit display mode', async () => {
+    // Verify repo-level preview config discovery exposes terminal/webview mode before runtime startup. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    const taskGroupId = 'group-preview-repo-display';
+    const taskId = 'task-preview-repo-display';
+    const repoSlug = 'org__repo_display';
+    const repoId = 'repo-display';
+    const workspaceDir = buildTaskGroupWorkspaceDir({
+      taskGroupId,
+      taskId,
+      provider: 'github',
+      repoSlug
+    });
+
+    await mkdir(workspaceDir, { recursive: true });
+    await writeFile(
+      path.join(workspaceDir, '.hookcode.yml'),
+      [
+        'version: 1',
+        'preview:',
+        '  instances:',
+        '    - name: backend',
+        '      command: "pnpm dev"',
+        '      workdir: backend',
+        '      display: terminal'
+      ].join('\n'),
+      'utf8'
+    );
+
+    const taskService = {
+      listTaskGroups: jest.fn(async () => [{ id: taskGroupId, repoId, repoProvider: 'github' }]),
+      getTaskGroup: jest.fn(async () => ({ id: taskGroupId, repoId, repoProvider: 'github' })),
+      listTasksByGroup: jest.fn(async () => [
+        {
+          id: taskId,
+          repoProvider: 'github',
+          payload: { repository: { full_name: 'org/repo_display' } }
+        }
+      ])
+    };
+    const previewService = new PreviewService(
+      taskService as any,
+      new HookcodeConfigService(),
+      {} as any,
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any
+    );
+    clearInterval((previewService as any).idleTimer);
+
+    const response = await previewService.getRepoPreviewConfig(repoId);
+    expect(response.available).toBe(true);
+    expect(response.instances[0]?.name).toBe('backend');
+    expect(response.instances[0]?.display).toBe('terminal');
+
+    await previewService.onModuleDestroy();
+    await rm(workspaceDir, { recursive: true, force: true });
   });
 });

@@ -1,5 +1,6 @@
 # Findings & Decisions: Add pause/resume for task group executions
-<!-- Capture pause/resume requirements and discoveries. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Capture pause/resume requirements and discoveries. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 
 
 
@@ -18,7 +19,7 @@
 - Provide a mid-run pause/stop control for task-group executions (not delete).
 - Allow resuming later.
 - Add controls in task-group chat page and task detail page; task-group page send button becomes pause while running.
-<!-- Extend requirements to cover worker reuse, deletion handling, and empty-group display. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Extend requirements to cover worker reuse, deletion handling, and empty-group display. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - Skip git pull/dependency install when the same worker handles a non-first task in a task group.
 - If task-group logs exist but no workspace on this worker, warn that a new environment will be used.
 - When a task group has only one task that gets deleted, reopening the group should show a proper empty state instead of a broken dialog-only view.
@@ -153,101 +154,101 @@
 - TaskLogViewer/ExecutionTimeline display generic empty log messages (logViewer.empty / execViewer.empty.timeline) when no logs or structured events are present; they do not include task status context today.
 - TaskLogViewer is used in TaskConversationItem (variant=flat) and TaskDetailPage; adding optional empty-state hints there can address the "No logs" UX for new tasks.
 
-<!-- Log planning-with-files skill check for session continuity. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Log planning-with-files skill check for session continuity. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - Confirmed planning-with-files skill instructions are active for this session and will be followed.
 
-<!-- Note plan/progress read to sync phase status before edits. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Note plan/progress read to sync phase status before edits. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - Re-read task_plan.md and progress.md to align with Phase 3 work; progress log still template and needs session updates.
 
-<!-- Track missing traceability comment around task stats changes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Track missing traceability comment around task stats changes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - getTaskStats in backend/src/modules/tasks/task.service.ts includes paused stats but lacks session traceability comments around the new logic.
 
-<!-- Track appShell test stats audit for paused field coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Track appShell test stats audit for paused field coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - appShell.test.tsx already includes paused in several mocks, but full file needs a scan for any remaining stats objects missing paused.
 
-<!-- Record missing paused field in appShell sidebar test stats. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Record missing paused field in appShell sidebar test stats. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - appShell.test.tsx has a stats mock (SSE refresh) missing paused (line ~570) and needs update with traceability comment.
 
-<!-- Note existing TaskRunner unit tests as a base for pause/resume coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Note existing TaskRunner unit tests as a base for pause/resume coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - TaskRunner unit tests (taskRunnerFinalize.test.ts) provide a pattern for adding pause/abort coverage in backend tests.
 
-<!-- Record taskService getTaskStats unit test missing paused field. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Record taskService getTaskStats unit test missing paused field. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - backend/src/tests/unit/taskServiceListTasks.test.ts expects getTaskStats without paused; needs updates to include paused counts in both mock rows and expected stats.
 
-<!-- Capture testing gap for pause/resume API or runner abort flows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Capture testing gap for pause/resume API or runner abort flows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - Backend unit tests cover task deletion thread reset but no pause/resume-specific tests yet; need to add new coverage (service/controller/runner).
 
-<!-- Capture AgentExecutionError aborted flag in agent.ts for test mocks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Capture AgentExecutionError aborted flag in agent.ts for test mocks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - backend/src/agent/agent.ts exposes AgentExecutionError.aborted flag; test mocks should include it when exercising pause/resume abort flows.
 
-<!-- Confirm pause/resume traceability comments present in task service and runner. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Confirm pause/resume traceability comments present in task service and runner. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - task.service.ts and task-runner.service.ts now include session traceability comments for paused handling sections.
 
-<!-- Confirm resumeThread gating lives in agent.ts and relies on hasPriorTaskGroupTask. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Confirm resumeThread gating lives in agent.ts and relies on hasPriorTaskGroupTask. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - agent.ts resumes model threads only when hasPriorTaskGroupTask returns true; backend change to exclude archived tasks should address resumeThread-after-delete.
 
-<!-- Track dashboardController unit test stats missing paused field. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Track dashboardController unit test stats missing paused field. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - backend/src/tests/unit/dashboardController.test.ts stats mocks lack paused and need updates for new TaskStatusStats shape.
 
-<!-- Record frontend tests missing paused in fetchTaskStats mocks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Record frontend tests missing paused in fetchTaskStats mocks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - frontend tasksPage.test.tsx and repoDetailPage.test.tsx still mock fetchTaskStats without paused; update mocks to match new stats shape.
 
-<!-- Confirm locations in tasksPage/repoDetail tests needing paused stat updates. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Confirm locations in tasksPage/repoDetail tests needing paused stat updates. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - Located fetchTaskStats mocks in tasksPage.test.tsx and repoDetailPage.test.tsx that need paused added with traceability comments.
 
-<!-- Note taskGroupExecutionHints test needs archivedAt condition update. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Note taskGroupExecutionHints test needs archivedAt condition update. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - backend/src/tests/unit/taskGroupExecutionHints.test.ts expects hasPriorTaskGroupTask query without archivedAt filter; update to match new archived exclusion.
 
-<!-- Note RepoTaskActivityCard default stats missing paused and distribution ignores paused. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Note RepoTaskActivityCard default stats missing paused and distribution ignores paused. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - frontend/src/components/repos/RepoTaskActivityCard.tsx uses a default TaskStatusStats without paused; update default and consider paused in distribution/hasAnyTasks.
 
-<!-- Note repo dashboard activity card needs paused i18n labels if added to distribution. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Note repo dashboard activity card needs paused i18n labels if added to distribution. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - Repo dashboard activity status labels only include queued/processing/success/failed; add paused label if distribution includes paused.
 
-<!-- Note no existing frontend tests target RepoTaskActivityCard or repo activity status labels. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Note no existing frontend tests target RepoTaskActivityCard or repo activity status labels. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - No frontend tests reference RepoTaskActivityCard status labels; paused label change requires no test updates.
 
-<!-- Confirm repo activity card now only TaskStatusStats component in frontend and has paused default. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Confirm repo activity card now only TaskStatusStats component in frontend and has paused default. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - RepoTaskActivityCard is the only component using TaskStatusStats directly and now includes paused in defaults.
 
-<!-- Note dashboard sidebar still lists queued/processing/success/failed tasks only; paused appears only in stats. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Note dashboard sidebar still lists queued/processing/success/failed tasks only; paused appears only in stats. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - DashboardController sidebar response does not list paused tasks in tasksByStatus (only stats include paused).
 
-<!-- Confirm task group and detail pages have pause/resume traceability comments. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Confirm task group and detail pages have pause/resume traceability comments. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - TaskGroupChatPage and TaskDetailPage contain session traceability comments for pause/resume and empty-state logic.
 
-<!-- Record test command expectations for full suite. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Record test command expectations for full suite. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - Root test script runs backend and frontend tests via `pnpm test` (backend jest + frontend vitest).
 
-<!-- Log test failures: pause/resume buttons not found in TaskGroupChatPage/TaskDetailPage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Log test failures: pause/resume buttons not found in TaskGroupChatPage/TaskDetailPage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - pnpm test failed: TaskGroupChatPage composer and TaskDetailPage tests could not find Pause/Resume buttons; UI may be rendering different labels or conditions.
 
-<!-- Note TaskGroupChatPage composer uses i18n label for pause/resume; tests may need to match localized text. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Note TaskGroupChatPage composer uses i18n label for pause/resume; tests may need to match localized text. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - TaskGroupChatPage composer action label comes from i18n keys (chat.form.pause/resume), so tests should use the localized label.
 
-<!-- Note controlMode in TaskGroupChatPage depends on processing/paused tasks; tests may need matching label from i18n. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Note controlMode in TaskGroupChatPage depends on processing/paused tasks; tests may need matching label from i18n. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - controlMode is derived from orderedTasks (latest processing/paused), so test mocks must ensure orderedTasks includes that task and i18n label matches.
 
-<!-- Note TaskGroupChatPage refreshGroupDetail sets tasks from fetchTaskGroupTasks; pause button appears only after refresh completes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Note TaskGroupChatPage refreshGroupDetail sets tasks from fetchTaskGroupTasks; pause button appears only after refresh completes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - TaskGroupChatPage derives controlMode from orderedTasks populated in refreshGroupDetail; tests may need to await fetchTaskGroupTasks completion before querying Pause.
 
-<!-- Record test updates: pause/resume button accessible names include icon labels. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Record test updates: pause/resume button accessible names include icon labels. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - Updated pause/resume tests to match button accessible names that include AntD icon labels.
 
-<!-- Capture current diff scope after pause/resume implementation. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Capture current diff scope after pause/resume implementation. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - git diff shows pause/resume changes across backend services, frontend UI, i18n, and tests; changelog already has an entry pending review.
 
-<!-- Record changelog entry added for task-pause-resume session. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Record changelog entry added for task-pause-resume session. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - Added task-pause-resume-20260203 entry to docs/en/change-log/0.0.0.md.
 
-<!-- Verify worker env reuse + env-change warning implementation. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Verify worker env reuse + env-change warning implementation. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - agent.ts confirms: if taskGroup logs exist but workspace missing, logs warn about new environment; reuseWorkspace skips git pull and dependency install on same worker.
 
-<!-- Verify empty-group UI and log stage hints for task groups. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Verify empty-group UI and log stage hints for task groups. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - TaskGroupChatPage renders explicit empty/missing group state instead of dialog-only view; TaskConversationItem provides queued/processing/paused log stage hints.
 
-<!-- Confirm task detail logs use stage hints for empty log states. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Confirm task detail logs use stage hints for empty log states. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - TaskDetailPage passes emptyMessage/emptyHint into TaskLogViewer for queued/processing/paused statuses.
 
-<!-- Confirm task deletion path calls deleteTask (thread reset) in controller. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 -->
+{/* Confirm task deletion path calls deleteTask (thread reset) in controller. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
 - TasksController delete endpoint calls taskService.deleteTask, so threadId reset logic runs on task deletion.

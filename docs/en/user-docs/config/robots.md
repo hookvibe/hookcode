@@ -1,6 +1,7 @@
 ---
 title: Robot Configuration
 ---
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -61,7 +62,7 @@ Automation rules can further adjust prompts via:
 - **promptPatch**: appended after the robot default template
 - **promptOverride**: full override (ignores the robot default template and patch)
 
-<!-- Document robot dependency overrides for install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 -->
+{/* Document robot dependency overrides for install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
 ## Dependency install overrides
 
 Robots can override repository `.hookcode.yml` dependency settings on a per-robot basis:

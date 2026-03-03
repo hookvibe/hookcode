@@ -10,7 +10,7 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Replace the raw JSON payload `<pre>` blocks on task/detail pages with a structured, readable JSON viewer UI for users.
+Replace the raw JSON payload `&lt;pre>` blocks on task/detail pages with a structured, readable JSON viewer UI for users.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
@@ -66,7 +66,7 @@ Complete
 | Decision | Rationale |
 |----------|-----------|
 | Create a lightweight `JsonViewer` component using Ant Design `Tree`. | Avoid adding new dependencies while providing a structured, expandable JSON UI. |
-| Replace the task detail payload `<pre>` with the new viewer. | Meets the user request for a JSON UI on the task detail page with minimal scope. |
+| Replace the task detail payload `&lt;pre>` with the new viewer. | Meets the user request for a JSON UI on the task detail page with minimal scope. |
 | Extend webhook delivery detail payload/response panels to JsonViewer. | Keep payload presentation consistent across detail views. |
 
 ## Errors Encountered

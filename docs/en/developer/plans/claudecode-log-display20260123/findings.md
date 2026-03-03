@@ -1,4 +1,5 @@
 # Findings & Decisions: Adapt Claude Code log display page to structured log format
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -16,7 +17,7 @@
 {/* Captured from user request */}
 - Update the Claude Codex execution log display page to support Claude Code structured logs.
 - Ensure the page can render structured execution logs instead of only legacy thought chain format.
-<!-- Capture user requirements for Claude Code log display changes. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 -->
+{/* Capture user requirements for Claude Code log display changes. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 */}
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
@@ -38,7 +39,7 @@
 - Existing frontend tests cover `executionLog` parsing for Codex `item.*` and `hookcode.file.diff` events (`frontend/src/tests/executionLog.test.ts`).
 - `parseExecutionLogLine` is only referenced in `frontend/src/utils/executionLog.ts` and its unit tests, so its behavior can be extended without wider call sites.
 - Frontend tests run via `pnpm --filter hookcode-frontend test` (`vitest run`) per `frontend/package.json`.
-<!-- Record initial repository structure discovery. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 -->
+{/* Record initial repository structure discovery. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 */}
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}
@@ -46,7 +47,7 @@
 | Decision | Rationale |
 |----------|-----------|
 | Extend `executionLog` parsing to translate Claude Code JSONL messages into existing ExecutionItem kinds. | Avoids backend changes while enabling structured timeline rendering for Claude Code logs. |
-<!-- Log Claude Code parsing decision for traceability. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 -->
+{/* Log Claude Code parsing decision for traceability. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 */}
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}
@@ -59,7 +60,7 @@
 {/* WHAT: URLs, file paths, API references, documentation links you've found useful. WHY: Easy reference for later. Don't lose important links in context. WHEN: Add as you discover useful resources. EXAMPLE: - Python argparse docs: https://docs.python.org/3/library/argparse.html - Project structure: src/main.py, src/utils.py */}
 {/* URLs, file paths, API references */}
 - `example/claude/exec.txt`
-<!-- Track referenced sample file path for log format investigation. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 -->
+{/* Track referenced sample file path for log format investigation. docs/en/developer/plans/claudecode-log-display20260123/task_plan.md claudecode-log-display20260123 */}
 
 ## Visual/Browser Findings
 {/* WHAT: Information you learned from viewing images, PDFs, or browser results. WHY: CRITICAL - Visual/multimodal content doesn't persist in context. Must be captured as text. WHEN: IMMEDIATELY after viewing images or browser results. Don't wait! EXAMPLE: - Screenshot shows login form has email and password fields - Browser shows API returns JSON with "status" and "data" keys */}

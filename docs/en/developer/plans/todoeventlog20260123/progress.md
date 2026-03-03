@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. todoeventlog20260123 */}
@@ -12,7 +13,7 @@
 
 ### Phase 1: Requirements & Discovery
 {/* WHAT: Detailed log of actions taken during this phase. WHY: Provides context for what was done, making it easier to resume or debug. WHEN: Update as you work through the phase, or at least when you complete it. */}
-<!-- Log discovery work for todo_list exec log rendering. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Log discovery work for todo_list exec log rendering. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - **Status:** complete
 - **Started:** 2026-01-23
 {/* STATUS: Same as task_plan.md (pending, in_progress, complete) TIMESTAMP: When you started this phase (e.g., "2026-01-15 10:00") */}
@@ -27,7 +28,7 @@
 
 ### Phase 2: Planning & Structure
 {/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
-<!-- Record planning decisions for todo_list rendering. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Record planning decisions for todo_list rendering. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - **Status:** complete
 - Actions taken:
   - Chose to add a dedicated todo_list ExecutionItem with custom timeline rendering and i18n labels.
@@ -36,7 +37,7 @@
 
 ### Phase 3: Implementation
 {/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
-<!-- Summarize implementation changes for exec todo_list support. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Summarize implementation changes for exec todo_list support. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - **Status:** complete
 - Actions taken:
   - Added todo_list parsing + merge handling, timeline rendering, and styles.
@@ -51,7 +52,7 @@
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
-<!-- Track verification runs for the todo_list changes. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Track verification runs for the todo_list changes. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - **Status:** complete
 - Actions taken:
   - Ran `pnpm -C frontend test -- src/tests/executionTimeline.test.tsx`.
@@ -61,7 +62,7 @@
 
 ### Phase 5: Delivery
 {/* WHAT: Same structure as Phase 1, for the next phase. WHY: Keep a separate log entry for each phase to track progress clearly. */}
-<!-- Capture delivery steps such as changelog updates. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 -->
+{/* Capture delivery steps such as changelog updates. docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123 */}
 - **Status:** complete
 - Actions taken:
   - Added the session entry to `docs/en/change-log/0.0.0.md`.

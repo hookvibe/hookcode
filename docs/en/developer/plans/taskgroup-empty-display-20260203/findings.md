@@ -1,5 +1,6 @@
 # Findings & Decisions: Fix empty task-group display after task deletion
-<!-- Capture requirements and discoveries for task-group empty state. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Capture requirements and discoveries for task-group empty state. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203 */}
 
 
 

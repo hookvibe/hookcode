@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. 0nazpc53wnvljv5yh7c6 */}
@@ -22,7 +23,7 @@
   {/* Record key discoveries that explain the CI 404 symptom. 0nazpc53wnvljv5yh7c6 */}
   - Initialized `planning-with-files` session `0nazpc53wnvljv5yh7c6`
   - Located frontend Live logs SSE client (`frontend/src/components/TaskLogViewer.tsx`) and backend SSE route (`backend/src/modules/tasks/tasks.controller.ts`)
-  <!-- Update legacy toggle references to new task log visibility config. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+  {/* Update legacy toggle references to new task log visibility config. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
   - Confirmed backend returns 404 when `TASK_LOGS_VISIBLE_ENABLED=false` (feature toggle default is false)
   - Confirmed CI Docker env generation sets `TASK_LOGS_VISIBLE_ENABLED` to false by default (`docker/ci/write-ci-env.sh`)
   - Confirmed Nginx reverse proxy supports SSE and is not the likely source of the 404 (`docker/nginx/frontend.conf`)
@@ -41,7 +42,7 @@
 {/* Start planning immediately after discovery. 0nazpc53wnvljv5yh7c6 */}
 - **Started:** 2026-01-17 01:38 CST
 - Actions taken:
-  <!-- Align historical notes with new task log toggle naming. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 -->
+  {/* Align historical notes with new task log toggle naming. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225 */}
   - Defined fixes: enable `TASK_LOGS_VISIBLE_ENABLED` for CI deployments and guard the frontend logs UI using `canViewLogs`
   - Recorded decisions in `task_plan.md` and `findings.md`
 - Files created/modified:

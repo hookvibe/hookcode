@@ -29,6 +29,7 @@ import type {
   ModelProviderModelsResponse,
   RepoAutomationConfig,
   RepoRobot,
+  RepoPreviewEnvConfigPublic, // Track repo preview env config types for the env tab. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
   RepoScopedCredentialsPublic,
   RepoPreviewConfigResponse,
   RepoInvite,
@@ -96,6 +97,7 @@ import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivity
 import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
 import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
 import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailProviderActivityRow';
+import { RepoEnvConfigPanel } from '../components/repos/RepoEnvConfigPanel'; // Render repo preview env editor panel. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
 import { uuid as generateUuid } from '../components/repoAutomation/utils';
 import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
@@ -193,7 +195,7 @@ const providerLabel = (provider: string) => (provider === 'github' ? 'GitHub' : 
 const ONBOARDING_STORAGE_PREFIX = 'hookcode-repo-onboarding:'; // Persist per-repo onboarding completion in localStorage. 58w1q3n5nr58flmempxe
 
 const CREDENTIAL_PROFILE_PAGE_SIZE = 4; // Limit credential profile list height so the dashboard board stays visually dense. u55e45ffi8jng44erdzp
-const TASK_GROUP_TOKEN_PAGE_SIZE = 4; // Paginate task-group tokens to keep the bottom section compact. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+const TASK_GROUP_TOKEN_PAGE_SIZE = 10; // Paginate task-group tokens for the dedicated tab view. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
 
 const getOnboardingKey = (repoId: string): string => `${ONBOARDING_STORAGE_PREFIX}${repoId}`;
 
@@ -271,11 +273,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [webhookPathRaw, setWebhookPathRaw] = useState<string | null>(null);
   const [repoScopedCredentials, setRepoScopedCredentials] = useState<RepoScopedCredentialsPublic | null>(null);
+  const [previewEnvConfig, setPreviewEnvConfig] = useState<RepoPreviewEnvConfigPublic | null>(null); // Store repo preview env config in local state. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  const [previewEnvSaving, setPreviewEnvSaving] = useState(false); // Track preview env save state for repo settings. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
   // Track auto-generated task-group PATs for the repo credentials view. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
   const [repoTaskGroupTokens, setRepoTaskGroupTokens] = useState<UserApiTokenPublic[]>([]);
   const [repoTaskGroupTokensLoading, setRepoTaskGroupTokensLoading] = useState(false);
   const [repoTaskGroupTokenRevokingId, setRepoTaskGroupTokenRevokingId] = useState<string | null>(null);
-  const [repoTaskGroupTokensPage, setRepoTaskGroupTokensPage] = useState(1); // Track task-group token pagination for the bottom section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+  const [repoTaskGroupTokensPage, setRepoTaskGroupTokensPage] = useState(1); // Track task-group token pagination for the dedicated tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
   // Track preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewConfig, setPreviewConfig] = useState<RepoPreviewConfigResponse | null>(null);
   const [previewConfigLoading, setPreviewConfigLoading] = useState(false);
@@ -343,7 +347,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     // Clear repo-scoped auto-generated PATs when switching repositories. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
     setRepoTaskGroupTokens([]);
     setRepoTaskGroupTokenRevokingId(null);
-    // Reset task-group token pagination on repo switch to avoid empty pages. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    // Reset task-group token pagination on repo switch to avoid empty pages in the dedicated tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
     setRepoTaskGroupTokensPage(1);
   }, [repoId]);
 
@@ -357,7 +361,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     const modelProfilesTotal = modelProviderProfileItems.length;
     const modelMaxPage = Math.max(1, Math.ceil(modelProfilesTotal / CREDENTIAL_PROFILE_PAGE_SIZE));
     setModelProviderProfilesPage((p) => Math.min(p, modelMaxPage));
-    // Clamp task-group token pagination when the list size changes. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
+    // Clamp task-group token pagination when the list size changes in the dedicated tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
     const tokenMaxPage = Math.max(1, Math.ceil(repoTaskGroupTokens.length / TASK_GROUP_TOKEN_PAGE_SIZE));
     setRepoTaskGroupTokensPage((p) => Math.min(p, tokenMaxPage));
   }, [modelProviderProfileItems, repoScopedCredentials, repoTaskGroupTokens]);
@@ -433,6 +437,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     if (reason === 'workspace_missing') return t('repos.preview.reason.workspaceMissing');
     return '';
   }, [previewConfig?.reason, t]);
+
+  const activePreviewGroups = useMemo(
+    // Keep repo-level preview management rendering resilient when older API responses omit active groups. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    () => (Array.isArray(previewConfig?.activeTaskGroups) ? previewConfig.activeTaskGroups : []),
+    [previewConfig?.activeTaskGroups]
+  );
 
   const title = useMemo(() => repo?.name || repoId || t('repos.detail.titleFallback'), [repo?.name, repoId, t]);
 
@@ -561,6 +571,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       setWebhookSecret(data.webhookSecret ?? null);
       setWebhookPathRaw(data.webhookPath ?? null);
       setRepoScopedCredentials(data.repoScopedCredentials ?? null);
+      setPreviewEnvConfig(data.previewEnvConfig ?? null); // Sync preview env config into repo detail state. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
 
       basicForm.setFieldsValue({
         name: data.repo?.name ?? '',
@@ -577,6 +588,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       setWebhookSecret(null);
       setWebhookPathRaw(null);
       setRepoScopedCredentials(null);
+      setPreviewEnvConfig(null); // Clear preview env config state when repo fetch fails. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     } finally {
       setLoading(false);
     }
@@ -853,6 +865,28 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       }
     },
     [credentialsSaving, message, repoId, repoReadOnly, t]
+  );
+
+  const handleSavePreviewEnv = useCallback(
+    async (payload: { entries: Array<{ key: string; value?: string; secret?: boolean }>; removeKeys: string[] }) => {
+      // Persist repo preview env variables for dev preview only. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      if (!repoId || previewEnvSaving || repoReadOnly) return;
+      setPreviewEnvSaving(true);
+      try {
+        const updated = await updateRepo(repoId, { previewEnvConfig: payload });
+        setRepo(updated.repo);
+        if (updated.previewEnvConfig !== undefined) {
+          setPreviewEnvConfig(updated.previewEnvConfig ?? null);
+        }
+        message.success(t('toast.repos.saved'));
+      } catch (err: any) {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.repos.saveFailed'));
+      } finally {
+        setPreviewEnvSaving(false);
+      }
+    },
+    [message, previewEnvSaving, repoId, repoReadOnly, t]
   );
 
   const startEditRepoProviderProfile = useCallback(
@@ -1794,6 +1828,51 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                             ) : null}
                           </Space>
                         )}
+                        {/* Render repo-scoped active preview groups for runtime management visibility. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 */}
+                        {!previewConfigLoading ? (
+                          <>
+                            <Divider style={{ margin: '12px 0' }} />
+                            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                              <Typography.Text type="secondary">{t('repos.preview.activeGroups.title')}</Typography.Text>
+                              {activePreviewGroups.length ? (
+                                activePreviewGroups.map((group) => (
+                                  <div key={group.taskGroupId} className="hc-section-block__row" style={{ alignItems: 'flex-start', gap: 8 }}>
+                                    <Space direction="vertical" size={2}>
+                                      <Space wrap>
+                                        <Typography.Text strong>{group.taskGroupTitle || group.taskGroupId}</Typography.Text>
+                                        <Typography.Text code>{group.taskGroupId}</Typography.Text>
+                                        {group.repoId ? <Tag>{t('repos.preview.activeGroups.repo', { repoId: group.repoId })}</Tag> : null}
+                                      </Space>
+                                      <Space wrap>
+                                        {group.instances.map((instance) => (
+                                          <Tag
+                                            key={`${group.taskGroupId}-${instance.name}`}
+                                            color={
+                                              instance.status === 'running'
+                                                ? 'green'
+                                                : instance.status === 'starting'
+                                                  ? 'blue'
+                                                  : instance.status === 'failed'
+                                                    ? 'red'
+                                                    : instance.status === 'timeout'
+                                                      ? 'gold'
+                                                      : 'default'
+                                            }
+                                          >
+                                            {instance.name}: {t(`preview.status.${instance.status}` as any)}
+                                            {instance.port ? ` (${instance.port})` : ''}
+                                          </Tag>
+                                        ))}
+                                      </Space>
+                                    </Space>
+                                  </div>
+                                ))
+                              ) : (
+                                <Typography.Text type="secondary">{t('repos.preview.activeGroups.empty')}</Typography.Text>
+                              )}
+                            </Space>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                   </Space>
@@ -1975,6 +2054,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                       </div>
                     </div>
                   </div>
+                )}
+
+                {/* ---------- ENV TAB — preview-only env injection. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 ---------- */}
+                {activeTab === 'env' && (
+                  <RepoEnvConfigPanel
+                    config={previewEnvConfig}
+                    readOnly={repoReadOnly}
+                    saving={previewEnvSaving}
+                    onSave={handleSavePreviewEnv}
+                  />
                 )}
 
                 {/* ---------- ROBOTS TAB — modern section block. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 ---------- */}
@@ -2280,10 +2369,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                   )
                 )}
 
-                {/* ---------- SETTINGS TAB ---------- */}
-                {activeTab === 'settings' && (
+                {/* ---------- TASK-GROUP TOKENS TAB ---------- */}
+                {activeTab === 'taskGroupTokens' && (
                   <div className="hc-section-stack">
-                    {/* Task-group API tokens section — modern section block. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */}
+                    {/* Render the task-group API token list as its own tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302 */}
                     <div className="hc-section-block">
                       <div className="hc-section-block__header">
                         <span className="hc-section-block__title"><ApiOutlined />{t('repos.detail.autoTokens.title')}</span>
@@ -2340,7 +2429,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                         })()}
                       </div>
                     </div>
+                  </div>
+                )}
 
+                {/* ---------- SETTINGS TAB ---------- */}
+                {activeTab === 'settings' && (
+                  <div className="hc-section-stack">
                     {/* Danger zone — uses danger variant. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 */}
                     {canDeleteRepo ? (
                       <div className="hc-section-block hc-section-block--danger">

@@ -1,5 +1,6 @@
 # Findings & Decisions: PAT API debug skill
-<!-- Capture skill requirements and discoveries for this session. docs/en/developer/plans/open-api-pat-skill-20260130/task_plan.md open-api-pat-skill-20260130 -->
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+{/* Capture skill requirements and discoveries for this session. docs/en/developer/plans/open-api-pat-skill-20260130/task_plan.md open-api-pat-skill-20260130 */}
 
 ## Session Metadata
 - **Session Hash:** open-api-pat-skill-20260130

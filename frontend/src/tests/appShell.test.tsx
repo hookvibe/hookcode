@@ -219,6 +219,10 @@ vi.mock('../api', () => {
     updateRepoSkillSelection: vi.fn(async () => ({ selection: null, effective: [], mode: 'all' })),
     fetchTaskGroupSkillSelection: vi.fn(async () => ({ selection: null, effective: [], mode: 'all' })),
     updateTaskGroupSkillSelection: vi.fn(async () => ({ selection: null, effective: [], mode: 'all' })),
+    // Provide notification mocks for header popover usage. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+    fetchNotifications: vi.fn(async () => ({ notifications: [], nextCursor: undefined })),
+    fetchNotificationsUnreadCount: vi.fn(async () => ({ count: 0 })),
+    markAllNotificationsRead: vi.fn(async () => ({ updated: 0, readAt: new Date().toISOString() })),
     executeChat: vi.fn(async () => ({
       taskGroup: { id: 'g_new', kind: 'chat', bindingKey: 'b1', title: 'Group new', createdAt: '', updatedAt: '' },
       task: makeTask({ id: 't_new', title: 'New task', status: 'queued', eventType: 'issue', issueId: 123 })

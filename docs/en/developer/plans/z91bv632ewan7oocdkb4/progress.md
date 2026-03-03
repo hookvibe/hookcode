@@ -4,7 +4,8 @@
 {/* Keep phase status updates in sync with task_plan.md for this session. z91bv632ewan7oocdkb4 */}
 
 ## Session Metadata
-- **Session Title:** Docusaurus: Split docs into 4 navbar categories
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+- **Session Title:** Legacy Docs: Split docs into 4 navbar categories
 - **Session Hash:** z91bv632ewan7oocdkb4
 
 ## Session: 2026-01-22
@@ -39,7 +40,8 @@
   - Updated the docs homepage to link to the 4 sections.
 - Files created/modified:
   - `docs/sidebars.ts`
-  - `docs/docusaurus.config.ts`
+  {/* Replace legacy docs file reference with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+  - Legacy docs config file (pre-Mintlify)
   - `docs/src/pages/index.tsx`
   - `docs/src/pages/index.module.css`
 
@@ -79,7 +81,8 @@
 | Where am I? | Complete |
 | Where am I going? | N/A |
 | What's the goal? | Split docs into 4 navbar-switchable sections. |
-| What have I learned? | Docusaurus supports multiple sidebars and navbar `docSidebar` items for top-level switching. |
+{/* Replace legacy docs wording with framework-agnostic phrasing. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+| What have I learned? | The legacy docs framework supports multiple sidebars and navbar sidebar items for top-level switching. |
 | What have I done? | Implemented 4 sidebars + navbar tabs and verified build/typecheck. |
 
 ---

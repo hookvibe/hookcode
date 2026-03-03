@@ -7,6 +7,7 @@ import { CODEX_PROVIDER_KEY } from '../../modelProviders/codex';
 import { CLAUDE_CODE_PROVIDER_KEY } from '../../modelProviders/claudeCode';
 import { GEMINI_CLI_PROVIDER_KEY } from '../../modelProviders/geminiCli';
 import { normalizeHttpBaseUrl } from '../../utils/url';
+import { envValueHasFixedPort } from '../../utils/previewEnv';
 import type { UpdatedAtCursor } from '../../utils/pagination';
 
 const clampRepoListLimit = (value: number | undefined, fallback: number): number => {
@@ -129,6 +130,27 @@ export interface RepoScopedCredentialsPublic {
   modelProvider: RepoScopedModelProviderCredentialsPublic;
 }
 
+export interface RepoPreviewEnvVar {
+  key: string;
+  value?: string;
+  secret?: boolean;
+}
+
+export interface RepoPreviewEnvConfig {
+  variables: RepoPreviewEnvVar[];
+}
+
+export interface RepoPreviewEnvVarPublic {
+  key: string;
+  isSecret: boolean;
+  hasValue: boolean;
+  value?: string;
+}
+
+export interface RepoPreviewEnvConfigPublic {
+  variables: RepoPreviewEnvVarPublic[];
+}
+
 export type ArchiveScope = 'active' | 'archived' | 'all'; // Centralize archive filtering across services. qnp1mtxhzikhbi0xspbc
 
 const normalizeRepoScopedRepoProviderCredentials = (raw: unknown): RepoScopedRepoProviderCredentials => {
@@ -213,6 +235,82 @@ const normalizeRepoScopedModelProviderCredentials = (raw: unknown): RepoScopedMo
     claude_code: normalizeRepoScopedModelProviderCredentialsByProvider(raw[CLAUDE_CODE_PROVIDER_KEY]),
     gemini_cli: normalizeRepoScopedModelProviderCredentialsByProvider(raw[GEMINI_CLI_PROVIDER_KEY])
   };
+};
+
+// Reserve system env keys from repo injection to protect preview ports and runtime defaults. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+const RESERVED_REPO_ENV_KEYS = new Set([
+  'PORT',
+  'HOST',
+  'BROWSER',
+  'NODE_ENV',
+  'PATH',
+  'PWD',
+  'HOME',
+  'SHELL',
+  'TMP',
+  'TEMP',
+  'TMPDIR'
+]);
+const RESERVED_REPO_ENV_PREFIXES = ['HOOKCODE_'];
+
+// Normalize and validate repo env keys before persistence. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+const normalizeRepoEnvKey = (raw: unknown): string => {
+  const key = asTrimmedString(raw).toUpperCase();
+  if (!key) throw new Error('repo env key is required');
+  if (!/^[A-Z][A-Z0-9_]*$/.test(key)) {
+    throw new Error(`repo env key "${key}" must be uppercase A-Z, 0-9, underscore`);
+  }
+  if (RESERVED_REPO_ENV_KEYS.has(key) || RESERVED_REPO_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+    throw new Error(`repo env key "${key}" is reserved`);
+  }
+  return key;
+};
+
+// Normalize stored repo preview env config while enforcing reserved keys. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+const normalizeRepoPreviewEnvConfig = (raw: unknown): RepoPreviewEnvConfig => {
+  if (!isRecord(raw)) return { variables: [] };
+  const varsRaw = Array.isArray(raw.variables) ? raw.variables : [];
+  const variables: RepoPreviewEnvVar[] = varsRaw
+    .map((item) => (isRecord(item) ? (item as Record<string, unknown>) : null))
+    .filter(Boolean)
+    .map((item) => {
+      const key = normalizeRepoEnvKey(item!.key);
+      const value = asTrimmedString(item!.value);
+      const secret = Boolean(item!.secret);
+      return {
+        key,
+        value: value ? value : undefined,
+        secret: secret ? true : undefined
+      };
+    })
+    .filter((entry) => entry.key && entry.value);
+  return { variables };
+};
+
+// Redact secret repo env values for API responses. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+const toPublicRepoPreviewEnvConfig = (raw: unknown): RepoPreviewEnvConfigPublic => {
+  const normalized = normalizeRepoPreviewEnvConfig(raw);
+  const variables: RepoPreviewEnvVarPublic[] = normalized.variables.map((entry) => {
+    const value = String(entry.value ?? '').trim();
+    return {
+      key: entry.key,
+      // Always hide preview env values in API responses. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      isSecret: true,
+      hasValue: Boolean(value)
+    };
+  });
+  return { variables };
+};
+
+// Flatten repo preview env config into a process env map for preview runs. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+const toRepoPreviewEnvMap = (config: RepoPreviewEnvConfig): Record<string, string> => {
+  const map: Record<string, string> = {};
+  for (const entry of config.variables) {
+    const value = String(entry.value ?? '').trim();
+    if (!value) continue;
+    map[entry.key] = value;
+  }
+  return map;
 };
 
 const toPublicRepoScopedModelProviderCredentials = (raw: unknown): RepoScopedModelProviderCredentialsPublic => {
@@ -327,6 +425,15 @@ export interface UpdateRepositoryInput {
       defaultProfileId?: string | null;
     } | null;
   } | null;
+  // Accept repo-scoped preview env patches (write-only secrets). docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  previewEnvConfig?: {
+    entries?: Array<{
+      key?: string | null;
+      value?: string | null;
+      secret?: boolean | null;
+    }> | null;
+    removeKeys?: string[] | null;
+  } | null;
   enabled?: boolean;
 }
 
@@ -373,6 +480,29 @@ export class RepositoryService {
         modelProvider: row.modelProviderCredentials
       })
     };
+  }
+
+  // Read repo preview env config with secret redaction for API responses. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  async getRepoPreviewEnvConfig(id: string): Promise<{
+    raw: RepoPreviewEnvConfig;
+    public: RepoPreviewEnvConfigPublic;
+  } | null> {
+    const row = await db.repository.findUnique({
+      where: { id },
+      select: { previewEnv: true }
+    });
+    if (!row) return null;
+    return {
+      raw: normalizeRepoPreviewEnvConfig(row.previewEnv),
+      public: toPublicRepoPreviewEnvConfig(row.previewEnv)
+    };
+  }
+
+  // Provide repo preview env variables for preview process launches. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  async getRepoPreviewEnv(id: string): Promise<Record<string, string> | null> {
+    const config = await this.getRepoPreviewEnvConfig(id);
+    if (!config) return null;
+    return toRepoPreviewEnvMap(config.raw);
   }
 
   async listAll(options?: { userId?: string; isAdmin?: boolean; limit?: number; cursor?: UpdatedAtCursor | null }): Promise<Repository[]> {
@@ -544,6 +674,8 @@ export class RepositoryService {
         archivedAt: null,
         repoProviderCredentials: Prisma.DbNull,
         modelProviderCredentials: Prisma.DbNull,
+        // Initialize repo preview env storage as null on create. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+        previewEnv: Prisma.DbNull,
         createdAt: now,
         updatedAt: now
       }
@@ -595,6 +727,9 @@ export class RepositoryService {
 
     const existingRepoScopedCredentials = await this.getRepoScopedCredentials(id);
     if (!existingRepoScopedCredentials) return null;
+    // Load repo preview env config so updates can merge and preserve secrets. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    const existingPreviewEnv = await this.getRepoPreviewEnvConfig(id);
+    if (!existingPreviewEnv) return null;
 
     const mergeRepoProviderCredential = (
       current: RepoScopedRepoProviderCredentials,
@@ -794,6 +929,63 @@ export class RepositoryService {
       return toJson(next);
     };
 
+    // Merge repo preview env patches while preserving secrets and reserved-key rules. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    const mergePreviewEnvConfig = (current: RepoPreviewEnvConfig, patch: UpdateRepositoryInput['previewEnvConfig']): unknown => {
+      const toJson = (value: RepoPreviewEnvConfig): Record<string, unknown> | null => {
+        const variables = (value.variables ?? []).map((entry) => ({
+          key: entry.key,
+          value: entry.value,
+          ...(entry.secret ? { secret: true } : {})
+        }));
+        return variables.length ? { variables } : null;
+      };
+
+      if (patch === undefined) return toJson(current);
+      if (patch === null) return null;
+
+      const map = new Map<string, RepoPreviewEnvVar>();
+      (current.variables ?? []).forEach((entry) => {
+        if (!entry.key) return;
+        map.set(entry.key, { ...entry });
+      });
+
+      const removeKeys = Array.isArray(patch.removeKeys) ? patch.removeKeys : [];
+      for (const rawKey of removeKeys) {
+        // Ignore invalid or reserved keys during removals to keep deletes idempotent. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+        try {
+          const normalized = normalizeRepoEnvKey(rawKey);
+          map.delete(normalized);
+        } catch {
+          continue;
+        }
+      }
+
+      const entries = Array.isArray(patch.entries) ? patch.entries : [];
+      for (const entryPatch of entries) {
+        if (!isRecord(entryPatch)) continue;
+        const key = normalizeRepoEnvKey(entryPatch.key);
+        const existing = map.get(key);
+        if (entryPatch.value === null) {
+          map.delete(key);
+          continue;
+        }
+        // Default preview env variables to secret-only storage (no toggle). docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+        const nextSecret = true;
+        const rawValue = entryPatch.value === undefined ? undefined : asTrimmedString(entryPatch.value);
+        const nextValue = rawValue === undefined ? existing?.value : rawValue || undefined;
+        if (!nextValue) {
+          throw new Error(`repo env value is required for "${key}"`);
+        }
+        if (envValueHasFixedPort(nextValue)) {
+          throw new Error(`repo env "${key}" must not hardcode local preview ports`);
+        }
+        map.set(key, { key, value: nextValue, secret: nextSecret ? true : undefined });
+      }
+
+      const variables = Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+      return toJson({ variables });
+    };
+
     const nextRepoProviderCredentialsJson = mergeRepoProviderCredential(
       existingRepoScopedCredentials.repoProvider,
       input.repoProviderCredential
@@ -802,6 +994,7 @@ export class RepositoryService {
       existingRepoScopedCredentials.modelProvider,
       input.modelProviderCredential
     );
+    const nextPreviewEnvJson = mergePreviewEnvConfig(existingPreviewEnv.raw, input.previewEnvConfig); // Merge repo preview env updates for persistence. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
 
     const nextWebhookSecret = input.webhookSecret === undefined ? existing.webhookSecret : input.webhookSecret;
 
@@ -815,6 +1008,8 @@ export class RepositoryService {
         webhookSecret: nextWebhookSecret,
         repoProviderCredentials: nextRepoProviderCredentialsJson as any,
         modelProviderCredentials: nextModelProviderCredentialsJson as any,
+        // Persist repo preview env config updates alongside repo settings. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+        previewEnv: nextPreviewEnvJson as any,
         enabled: nextEnabled,
         updatedAt: now
       }

@@ -1,4 +1,5 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. 4j0wbhcp2cpoyi8oefex */}
@@ -11,7 +12,7 @@
 {/* WHAT: The date of this work session. WHY: Helps track when work happened, useful for resuming after time gaps. EXAMPLE: 2026-01-15 */}
 
 ### Phase 1: Requirements & Discovery
-<!-- Captured repo/user credential layout and constraints. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex -->
+{/* Captured repo/user credential layout and constraints. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
 - **Status:** complete
 - **Started:** 2026-01-28 22:30
 - Actions taken:
@@ -22,7 +23,7 @@
   - docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/findings.md
 
 ### Phase 2: Planning & Structure
-<!-- Defined unified credential list approach and provider selection handling. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex -->
+{/* Defined unified credential list approach and provider selection handling. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
 - **Status:** complete
 - Actions taken:
   - Decided to unify model/repo credential lists per scope with provider tags and single add entry.
@@ -31,7 +32,7 @@
   - docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md
 
 ### Phase 3: Implementation
-<!-- Implemented unified credential lists and provider selectors in UI. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex -->
+{/* Implemented unified credential lists and provider selectors in UI. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
 - **Status:** complete
 - Actions taken:
   - Unified account-level credential lists in UserPanelPopover with provider tags and single add.
@@ -48,7 +49,7 @@
   - frontend/src/tests/repoDetailPage.test.tsx
 
 ### Phase 4: Testing & Verification
-<!-- Ran targeted frontend tests for updated credential UI. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex -->
+{/* Ran targeted frontend tests for updated credential UI. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
 - **Status:** complete
 - Actions taken:
   - Ran vitest for UserPanelPopover and RepoDetailPage tests.
@@ -57,7 +58,7 @@
   - docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/progress.md
 
 ### Phase 5: Delivery
-<!-- Finalized changelog entry and plan tracking updates. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex -->
+{/* Finalized changelog entry and plan tracking updates. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
 - **Status:** complete
 - Actions taken:
   - Updated changelog summary to reflect default selection in manage dialogs.
@@ -84,7 +85,7 @@
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}
 {/* If you can answer these, context is solid */}
-<!-- Refresh reboot answers after implementation and testing. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex -->
+{/* Refresh reboot answers after implementation and testing. docs/en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan.md 4j0wbhcp2cpoyi8oefex */}
 | Question | Answer |
 |----------|--------|
 | Where am I? | Phase 5 (Delivery complete) |

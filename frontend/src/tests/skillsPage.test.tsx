@@ -32,10 +32,10 @@ vi.mock('../api', () => {
   };
 });
 
-const renderPage = () =>
+const renderPage = (props?: { skillsTab?: string }) =>
   render(
     <AntdApp>
-      <SkillsPage />
+      <SkillsPage skillsTab={props?.skillsTab as any} />
     </AntdApp>
   );
 
@@ -47,20 +47,8 @@ describe('SkillsPage', () => {
   });
 
   test('filters and toggles extra skills', async () => {
-    // Validate skill filtering and toggle actions for the Skills page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
+    // Validate skill filtering and toggle actions on the extra skills tab. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
     const ui = userEvent.setup();
-    const builtInSkill = {
-      id: 'builtin-1',
-      slug: 'builtin-1',
-      name: 'Built-in Skill',
-      description: 'Built-in description',
-      version: '1.0.0',
-      source: 'built_in',
-      enabled: true,
-      promptEnabled: false,
-      promptText: null,
-      tags: ['core']
-    };
     const extraSkill = {
       id: 'extra-1',
       slug: 'extra-1',
@@ -76,26 +64,19 @@ describe('SkillsPage', () => {
 
     vi.mocked(api.fetchSkills)
       // Provide built-in skills page response. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
-      .mockResolvedValueOnce({ builtIn: [builtInSkill as any], extra: [], builtInNextCursor: null })
+      .mockResolvedValueOnce({ builtIn: [], extra: [], builtInNextCursor: null })
       // Provide extra skills page response. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
       .mockResolvedValueOnce({ builtIn: [], extra: [extraSkill as any], extraNextCursor: null });
     vi.mocked(api.patchSkill).mockResolvedValueOnce({ ...extraSkill, promptEnabled: true } as any);
 
-    renderPage();
+    // Render the extra skills tab directly to test extra skill actions. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+    renderPage({ skillsTab: 'extra' });
 
-    expect(await screen.findByText('Built-in Skill')).toBeInTheDocument();
-    expect(screen.getByText('Extra Skill')).toBeInTheDocument();
+    expect(await screen.findByText('Extra Skill')).toBeInTheDocument();
 
     const search = screen.getByPlaceholderText('Search skills by name, slug, or description');
     await ui.type(search, 'extra');
 
-    expect(screen.queryByText('Built-in Skill')).not.toBeInTheDocument();
-    expect(screen.getByText('Extra Skill')).toBeInTheDocument();
-
-    // Validate tag filter chips narrow the skill list. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-    const opsFilter = screen.getByRole('button', { name: /ops/i });
-    await ui.click(opsFilter);
-    expect(screen.queryByText('Built-in Skill')).not.toBeInTheDocument();
     expect(screen.getByText('Extra Skill')).toBeInTheDocument();
 
     const extraCard = screen.getByText('Extra Skill').closest('.hc-skills__card') as HTMLElement;

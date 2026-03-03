@@ -43,6 +43,10 @@ export class PreviewInstanceDto {
   @ApiProperty()
   name!: string;
 
+  // Document preview display mode so clients can switch between iframe and terminal rendering. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  @ApiProperty({ enum: ['webview', 'terminal'] })
+  display!: 'webview' | 'terminal';
+
   @ApiProperty({ enum: ['stopped', 'starting', 'running', 'failed', 'timeout'] })
   status!: 'stopped' | 'starting' | 'running' | 'failed' | 'timeout';
 

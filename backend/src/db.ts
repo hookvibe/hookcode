@@ -11,6 +11,12 @@ import {
   listAppliedSchemaMigrations,
   loadSqlMigrationsFromDir
 } from './db/schemaMigrations';
+import {
+  getSchemaRetryAttempts,
+  getSchemaRetryBaseDelayMs,
+  getSchemaRetryDelayMs,
+  isTransientDbBootstrapError
+} from './utils/dbRetry';
 
 dotenv.config();
 
@@ -122,41 +128,58 @@ export const ensureSchema = async (): Promise<void> => {
 
   const autoMigrate = isTruthy(process.env.HOOKCODE_DB_AUTO_MIGRATE, true);
   const acceptDataLoss = isTruthy(process.env.HOOKCODE_DB_ACCEPT_DATA_LOSS, false);
+  const maxAttempts = getSchemaRetryAttempts();
+  const baseDelayMs = getSchemaRetryBaseDelayMs();
 
-  await withSchemaMigrationLock(async (client) => {
-    await ensureSchemaMigrationsTable(client);
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await withSchemaMigrationLock(async (client) => {
+        await ensureSchemaMigrationsTable(client);
 
-    // Legacy upgrade path: old versions initialized schema without a migrations table; baseline what is already present.
-    const baselined = await bootstrapLegacyMigrationRecords(client, migrations);
-    if (baselined.length > 0) {
-      console.warn(`[db] baselined ${baselined.length} migration(s) from existing schema: ${baselined.join(', ')}`);
-    }
+        // Legacy upgrade path: old versions initialized schema without a migrations table; baseline what is already present.
+        const baselined = await bootstrapLegacyMigrationRecords(client, migrations);
+        if (baselined.length > 0) {
+          console.warn(`[db] baselined ${baselined.length} migration(s) from existing schema: ${baselined.join(', ')}`);
+        }
 
-    const applied = await listAppliedSchemaMigrations(client);
-    for (const migration of migrations) {
-      const row = applied.get(migration.id);
-      if (!row) continue;
-      if (row.checksum_sha256 !== migration.checksumSha256) {
-        throw new Error(
-          `[db] Migration checksum mismatch for "${migration.id}". Do not edit old migration.sql files after release; create a new migration instead.`
-        );
-      }
-    }
+        const applied = await listAppliedSchemaMigrations(client);
+        for (const migration of migrations) {
+          const row = applied.get(migration.id);
+          if (!row) continue;
+          if (row.checksum_sha256 !== migration.checksumSha256) {
+            throw new Error(
+              `[db] Migration checksum mismatch for "${migration.id}". Do not edit old migration.sql files after release; create a new migration instead.`
+            );
+          }
+        }
 
-    const pending = migrations.filter((m) => !applied.has(m.id));
-    if (pending.length === 0) return;
+        const pending = migrations.filter((m) => !applied.has(m.id));
+        if (pending.length === 0) return;
 
-    if (!autoMigrate) {
-      throw new Error(
-        `[db] Database schema is out of date (pending migrations: ${pending.map((m) => m.id).join(', ')}). ` +
-          `Set HOOKCODE_DB_AUTO_MIGRATE=true to apply automatically and restart.`
+        if (!autoMigrate) {
+          throw new Error(
+            `[db] Database schema is out of date (pending migrations: ${pending.map((m) => m.id).join(', ')}). ` +
+              `Set HOOKCODE_DB_AUTO_MIGRATE=true to apply automatically and restart.`
+          );
+        }
+
+        console.warn(`[db] applying ${pending.length} migration(s): ${pending.map((m) => m.id).join(', ')}`);
+        await applySqlMigrations(client, pending, { acceptDataLoss });
+        console.warn('[db] database schema is up to date');
+      });
+      return;
+    } catch (err) {
+      const shouldRetry = attempt < maxAttempts && isTransientDbBootstrapError(err);
+      if (!shouldRetry) throw err;
+      const code = err && typeof err === 'object' && 'code' in err ? String((err as { code?: unknown }).code ?? '') : '';
+      const delayMs = getSchemaRetryDelayMs(attempt, baseDelayMs);
+      // Retry transient DB bootstrap failures to tolerate short-lived connection resets in preview startup. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+      console.warn(
+        `[db] ensureSchema transient failure${code ? ` (${code})` : ''}; retrying ${attempt}/${maxAttempts - 1} in ${delayMs}ms`
       );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-
-    console.warn(`[db] applying ${pending.length} migration(s): ${pending.map((m) => m.id).join(', ')}`);
-    await applySqlMigrations(client, pending, { acceptDataLoss });
-    console.warn('[db] database schema is up to date');
-  });
+  }
 };
 
 export const pingDb = async () => {

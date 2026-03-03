@@ -1,10 +1,9 @@
 ---
 title: Tasks, Task Groups & Chat
 ---
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
-import { OpenApiOperation, OpenApiProvider, OpenApiSettings } from '@site/src/components/openapi';
-
-<!-- Render task APIs with per-operation OpenAPI cards. docs/en/developer/plans/pixeldocs20260126/task_plan.md pixeldocs20260126 -->
+{/* Replace legacy OpenAPI MDX components with Mintlify endpoint mapping. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 
 
 
@@ -19,53 +18,26 @@ These endpoints cover:
 - Manual chat execution (`/chat`)
 - Dashboard aggregation endpoints
 
-<OpenApiProvider>
-<OpenApiSettings />
+<Callout type="info" title="OpenAPI-backed details">
+  Full request/response schemas are available under the **Endpoints** group in the sidebar (powered by `/api/openapi.json`).
+</Callout>
 
-## APIs
+## Endpoint Map
 
-### GET `/api/tasks`
-<OpenApiOperation operationId="tasks_list" />
-
-### GET `/api/tasks/stats`
-<OpenApiOperation operationId="tasks_stats" />
-
-### GET `/api/tasks/volume`
-<OpenApiOperation operationId="tasks_volume_by_day" />
-
-### GET `/api/tasks/:id`
-<OpenApiOperation operationId="tasks_get" />
-
-### POST `/api/tasks/:id/retry`
-<OpenApiOperation operationId="tasks_retry" />
-
-### DELETE `/api/tasks/:id`
-<OpenApiOperation operationId="tasks_delete" />
-
-### GET `/api/tasks/:id/logs`
-<OpenApiOperation operationId="tasks_logs_get" />
-
-### DELETE `/api/tasks/:id/logs`
-<OpenApiOperation operationId="tasks_logs_clear" />
-
-### GET `/api/tasks/:id/logs/stream`
-<OpenApiOperation operationId="tasks_logs_stream" />
-
-### GET `/api/task-groups`
-<OpenApiOperation operationId="task_groups_list" />
-
-### GET `/api/task-groups/:id`
-<OpenApiOperation operationId="task_groups_get" />
-
-### GET `/api/task-groups/:id/tasks`
-<OpenApiOperation operationId="task_groups_tasks" />
-
-### GET `/api/dashboard/sidebar`
-<OpenApiOperation operationId="dashboard_sidebar" />
-
-### POST `/api/chat`
-<OpenApiOperation operationId="chat_execute" />
-</OpenApiProvider>
+- `GET /api/tasks` — List tasks with filters and pagination.
+- `GET /api/tasks/stats` — Aggregate task statistics.
+- `GET /api/tasks/volume` — Fetch task volume over time.
+- `GET /api/tasks/:id` — Fetch task details.
+- `POST /api/tasks/:id/retry` — Retry a task.
+- `DELETE /api/tasks/:id` — Delete a task.
+- `GET /api/tasks/:id/logs` — Fetch task logs.
+- `DELETE /api/tasks/:id/logs` — Clear task logs.
+- `GET /api/tasks/:id/logs/stream` — Stream task logs over SSE.
+- `GET /api/task-groups` — List task groups.
+- `GET /api/task-groups/:id` — Fetch task group details.
+- `GET /api/task-groups/:id/tasks` — List tasks for a group.
+- `GET /api/dashboard/sidebar` — Fetch sidebar aggregation data.
+- `POST /api/chat` — Execute a manual chat task.
 
 ## Notes
 
@@ -73,5 +45,5 @@ These endpoints cover:
 - The console reads `/api/auth/me` feature flags to decide whether to show logs and connect SSE streams.
 - SSE endpoints support `?token=<bearer>` because `EventSource` cannot set custom headers.
 - Archived tasks/repositories may block retries to preserve archive “view-only” semantics.
-<!-- Document the includeQueue toggle used to trim task list payloads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 -->
+{/* Document the includeQueue toggle used to trim task list payloads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
 - `GET /api/tasks` accepts `includeQueue=false` to skip queue diagnosis fields for faster dashboard/task summary reads.

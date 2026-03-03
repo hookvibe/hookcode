@@ -168,6 +168,12 @@ export const zhCNCore = {
   'skills.description.empty': '暂无描述。',
   'skills.toast.fetchFailed': '技能列表加载失败',
   'skills.toast.updateFailed': '技能更新失败',
+  // 技能页面侧栏子导航标签。docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
+  'skills.sidebar.overview': '概览',
+  'skills.sidebar.builtIn': '内置技能',
+  'skills.sidebar.extra': '额外技能',
+  'skills.sidebar.desc': '技能市场和注册表',
+  'skills.sidebar.group.registry': '注册表',
   'skills.source.builtIn': '内置',
   'skills.source.extra': '额外',
   'skills.selection.repo.title': '仓库技能',

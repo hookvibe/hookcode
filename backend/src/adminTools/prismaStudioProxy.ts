@@ -1,7 +1,7 @@
 import http, { type IncomingMessage } from 'http';
 import net from 'net';
 import express from 'express';
-import type { Request } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { spawn, type ChildProcess } from 'child_process';
 import path from 'path';
 import type { Duplex } from 'stream';
@@ -178,12 +178,13 @@ export const createPrismaStudioProxyServer = (params: {
     return res.redirect('/');
   });
 
-  app.get('/logout', (_req, res) => {
+  // Keep express callback parameters explicitly typed so strict startup compilation avoids implicit-any regressions. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  app.get('/logout', (_req: Request, res: Response) => {
     clearAdminToolsAuthCookie(res, { cookieName, secure: cookieSecure });
     return res.redirect('/');
   });
 
-  app.use(async (req, res, next) => {
+  app.use(async (req: Request, res: Response, next: NextFunction) => {
     // Only the root path can show the guide page without login; all other paths require auth (cookie).
     if (req.path !== '/' && req.path !== '') {
       const auth = await authenticateAdminTools(req, authDeps, cookieName);
@@ -192,7 +193,7 @@ export const createPrismaStudioProxyServer = (params: {
     return next();
   });
 
-  app.get('/', async (req, res) => {
+  app.get('/', async (req: Request, res: Response) => {
     const auth = await authenticateAdminTools(req, authDeps, cookieName);
     if (!auth.ok) {
       return res.status(200).type('text/html; charset=utf-8').send(renderLoginPage({ title: 'HookCode Prisma Studio' }));
@@ -206,7 +207,7 @@ export const createPrismaStudioProxyServer = (params: {
     });
   });
 
-  app.use((req, res) =>
+  app.use((req: Request, res: Response) =>
     proxyHttpRequest(req, res, {
       upstreamOrigin,
       rewriteLocation: (value) => rewriteLocationHeader(value, upstreamOrigin),

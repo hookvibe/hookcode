@@ -8,6 +8,11 @@ description: "Manus-style file-based planning for Codex CLI. Stores task_plan.md
 
 Work like Manus: Use persistent markdown files as your "working memory on disk."
 {/* Refactor planning files to live under docs/en/developer/plans/<hash> for traceability. sddsa89612jk4hbwas678 */}
+{/* Add Mintlify-friendly guidance for planning docs display. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+
+<Callout type="note" title="Mintlify-friendly planning docs">
+  When publishing these files via Mintlify, keep `docs/docs.json` updated so plan pages stay discoverable and avoid HTML comments in MDX content.
+</Callout>
 
 ## What This Skill Does (Codex-Compatible)
 
@@ -59,8 +64,8 @@ Before ANY complex task:
 ### Option A: Initialize via Script (Fastest)
 
 Creates `docs/en/developer/plans/<session-hash>/` and copies templates there if missing.
-{/* Document docs navigation sync behavior (Mintlify vs Docusaurus). docs/en/developer/plans/dsim8xybp9oa18nz1gfq/task_plan.md dsim8xybp9oa18nz1gfq */}
-Also syncs `docs/docs.json` when present (Mintlify) so the new session files are discoverable; if `docs/docs.json` is absent (Docusaurus), the sync step is skipped.
+{/* Document docs navigation sync behavior (Mintlify vs Docusaurus). docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
+Also syncs `docs/docs.json` when present (Mintlify) so the new session files are discoverable; for Docusaurus, update `docs/sidebars.ts` manually.
 
 ```bash
 bash .codex/skills/file-context-planning/scripts/init-session.sh "<session-hash>" "<session-title>"

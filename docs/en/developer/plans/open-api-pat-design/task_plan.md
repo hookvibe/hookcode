@@ -1,4 +1,5 @@
 # Task Plan: open-api-pat-design
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. open-api-pat-design */}
@@ -10,7 +11,7 @@
 ## Goal
 Implement PAT management (create/list/update/revoke) in the top-right panel and backend with group + read/write scopes, and ensure PATs can authenticate API access (webhook excluded).
 
-<!-- Close Phase 4 after adding PAT usage guidance in user docs. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design -->
+{/* Close Phase 4 after adding PAT usage guidance in user docs. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design */}
 ## Current Phase
 Complete
 

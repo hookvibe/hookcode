@@ -16,8 +16,8 @@ describe('TaskGroupChatPage preview', () => {
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
       available: true,
       instances: [
-        { name: 'frontend', status: 'running', path: '/preview/g1/frontend/' },
-        { name: 'admin', status: 'stopped', path: '/preview/g1/admin/' }
+        { name: 'frontend', display: 'webview', status: 'running', path: '/preview/g1/frontend/' },
+        { name: 'admin', display: 'webview', status: 'stopped', path: '/preview/g1/admin/' }
       ]
     });
 
@@ -29,11 +29,29 @@ describe('TaskGroupChatPage preview', () => {
     expect(screen.getByRole('button', { name: 'admin' })).toBeInTheDocument();
   });
 
+  test('keeps stop action clickable when at least one preview instance is running', async () => {
+    // Prevent mixed running+starting states from forcing the header action into a stuck loading state. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [
+        { name: 'frontend', display: 'webview', status: 'running', port: 12345, path: '/preview/g1/frontend/' },
+        { name: 'admin', display: 'webview', status: 'starting', port: 12346, path: '/preview/g1/admin/' }
+      ]
+    });
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
+    const stopButton = await screen.findByRole('button', { name: 'Stop preview' });
+    expect(stopButton).toBeEnabled();
+    expect(stopButton.className).not.toContain('ant-btn-loading');
+  });
+
   test('defaults preview panel width to half on wide layouts', async () => {
     // Ensure the preview panel defaults to half width on wide layouts. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
       available: true,
-      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+      instances: [{ name: 'frontend', display: 'webview', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
     });
 
     const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect');
@@ -83,7 +101,7 @@ describe('TaskGroupChatPage preview', () => {
     // Validate local direct-port routing for preview iframes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
       available: true,
-      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+      instances: [{ name: 'frontend', display: 'webview', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
     });
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
@@ -96,7 +114,7 @@ describe('TaskGroupChatPage preview', () => {
     // Ensure the preview iframe toolbar and sandbox are enabled. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
       available: true,
-      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+      instances: [{ name: 'frontend', display: 'webview', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
     });
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
@@ -109,11 +127,86 @@ describe('TaskGroupChatPage preview', () => {
     expect(screen.getByPlaceholderText('Enter a URL')).toBeInTheDocument();
   });
 
+  test('renders terminal-mode previews with inline log output instead of iframe controls', async () => {
+    // Validate display=terminal instances render log output in-panel and hide iframe-only controls. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'backend', display: 'terminal', status: 'running', port: 12345, path: '/preview/g1/backend/' }]
+    });
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Back')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('backend')).not.toBeInTheDocument();
+
+    const sources = (globalThis as any).__eventSourceInstances ?? [];
+    const logsSource = sources.find((source: any) => String(source.url).includes('/task-groups/g1/preview/backend/logs'));
+    expect(logsSource).toBeTruthy();
+    logsSource.emit('init', {
+      data: JSON.stringify({
+        instance: { name: 'backend', display: 'terminal', status: 'running', path: '/preview/g1/backend/' },
+        logs: [{ timestamp: '2026-03-03T00:00:00.000Z', level: 'stdout', message: 'server ready' }]
+      })
+    });
+
+    expect(await screen.findByText('server ready')).toBeInTheDocument();
+  });
+
+  test('auto-follows terminal logs until user scrolls up, then resumes after returning to bottom', async () => {
+    // Keep terminal previews pinned to the latest logs unless users intentionally scroll up. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'backend', display: 'terminal', status: 'running', port: 12345, path: '/preview/g1/backend/' }]
+    });
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+    await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
+
+    const terminal = document.querySelector('.hc-preview-terminal') as HTMLDivElement | null;
+    expect(terminal).toBeTruthy();
+    if (!terminal) return;
+
+    Object.defineProperty(terminal, 'clientHeight', { value: 200, configurable: true });
+    Object.defineProperty(terminal, 'scrollHeight', { value: 600, configurable: true });
+
+    const sources = (globalThis as any).__eventSourceInstances ?? [];
+    const logsSource = sources.find((source: any) => String(source.url).includes('/task-groups/g1/preview/backend/logs'));
+    expect(logsSource).toBeTruthy();
+    logsSource.emit('init', {
+      data: JSON.stringify({
+        instance: { name: 'backend', display: 'terminal', status: 'running', path: '/preview/g1/backend/' },
+        logs: [{ timestamp: '2026-03-03T00:00:00.000Z', level: 'stdout', message: 'line 1' }]
+      })
+    });
+    await waitFor(() => expect(terminal.scrollTop).toBe(600));
+
+    terminal.scrollTop = 100;
+    terminal.dispatchEvent(new Event('scroll'));
+
+    Object.defineProperty(terminal, 'scrollHeight', { value: 650, configurable: true });
+    logsSource.emit('log', {
+      data: JSON.stringify({ timestamp: '2026-03-03T00:00:01.000Z', level: 'stdout', message: 'line 2' })
+    });
+    await waitFor(() => expect(terminal.textContent ?? '').toContain('line 2'));
+    expect(terminal.scrollTop).toBe(100);
+
+    terminal.scrollTop = 650;
+    terminal.dispatchEvent(new Event('scroll'));
+
+    Object.defineProperty(terminal, 'scrollHeight', { value: 700, configurable: true });
+    logsSource.emit('log', {
+      data: JSON.stringify({ timestamp: '2026-03-03T00:00:02.000Z', level: 'stdout', message: 'line 3' })
+    });
+    await waitFor(() => expect(terminal.textContent ?? '').toContain('line 3'));
+    await waitFor(() => expect(terminal.scrollTop).toBe(700));
+  });
+
   test('forwards highlight commands to the preview iframe bridge', async () => {
     // Ensure preview highlight SSE events postMessage into the iframe bridge. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
       available: true,
-      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+      instances: [{ name: 'frontend', display: 'webview', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
     });
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
@@ -165,7 +258,7 @@ describe('TaskGroupChatPage preview', () => {
     // Ensure preview highlight commands can drive iframe navigation when targetUrl is provided. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
       available: true,
-      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+      instances: [{ name: 'frontend', display: 'webview', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
     });
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
@@ -197,7 +290,7 @@ describe('TaskGroupChatPage preview', () => {
     // Lock the preview URL so highlight target URLs do not override the current page. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
       available: true,
-      instances: [{ name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
+      instances: [{ name: 'frontend', display: 'webview', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
     });
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
@@ -233,6 +326,7 @@ describe('TaskGroupChatPage preview', () => {
       instances: [
         {
           name: 'frontend',
+          display: 'webview',
           status: 'failed',
           path: '/preview/g1/frontend/',
           diagnostics: {
@@ -265,7 +359,7 @@ describe('TaskGroupChatPage preview', () => {
     const ui = userEvent.setup();
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
       available: true,
-      instances: [{ name: 'frontend', status: 'stopped', path: '/preview/g1/frontend/' }]
+      instances: [{ name: 'frontend', display: 'webview', status: 'stopped', path: '/preview/g1/frontend/' }]
     });
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });

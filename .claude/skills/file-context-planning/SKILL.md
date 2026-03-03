@@ -6,7 +6,7 @@ description: "Manus-style file-based planning for Codex CLI. Stores task_plan.md
 
 # Planning with Files (Codex)
 
-<!-- Align this Claude skill's path examples with the .claude directory layout. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 -->
+{/* Align this Claude skill's path examples with the .claude directory layout. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 */}
 Work like Manus: Use persistent markdown files as your "working memory on disk."
 {/* Refactor planning files to live under docs/en/developer/plans/<hash> for traceability. sddsa89612jk4hbwas678 */}
 

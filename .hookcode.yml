@@ -2,15 +2,44 @@
 version: 1
 
 dependency:
-  failureMode: soft
+  # Fail fast when dependency install is blocked/failed so preview does not proceed with missing node_modules. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  failureMode: hard
   runtimes:
     - language: node
+      # Keep install command within dependency allowlist so preview runtime actually installs workspace dependencies. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
       install: "pnpm install --frozen-lockfile"
 
 preview:
   instances:
     - name: frontend
-      # Use PORT/{{PORT}} placeholders; fixed ports are not supported. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-      command: "pnpm dev -- --port {{PORT}}"
+      # Pass host and port directly so Vite applies IPv4 binding instead of treating "--" as a literal arg. docs/en/developer/plans/preview-loopback-host-20260303/task_plan.md preview-loopback-host-20260303
+      command: "pnpm dev --host 127.0.0.1 --port {{PORT:frontend}}"
       workdir: "frontend"
+      # Keep frontend previews in iframe webview mode for browser-like navigation. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+      display: webview
       readyPattern: "Local:"
+      # Mirror frontend env overrides while keeping dynamic ports. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      env:
+        HOOKCODE_FRONTEND_PORT: "{{PORT:frontend}}"
+        VITE_API_BASE_URL: "http://127.0.0.1:{{PORT:backend}}/api"
+        # Keep frontend API base aligned with backend preview port via named placeholders. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    - name: backend
+      # Generate Prisma client on each backend preview boot, then start Nest without watch mode for fail-fast behavior. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+      command: "pnpm run prisma:generate && pnpm exec nest start"
+      workdir: "backend"
+      # Render backend preview output as terminal logs instead of iframe webview. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+      display: terminal
+      env:
+        PORT: "{{PORT:backend}}"
+        # Mirror backend env overrides that do not contain fixed preview ports. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+        TASK_LOGS_ENABLED: "true"
+        # Disable embedded admin tools in preview to avoid fixed-port collisions across concurrent task-group backends. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+        ADMIN_TOOLS_ENABLED: "false"
+        # Increase schema-bootstrap retry tolerance for transient remote DB resets in preview startup. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+        HOOKCODE_DB_SCHEMA_RETRY_ATTEMPTS: "5"
+        HOOKCODE_DB_SCHEMA_RETRY_DELAY_MS: "1500"
+        INLINE_WORKER_ENABLED: "false"
+        HOOKCODE_TASK_GROUPS_ROOT: "~/.hookcode/task-groups"
+        HOOKCODE_CONSOLE_BASE_URL: "http://127.0.0.1:{{PORT:frontend}}"
+        HOOKCODE_CONSOLE_TASK_URL_PREFIX: "http://127.0.0.1:{{PORT:frontend}}/#/tasks/"
+        # Route backend console links to the frontend preview port. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302

@@ -1,7 +1,8 @@
 # Progress Log
+{/* Normalize MDX comments for Mintlify rendering. docs/en/developer/plans/mintlify-docs-20260301/task_plan.md mintlify-docs-20260301 */}
 {/* WHAT: Your session log - a chronological record of what you did, when, and what happened. WHY: Answers "What have I done?" in the 5-Question Reboot Test. Helps you resume after breaks. WHEN: Update after completing each phase or encountering errors. More detailed than task_plan.md. */}
 
-<!-- Track selector fallback progress updates for the preview bridge. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Track selector fallback progress updates for the preview bridge. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 
 {/* Keep phase status updates in sync with task_plan.md for this session. previewhighlightselector20260204 */}
 
@@ -46,7 +47,7 @@
 - Actions taken:
   - Ran full test suite and resolved selector fallback test failures.
 
-<!-- Record follow-up matcher work and verification steps. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Record follow-up matcher work and verification steps. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 ### Phase 6: Follow-up Matching Rules
 - **Status:** complete
 - Actions taken:
@@ -60,7 +61,7 @@
   - `.codex/skills/hookcode-preview-highlight/SKILL.md`
   - `.codex/skills/hookcode-preview-highlight/references/highlight-protocol.md`
 
-<!-- Log auto-navigation + lock follow-up work for preview highlights. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Log auto-navigation + lock follow-up work for preview highlights. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 ### Phase 7: Preview Auto-Navigation + Lock
 - **Status:** complete
 - Actions taken:
@@ -84,7 +85,7 @@
   - `.codex/skills/hookcode-preview-highlight/scripts/preview_highlight.mjs`
   - `docs/en/change-log/0.0.0.md`
 
-<!-- Log advanced targetUrl matching work for preview highlights. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Log advanced targetUrl matching work for preview highlights. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 ### Phase 8: Advanced TargetUrl Route Matching
 - **Status:** complete
 - Actions taken:
@@ -108,7 +109,7 @@
 | Full suite | `pnpm test` | All tests pass | All tests pass | ✅ |
 | Full suite (follow-up) | `pnpm test` | All tests pass | All tests pass | ✅ |
 | Full suite (auto-nav) | `pnpm test` | All tests pass | All tests pass | ✅ |
-<!-- Log targetUrl matcher test coverage for Phase 8. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Log targetUrl matcher test coverage for Phase 8. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 | Full suite (targetUrl match) | `pnpm test` | All tests pass | All tests pass (worker exit warning) | ✅ |
 | Full suite (targetUrl match rerun) | `pnpm test` | All tests pass | All tests pass (worker exit warning) | ✅ |
 
@@ -117,13 +118,13 @@
 |-----------|-------|---------|------------|
 | 2026-02-04 17:10 | Vitest could not read the bridge script via URL scheme. | 1 | Switched to a path resolved from `process.cwd()` in the test helper. |
 | 2026-02-04 17:12 | Visible-match test failed due to empty opacity parsing to zero. | 1 | Ignored empty opacity tokens before numeric parsing. |
-<!-- Record test runner warning after route matching updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Record test runner warning after route matching updates. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 | 2026-02-04 21:44 | Jest worker failed to exit gracefully warning during full test run. | 1 | Noted warning; tests still passed and no new timers were introduced. |
 
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-<!-- Refresh reboot checklist for Phase 8 completion. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 -->
+{/* Refresh reboot checklist for Phase 8 completion. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204 */}
 | Where am I? | Phase 8 complete (advanced targetUrl route matching). |
 | Where am I going? | Deliver summary to user. |
 | What's the goal? | Expand targetUrl route matching rules and document them. |

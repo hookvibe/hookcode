@@ -1,11 +1,15 @@
 import { createServer } from 'net';
+import type { PreviewPortAllocationSnapshot } from './preview.types';
 
 // Manage preview ports for task-group dev servers. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export class PreviewPortPool {
   private readonly inUse = new Set<number>();
   private readonly allocations = new Map<string, number[]>();
 
-  constructor(private readonly startPort = 10000, private readonly endPort = 10999) {}
+  constructor(
+    private readonly startPort = 10000,
+    private readonly endPort = 10999
+  ) {}
 
   async allocatePort(taskGroupId: string): Promise<number> {
     // Allocate the next available port for a task group preview instance. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -36,6 +40,28 @@ export class PreviewPortPool {
     if (!list) return;
     list.forEach((port) => this.inUse.delete(port));
     this.allocations.delete(taskGroupId);
+  }
+
+  getSnapshot(): PreviewPortAllocationSnapshot {
+    // Expose deterministic port-allocation snapshots for admin preview management UIs. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const inUsePorts = Array.from(this.inUse).sort((a, b) => a - b);
+    const allocations = Array.from(this.allocations.entries())
+      .map(([taskGroupId, ports]) => ({
+        taskGroupId,
+        ports: [...ports].sort((a, b) => a - b)
+      }))
+      .sort((a, b) => a.taskGroupId.localeCompare(b.taskGroupId));
+    const capacity = Math.max(0, this.endPort - this.startPort + 1);
+    const inUseCount = inUsePorts.length;
+    return {
+      rangeStart: this.startPort,
+      rangeEnd: this.endPort,
+      capacity,
+      inUseCount,
+      availableCount: Math.max(0, capacity - inUseCount),
+      inUsePorts,
+      allocations
+    };
   }
 
   private async findAvailablePort(): Promise<number> {

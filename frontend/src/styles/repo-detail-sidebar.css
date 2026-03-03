@@ -176,10 +176,11 @@
   padding: 0;
 }
 
+/* Remove hard max-width so content fills the available width on large screens. docs/en/developer/plans/widescreen-layout-20260301/task_plan.md widescreen-layout-20260301 */
 .hc-repo-detail-page .hc-repo-tab-content {
   padding: 24px 32px 36px;
   width: 100%;
-  max-width: 1100px;
+  max-width: 100%;
   /* Smooth entry animation when switching tabs. docs/en/developer/plans/ui-modernize-20260301/task_plan.md ui-modernize-20260301 */
   animation: hc-tab-fade-in 0.2s ease-out;
 }

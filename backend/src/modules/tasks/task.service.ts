@@ -19,6 +19,9 @@ import { isTruthy } from '../../utils/env';
 import { extractTaskSchedule, isTimeWindowActive } from '../../utils/timeWindow';
 import type { TaskScheduleSnapshot } from '../../types/timeWindow';
 import { isUuidLike } from '../../utils/uuid'; // Share UUID validation across pagination and list filters. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
+import { EventStreamService } from '../events/event-stream.service';
+import { LogWriterService } from '../logs/log-writer.service';
+import { NotificationRecipientService } from '../notifications/notification-recipient.service';
 
 /**
  * tasks table access layer (the "source of truth" for the queue/task state machine):
@@ -33,6 +36,8 @@ export interface TaskCreateMeta {
   repoProvider?: RepoProvider;
   repoId?: string;
   robotId?: string;
+  // Persist the triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  actorUserId?: string;
   ref?: string;
   mrId?: number;
   issueId?: number;
@@ -163,6 +168,8 @@ const taskRecordToTask = (row: any): Task => ({
   repoProvider: row.repoProvider ?? undefined,
   repoId: row.repoId ?? undefined,
   robotId: row.robotId ?? undefined,
+  // Map actor user id for notification recipients. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  actorUserId: row.actorUserId ?? row.actor_user_id ?? undefined,
   ref: row.ref ?? undefined,
   mrId: row.mrId ?? undefined,
   issueId: row.issueId ?? undefined,
@@ -188,6 +195,8 @@ const rowToTaskFromSql = (row: any): Task => ({
   repoProvider: row.repo_provider ?? undefined,
   repoId: row.repo_id ?? undefined,
   robotId: row.robot_id ?? undefined,
+  // Preserve actor user id when loading tasks via raw SQL. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+  actorUserId: row.actor_user_id ?? undefined,
   ref: row.ref ?? undefined,
   mrId: row.mr_id ?? undefined,
   issueId: row.issue_id ?? undefined,
@@ -236,7 +245,12 @@ type TaskGroupBinding = {
   commitSha?: string;
 };
 
+type TaskGroupEventReason = 'created' | 'status';
+
 const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
+// Define the SSE event name for task-group timeline refresh pushes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+const TASK_GROUP_EVENT_NAME = 'task-group.refresh';
 
 const toFiniteInt = (value: unknown): number | null => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
@@ -329,6 +343,63 @@ const TASK_LIST_SELECT = {
 
 @Injectable()
 export class TaskService {
+  // Wire SSE/log helpers for task-group push updates. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+  constructor(
+    private readonly eventStream?: EventStreamService,
+    private readonly logWriter?: LogWriterService,
+    private readonly notificationRecipients?: NotificationRecipientService
+  ) {}
+
+  private buildTaskGroupTopic(groupId: string): string {
+    return `task-group:${groupId}`;
+  }
+
+  // Emit per-user task-group SSE updates so chat timelines refresh without manual reloads. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+  private async emitTaskGroupUpdate(task: Task, reason: TaskGroupEventReason): Promise<void> {
+    if (!this.eventStream || !this.notificationRecipients || !this.logWriter) return;
+    const groupId = safeTrim(task.groupId);
+    if (!groupId) return;
+
+    try {
+      const recipients = await this.notificationRecipients.resolveRecipientsForTask({
+        repoId: task.repoId,
+        actorUserId: task.actorUserId,
+        payload: task.payload
+      });
+      const uniqueRecipients = Array.from(new Set((recipients ?? []).filter(Boolean)));
+      if (!uniqueRecipients.length) return;
+
+      const payload = {
+        groupId,
+        taskId: task.id,
+        status: task.status,
+        updatedAt: toIso(task.updatedAt),
+        reason
+      };
+
+      this.eventStream.publish({
+        topic: this.buildTaskGroupTopic(groupId),
+        event: TASK_GROUP_EVENT_NAME,
+        data: payload,
+        userIds: uniqueRecipients
+      });
+
+      // Record task-group push activity for audit visibility. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      void this.logWriter.logSystem({
+        level: 'info',
+        message: 'Task group update pushed',
+        code: 'TASK_GROUP_UPDATE_PUSHED',
+        actorUserId: task.actorUserId,
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: groupId,
+        meta: { reason, recipients: uniqueRecipients.length }
+      });
+    } catch (err) {
+      console.warn('[tasks] task-group update push failed', task.id, err);
+    }
+  }
+
   private async resolveOrCreateGroupId(params: {
     taskId: string;
     eventType: TaskEventType;
@@ -468,8 +539,9 @@ export class TaskService {
       `
     ]);
 
+    // Keep query-row callback typing explicit so preview-start compilation does not infer implicit any. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
     const posMap = new Map<string, { ahead: number; total: number }>(
-      (posRows ?? []).map((row) => [
+      (posRows ?? []).map((row: QueuePosRow) => [
         String(row.id),
         {
           ahead: Number(row.ahead ?? 0) || 0,
@@ -611,6 +683,8 @@ export class TaskService {
         repoProvider: meta?.repoProvider ?? null,
         repoId: meta?.repoId ?? null,
         robotId: meta?.robotId ?? null,
+        // Capture triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        actorUserId: meta?.actorUserId ?? null,
         ref: meta?.ref ?? null,
         mrId: meta?.mrId ?? null,
         issueId: meta?.issueId ?? null,
@@ -619,7 +693,10 @@ export class TaskService {
         updatedAt: now
       }
     });
-    return taskRecordToTask(created);
+    const task = taskRecordToTask(created);
+    // Push task-group refresh events for new tasks. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+    void this.emitTaskGroupUpdate(task, 'created');
+    return task;
   }
 
   /**
@@ -680,6 +757,8 @@ export class TaskService {
         repoProvider: meta?.repoProvider ?? null,
         repoId: meta?.repoId ?? null,
         robotId: meta?.robotId ?? null,
+        // Capture triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        actorUserId: meta?.actorUserId ?? null,
         ref: meta?.ref ?? null,
         mrId: meta?.mrId ?? null,
         issueId: meta?.issueId ?? null,
@@ -688,7 +767,10 @@ export class TaskService {
         updatedAt: now
       }
     });
-    return taskRecordToTask(created);
+    const task = taskRecordToTask(created);
+    // Push task-group refresh events for group-bound tasks. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+    void this.emitTaskGroupUpdate(task, 'created');
+    return task;
   }
 
   /**
@@ -1214,7 +1296,9 @@ export class TaskService {
     if (!(endExclusive instanceof Date) || Number.isNaN(endExclusive.getTime())) return [];
     if (endExclusive.getTime() <= start.getTime()) return [];
 
-    const rows = await db.$queryRaw<any[]>`
+    type DailyVolumeRow = { day: string; count: number };
+    // Use a typed raw-query row shape so strict startup builds avoid implicit-any callback parameters. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const rows = await db.$queryRaw<DailyVolumeRow[]>`
       SELECT to_char((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
              COUNT(*)::int AS count
       FROM tasks
@@ -1228,7 +1312,7 @@ export class TaskService {
       ORDER BY 1 ASC;
     `;
 
-    return rows.map((row) => ({
+    return rows.map((row: DailyVolumeRow) => ({
       day: String(row?.day ?? ''),
       count: Number(row?.count ?? 0) || 0
     }));
@@ -1322,7 +1406,12 @@ export class TaskService {
       RETURNING *;
     `;
 
-    return rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+    const task = rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+    if (task && status) {
+      // Broadcast status-driven task-group updates to active chat sessions. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      void this.emitTaskGroupUpdate(task, 'status');
+    }
+    return task;
   }
 
   async retryTask(id: string): Promise<Task | undefined> {
@@ -1336,7 +1425,10 @@ export class TaskService {
           updatedAt: now
         }
       });
-      return taskRecordToTask(row);
+      const task = taskRecordToTask(row);
+      // Notify chat clients about retry status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      void this.emitTaskGroupUpdate(task, 'status');
+      return task;
     } catch (err) {
       if (isNotFoundError(err)) return undefined;
       throw err;
@@ -1351,7 +1443,10 @@ export class TaskService {
         where: { id },
         data: { status: 'paused', updatedAt: now }
       });
-      return taskRecordToTask(row);
+      const task = taskRecordToTask(row);
+      // Notify chat clients about pause status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      void this.emitTaskGroupUpdate(task, 'status');
+      return task;
     } catch (err) {
       if (isNotFoundError(err)) return undefined;
       throw err;
@@ -1366,7 +1461,10 @@ export class TaskService {
         where: { id },
         data: { status: 'queued', updatedAt: now }
       });
-      return taskRecordToTask(row);
+      const task = taskRecordToTask(row);
+      // Notify chat clients about resume status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
+      void this.emitTaskGroupUpdate(task, 'status');
+      return task;
     } catch (err) {
       if (isNotFoundError(err)) return undefined;
       throw err;

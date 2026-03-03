@@ -17,7 +17,8 @@ import {
 
 // Split GitLab webhook handler into a provider-specific module for maintainability. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
 export const handleGitlabWebhook = async (req: Request, res: Response, deps: WebhookDeps) => {
-  const { taskService, taskRunner, repositoryService, repoRobotService, repoAutomationService, repoWebhookDeliveryService } = deps;
+  // Include log writer so webhook rejects emit system logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+  const { taskService, taskRunner, repositoryService, repoRobotService, repoAutomationService, repoWebhookDeliveryService, logWriter, notificationRecipients } = deps;
   const repoId = String(req.params.repoId ?? '').trim();
   const eventName = safeString(req.header('x-gitlab-event') ?? '').trim();
   const deliveryId = safeString(req.header('x-gitlab-event-uuid') ?? req.header('X-Gitlab-Event-UUID') ?? '').trim();
@@ -42,6 +43,16 @@ export const handleGitlabWebhook = async (req: Request, res: Response, deps: Web
         message: meta.message,
         taskIds: meta.taskIds,
         response: body
+      });
+    }
+    if (meta.result === 'rejected' || meta.result === 'error') {
+      // Emit system log entries for webhook rejections/errors. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      void logWriter.logSystem({
+        level: meta.result === 'error' ? 'error' : 'warn',
+        message: meta.message ? `Webhook rejected: ${meta.message}` : 'Webhook rejected',
+        code: meta.code ?? (meta.result === 'error' ? 'WEBHOOK_ERROR' : 'WEBHOOK_REJECTED'),
+        repoId,
+        meta: { provider: 'gitlab', eventName, deliveryId, httpStatus, result: meta.result }
       });
     }
     return res.status(httpStatus).json(body);
@@ -159,6 +170,8 @@ export const handleGitlabWebhook = async (req: Request, res: Response, deps: Web
     }
 
     const baseMeta = buildTaskMeta(eventType, payload);
+    // Resolve trigger user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+    const actorUserId = (await notificationRecipients.resolveActorUserIdFromPayload(repoId, payload)) ?? undefined;
     const created: Array<{ id: string; robotId: string }> = [];
 
     for (const action of actions) {
@@ -191,7 +204,9 @@ export const handleGitlabWebhook = async (req: Request, res: Response, deps: Web
         repoId,
         repoProvider: 'gitlab',
         robotId: action.robotId,
-        promptCustom: action.promptCustom ?? null
+        promptCustom: action.promptCustom ?? null,
+        // Attach trigger ownership for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        actorUserId
       });
       created.push({ id: task.id, robotId: action.robotId });
     }
