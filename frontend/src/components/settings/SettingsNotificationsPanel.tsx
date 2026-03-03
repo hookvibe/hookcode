@@ -18,6 +18,9 @@ const levelColor = (level: NotificationLevel): string => {
   return 'blue';
 };
 
+const PAGE_SIZE = 20; // Keep notifications table pagination compact for settings. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+const PAGE_FETCH_LIMIT = 50; // Align fetch size with existing API defaults. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+
 // Settings notifications panel with pagination and read-all. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
 export const SettingsNotificationsPanel: FC = () => {
   const t = useT();
@@ -28,6 +31,8 @@ export const SettingsNotificationsPanel: FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [live, setLive] = useState(true);
+  // Track the current pagination page for the notifications table. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+  const [page, setPage] = useState(1);
   const sourceRef = useRef<EventSource | null>(null);
 
   const columns = useMemo<ColumnsType<NotificationEntry>>(
@@ -79,9 +84,11 @@ export const SettingsNotificationsPanel: FC = () => {
   const loadNotifications = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Reset pagination to the first page when reloading notifications. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+    setPage(1);
     try {
       const res = await fetchNotifications({
-        limit: 50,
+        limit: PAGE_FETCH_LIMIT,
         unread: unreadOnly ? true : undefined
       });
       setNotifications(res.notifications || []);
@@ -93,33 +100,66 @@ export const SettingsNotificationsPanel: FC = () => {
     }
   }, [unreadOnly]);
 
-  const loadMore = useCallback(async () => {
-    if (!nextCursor) return;
-    setLoadingMore(true);
-    setError(null);
-    try {
-      const res = await fetchNotifications({
-        limit: 50,
-        cursor: nextCursor,
-        unread: unreadOnly ? true : undefined
-      });
-      setNotifications((prev) => [...prev, ...(res.notifications || [])]);
-      setNextCursor(res.nextCursor);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load more notifications');
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [nextCursor, unreadOnly]);
+  const ensurePageData = useCallback(
+    async (targetPage: number) => {
+      // Drive cursor fetches to satisfy table pagination requests. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+      const safePage = Math.max(targetPage, 1);
+      setPage(safePage);
+      if (notifications.length >= safePage * PAGE_SIZE || !nextCursor) return;
+      setLoadingMore(true);
+      setError(null);
+      try {
+        let cursor: string | undefined = nextCursor;
+        let next = notifications;
+        const targetCount = safePage * PAGE_SIZE;
+        while (cursor && next.length < targetCount) {
+          const res = await fetchNotifications({
+            limit: PAGE_FETCH_LIMIT,
+            cursor,
+            unread: unreadOnly ? true : undefined
+          });
+          const batch = res.notifications || [];
+          const existing = new Set(next.map((item) => item.id));
+          next = [...next, ...batch.filter((item) => !existing.has(item.id))];
+          cursor = res.nextCursor;
+          if (!batch.length) break;
+        }
+        setNotifications(next);
+        setNextCursor(cursor);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load more notifications');
+      } finally {
+        setLoadingMore(false);
+      }
+    },
+    [nextCursor, notifications, unreadOnly]
+  );
 
   const markAllRead = async () => {
     try {
       const res = await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((item) => ({ ...item, readAt: res.readAt })));
+      // Keep pagination state aligned after marking all notifications read. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+      setNotifications((prev) => {
+        const updated = prev.map((item) => ({ ...item, readAt: res.readAt }));
+        return unreadOnly ? updated.filter((item) => !item.readAt) : updated;
+      });
+      setPage(1);
     } catch (err: any) {
       setError(err?.message || 'Failed to mark notifications read');
     }
   };
+
+  const pagedNotifications = useMemo(() => {
+    // Slice the loaded notifications to the active table page. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+    const start = (page - 1) * PAGE_SIZE;
+    return notifications.slice(start, start + PAGE_SIZE);
+  }, [notifications, page]);
+
+  const paginationTotal = useMemo(() => {
+    // Expose a virtual next page when cursor pagination indicates more data. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+    if (nextCursor) return Math.max(notifications.length + PAGE_SIZE, page * PAGE_SIZE);
+    return notifications.length;
+  }, [nextCursor, notifications.length, page]);
 
   useEffect(() => {
     void loadNotifications();
@@ -144,7 +184,12 @@ export const SettingsNotificationsPanel: FC = () => {
       try {
         const payload = JSON.parse(event.data) as { readAt?: string };
         const readAt = payload.readAt || new Date().toISOString();
-        setNotifications((prev) => prev.map((item) => ({ ...item, readAt })));
+        // Sync read-all events with pagination filters. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+        setNotifications((prev) => {
+          const updated = prev.map((item) => ({ ...item, readAt }));
+          return unreadOnly ? updated.filter((item) => !item.readAt) : updated;
+        });
+        setPage(1);
       } catch {
         // Ignore malformed entries. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
       }
@@ -186,17 +231,17 @@ export const SettingsNotificationsPanel: FC = () => {
         <Table
           rowKey={(record) => record.id}
           columns={columns}
-          dataSource={notifications}
-          pagination={false}
-          loading={loading}
+          dataSource={pagedNotifications}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: paginationTotal,
+            showSizeChanger: false,
+            onChange: (nextPage) => void ensurePageData(nextPage)
+          }}
+          loading={loading || loadingMore}
           size="small"
         />
-
-        {nextCursor ? (
-          <Button onClick={() => void loadMore()} loading={loadingMore}>
-            Load more
-          </Button>
-        ) : null}
       </Space>
     </div>
   );

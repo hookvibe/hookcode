@@ -29,6 +29,9 @@ const levelColor = (level: SystemLogLevel): string => {
   return 'blue';
 };
 
+const LOG_PAGE_SIZE = 20; // Keep system log pagination manageable in settings. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+const LOG_FETCH_LIMIT = 50; // Align log fetch size with existing API usage. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+
 // Settings log panel with filtering + live SSE updates. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 export const SettingsLogsPanel: FC = () => {
   const [logs, setLogs] = useState<SystemLogEntry[]>([]);
@@ -41,6 +44,8 @@ export const SettingsLogsPanel: FC = () => {
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
   const [live, setLive] = useState(true);
+  // Track the current pagination page for the logs table. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+  const [page, setPage] = useState(1);
   const sourceRef = useRef<EventSource | null>(null);
 
   const columns = useMemo<ColumnsType<SystemLogEntry>>(
@@ -106,9 +111,11 @@ export const SettingsLogsPanel: FC = () => {
   const loadLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Reset pagination to the first page when filters or query change. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+    setPage(1);
     try {
       const res = await fetchSystemLogs({
-        limit: 50,
+        limit: LOG_FETCH_LIMIT,
         category: category === 'all' ? undefined : category,
         level: level === 'all' ? undefined : level,
         q: query || undefined
@@ -122,26 +129,54 @@ export const SettingsLogsPanel: FC = () => {
     }
   }, [category, level, query]);
 
-  const loadMore = useCallback(async () => {
-    if (!nextCursor) return;
-    setLoadingMore(true);
-    setError(null);
-    try {
-      const res = await fetchSystemLogs({
-        limit: 50,
-        cursor: nextCursor,
-        category: category === 'all' ? undefined : category,
-        level: level === 'all' ? undefined : level,
-        q: query || undefined
-      });
-      setLogs((prev) => [...prev, ...(res.logs || [])]);
-      setNextCursor(res.nextCursor);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load more logs');
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [category, level, nextCursor, query]);
+  const ensurePageData = useCallback(
+    async (targetPage: number) => {
+      // Fetch additional log pages to satisfy table pagination. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+      const safePage = Math.max(targetPage, 1);
+      setPage(safePage);
+      if (logs.length >= safePage * LOG_PAGE_SIZE || !nextCursor) return;
+      setLoadingMore(true);
+      setError(null);
+      try {
+        let cursor: string | undefined = nextCursor;
+        let next = logs;
+        const targetCount = safePage * LOG_PAGE_SIZE;
+        while (cursor && next.length < targetCount) {
+          const res = await fetchSystemLogs({
+            limit: LOG_FETCH_LIMIT,
+            cursor,
+            category: category === 'all' ? undefined : category,
+            level: level === 'all' ? undefined : level,
+            q: query || undefined
+          });
+          const batch = res.logs || [];
+          const existing = new Set(next.map((item) => item.id));
+          next = [...next, ...batch.filter((item) => !existing.has(item.id))];
+          cursor = res.nextCursor;
+          if (!batch.length) break;
+        }
+        setLogs(next);
+        setNextCursor(cursor);
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load more logs');
+      } finally {
+        setLoadingMore(false);
+      }
+    },
+    [category, level, logs, nextCursor, query]
+  );
+
+  const pagedLogs = useMemo(() => {
+    // Slice loaded logs for the active pagination page. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+    const start = (page - 1) * LOG_PAGE_SIZE;
+    return logs.slice(start, start + LOG_PAGE_SIZE);
+  }, [logs, page]);
+
+  const paginationTotal = useMemo(() => {
+    // Expose an extra page when cursor pagination indicates more data. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+    if (nextCursor) return Math.max(logs.length + LOG_PAGE_SIZE, page * LOG_PAGE_SIZE);
+    return logs.length;
+  }, [nextCursor, logs.length, page]);
 
   useEffect(() => {
     void loadLogs();
@@ -208,17 +243,17 @@ export const SettingsLogsPanel: FC = () => {
         <Table
           rowKey={(record) => record.id}
           columns={columns}
-          dataSource={logs}
-          pagination={false}
-          loading={loading}
+          dataSource={pagedLogs}
+          pagination={{
+            current: page,
+            pageSize: LOG_PAGE_SIZE,
+            total: paginationTotal,
+            showSizeChanger: false,
+            onChange: (nextPage) => void ensurePageData(nextPage)
+          }}
+          loading={loading || loadingMore}
           size="small"
         />
-
-        {nextCursor ? (
-          <Button onClick={() => void loadMore()} loading={loadingMore}>
-            Load more
-          </Button>
-        ) : null}
       </Space>
     </div>
   );

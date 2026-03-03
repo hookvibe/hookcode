@@ -26,6 +26,8 @@ export const NotificationsPopover: FC = () => {
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<NotificationEntry[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Track in-flight mark-all-read requests to avoid duplicate updates. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+  const [markingRead, setMarkingRead] = useState(false);
 
   const listEmpty = notifications.length === 0;
 
@@ -50,14 +52,25 @@ export const NotificationsPopover: FC = () => {
     }
   };
 
-  const markAllRead = async () => {
+  const markAllRead = async (options?: { close?: boolean }) => {
+    // Apply read-all updates (and optional close) for popover actions. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+    if (markingRead) return;
+    const hasUnread = unreadCount > 0 || notifications.some((item) => !item.readAt);
+    if (!hasUnread) {
+      if (options?.close) setOpen(false);
+      return;
+    }
+    setMarkingRead(true);
     try {
       const res = await markAllNotificationsRead();
       const readAt = res.readAt || new Date().toISOString();
       setUnreadCount(0);
       setNotifications((prev) => prev.map((item) => ({ ...item, readAt })));
+      if (options?.close) setOpen(false);
     } catch {
       // Ignore failures; user can retry. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+    } finally {
+      setMarkingRead(false);
     }
   };
 
@@ -72,7 +85,7 @@ export const NotificationsPopover: FC = () => {
         <div className="hc-notifications-popover__header">
           <Typography.Text strong>{t('panel.notifications.title')}</Typography.Text>
           <Space size={8}>
-            <Button size="small" type="text" onClick={markAllRead} disabled={unreadCount === 0}>
+            <Button size="small" type="text" onClick={() => void markAllRead({ close: true })} disabled={unreadCount === 0}>
               {t('panel.notifications.readAll')}
             </Button>
             <Button size="small" type="link" onClick={viewAll}>
@@ -142,9 +155,14 @@ export const NotificationsPopover: FC = () => {
       content={content}
       trigger="click"
       open={open}
+      destroyTooltipOnHide // Unmount popover content when closed for reliable UX state. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
-        if (nextOpen) void loadNotifications();
+        if (nextOpen) {
+          void loadNotifications();
+          // Treat opening the popover as "read" when unread notifications exist. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+          void markAllRead();
+        }
       }}
       placement="bottomRight"
       overlayClassName="hc-notifications-popover__overlay"

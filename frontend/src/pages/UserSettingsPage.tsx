@@ -75,6 +75,7 @@ import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { UserSettingsSidebar } from '../components/settings/UserSettingsSidebar';
 import { SettingsLogsPanel } from '../components/settings/SettingsLogsPanel';
 import { SettingsNotificationsPanel } from '../components/settings/SettingsNotificationsPanel';
+import { NotificationsPopover } from '../components/notifications/NotificationsPopover';
 import { buildHomeHash, type SettingsTab } from '../router';
 
 // Re-use type aliases from the original panel component. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
@@ -205,6 +206,16 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       }) as const,
     []
   );
+
+  // Show the notifications bell in settings nav except on the notifications tab. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+  const settingsUserPanel = useMemo(() => {
+    if (activeTab === 'notifications') return null;
+    return (
+      <div className="hc-nav-user-stack">
+        <NotificationsPopover />
+      </div>
+    );
+  }, [activeTab]);
 
   // Define PAT scope group labels and expiry presets for the credentials panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
   const apiTokenScopeGroups = useMemo(
@@ -1034,6 +1045,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
               ) : undefined
             }
             navToggle={navToggle}
+            userPanel={settingsUserPanel}
           />
           <div className="hc-page__body">
             <div className="hc-settings-tab-content">
