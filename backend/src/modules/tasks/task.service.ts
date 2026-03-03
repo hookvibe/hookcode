@@ -474,8 +474,9 @@ export class TaskService {
       `
     ]);
 
+    // Keep query-row callback typing explicit so preview-start compilation does not infer implicit any. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
     const posMap = new Map<string, { ahead: number; total: number }>(
-      (posRows ?? []).map((row) => [
+      (posRows ?? []).map((row: QueuePosRow) => [
         String(row.id),
         {
           ahead: Number(row.ahead ?? 0) || 0,
@@ -1224,7 +1225,9 @@ export class TaskService {
     if (!(endExclusive instanceof Date) || Number.isNaN(endExclusive.getTime())) return [];
     if (endExclusive.getTime() <= start.getTime()) return [];
 
-    const rows = await db.$queryRaw<any[]>`
+    type DailyVolumeRow = { day: string; count: number };
+    // Use a typed raw-query row shape so strict startup builds avoid implicit-any callback parameters. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const rows = await db.$queryRaw<DailyVolumeRow[]>`
       SELECT to_char((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
              COUNT(*)::int AS count
       FROM tasks
@@ -1238,7 +1241,7 @@ export class TaskService {
       ORDER BY 1 ASC;
     `;
 
-    return rows.map((row) => ({
+    return rows.map((row: DailyVolumeRow) => ({
       day: String(row?.day ?? ''),
       count: Number(row?.count ?? 0) || 0
     }));

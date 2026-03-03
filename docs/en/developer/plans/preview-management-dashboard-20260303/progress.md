@@ -127,3 +127,17 @@
   - `docs/en/developer/plans/preview-management-dashboard-20260303/progress.md`
 - Verification:
   - `env ... pnpm --dir backend exec nest start` with preview-like env started successfully and logged `[backend] listening on http://0.0.0.0:<PORT>`.
+
+<!-- Record compile-error hotfix after switching backend preview startup command. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+## Post-Delivery Hotfix: Backend Preview Exited(1) TS7006 (2026-03-03)
+- **Status:** complete
+- Actions taken:
+  - Investigated user-reported backend preview failure: `exited (1)` with `TS7006` in `task.service.ts`.
+  - Added explicit callback parameter type for queue-position rows in queue diagnosis mapping.
+  - Replaced `db.$queryRaw<any[]>` with `db.$queryRaw<DailyVolumeRow[]>` and typed the daily-volume mapper callback parameter.
+- Files modified:
+  - `backend/src/modules/tasks/task.service.ts`
+  - `docs/en/developer/plans/preview-management-dashboard-20260303/findings.md`
+  - `docs/en/developer/plans/preview-management-dashboard-20260303/progress.md`
+- Verification:
+  - `pnpm --dir backend exec tsc -p tsconfig.json --noEmit` passed.

@@ -60,3 +60,11 @@
 - Mitigation in `.hookcode.yml`:
   - `ADMIN_TOOLS_ENABLED` remains `false` for backend preview instances.
   - Backend preview command switched from `pnpm dev` to `pnpm exec nest start` to fail fast on startup errors instead of timing out.
+
+<!-- Capture strict-compilation finding behind backend preview exited(1) failures. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+## Post-Delivery Compile Finding (2026-03-03)
+- Backend preview startup can fail fast with `exited (1)` when `nest start` compiles under strict TypeScript checks and detects implicit-any callback parameters.
+- Reported failures were in `backend/src/modules/tasks/task.service.ts` at queue-diagnosis and daily-volume mappers (`TS7006: Parameter 'row' implicitly has an 'any' type`).
+- Mitigation:
+  - Added explicit callback parameter type for queue position rows.
+  - Replaced `any[]` raw-query typing with a concrete `DailyVolumeRow` type and typed mapper callback.
