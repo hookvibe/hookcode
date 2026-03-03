@@ -349,6 +349,10 @@ export const enUSCore = {
   'tasks.gitStatus.divergence.value': '{{ahead}} ahead · {{behind}} behind',
   'tasks.gitStatus.files': 'Changed files',
   'tasks.gitStatus.files.none': 'No local file changes',
+  // Add compact-summary copy for collapsed git status cards in task-group timelines. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303
+  'tasks.gitStatus.files.summary': '{{staged}} staged · {{unstaged}} unstaged · {{untracked}} untracked',
+  'tasks.gitStatus.expand': 'Show details',
+  'tasks.gitStatus.collapse': 'Hide details',
   'tasks.gitStatus.files.staged': 'Staged ({{count}})',
   'tasks.gitStatus.files.unstaged': 'Unstaged ({{count}})',
   'tasks.gitStatus.files.untracked': 'Untracked ({{count}})',

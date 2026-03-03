@@ -136,8 +136,8 @@ export const TaskConversationItem: FC<Props> = ({
           )}
       </div>
 
-      {/* 4) Final text output */}
-      {showResult ? (
+      {/* 4) Final text output Remove it for now. */}
+      {/* {showResult ? (
         <div className="hc-chat-item__assistant">
           {resultText ? (
             <MarkdownViewer markdown={resultText} className="markdown-result--expanded" />
@@ -145,7 +145,7 @@ export const TaskConversationItem: FC<Props> = ({
             <Typography.Text type="secondary">{t('chat.message.resultEmpty')}</Typography.Text>
           )}
         </div>
-      ) : null}
+      ) : null} */}
 
       {showResult && nextActions.length ? (
         <div className="hc-chat-item__assistant">

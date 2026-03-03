@@ -157,6 +157,52 @@
   border: 2px solid var(--hc-border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
+/* Provide a compact summary row so chat git status cards stay small until users expand details. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303 */
+.hc-chat-git-status-summary {
+  width: 100%;
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+  background: var(--hc-surface);
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px 12px;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-chat-git-status-summary:hover {
+  border-color: rgba(24, 144, 255, 0.35);
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.12);
+}
+
+.hc-chat-git-status-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hc-chat-git-status-summary__label {
+  font-size: 11px;
+  color: var(--hc-text-secondary);
+}
+
+.hc-chat-git-status-summary__value {
+  font-size: 13px;
+  color: var(--hc-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hc-chat-git-status-summary__action {
+  justify-self: end;
+  font-size: 12px;
+  color: var(--hc-text-secondary);
+}
 /* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */
 
 /* Tighten timeline/composer padding on mobile to avoid wasted space. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */

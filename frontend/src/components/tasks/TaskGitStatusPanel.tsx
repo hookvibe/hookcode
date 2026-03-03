@@ -32,16 +32,20 @@ const PUSH_ERROR_KEY_BY_CODE: Record<string, string> = {
 export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant = 'full' }) => {
   // Render git status details for task detail + group pages. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   const t = useT();
+  const isCompact = variant === 'compact';
   // Track push action state so the panel can trigger fork pushes safely. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   const [pushLoading, setPushLoading] = useState(false);
   const [pushError, setPushError] = useState('');
   const [overrideStatus, setOverrideStatus] = useState<TaskGitStatus | null>(null);
+  // Default compact cards to collapsed so task-group timelines keep a smaller footprint by default. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303
+  const [compactExpanded, setCompactExpanded] = useState(!isCompact);
 
   useEffect(() => {
     setPushLoading(false);
     setPushError('');
     setOverrideStatus(null);
-  }, [task?.id]);
+    setCompactExpanded(!isCompact);
+  }, [isCompact, task?.id]);
 
   const view = useMemo(() => {
     const result: any = task?.result;
@@ -156,6 +160,19 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
       : view.push?.reason === 'push_remote_mismatch'
         ? 'tasks.gitStatus.push.warning.remoteMismatch'
         : null;
+  const showDetails = !isCompact || compactExpanded;
+  const divergenceText =
+    typeof view.ahead === 'number' || typeof view.behind === 'number'
+      ? t('tasks.gitStatus.divergence.value', {
+          ahead: view.ahead ?? 0,
+          behind: view.behind ?? 0
+        })
+      : '-';
+  const fileSummary = t('tasks.gitStatus.files.summary', {
+    staged: view.staged.length,
+    unstaged: view.unstaged.length,
+    untracked: view.untracked.length
+  });
 
   return (
     <Card
@@ -176,152 +193,183 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
       styles={{ body: { padding: variant === 'compact' ? 12 : 16 } }}
     >
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
-        {/* Show additional status tags below title. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */}
-        <Space wrap size={8}>
-          <Tag color={commitColor}>{view.delta?.headChanged ? t('tasks.gitStatus.commit.created') : t('tasks.gitStatus.commit.none')}</Tag>
-          {view.delta?.branchChanged ? <Tag color={branchColor}>{t('tasks.gitStatus.branch.changed')}</Tag> : null}
-        </Space>
-        {pushWarningKey ? (
-          <Typography.Text type="warning" style={{ display: 'block', padding: '8px 12px', background: 'rgba(250, 173, 20, 0.1)', borderRadius: '6px' }}>
-            {t(pushWarningKey)}
-          </Typography.Text>
+        {isCompact ? (
+          <button
+            type="button"
+            className="hc-chat-git-status-summary"
+            onClick={() => setCompactExpanded((value) => !value)}
+            aria-expanded={showDetails}
+          >
+            {/* Keep compact cards informative while collapsed by surfacing only high-signal git metrics. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303 */}
+            <span className="hc-chat-git-status-summary__item">
+              <span className="hc-chat-git-status-summary__label">{t('tasks.gitStatus.branch')}</span>
+              <span className="hc-chat-git-status-summary__value">{view.branch || '-'}</span>
+            </span>
+            <span className="hc-chat-git-status-summary__item">
+              <span className="hc-chat-git-status-summary__label">{t('tasks.gitStatus.divergence')}</span>
+              <span className="hc-chat-git-status-summary__value">{divergenceText}</span>
+            </span>
+            <span className="hc-chat-git-status-summary__item">
+              <span className="hc-chat-git-status-summary__label">{t('tasks.gitStatus.files')}</span>
+              <span className="hc-chat-git-status-summary__value">{fileSummary}</span>
+            </span>
+            <span className="hc-chat-git-status-summary__action">
+              {showDetails ? t('tasks.gitStatus.collapse') : t('tasks.gitStatus.expand')}
+            </span>
+          </button>
         ) : null}
-        {canPush || pushError ? (
-          <Space align="center" size={8}>
-            {canPush ? (
-              <Button size="small" type="primary" loading={pushLoading} onClick={handlePush}>
-                {t('tasks.gitStatus.push.action', { target: view.pushTargetLabel })}
-              </Button>
-            ) : null}
-            {pushError ? <Typography.Text type="danger">{pushError}</Typography.Text> : null}
-          </Space>
-        ) : null}
 
-        {/* Group key information in a prominent card for better scanning. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */}
-        <div style={{ 
-          padding: '12px', 
-          background: 'var(--hc-surface)', 
-          border: '1px solid var(--hc-border)', 
-          borderRadius: '8px',
-          display: 'grid',
-          gridTemplateColumns: variant === 'compact' ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '12px'
-        }}>
-          <Space direction="vertical" size={4}>
-            <Typography.Text type="secondary" strong>{t('tasks.gitStatus.branch')}</Typography.Text>
-            {view.branchHref ? (
-              <Typography.Link href={view.branchHref} target="_blank" rel="noreferrer" style={{ fontSize: '15px' }}>
-                {view.branch}
-              </Typography.Link>
-            ) : (
-              <Typography.Text style={{ fontSize: '15px' }}>{view.branch || '-'}</Typography.Text>
-            )}
-          </Space>
-
-          <Space direction="vertical" size={4}>
-            <Typography.Text type="secondary" strong>{t('tasks.gitStatus.commit')}</Typography.Text>
-            {view.commitHref ? (
-              <Typography.Link href={view.commitHref} target="_blank" rel="noreferrer" style={{ fontFamily: 'monospace', fontSize: '14px' }}>
-                {view.shortSha || view.headSha || '-'}
-              </Typography.Link>
-            ) : (
-              <Typography.Text code style={{ fontSize: '14px' }}>{view.shortSha || view.headSha || '-'}</Typography.Text>
-            )}
-          </Space>
-
-          <Space direction="vertical" size={4}>
-            <Typography.Text type="secondary" strong>{t('tasks.gitStatus.pushTarget')}</Typography.Text>
-            {view.webBase ? (
-              <Typography.Link href={view.webBase} target="_blank" rel="noreferrer" style={{ fontSize: '14px' }}>
-                {view.pushTargetLabel}
-              </Typography.Link>
-            ) : (
-              <Typography.Text style={{ fontSize: '14px' }}>{view.pushTargetLabel}</Typography.Text>
-            )}
-          </Space>
-
-          <Space direction="vertical" size={4}>
-            <Typography.Text type="secondary" strong>{t('tasks.gitStatus.divergence')}</Typography.Text>
-            <Typography.Text style={{ fontSize: '14px' }}>
-              {typeof view.ahead === 'number' || typeof view.behind === 'number'
-                ? t('tasks.gitStatus.divergence.value', {
-                    ahead: view.ahead ?? 0,
-                    behind: view.behind ?? 0
-                  })
-                : '-'}
-            </Typography.Text>
-          </Space>
-        </div>
-
-        <Divider style={{ margin: '12px 0' }} />
-
-        {/* Simplify file list display with better grouping. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */}
-        <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Typography.Text strong style={{ fontSize: '15px' }}>{t('tasks.gitStatus.files')}</Typography.Text>
-          {view.totalChanges === 0 ? (
-            <Typography.Text type="secondary">{t('tasks.gitStatus.files.none')}</Typography.Text>
-          ) : (
-            <Space direction="vertical" size={10} style={{ width: '100%' }}>
-              {view.staged.length ? (
-                <div style={{ padding: '8px 12px', background: 'rgba(82, 196, 26, 0.08)', borderRadius: '6px', border: '1px solid rgba(82, 196, 26, 0.2)' }}>
-                  <Typography.Text type="secondary" strong style={{ display: 'block', marginBottom: '6px' }}>
-                    {t('tasks.gitStatus.files.staged', { count: view.staged.length })}
-                  </Typography.Text>
-                  <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                    {view.staged.slice(0, variant === 'compact' ? 3 : 10).map((file) => (
-                      <Typography.Text key={`staged-${file}`} code style={{ fontSize: '12px', display: 'block' }}>
-                        {file}
-                      </Typography.Text>
-                    ))}
-                    {variant === 'compact' && view.staged.length > 3 && (
-                      <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                        +{view.staged.length - 3} more...
-                      </Typography.Text>
-                    )}
-                  </Space>
-                </div>
-              ) : null}
-              {view.unstaged.length ? (
-                <div style={{ padding: '8px 12px', background: 'rgba(250, 173, 20, 0.08)', borderRadius: '6px', border: '1px solid rgba(250, 173, 20, 0.2)' }}>
-                  <Typography.Text type="secondary" strong style={{ display: 'block', marginBottom: '6px' }}>
-                    {t('tasks.gitStatus.files.unstaged', { count: view.unstaged.length })}
-                  </Typography.Text>
-                  <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                    {view.unstaged.slice(0, variant === 'compact' ? 3 : 10).map((file) => (
-                      <Typography.Text key={`unstaged-${file}`} code style={{ fontSize: '12px', display: 'block' }}>
-                        {file}
-                      </Typography.Text>
-                    ))}
-                    {variant === 'compact' && view.unstaged.length > 3 && (
-                      <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                        +{view.unstaged.length - 3} more...
-                      </Typography.Text>
-                    )}
-                  </Space>
-                </div>
-              ) : null}
-              {view.untracked.length ? (
-                <div style={{ padding: '8px 12px', background: 'rgba(24, 144, 255, 0.08)', borderRadius: '6px', border: '1px solid rgba(24, 144, 255, 0.2)' }}>
-                  <Typography.Text type="secondary" strong style={{ display: 'block', marginBottom: '6px' }}>
-                    {t('tasks.gitStatus.files.untracked', { count: view.untracked.length })}
-                  </Typography.Text>
-                  <Space direction="vertical" size={2} style={{ width: '100%' }}>
-                    {view.untracked.slice(0, variant === 'compact' ? 3 : 10).map((file) => (
-                      <Typography.Text key={`untracked-${file}`} code style={{ fontSize: '12px', display: 'block' }}>
-                        {file}
-                      </Typography.Text>
-                    ))}
-                    {variant === 'compact' && view.untracked.length > 3 && (
-                      <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                        +{view.untracked.length - 3} more...
-                      </Typography.Text>
-                    )}
-                  </Space>
-                </div>
-              ) : null}
+        {showDetails ? (
+          <>
+            {/* Show additional status tags below title. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */}
+            <Space wrap size={8}>
+              <Tag color={commitColor}>{view.delta?.headChanged ? t('tasks.gitStatus.commit.created') : t('tasks.gitStatus.commit.none')}</Tag>
+              {view.delta?.branchChanged ? <Tag color={branchColor}>{t('tasks.gitStatus.branch.changed')}</Tag> : null}
             </Space>
-          )}
-        </Space>
+            {pushWarningKey ? (
+              <Typography.Text
+                type="warning"
+                style={{ display: 'block', padding: '8px 12px', background: 'rgba(250, 173, 20, 0.1)', borderRadius: '6px' }}
+              >
+                {t(pushWarningKey)}
+              </Typography.Text>
+            ) : null}
+            {canPush || pushError ? (
+              <Space align="center" size={8}>
+                {canPush ? (
+                  <Button size="small" type="primary" loading={pushLoading} onClick={handlePush}>
+                    {t('tasks.gitStatus.push.action', { target: view.pushTargetLabel })}
+                  </Button>
+                ) : null}
+                {pushError ? <Typography.Text type="danger">{pushError}</Typography.Text> : null}
+              </Space>
+            ) : null}
+
+            {/* Group key information in a prominent card for better scanning. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */}
+            <div
+              style={{
+                padding: '12px',
+                background: 'var(--hc-surface)',
+                border: '1px solid var(--hc-border)',
+                borderRadius: '8px',
+                display: 'grid',
+                gridTemplateColumns: variant === 'compact' ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '12px'
+              }}
+            >
+              <Space direction="vertical" size={4}>
+                <Typography.Text type="secondary" strong>
+                  {t('tasks.gitStatus.branch')}
+                </Typography.Text>
+                {view.branchHref ? (
+                  <Typography.Link href={view.branchHref} target="_blank" rel="noreferrer" style={{ fontSize: '15px' }}>
+                    {view.branch}
+                  </Typography.Link>
+                ) : (
+                  <Typography.Text style={{ fontSize: '15px' }}>{view.branch || '-'}</Typography.Text>
+                )}
+              </Space>
+
+              <Space direction="vertical" size={4}>
+                <Typography.Text type="secondary" strong>
+                  {t('tasks.gitStatus.commit')}
+                </Typography.Text>
+                {view.commitHref ? (
+                  <Typography.Link href={view.commitHref} target="_blank" rel="noreferrer" style={{ fontFamily: 'monospace', fontSize: '14px' }}>
+                    {view.shortSha || view.headSha || '-'}
+                  </Typography.Link>
+                ) : (
+                  <Typography.Text code style={{ fontSize: '14px' }}>
+                    {view.shortSha || view.headSha || '-'}
+                  </Typography.Text>
+                )}
+              </Space>
+
+              <Space direction="vertical" size={4}>
+                <Typography.Text type="secondary" strong>
+                  {t('tasks.gitStatus.pushTarget')}
+                </Typography.Text>
+                {view.webBase ? (
+                  <Typography.Link href={view.webBase} target="_blank" rel="noreferrer" style={{ fontSize: '14px' }}>
+                    {view.pushTargetLabel}
+                  </Typography.Link>
+                ) : (
+                  <Typography.Text style={{ fontSize: '14px' }}>{view.pushTargetLabel}</Typography.Text>
+                )}
+              </Space>
+
+              <Space direction="vertical" size={4}>
+                <Typography.Text type="secondary" strong>
+                  {t('tasks.gitStatus.divergence')}
+                </Typography.Text>
+                <Typography.Text style={{ fontSize: '14px' }}>{divergenceText}</Typography.Text>
+              </Space>
+            </div>
+
+            <Divider style={{ margin: '12px 0' }} />
+
+            {/* Simplify file list display with better grouping. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */}
+            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+              <Typography.Text strong style={{ fontSize: '15px' }}>
+                {t('tasks.gitStatus.files')}
+              </Typography.Text>
+              {view.totalChanges === 0 ? (
+                <Typography.Text type="secondary">{t('tasks.gitStatus.files.none')}</Typography.Text>
+              ) : (
+                <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                  {view.staged.length ? (
+                    <div
+                      style={{ padding: '8px 12px', background: 'rgba(82, 196, 26, 0.08)', borderRadius: '6px', border: '1px solid rgba(82, 196, 26, 0.2)' }}
+                    >
+                      <Typography.Text type="secondary" strong style={{ display: 'block', marginBottom: '6px' }}>
+                        {t('tasks.gitStatus.files.staged', { count: view.staged.length })}
+                      </Typography.Text>
+                      <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                        {view.staged.slice(0, 10).map((file) => (
+                          <Typography.Text key={`staged-${file}`} code style={{ fontSize: '12px', display: 'block' }}>
+                            {file}
+                          </Typography.Text>
+                        ))}
+                      </Space>
+                    </div>
+                  ) : null}
+                  {view.unstaged.length ? (
+                    <div
+                      style={{ padding: '8px 12px', background: 'rgba(250, 173, 20, 0.08)', borderRadius: '6px', border: '1px solid rgba(250, 173, 20, 0.2)' }}
+                    >
+                      <Typography.Text type="secondary" strong style={{ display: 'block', marginBottom: '6px' }}>
+                        {t('tasks.gitStatus.files.unstaged', { count: view.unstaged.length })}
+                      </Typography.Text>
+                      <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                        {view.unstaged.slice(0, 10).map((file) => (
+                          <Typography.Text key={`unstaged-${file}`} code style={{ fontSize: '12px', display: 'block' }}>
+                            {file}
+                          </Typography.Text>
+                        ))}
+                      </Space>
+                    </div>
+                  ) : null}
+                  {view.untracked.length ? (
+                    <div
+                      style={{ padding: '8px 12px', background: 'rgba(24, 144, 255, 0.08)', borderRadius: '6px', border: '1px solid rgba(24, 144, 255, 0.2)' }}
+                    >
+                      <Typography.Text type="secondary" strong style={{ display: 'block', marginBottom: '6px' }}>
+                        {t('tasks.gitStatus.files.untracked', { count: view.untracked.length })}
+                      </Typography.Text>
+                      <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                        {view.untracked.slice(0, 10).map((file) => (
+                          <Typography.Text key={`untracked-${file}`} code style={{ fontSize: '12px', display: 'block' }}>
+                            {file}
+                          </Typography.Text>
+                        ))}
+                      </Space>
+                    </div>
+                  ) : null}
+                </Space>
+              )}
+            </Space>
+          </>
+        ) : null}
       </Space>
     </Card>
   );

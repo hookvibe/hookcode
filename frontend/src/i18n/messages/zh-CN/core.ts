@@ -349,6 +349,10 @@ export const zhCNCore = {
   'tasks.gitStatus.divergence.value': '领先 {{ahead}} · 落后 {{behind}}',
   'tasks.gitStatus.files': '变更文件',
   'tasks.gitStatus.files.none': '无本地文件变更',
+  // Add compact-summary copy for collapsed git status cards in task-group timelines. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303
+  'tasks.gitStatus.files.summary': '已暂存 {{staged}} · 未暂存 {{unstaged}} · 未跟踪 {{untracked}}',
+  'tasks.gitStatus.expand': '展开详情',
+  'tasks.gitStatus.collapse': '收起详情',
   'tasks.gitStatus.files.staged': '已暂存（{{count}}）',
   'tasks.gitStatus.files.unstaged': '未暂存（{{count}}）',
   'tasks.gitStatus.files.untracked': '未跟踪（{{count}}）',
