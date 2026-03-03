@@ -14,9 +14,10 @@ import {
   runCommandCapture
 } from '../../agent/agent';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
-import { resolvePreviewEnv } from '../../utils/previewEnv';
+import { extractNamedPortPlaceholders, resolvePreviewEnv } from '../../utils/previewEnv';
 import { buildPreviewPublicUrl } from '../../utils/previewHost';
 import { RuntimeService } from '../../services/runtimeService';
+import { RepositoryService } from '../repositories/repository.service';
 import { PreviewPortPool } from './previewPortPool';
 import type {
   PreviewDiagnostics,
@@ -99,7 +100,8 @@ export class PreviewService implements OnModuleDestroy {
     private readonly taskService: TaskService,
     private readonly hookcodeConfigService: HookcodeConfigService,
     private readonly runtimeService: RuntimeService,
-    private readonly previewLogStream: PreviewLogStream
+    private readonly previewLogStream: PreviewLogStream,
+    private readonly repositoryService: RepositoryService
   ) {
     // Start background idle cleanup for preview processes to avoid orphaned dev servers. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     this.idleTimer = setInterval(() => {
@@ -311,10 +313,21 @@ export class PreviewService implements OnModuleDestroy {
     const workspaceDir = configInfo.workspaceDir;
     await this.installDependenciesIfNeeded(workspaceDir, configInfo.config);
 
+    const portMap = await this.allocatePreviewPorts(taskGroupId, configInfo.config.preview!.instances);
+    const repoEnv = await this.resolveRepoPreviewEnv(taskGroupId);
+    this.assertNamedPortPlaceholders(repoEnv, portMap);
+
     const instances: PreviewInstanceRuntime[] = [];
-    for (const instanceConfig of configInfo.config.preview!.instances) {
-      const instance = await this.startInstance(taskGroupId, workspaceDir, instanceConfig);
-      instances.push(instance);
+    try {
+      for (const instanceConfig of configInfo.config.preview!.instances) {
+        const instancePort = portMap[instanceConfig.name.trim()];
+        const instance = await this.startInstance(taskGroupId, workspaceDir, instanceConfig, instancePort, portMap, repoEnv);
+        instances.push(instance);
+      }
+    } catch (err) {
+      await Promise.all(instances.map((instance) => this.stopInstance(taskGroupId, instance)));
+      this.portPool.releaseTaskGroup(taskGroupId);
+      throw err;
     }
 
     const runtime: PreviewGroupRuntime = {
@@ -337,7 +350,10 @@ export class PreviewService implements OnModuleDestroy {
   private async startInstance(
     taskGroupId: string,
     workspaceDir: string,
-    config: PreviewInstanceConfig
+    config: PreviewInstanceConfig,
+    port: number,
+    portMap: Record<string, number>,
+    repoEnv: Record<string, string>
   ): Promise<PreviewInstanceRuntime> {
     // Spawn a dev server process for a preview instance. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const workdir = this.resolveInstanceWorkdir(workspaceDir, config.workdir);
@@ -346,18 +362,18 @@ export class PreviewService implements OnModuleDestroy {
     } catch {
       throw new PreviewServiceError('preview workdir missing', 'instance_invalid');
     }
-    const port = await this.safeAllocatePort(taskGroupId);
-
-    // Merge resolved env placeholders while forcing backend-assigned PORT/HOST values. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    const resolvedEnv = resolvePreviewEnv(config.env, port);
+    // Merge resolved env placeholders while forcing backend-assigned PORT/HOST values. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    const resolvedRepoEnv = resolvePreviewEnv(repoEnv, port, portMap);
+    const resolvedEnv = resolvePreviewEnv(config.env, port, portMap);
     const env = {
       ...process.env,
+      ...resolvedRepoEnv,
       ...resolvedEnv,
       PORT: String(port),
       HOST: '127.0.0.1',
       BROWSER: 'none'
     };
-    const command = this.renderCommand(config.command, port);
+    const command = this.renderCommand(config.command, port, portMap);
 
     // Seed instance runtime metadata with a port-aware starting message for clearer readiness debugging. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const instance: PreviewInstanceRuntime = {
@@ -739,9 +755,11 @@ export class PreviewService implements OnModuleDestroy {
     return resolved;
   }
 
-  private renderCommand(command: string, port: number): string {
-    // Allow optional {{PORT}} placeholder replacement for framework-specific commands. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    return String(command ?? '').replace(/\{\{\s*PORT\s*\}\}/g, String(port));
+  private renderCommand(command: string, port: number, portMap: Record<string, number>): string {
+    // Allow {{PORT}} and {{PORT:<instance>}} placeholder replacement in preview commands. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    // Keep command rendering resilient to unexpected nullish values. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    const safeCommand = String(command ?? '');
+    return resolvePreviewEnv({ command: safeCommand }, port, portMap).command;
   }
 
   private async safeAllocatePort(taskGroupId: string): Promise<number> {
@@ -750,6 +768,46 @@ export class PreviewService implements OnModuleDestroy {
     } catch (err) {
       throw new PreviewServiceError('no preview ports available', 'port_unavailable');
     }
+  }
+
+  private async allocatePreviewPorts(
+    taskGroupId: string,
+    instances: PreviewInstanceConfig[]
+  ): Promise<Record<string, number>> {
+    // Allocate all preview ports before starting instances to enable named placeholder resolution. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    const portMap: Record<string, number> = {};
+    try {
+      for (const instance of instances) {
+        const name = instance.name.trim();
+        if (!name) continue;
+        portMap[name] = await this.safeAllocatePort(taskGroupId);
+      }
+      return portMap;
+    } catch (err) {
+      this.portPool.releaseTaskGroup(taskGroupId);
+      throw err;
+    }
+  }
+
+  private assertNamedPortPlaceholders(env: Record<string, string>, portMap: Record<string, number>): void {
+    // Guard against repo env placeholders that reference missing preview instances. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    for (const value of Object.values(env)) {
+      const names = extractNamedPortPlaceholders(String(value));
+      for (const name of names) {
+        if (portMap[name] === undefined) {
+          throw new PreviewServiceError(`unknown preview port placeholder: ${name}`, 'config_invalid');
+        }
+      }
+    }
+  }
+
+  private async resolveRepoPreviewEnv(taskGroupId: string): Promise<Record<string, string>> {
+    // Load repo-scoped preview env vars for the task group's repository. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    const group = await this.taskService.getTaskGroup(taskGroupId, { includeMeta: false });
+    const repoId = group?.repoId ? String(group.repoId) : '';
+    if (!repoId) return {};
+    const config = await this.repositoryService.getRepoPreviewEnv(repoId);
+    return config ?? {};
   }
 
 

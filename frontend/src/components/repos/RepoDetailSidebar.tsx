@@ -30,6 +30,7 @@ import {
   MenuUnfoldOutlined,
   RobotOutlined,
   SettingOutlined,
+  SlidersOutlined,
   TeamOutlined,
   ThunderboltOutlined,
   ToolOutlined,
@@ -68,6 +69,7 @@ const REPO_NAV_GROUPS: NavGroup[] = [
     titleKey: 'repos.detail.sidebar.groupIntegration',
     items: [
       { key: 'credentials', icon: <KeyOutlined />, labelKey: 'repos.detail.tabs.credentials' },
+      { key: 'env', icon: <SlidersOutlined />, labelKey: 'repos.detail.tabs.env' }, // Add preview env tab entry for repo settings. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
       { key: 'robots', icon: <RobotOutlined />, labelKey: 'repos.detail.tabs.robots' },
       { key: 'automation', icon: <ThunderboltOutlined />, labelKey: 'repos.detail.tabs.automation' },
       { key: 'skills', icon: <ToolOutlined />, labelKey: 'repos.detail.tabs.skills' },

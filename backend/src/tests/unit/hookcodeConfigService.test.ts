@@ -48,24 +48,24 @@ describe('HookcodeConfigService', () => {
           '      workdir: frontend',
           '      env:',
           '        VITE_PUBLIC_ORIGIN: \"http://127.0.0.1:{{PORT}}\"',
-          '        PORT: \"{{PORT}}\"',
+          '        PORT: \"{{PORT:frontend}}\"',
           '      readyPattern: \"Local:\"'
         ].join('\n'),
         'utf8'
       );
       const service = new HookcodeConfigService();
       const cfg = await service.parseConfig(repoDir);
-      // Validate preview instance parsing for dev server configs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+      // Validate preview instance parsing for dev server configs. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
       expect(cfg?.preview?.instances[0]?.name).toBe('frontend');
       expect(cfg?.preview?.instances[0]?.workdir).toBe('frontend');
-      expect(cfg?.preview?.instances[0]?.env?.PORT).toBe('{{PORT}}');
+      expect(cfg?.preview?.instances[0]?.env?.PORT).toBe('{{PORT:frontend}}');
     } finally {
       await rm(repoDir, { recursive: true, force: true });
     }
   });
 
   test('rejects preview env values with fixed ports', async () => {
-    // Enforce system-assigned preview ports and PORT placeholder usage. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    // Enforce system-assigned preview ports and PORT placeholder usage. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     const repoDir = await createTempRepo();
     try {
       await writeFile(
@@ -79,6 +79,28 @@ describe('HookcodeConfigService', () => {
           '      workdir: frontend',
           '      env:',
           '        API_URL: \"http://localhost:5173\"'
+        ].join('\n'),
+        'utf8'
+      );
+      const service = new HookcodeConfigService();
+      await expect(service.parseConfig(repoDir)).rejects.toThrow('Invalid .hookcode.yml');
+    } finally {
+      await rm(repoDir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects named port placeholders that do not match an instance', async () => {
+    const repoDir = await createTempRepo();
+    try {
+      await writeFile(
+        path.join(repoDir, '.hookcode.yml'),
+        [
+          'version: 1',
+          'preview:',
+          '  instances:',
+          '    - name: frontend',
+          '      command: \"pnpm dev -- --port {{PORT:backend}}\"',
+          '      workdir: frontend'
         ].join('\n'),
         'utf8'
       );

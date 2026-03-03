@@ -15,6 +15,7 @@ Use `.hookcode.yml` at the repository root to declare **dependency installs** an
 
 ## Basic example
 
+{/* Update preview examples to use named port placeholders. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 */}
 ```yaml
 version: 1
 
@@ -32,12 +33,13 @@ preview:
       command: "pnpm dev"
       workdir: "frontend"
       env:
-        VITE_PUBLIC_ORIGIN: "http://127.0.0.1:{{PORT}}"
+        VITE_PUBLIC_ORIGIN: "http://127.0.0.1:{{PORT:frontend}}"
       readyPattern: "Local:"
 ```
 
 ## Schema (version 1)
 
+{/* Mirror named port placeholders in schema examples. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 */}
 ```yaml
 version: 1
 dependency:
@@ -53,8 +55,8 @@ preview:
       command: "pnpm dev"    # required
       workdir: "frontend"    # required, relative to repo root
       env:                   # optional, env overrides
-        PORT: "{{PORT}}"
-        VITE_PUBLIC_ORIGIN: "http://127.0.0.1:{{PORT}}"
+        PORT: "{{PORT:frontend}}"
+        VITE_PUBLIC_ORIGIN: "http://127.0.0.1:{{PORT:frontend}}"
       readyPattern: "Local:" # optional, readiness regex
 ```
 
@@ -74,7 +76,8 @@ Each instance declares:
 {/* Remove fixed port configuration in favor of PORT placeholders. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - `port`: **not supported** — previews always use system-assigned ports exposed via `PORT`
 {/* Document preview env placeholder handling for port values. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
-- `env`: optional env overrides; any port values must use `{{PORT}}` (for example `http://127.0.0.1:{{PORT}}`)
+{/* Expand env placeholder guidance with named ports. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 */}
+- `env`: optional env overrides; any port values must use `{{PORT}}` or `{{PORT:<instance>}}` (for example `http://127.0.0.1:{{PORT:frontend}}`)
 
 ### Port injection
 
@@ -88,7 +91,8 @@ preview:
       workdir: "frontend"
 ```
 
-Env values that include a port must also use `{{PORT}}`, for example:
+{/* Clarify env port placeholders for named instances. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 */}
+Env values that include a port must also use `{{PORT}}` or `{{PORT:<instance>}}`, for example:
 
 ```yaml
 preview:
@@ -98,6 +102,24 @@ preview:
       workdir: "frontend"
       env:
         PUBLIC_ORIGIN: "http://127.0.0.1:{{PORT}}"
+
+{/* Document cross-instance port placeholders for preview env links. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 */}
+To reference another preview instance, use `{{PORT:<instanceName>}}`:
+
+```yaml
+preview:
+  instances:
+    - name: frontend
+      command: "pnpm dev -- --port {{PORT:frontend}}"
+      workdir: "frontend"
+      env:
+        VITE_API_BASE_URL: "http://127.0.0.1:{{PORT:backend}}/api"
+    - name: backend
+      command: "pnpm dev"
+      workdir: "backend"
+      env:
+        PORT: "{{PORT:backend}}"
+```
 ```
 
 ### Notes

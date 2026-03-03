@@ -10,7 +10,26 @@ dependency:
 preview:
   instances:
     - name: frontend
-      # Use PORT/{{PORT}} placeholders; fixed ports are not supported. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-      command: "pnpm dev -- --port {{PORT}}"
+      # Run Vite on the HookCode-assigned port using named placeholders. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      command: "pnpm dev -- --port {{PORT:frontend}}"
       workdir: "frontend"
       readyPattern: "Local:"
+      # Mirror frontend env overrides while keeping dynamic ports. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      env:
+        HOOKCODE_FRONTEND_PORT: "{{PORT:frontend}}"
+        VITE_API_BASE_URL: "http://127.0.0.1:{{PORT:backend}}/api"
+        # Keep frontend API base aligned with backend preview port via named placeholders. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    - name: backend
+      # Ensure Nest uses the HookCode-assigned port even when backend/.env defines a fixed PORT. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      command: "pnpm dev"
+      workdir: "backend"
+      env:
+        PORT: "{{PORT:backend}}"
+        # Mirror backend env overrides that do not contain fixed preview ports. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+        TASK_LOGS_ENABLED: "true"
+        ADMIN_TOOLS_ENABLED: "true"
+        INLINE_WORKER_ENABLED: "false"
+        HOOKCODE_TASK_GROUPS_ROOT: "~/.hookcode/task-groups"
+        HOOKCODE_CONSOLE_BASE_URL: "http://127.0.0.1:{{PORT:frontend}}"
+        HOOKCODE_CONSOLE_TASK_URL_PREFIX: "http://127.0.0.1:{{PORT:frontend}}/#/tasks/"
+        # Route backend console links to the frontend preview port. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302

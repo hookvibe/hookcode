@@ -25,10 +25,33 @@ export type RoutePage =
   | 'skills'
   | 'settings'; // Add settings page route for standalone user settings panel. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 
-// Define the available sub-tabs for the repo detail page sidebar navigation. docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
-export type RepoTab = 'overview' | 'basic' | 'branches' | 'credentials' | 'robots' | 'automation' | 'skills' | 'webhooks' | 'members' | 'settings';
+// Define the available sub-tabs for the repo detail page sidebar navigation. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+export type RepoTab =
+  | 'overview'
+  | 'basic'
+  | 'branches'
+  | 'credentials'
+  | 'env'
+  | 'robots'
+  | 'automation'
+  | 'skills'
+  | 'webhooks'
+  | 'members'
+  | 'settings';
 
-export const REPO_TABS: RepoTab[] = ['overview', 'basic', 'branches', 'credentials', 'robots', 'automation', 'skills', 'webhooks', 'members', 'settings'];
+export const REPO_TABS: RepoTab[] = [
+  'overview',
+  'basic',
+  'branches',
+  'credentials',
+  'env',
+  'robots',
+  'automation',
+  'skills',
+  'webhooks',
+  'members',
+  'settings'
+];
 
 // Define the available sub-tabs for the archive page sidebar navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
 export type ArchiveTab = 'repos' | 'tasks';

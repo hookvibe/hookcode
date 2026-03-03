@@ -42,7 +42,8 @@ vi.mock('../api', () => {
           claude_code: { profiles: [], defaultProfileId: null },
           gemini_cli: { profiles: [], defaultProfileId: null }
         }
-      }
+      },
+      previewEnvConfig: { variables: [] } // Include preview env config payload for env tab tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     })),
     fetchRepoSkillSelection: vi.fn(async () => ({
       selection: null,
@@ -59,7 +60,11 @@ vi.mock('../api', () => {
     // Expose archive APIs in the mock so RepoDetailPage can render the archive controls safely. qnp1mtxhzikhbi0xspbc
     archiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksArchived: 0, taskGroupsArchived: 0 })),
     unarchiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksRestored: 0, taskGroupsRestored: 0 })),
-    updateRepo: vi.fn(async () => ({ repo: { id: 'r1' }, repoScopedCredentials: null })),
+    updateRepo: vi.fn(async () => ({
+      repo: { id: 'r1' },
+      repoScopedCredentials: null,
+      previewEnvConfig: { variables: [] }
+    })), // Return preview env config for repo env tab coverage. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     // Provide repo task-group PAT mocks for the bottom token section. docs/en/developer/plans/taskgroup-token-pagination-20260215/task_plan.md taskgroup-token-pagination-20260215
     fetchMyApiTokens: vi.fn(async () => []),
     // Mock paginated task-group list responses for repo detail coverage. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
@@ -207,6 +212,36 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await waitFor(() => expect(api.fetchRepoPreviewConfig).toHaveBeenCalled());
     const matches = await screen.findAllByText('frontend');
     expect(matches.length).toBeGreaterThan(0);
+  });
+
+  test('saves preview env variables from the env tab', async () => {
+    // Ensure repo preview env tab saves updates via updateRepo. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    renderPage({ repoId: 'r1', repoTab: 'env' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    const addButton = await screen.findByRole('button', { name: /Add variable/i });
+    await ui.click(addButton);
+
+    const keyInput = await screen.findByLabelText('Key');
+    await ui.type(keyInput, 'VITE_API_BASE_URL');
+
+    const valueInput = (await screen.findAllByLabelText('Value'))[0];
+    fireEvent.change(valueInput, { target: { value: 'http://127.0.0.1:{{PORT:backend}}/api' } });
+
+    await ui.click(screen.getByRole('button', { name: /Save variables/i }));
+
+    // Preview env entries are stored as secrets by default. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    await waitFor(() =>
+      expect(api.updateRepo).toHaveBeenCalledWith('r1', {
+        previewEnvConfig: {
+          entries: [{ key: 'VITE_API_BASE_URL', value: 'http://127.0.0.1:{{PORT:backend}}/api', secret: true }],
+          removeKeys: []
+        }
+      })
+    );
   });
 
   test('shows the repository skill defaults panel', async () => {

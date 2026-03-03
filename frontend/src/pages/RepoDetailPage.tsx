@@ -29,6 +29,7 @@ import type {
   ModelProviderModelsResponse,
   RepoAutomationConfig,
   RepoRobot,
+  RepoPreviewEnvConfigPublic, // Track repo preview env config types for the env tab. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
   RepoScopedCredentialsPublic,
   RepoPreviewConfigResponse,
   RepoInvite,
@@ -96,6 +97,7 @@ import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivity
 import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
 import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
 import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailProviderActivityRow';
+import { RepoEnvConfigPanel } from '../components/repos/RepoEnvConfigPanel'; // Render repo preview env editor panel. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
 import { uuid as generateUuid } from '../components/repoAutomation/utils';
 import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
@@ -271,6 +273,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [webhookPathRaw, setWebhookPathRaw] = useState<string | null>(null);
   const [repoScopedCredentials, setRepoScopedCredentials] = useState<RepoScopedCredentialsPublic | null>(null);
+  const [previewEnvConfig, setPreviewEnvConfig] = useState<RepoPreviewEnvConfigPublic | null>(null); // Store repo preview env config in local state. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  const [previewEnvSaving, setPreviewEnvSaving] = useState(false); // Track preview env save state for repo settings. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
   // Track auto-generated task-group PATs for the repo credentials view. docs/en/developer/plans/pat-panel-20260204/task_plan.md pat-panel-20260204
   const [repoTaskGroupTokens, setRepoTaskGroupTokens] = useState<UserApiTokenPublic[]>([]);
   const [repoTaskGroupTokensLoading, setRepoTaskGroupTokensLoading] = useState(false);
@@ -561,6 +565,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       setWebhookSecret(data.webhookSecret ?? null);
       setWebhookPathRaw(data.webhookPath ?? null);
       setRepoScopedCredentials(data.repoScopedCredentials ?? null);
+      setPreviewEnvConfig(data.previewEnvConfig ?? null); // Sync preview env config into repo detail state. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
 
       basicForm.setFieldsValue({
         name: data.repo?.name ?? '',
@@ -577,6 +582,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       setWebhookSecret(null);
       setWebhookPathRaw(null);
       setRepoScopedCredentials(null);
+      setPreviewEnvConfig(null); // Clear preview env config state when repo fetch fails. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     } finally {
       setLoading(false);
     }
@@ -853,6 +859,28 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       }
     },
     [credentialsSaving, message, repoId, repoReadOnly, t]
+  );
+
+  const handleSavePreviewEnv = useCallback(
+    async (payload: { entries: Array<{ key: string; value?: string; secret?: boolean }>; removeKeys: string[] }) => {
+      // Persist repo preview env variables for dev preview only. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      if (!repoId || previewEnvSaving || repoReadOnly) return;
+      setPreviewEnvSaving(true);
+      try {
+        const updated = await updateRepo(repoId, { previewEnvConfig: payload });
+        setRepo(updated.repo);
+        if (updated.previewEnvConfig !== undefined) {
+          setPreviewEnvConfig(updated.previewEnvConfig ?? null);
+        }
+        message.success(t('toast.repos.saved'));
+      } catch (err: any) {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.repos.saveFailed'));
+      } finally {
+        setPreviewEnvSaving(false);
+      }
+    },
+    [message, previewEnvSaving, repoId, repoReadOnly, t]
   );
 
   const startEditRepoProviderProfile = useCallback(
@@ -1975,6 +2003,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                       </div>
                     </div>
                   </div>
+                )}
+
+                {/* ---------- ENV TAB — preview-only env injection. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 ---------- */}
+                {activeTab === 'env' && (
+                  <RepoEnvConfigPanel
+                    config={previewEnvConfig}
+                    readOnly={repoReadOnly}
+                    saving={previewEnvSaving}
+                    onSave={handleSavePreviewEnv}
+                  />
                 )}
 
                 {/* ---------- ROBOTS TAB — modern section block. docs/en/developer/plans/repo-detail-modernize-20260301/task_plan.md repo-detail-modernize-20260301 ---------- */}

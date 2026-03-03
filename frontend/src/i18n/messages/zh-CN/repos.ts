@@ -124,6 +124,7 @@ export const zhCNRepos = {
   'repos.detail.tabs.basic': '基础',
   'repos.detail.tabs.branches': '分支',
   'repos.detail.tabs.credentials': '凭据',
+  'repos.detail.tabs.env': '环境变量',
   'repos.detail.tabs.robots': '机器人',
   'repos.detail.tabs.automation': '触发器',
   'repos.detail.tabs.webhooks': 'Webhook',
@@ -148,6 +149,27 @@ export const zhCNRepos = {
   'repos.detail.credentials.modelProviderStatus': '状态',
   'repos.detail.credentials.codexApiKeyRequired': '请输入 API Key',
   'repos.detail.credentials.claudeCodeApiKeyRequired': '请输入 API Key',
+
+  // --- Repo detail (preview env tab) ---
+  // Preview env injection copy. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  'repos.detail.env.title': '预览环境变量',
+  // Note that preview env values are always secret and hidden after save. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  'repos.detail.env.desc': '仅注入预览 dev 服务，变量默认密文并在保存后隐藏（支持 {{PORT:frontend}} / {{PORT:backend}} 占位符）。',
+  'repos.detail.env.add': '新增变量',
+  'repos.detail.env.key': '变量名',
+  'repos.detail.env.keyPlaceholder': '例如 VITE_API_BASE_URL',
+  'repos.detail.env.keyRequired': '请输入变量名',
+  'repos.detail.env.keyInvalid': '变量名需使用大写字母/数字/下划线',
+  'repos.detail.env.keyReserved': '该变量为系统保留',
+  // Add env-specific duplicate key copy for preview env editor. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  'repos.detail.env.keyDuplicate': '变量名重复：{{name}}',
+  'repos.detail.env.value': '变量值',
+  'repos.detail.env.valuePlaceholder': '请输入变量值',
+  'repos.detail.env.valueRequired': '请输入变量值',
+  'repos.detail.env.secret': '密文',
+  'repos.detail.env.secretPlaceholder': '已配置（隐藏）',
+  'repos.detail.env.remove': '移除',
+  'repos.detail.env.save': '保存变量',
 
   // --- Repo branches ---
   'repos.branches.title': '分支',

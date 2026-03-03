@@ -125,6 +125,7 @@ export const enUSRepos = {
   'repos.detail.tabs.basic': 'Basic',
   'repos.detail.tabs.branches': 'Branches',
   'repos.detail.tabs.credentials': 'Credentials',
+  'repos.detail.tabs.env': 'Environment',
   'repos.detail.tabs.robots': 'Robots',
   'repos.detail.tabs.automation': 'Automation',
   'repos.detail.tabs.webhooks': 'Webhooks',
@@ -149,6 +150,27 @@ export const enUSRepos = {
   'repos.detail.credentials.modelProviderStatus': 'Status',
   'repos.detail.credentials.codexApiKeyRequired': 'Please enter API key',
   'repos.detail.credentials.claudeCodeApiKeyRequired': 'Please enter API key',
+
+  // --- Repo detail (preview env tab) ---
+  // Copy for preview env injection UI. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  'repos.detail.env.title': 'Preview environment variables',
+  // Explain that preview env values are always secret and hidden after save. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  'repos.detail.env.desc': 'Injected into preview dev servers only. Values are stored as secrets and hidden after save (supports {{PORT:frontend}} / {{PORT:backend}} placeholders).',
+  'repos.detail.env.add': 'Add variable',
+  'repos.detail.env.key': 'Key',
+  'repos.detail.env.keyPlaceholder': 'e.g. VITE_API_BASE_URL',
+  'repos.detail.env.keyRequired': 'Please enter a key',
+  'repos.detail.env.keyInvalid': 'Keys must use A-Z, 0-9, underscore',
+  'repos.detail.env.keyReserved': 'This key is reserved by the system',
+  // Add env-specific duplicate key copy for preview env editor. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  'repos.detail.env.keyDuplicate': 'Duplicate key: {{name}}',
+  'repos.detail.env.value': 'Value',
+  'repos.detail.env.valuePlaceholder': 'Enter value',
+  'repos.detail.env.valueRequired': 'Please enter a value',
+  'repos.detail.env.secret': 'Secret',
+  'repos.detail.env.secretPlaceholder': 'Configured (hidden)',
+  'repos.detail.env.remove': 'Remove',
+  'repos.detail.env.save': 'Save variables',
 
   // --- Repo branches ---
   'repos.branches.title': 'Branches',

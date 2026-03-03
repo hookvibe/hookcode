@@ -132,6 +132,40 @@ class ModelProviderCredentialPatchDto {
   gemini_cli?: ModelProviderCredentialsPatchDto | null;
 }
 
+// Patch DTO for repo-scoped preview env vars (write-only secrets). docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+class RepoPreviewEnvVarPatchDto {
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  key?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  value?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  secret?: boolean | null;
+}
+
+// Patch DTO for repo-scoped preview env config updates. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+class RepoPreviewEnvConfigPatchDto {
+  @ApiPropertyOptional({ type: RepoPreviewEnvVarPatchDto, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RepoPreviewEnvVarPatchDto)
+  entries?: RepoPreviewEnvVarPatchDto[];
+
+  @ApiPropertyOptional({ type: String, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  removeKeys?: string[];
+}
+
 export class UpdateRepositoryDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -176,5 +210,11 @@ export class UpdateRepositoryDto {
   @ValidateNested()
   @Type(() => ModelProviderCredentialPatchDto)
   modelProviderCredential?: ModelProviderCredentialPatchDto | null;
-}
 
+  @ApiPropertyOptional({ type: RepoPreviewEnvConfigPatchDto, nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RepoPreviewEnvConfigPatchDto)
+  // Allow repo-level preview env patches via repo settings API. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+  previewEnvConfig?: RepoPreviewEnvConfigPatchDto | null;
+}

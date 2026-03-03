@@ -4,7 +4,12 @@ import path from 'path';
 import { parse } from 'yaml';
 import { z } from 'zod';
 import type { HookcodeConfig } from '../types/dependency';
-import { envKeyRequiresPortPlaceholder, envValueHasFixedPort, envValueHasPortPlaceholder } from '../utils/previewEnv';
+import {
+  envKeyRequiresPortPlaceholder,
+  envValueHasFixedPort,
+  envValueHasPortPlaceholder,
+  extractNamedPortPlaceholders
+} from '../utils/previewEnv';
 
 const RuntimeConfigSchema = z.object({
   language: z.enum(['node', 'python', 'java', 'ruby', 'go']),
@@ -29,14 +34,14 @@ const PreviewInstanceSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    // Enforce PORT placeholders in env values to avoid fixed-port previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    // Enforce PORT placeholders in env values to avoid fixed-port previews. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     const entries = Object.entries(value.env ?? {});
     for (const [key, raw] of entries) {
       const envValue = String(raw);
       if (envKeyRequiresPortPlaceholder(key) && !envValueHasPortPlaceholder(envValue)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `preview.instances env "${key}" must use {{PORT}}`
+          message: `preview.instances env "${key}" must use {{PORT}} or {{PORT:<instance>}}`
         });
         return;
       }
@@ -56,7 +61,7 @@ const PreviewConfigSchema = z
     instances: z.array(PreviewInstanceSchema).min(1).max(5)
   })
   .superRefine((value, ctx) => {
-    // Enforce unique preview instance names to keep proxy routing deterministic. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    // Enforce unique preview instance names to keep proxy routing deterministic. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     const seen = new Set<string>();
     for (const instance of value.instances) {
       const key = instance.name.trim();
@@ -69,6 +74,23 @@ const PreviewConfigSchema = z
         return;
       }
       seen.add(key);
+    }
+
+    // Validate named port placeholders against known instance names. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    for (const instance of value.instances) {
+      const candidates = [instance.command, ...Object.values(instance.env ?? {})];
+      for (const candidate of candidates) {
+        const names = extractNamedPortPlaceholders(String(candidate));
+        for (const name of names) {
+          if (!seen.has(name)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `preview.instances placeholder "{{PORT:${name}}}" must reference a defined instance name`
+            });
+            return;
+          }
+        }
+      }
     }
   });
 

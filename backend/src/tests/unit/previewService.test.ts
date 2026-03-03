@@ -40,11 +40,13 @@ describe('PreviewService', () => {
       ])
     };
 
+    // Provide repo-env stub for preview construction. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     const previewService = new PreviewService(
       taskService as any,
       new HookcodeConfigService(),
       {} as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
 
     const status = await previewService.getStatus(taskGroupId);
@@ -94,7 +96,8 @@ describe('PreviewService', () => {
       taskService as any,
       new HookcodeConfigService(),
       {} as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
 
     const status = await previewService.getStatus(taskGroupId);
@@ -148,7 +151,8 @@ describe('PreviewService', () => {
       taskService as any,
       new HookcodeConfigService(),
       runtimeService as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
 
     const result = await previewService.installPreviewDependencies(taskGroupId);
@@ -169,7 +173,8 @@ describe('PreviewService', () => {
       {} as any,
       new HookcodeConfigService(),
       {} as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
     clearInterval((previewService as any).idleTimer);
     const stopPreviewSpy = jest.spyOn(previewService, 'stopPreview').mockResolvedValue();
@@ -208,7 +213,8 @@ describe('PreviewService', () => {
       {} as any,
       new HookcodeConfigService(),
       {} as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
     clearInterval((previewService as any).idleTimer);
     const stopPreviewSpy = jest.spyOn(previewService, 'stopPreview').mockResolvedValue();
@@ -221,6 +227,10 @@ describe('PreviewService', () => {
       snapshot: { available: true, instances: [] }
     });
     jest.spyOn(previewService as any, 'installDependenciesIfNeeded').mockResolvedValue(null);
+    // Stub new port-map + repo-env hooks so hidden-timeout coverage remains deterministic. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+    jest.spyOn(previewService as any, 'allocatePreviewPorts').mockResolvedValue({ app: 12347 });
+    jest.spyOn(previewService as any, 'resolveRepoPreviewEnv').mockResolvedValue({});
+    jest.spyOn(previewService as any, 'assertNamedPortPlaceholders').mockImplementation(() => {});
     jest.spyOn(previewService as any, 'startInstance').mockResolvedValue({
       config: instanceConfig,
       port: 12347,
@@ -251,7 +261,8 @@ describe('PreviewService', () => {
       {} as any,
       new HookcodeConfigService(),
       {} as any,
-      new PreviewLogStream()
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Provide repo-env stub for preview tests. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     );
     clearInterval((previewService as any).idleTimer);
     const stopPreviewSpy = jest.spyOn(previewService, 'stopPreview').mockResolvedValue();
