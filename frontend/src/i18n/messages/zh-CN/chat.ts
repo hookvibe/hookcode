@@ -63,8 +63,6 @@ export const zhCNChat = {
   'preview.logs.loading': '正在加载日志…',
   'preview.logs.empty': '暂无日志。',
   'preview.logs.count': '{{count}} 行',
-  // Label terminal-mode previews where iframe navigation controls are intentionally hidden. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-  'preview.terminal.mode': '终端输出',
   'preview.copyLinkSuccess': '预览链接已复制。',
   'preview.copyLinkFailed': '复制预览链接失败。',
   'preview.status.idle': '预览',

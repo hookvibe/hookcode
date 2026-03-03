@@ -57,6 +57,8 @@
   - Reused existing preview log SSE stream for terminal inline panel + modal.
   - Hid iframe-only controls for terminal mode and disabled highlight bridge subscriptions there.
   - Added/updated frontend tests for terminal rendering and updated preview payload mocks.
+  - Refined terminal-mode UI to a plain terminal-like output stream (removed extra toolbar label + card-style log formatting and spacing).
+  - Added terminal auto-follow behavior: default bottom stick, pause on user upward scroll, and resume when returning to bottom.
 - Files created/modified:
   - `frontend/src/api/types/preview.ts`
   - `frontend/src/pages/TaskGroupChatPage.tsx`
@@ -87,6 +89,7 @@
 | Planning docs initialization | `bash .codex/skills/file-context-planning/scripts/init-session.sh "preview-backend-terminal-output-20260303" "Preview backend terminal output mode via hookcode yml flag"` | Planning files created | Files created; docs nav sync reported non-blocking error | ✅ |
 | Backend targeted tests | `pnpm --filter hookcode-backend test -- src/tests/unit/hookcodeConfigService.test.ts src/tests/unit/previewService.test.ts` | Updated config/preview tests pass | 2 suites passed, 17 tests passed | ✅ |
 | Frontend targeted tests | `pnpm --filter hookcode-frontend test -- src/tests/taskGroupChatPage.preview.test.tsx src/tests/settingsPreviewPanel.test.tsx src/tests/repoDetailPage.test.tsx` | Updated preview UI tests pass | 3 files passed, 33 tests passed | ✅ |
+| Frontend terminal-style regression | `pnpm --filter hookcode-frontend test -- src/tests/taskGroupChatPage.preview.test.tsx` | Terminal-mode UI simplification + auto-follow behavior keep preview tests passing | 1 file passed, 12 tests passed | ✅ |
 | Full suite | `pnpm test` | Backend + frontend suites pass | Backend 96/96 suites passed; Frontend 32/32 files passed | ✅ |
 | Build verification | `pnpm build:backend && pnpm build:frontend` | Type/build succeeds for changed modules | Both builds passed | ✅ |
 

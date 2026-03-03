@@ -128,11 +128,6 @@
   gap: 8px;
 }
 
-/* Keep terminal-mode toolbar compact when browser navigation controls are unavailable. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */
-.hc-preview-header-toolbar--terminal {
-  justify-content: flex-start;
-}
-
 .hc-preview-header-nav {
   display: flex;
   align-items: center;
@@ -211,10 +206,20 @@
 .hc-preview-terminal {
   flex: 1 1 auto;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
-  gap: 8px;
+  overflow: auto;
+  background: #0b0f16;
+}
+
+/* Keep terminal-mode preview output plain and continuous like a real terminal stream. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */
+.hc-preview-terminal-output {
+  margin: 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #e2e8f0;
 }
 
 .hc-preview-iframe-shell {

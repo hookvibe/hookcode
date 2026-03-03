@@ -141,6 +141,9 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const [previewLogsLoading, setPreviewLogsLoading] = useState(false);
   const [previewLogs, setPreviewLogs] = useState<PreviewLogEntry[]>([]);
   const previewLogStreamRef = useRef<EventSource | null>(null);
+  // Track terminal preview scroll state so auto-follow pauses while users inspect older log lines. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  const previewTerminalBodyRef = useRef<HTMLDivElement | null>(null);
+  const previewTerminalAutoScrollRef = useRef(true);
   // Track preview bridge readiness for cross-origin highlight commands. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewBridgeReady, setPreviewBridgeReady] = useState(false);
   const previewBridgeReadyRef = useRef(false);
@@ -564,6 +567,35 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const shouldStreamInlineTerminalLogs = activePreviewIsTerminal && activePreviewStatus !== 'stopped';
   const shouldStreamPreviewLogs = previewLogsOpen || (previewPanelOpen && shouldStreamInlineTerminalLogs);
   const showInlineTerminalLogs = activePreviewIsTerminal && (shouldStreamInlineTerminalLogs || previewLogsLoading || previewLogs.length > 0);
+  // Render terminal-mode previews as plain log text to match a terminal-like output flow. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  const previewTerminalOutput = useMemo(() => previewLogs.map((entry) => entry.message).join('\n'), [previewLogs]);
+  const handlePreviewTerminalScroll = useCallback(() => {
+    // Disable auto-follow when users scroll up, then re-enable it once they return to the bottom. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    const panel = previewTerminalBodyRef.current;
+    if (!panel) return;
+    const remaining = panel.scrollHeight - panel.clientHeight - panel.scrollTop;
+    previewTerminalAutoScrollRef.current = remaining <= 24;
+  }, []);
+
+  useEffect(() => {
+    // Reset terminal auto-follow when switching to non-terminal previews or changing instances. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    if (!showInlineTerminalLogs) {
+      previewTerminalAutoScrollRef.current = true;
+      return;
+    }
+    const panel = previewTerminalBodyRef.current;
+    if (!panel) return;
+    panel.scrollTop = panel.scrollHeight;
+    previewTerminalAutoScrollRef.current = true;
+  }, [activePreviewInstance?.name, showInlineTerminalLogs]);
+
+  useEffect(() => {
+    // Follow incoming terminal logs only when auto-follow is enabled. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    if (!showInlineTerminalLogs || !previewTerminalAutoScrollRef.current) return;
+    const panel = previewTerminalBodyRef.current;
+    if (!panel) return;
+    panel.scrollTop = panel.scrollHeight;
+  }, [previewTerminalOutput, showInlineTerminalLogs]);
 
   const previewIframeOrigin = useMemo(() => {
     if (!currentPreviewIframeSrc) return '';
@@ -1923,12 +1955,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                 </div>
 
                 {/* Row 2: Navigation and Address Bar. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
-                {activePreviewIsTerminal ? (
-                  <div className="hc-preview-header-toolbar hc-preview-header-toolbar--terminal">
-                    {/* Show explicit terminal-mode context in the preview toolbar when iframe navigation is disabled. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
-                    <Typography.Text type="secondary">{t('preview.terminal.mode')}</Typography.Text>
-                  </div>
-                ) : (
+                {activePreviewIsTerminal ? null : (
                   <div className="hc-preview-header-toolbar">
                     <div className="hc-preview-header-nav">
                       <Button
@@ -2001,33 +2028,14 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
               </div>
               <div className="hc-preview-body">
                 {showInlineTerminalLogs ? (
-                  <div className="hc-preview-terminal">
-                    <div className="hc-preview-log-meta">
-                      <Typography.Text type="secondary">{activePreviewStatusLabel}</Typography.Text>
-                      <Typography.Text type="secondary">
-                        {t('preview.logs.count', { count: previewLogs.length })}
-                      </Typography.Text>
-                    </div>
-                    <div className="hc-preview-log-body hc-preview-log-body--inline">
-                      {previewLogsLoading ? (
-                        <Typography.Text type="secondary">{t('preview.logs.loading')}</Typography.Text>
-                      ) : previewLogs.length === 0 ? (
-                        <Typography.Text type="secondary">{t('preview.logs.empty')}</Typography.Text>
-                      ) : (
-                        <div className="hc-preview-log-list">
-                          {previewLogs.map((entry, idx) => (
-                            <div
-                              key={`${entry.timestamp}-${idx}`}
-                              className={`hc-preview-log-line hc-preview-log-line--${entry.level}`}
-                            >
-                              <span className="hc-preview-log-time">{formatPreviewLogTime(entry.timestamp)}</span>
-                              <span className="hc-preview-log-level">{entry.level.toUpperCase()}</span>
-                              <span className="hc-preview-log-message">{entry.message}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                  <div className="hc-preview-terminal" ref={previewTerminalBodyRef} onScroll={handlePreviewTerminalScroll}>
+                    {previewLogsLoading ? (
+                      <pre className="hc-preview-terminal-output">{t('preview.logs.loading')}</pre>
+                    ) : previewLogs.length === 0 ? (
+                      <pre className="hc-preview-terminal-output">{t('preview.logs.empty')}</pre>
+                    ) : (
+                      <pre className="hc-preview-terminal-output">{previewTerminalOutput}</pre>
+                    )}
                   </div>
                 ) : activePreviewStatus === 'running' && previewIframeSrc ? (
                   <>

@@ -72,12 +72,6 @@
   background: color-mix(in srgb, var(--hc-surface-elevated) 92%, #f8fafc);
 }
 
-/* Let inline terminal previews consume full panel height while reusing the same log visuals as the modal. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */
-.hc-preview-log-body--inline {
-  flex: 1 1 auto;
-  max-height: none;
-}
-
 .hc-preview-log-list {
   display: flex;
   flex-direction: column;

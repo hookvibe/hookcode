@@ -139,7 +139,6 @@ describe('TaskGroupChatPage preview', () => {
     await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
     expect(screen.queryByLabelText('Back')).not.toBeInTheDocument();
     expect(screen.queryByTitle('backend')).not.toBeInTheDocument();
-    expect(screen.getByText('Terminal output')).toBeInTheDocument();
 
     const sources = (globalThis as any).__eventSourceInstances ?? [];
     const logsSource = sources.find((source: any) => String(source.url).includes('/task-groups/g1/preview/backend/logs'));
@@ -152,6 +151,55 @@ describe('TaskGroupChatPage preview', () => {
     });
 
     expect(await screen.findByText('server ready')).toBeInTheDocument();
+  });
+
+  test('auto-follows terminal logs until user scrolls up, then resumes after returning to bottom', async () => {
+    // Keep terminal previews pinned to the latest logs unless users intentionally scroll up. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [{ name: 'backend', display: 'terminal', status: 'running', port: 12345, path: '/preview/g1/backend/' }]
+    });
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+    await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
+
+    const terminal = document.querySelector('.hc-preview-terminal') as HTMLDivElement | null;
+    expect(terminal).toBeTruthy();
+    if (!terminal) return;
+
+    Object.defineProperty(terminal, 'clientHeight', { value: 200, configurable: true });
+    Object.defineProperty(terminal, 'scrollHeight', { value: 600, configurable: true });
+
+    const sources = (globalThis as any).__eventSourceInstances ?? [];
+    const logsSource = sources.find((source: any) => String(source.url).includes('/task-groups/g1/preview/backend/logs'));
+    expect(logsSource).toBeTruthy();
+    logsSource.emit('init', {
+      data: JSON.stringify({
+        instance: { name: 'backend', display: 'terminal', status: 'running', path: '/preview/g1/backend/' },
+        logs: [{ timestamp: '2026-03-03T00:00:00.000Z', level: 'stdout', message: 'line 1' }]
+      })
+    });
+    await waitFor(() => expect(terminal.scrollTop).toBe(600));
+
+    terminal.scrollTop = 100;
+    terminal.dispatchEvent(new Event('scroll'));
+
+    Object.defineProperty(terminal, 'scrollHeight', { value: 650, configurable: true });
+    logsSource.emit('log', {
+      data: JSON.stringify({ timestamp: '2026-03-03T00:00:01.000Z', level: 'stdout', message: 'line 2' })
+    });
+    await waitFor(() => expect(terminal.textContent ?? '').toContain('line 2'));
+    expect(terminal.scrollTop).toBe(100);
+
+    terminal.scrollTop = 650;
+    terminal.dispatchEvent(new Event('scroll'));
+
+    Object.defineProperty(terminal, 'scrollHeight', { value: 700, configurable: true });
+    logsSource.emit('log', {
+      data: JSON.stringify({ timestamp: '2026-03-03T00:00:02.000Z', level: 'stdout', message: 'line 3' })
+    });
+    await waitFor(() => expect(terminal.textContent ?? '').toContain('line 3'));
+    await waitFor(() => expect(terminal.scrollTop).toBe(700));
   });
 
   test('forwards highlight commands to the preview iframe bridge', async () => {
