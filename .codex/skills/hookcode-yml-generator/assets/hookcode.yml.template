@@ -1,4 +1,5 @@
 # Template for HookCode repo .hookcode.yml. docs/en/developer/plans/hookcode-yml-skill-20260129/task_plan.md hookcode-yml-skill-20260129
+# Keep template aligned with latest preview display/placeholder rules. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
 version: 1
 
 dependency:
@@ -10,7 +11,15 @@ dependency:
 preview:
   instances:
     - name: frontend
-      command: "pnpm dev"
+      command: "pnpm dev --host 127.0.0.1 --port {{PORT:frontend}}"
       workdir: "frontend"
-      port: 5173
+      display: webview
+      env:
+        VITE_PUBLIC_ORIGIN: "http://127.0.0.1:{{PORT:frontend}}"
       readyPattern: "Local:"
+    - name: backend
+      command: "pnpm run prisma:generate && pnpm exec nest start"
+      workdir: "backend"
+      display: terminal
+      env:
+        PORT: "{{PORT:backend}}"

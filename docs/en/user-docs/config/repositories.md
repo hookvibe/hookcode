@@ -100,3 +100,14 @@ Key rules:
 - All values are treated as secrets: the UI shows “configured” but never reveals stored values.
 
 For sensitive configuration (for example `DATABASE_URL`), prefer this Env tab instead of committing secrets in `.hookcode.yml`.
+
+{/* Document repo-level preview runtime visibility so repository docs cover active task-group management UI. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
+## Preview runtime visibility
+
+In the repository detail **Overview** tab, the Preview section now includes:
+
+- Detected preview instances from `.hookcode.yml`
+- Active preview task groups for this repository
+- Per-instance runtime status and assigned ports for each active task group
+
+Use this section to quickly find which task groups currently hold preview resources for the repository.

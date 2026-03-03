@@ -9,7 +9,7 @@
 Add a `.hookcode.yml` preview instance flag to mark instances that should render as terminal output instead of WebView iframe, and wire backend/frontend contracts so backend-like instances can be viewed and managed as live logs in the preview panel.
 
 ## Current Phase
-Phase 5 (complete)
+Phase 6 (complete)
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -41,6 +41,14 @@ Phase 5 (complete)
 - [x] Run targeted tests for changed backend/frontend modules
 - [x] Run full test suite after adding/modifying tests
 - [x] Update session docs + changelog and prepare delivery notes
+- **Status:** complete
+
+<!-- Track follow-up work to align all hookcode-yml-generator skill variants with the latest runtime behavior. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
+### Phase 6: Skill Sync Follow-up
+- [x] Audit every `hookcode-yml-generator` skill bundle variant in the repository
+- [x] Align all skill docs/templates/references with current `.hookcode.yml` parser/runtime behavior
+- [x] Verify no outdated fixed-port guidance remains in generator content
+- [x] Update findings/progress with exact touched paths and validation notes
 - **Status:** complete
 
 ## Key Questions
