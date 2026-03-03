@@ -84,10 +84,12 @@
 - Actions taken:
   - Updated changelog entry for this session.
   - Finalized plan/progress documentation with test outcomes.
+  - Adjusted frontend preview command to bind IPv4 for 127.0.0.1 access.
 - Files created/modified:
   - docs/en/change-log/0.0.0.md
   - docs/en/developer/plans/preview-env-config-20260302/task_plan.md
   - docs/en/developer/plans/preview-env-config-20260302/progress.md
+  - .hookcode.yml
 
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
@@ -95,6 +97,8 @@
 |------|-------|----------|--------|--------|
 | Backend unit tests | `pnpm --filter hookcode-backend test` | Pass | Pass (95 suites, 386 tests; console warnings + worker exit notice) | ✅ |
 | Frontend unit tests | `pnpm --filter hookcode-frontend test` | Pass | Pass (31 suites, 154 tests) | ✅ |
+
+Note: `.hookcode.yml` host binding tweak was applied after the test runs; no re-run was needed.
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}

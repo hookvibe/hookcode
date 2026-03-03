@@ -10,8 +10,8 @@ dependency:
 preview:
   instances:
     - name: frontend
-      # Run Vite on the HookCode-assigned port using named placeholders. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
-      command: "pnpm dev -- --port {{PORT:frontend}}"
+      # Run Vite on the HookCode-assigned port and bind IPv4 for 127.0.0.1 access. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+      command: "pnpm dev -- --host 127.0.0.1 --port {{PORT:frontend}}"
       workdir: "frontend"
       readyPattern: "Local:"
       # Mirror frontend env overrides while keeping dynamic ports. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
