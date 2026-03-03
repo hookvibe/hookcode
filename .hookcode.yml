@@ -2,11 +2,12 @@
 version: 1
 
 dependency:
-  failureMode: soft
+  # Fail fast when dependency install is blocked/failed so preview does not proceed with missing node_modules. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  failureMode: hard
   runtimes:
     - language: node
-      # Force dev dependency install and generate Prisma client in fresh preview workspaces cloned from Git. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
-      install: "pnpm install --frozen-lockfile --prod=false && pnpm --dir backend run prisma:generate"
+      # Keep install command within dependency allowlist so preview runtime actually installs workspace dependencies. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+      install: "pnpm install --frozen-lockfile"
 
 preview:
   instances:
@@ -21,8 +22,8 @@ preview:
         VITE_API_BASE_URL: "http://127.0.0.1:{{PORT:backend}}/api"
         # Keep frontend API base aligned with backend preview port via named placeholders. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     - name: backend
-      # Run backend preview without watch mode so startup failures exit fast instead of hanging until timeout. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
-      command: "pnpm exec nest start"
+      # Generate Prisma client on each backend preview boot, then start Nest without watch mode for fail-fast behavior. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+      command: "pnpm run prisma:generate && pnpm exec nest start"
       workdir: "backend"
       env:
         PORT: "{{PORT:backend}}"

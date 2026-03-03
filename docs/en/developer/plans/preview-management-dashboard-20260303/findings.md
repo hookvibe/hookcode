@@ -78,3 +78,15 @@
   - Run `pnpm --dir backend run prisma:generate` before preview startup.
 - Additional compile-hardening:
   - Added explicit mapper parameter typing in `tasks.controller.ts` to remove another `TS7006` startup blocker.
+
+<!-- Capture dependency-allowlist mismatch root cause for missing frontend/backend modules in preview workspaces. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+## Post-Delivery Dependency Validation Finding (2026-03-03)
+- The dependency installer validates commands against an allowlist and blocks shell control chars (`&&`, `;`, `|`) plus unsupported flag formats.
+- The previous install command (`pnpm install --frozen-lockfile --prod=false && ...`) was blocked, and because failure mode was `soft`, preview startup continued without `node_modules`.
+- This directly explains frontend `react/jsx-dev-runtime` resolution failures and follow-up backend compile/runtime dependency failures.
+- Mitigation:
+  - Switch dependency command to allowlist-compatible `pnpm install --frozen-lockfile`.
+  - Set dependency `failureMode` to `hard` so install failures stop preview immediately with a clear dependency error.
+  - Move Prisma generation to backend preview startup command (`pnpm run prisma:generate && pnpm exec nest start`), which is not constrained by dependency command allowlist.
+- Operational note:
+  - Existing task-group workspaces keep a snapshot of repository files at task creation time, so older groups will not automatically pick up these config/code fixes unless the task group is recreated or refreshed.

@@ -158,3 +158,24 @@
   - `docs/en/developer/plans/preview-management-dashboard-20260303/progress.md`
 - Verification:
   - `pnpm --dir backend exec tsc -p tsconfig.json --noEmit` passed.
+
+<!-- Record dependency command allowlist fix and admin-tools strict typing patch after new preview failures. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+## Post-Delivery Hotfix: Frontend Missing React + Backend PrismaStudio TS7006 (2026-03-03)
+- **Status:** complete
+- Actions taken:
+  - Investigated frontend preview error (`Failed to resolve import "react/jsx-dev-runtime"`), confirmed target task-group workspace had no installed root dependencies before manual install.
+  - Identified root cause: dependency command was blocked by install-command validator due `&&`/unsupported flags, while `failureMode=soft` allowed preview to continue without installed packages.
+  - Updated `.hookcode.yml`:
+    - set `dependency.failureMode` to `hard`
+    - changed dependency install command to allowlist-compatible `pnpm install --frozen-lockfile`
+    - moved Prisma generation into backend preview command (`pnpm run prisma:generate && pnpm exec nest start`)
+  - Fixed backend strict compile failure in `prismaStudioProxy.ts` by adding explicit Express callback parameter types.
+- Files modified:
+  - `.hookcode.yml`
+  - `backend/src/adminTools/prismaStudioProxy.ts`
+  - `docs/en/developer/plans/preview-management-dashboard-20260303/findings.md`
+  - `docs/en/developer/plans/preview-management-dashboard-20260303/progress.md`
+- Verification:
+  - `pnpm --dir backend exec tsc -p tsconfig.json --noEmit` passed.
+  - In the reported task-group workspace, `frontend/node_modules/react` and `backend/node_modules/@prisma/client` resolved after running the dependency install.
+  - Confirmed the reported task-group workspace still contained older snapshots of `.hookcode.yml` and backend source files, so a new/updated task-group workspace is required to inherit repository-side fixes.
