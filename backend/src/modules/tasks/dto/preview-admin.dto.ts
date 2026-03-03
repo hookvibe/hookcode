@@ -5,6 +5,10 @@ export class PreviewAdminInstanceDto {
   @ApiProperty()
   name!: string;
 
+  // Include display mode so admin dashboards can distinguish terminal previews from iframe previews. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  @ApiProperty({ enum: ['webview', 'terminal'] })
+  display!: 'webview' | 'terminal';
+
   @ApiProperty({ enum: ['stopped', 'starting', 'running', 'failed', 'timeout'] })
   status!: 'stopped' | 'starting' | 'running' | 'failed' | 'timeout';
 

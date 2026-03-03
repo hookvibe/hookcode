@@ -13,7 +13,8 @@ vi.mock('../api', () => ({
         taskGroupTitle: 'Group A',
         repoId: 'repo-1',
         aggregateStatus: 'running',
-        instances: [{ name: 'frontend', status: 'running', port: 10000 }]
+        // Include display mode to match updated preview admin API contracts. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+        instances: [{ name: 'frontend', display: 'webview', status: 'running', port: 10000 }]
       }
     ],
     portAllocation: {

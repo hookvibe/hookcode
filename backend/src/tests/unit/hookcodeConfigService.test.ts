@@ -59,6 +59,33 @@ describe('HookcodeConfigService', () => {
       expect(cfg?.preview?.instances[0]?.name).toBe('frontend');
       expect(cfg?.preview?.instances[0]?.workdir).toBe('frontend');
       expect(cfg?.preview?.instances[0]?.env?.PORT).toBe('{{PORT:frontend}}');
+      // Keep missing display flags backward-compatible by defaulting to webview mode. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+      expect(cfg?.preview?.instances[0]?.display).toBe('webview');
+    } finally {
+      await rm(repoDir, { recursive: true, force: true });
+    }
+  });
+
+  test('parses preview config with terminal display mode', async () => {
+    // Accept terminal display mode so backend-like previews can render logs in the panel. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    const repoDir = await createTempRepo();
+    try {
+      await writeFile(
+        path.join(repoDir, '.hookcode.yml'),
+        [
+          'version: 1',
+          'preview:',
+          '  instances:',
+          '    - name: backend',
+          '      command: "pnpm dev"',
+          '      workdir: backend',
+          '      display: terminal'
+        ].join('\n'),
+        'utf8'
+      );
+      const service = new HookcodeConfigService();
+      const cfg = await service.parseConfig(repoDir);
+      expect(cfg?.preview?.instances[0]?.display).toBe('terminal');
     } finally {
       await rm(repoDir, { recursive: true, force: true });
     }

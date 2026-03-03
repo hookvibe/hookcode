@@ -17,6 +17,8 @@ export interface PreviewInstanceConfig {
   // Allow per-instance env overrides with PORT placeholder support. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   env?: Record<string, string>;
   readyPattern?: string;
+  // Allow per-instance preview rendering mode so backend services can stream logs instead of iframe webview. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  display?: 'webview' | 'terminal';
 }
 
 // Group preview instances under the repository-level preview config. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as

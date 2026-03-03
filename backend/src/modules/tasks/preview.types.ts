@@ -1,5 +1,7 @@
 // Shared preview types for TaskGroup dev server orchestration. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export type PreviewInstanceStatus = 'stopped' | 'starting' | 'running' | 'failed' | 'timeout';
+// Track how each preview instance should be rendered in the task-group preview panel. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+export type PreviewInstanceDisplayMode = 'webview' | 'terminal';
 
 // Provide preview diagnostics for failed/timeout instances. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 export interface PreviewDiagnostics {
@@ -10,6 +12,7 @@ export interface PreviewDiagnostics {
 
 export interface PreviewInstanceSummary {
   name: string;
+  display: PreviewInstanceDisplayMode;
   status: PreviewInstanceStatus;
   port?: number;
   path?: string;
@@ -79,6 +82,8 @@ export interface PreviewHighlightEvent {
 export interface RepoPreviewInstanceSummary {
   name: string;
   workdir: string;
+  // Expose repository-level preview display hints so UI tabs can prepare terminal/webview rendering before start. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  display: PreviewInstanceDisplayMode;
 }
 
 // Surface repo-level preview configuration availability in the repo detail API. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as

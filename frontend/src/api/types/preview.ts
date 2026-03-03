@@ -1,6 +1,8 @@
 // Keep preview API contracts aligned with backend runtime/admin preview endpoints. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
 
 export type PreviewInstanceStatus = 'stopped' | 'starting' | 'running' | 'failed' | 'timeout';
+// Mirror backend display mode so preview tabs can render iframe or terminal output per instance. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+export type PreviewInstanceDisplayMode = 'webview' | 'terminal';
 
 // Capture preview log rows used by diagnostics and SSE snapshots. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
 export interface PreviewLogEntry {
@@ -18,6 +20,7 @@ export interface PreviewDiagnostics {
 
 export interface PreviewInstanceSummary {
   name: string;
+  display: PreviewInstanceDisplayMode;
   status: PreviewInstanceStatus;
   port?: number;
   path?: string;
@@ -81,6 +84,7 @@ export interface PreviewManagedTaskGroupSummary {
 export interface RepoPreviewInstanceSummary {
   name: string;
   workdir: string;
+  display: PreviewInstanceDisplayMode;
 }
 
 export interface RepoPreviewConfigResponse {

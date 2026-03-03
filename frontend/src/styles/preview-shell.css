@@ -128,6 +128,11 @@
   gap: 8px;
 }
 
+/* Keep terminal-mode toolbar compact when browser navigation controls are unavailable. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */
+.hc-preview-header-toolbar--terminal {
+  justify-content: flex-start;
+}
+
 .hc-preview-header-nav {
   display: flex;
   align-items: center;
@@ -200,6 +205,16 @@
   display: flex;
   flex-direction: column;
   background: var(--hc-surface);
+}
+
+/* Reuse preview body layout for inline terminal log rendering. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */
+.hc-preview-terminal {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
 }
 
 .hc-preview-iframe-shell {

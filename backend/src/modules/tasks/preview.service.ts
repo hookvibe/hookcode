@@ -204,7 +204,9 @@ export class PreviewService implements OnModuleDestroy {
 
     const instances: RepoPreviewInstanceSummary[] = config.preview.instances.map((instance) => ({
       name: instance.name,
-      workdir: instance.workdir
+      workdir: instance.workdir,
+      // Surface per-instance display mode in repo discovery APIs so the UI can preselect terminal/webview rendering. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+      display: instance.display === 'terminal' ? 'terminal' : 'webview'
     }));
 
     return { available: true, instances, activeTaskGroups };
@@ -899,6 +901,8 @@ export class PreviewService implements OnModuleDestroy {
   ): PreviewInstanceSummary {
     return {
       name: instance.name,
+      // Keep display mode backward compatible by treating missing config as iframe webview. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+      display: instance.display === 'terminal' ? 'terminal' : 'webview',
       status,
       port: extras?.port,
       message: extras?.message,

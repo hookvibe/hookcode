@@ -63,6 +63,8 @@ export const enUSChat = {
   'preview.logs.loading': 'Loading logs…',
   'preview.logs.empty': 'No logs yet.',
   'preview.logs.count': '{{count}} lines',
+  // Label terminal-mode previews where iframe navigation controls are intentionally hidden. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  'preview.terminal.mode': 'Terminal output',
   'preview.copyLinkSuccess': 'Preview link copied.',
   'preview.copyLinkFailed': 'Failed to copy preview link.',
   'preview.status.idle': 'Preview',

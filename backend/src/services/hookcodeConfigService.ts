@@ -30,7 +30,9 @@ const PreviewInstanceSchema = z
     command: z.string().min(1).max(500),
     workdir: z.string().min(1).max(200),
     env: z.record(z.string().min(1).max(80), z.string().max(500)).optional(),
-    readyPattern: z.string().max(200).optional()
+    readyPattern: z.string().max(200).optional(),
+    // Support terminal-mode preview rendering while defaulting existing configs to iframe webview behavior. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    display: z.enum(['webview', 'terminal']).default('webview')
   })
   .strict()
   .superRefine((value, ctx) => {

@@ -204,7 +204,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
     vi.mocked(api.fetchRepoPreviewConfig).mockResolvedValueOnce({
       available: true,
-      instances: [{ name: 'frontend', workdir: 'frontend' }],
+      // Include display mode so repo preview config tests follow the updated API shape. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+      instances: [{ name: 'frontend', workdir: 'frontend', display: 'webview' }],
       activeTaskGroups: []
     });
 
@@ -228,7 +229,7 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
           taskGroupTitle: 'Preview Group',
           repoId: 'r1',
           aggregateStatus: 'running',
-          instances: [{ name: 'frontend', status: 'running', port: 12000 }]
+          instances: [{ name: 'frontend', display: 'webview', status: 'running', port: 12000 }]
         }
       ]
     });

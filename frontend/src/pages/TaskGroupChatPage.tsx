@@ -426,6 +426,9 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     () => previewInstances.find((instance) => instance.name === activePreviewName) ?? previewInstances[0] ?? null,
     [activePreviewName, previewInstances]
   );
+  // Drive preview rendering mode from backend summary data so each instance can be iframe or terminal. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  const activePreviewDisplay = activePreviewInstance?.display ?? 'webview';
+  const activePreviewIsTerminal = activePreviewDisplay === 'terminal';
 
   // Aggregate preview statuses so the toggle reflects multi-instance state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const previewAggregateStatus = useMemo(() => {
@@ -521,6 +524,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   );
 
   const previewIframeSrc = useMemo(() => {
+    // Skip iframe URL resolution for terminal-mode instances because they render log streams instead. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    if (activePreviewIsTerminal) return '';
     if (!activePreviewInstance || (activePreviewStatus !== 'running' && activePreviewStatus !== 'starting')) {
       return '';
     }
@@ -548,13 +553,17 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     if (!token) return baseUrl;
     const sep = baseUrl.includes('?') ? '&' : '?';
     return `${baseUrl}${sep}token=${encodeURIComponent(token)}`;
-  }, [activePreviewInstance, activePreviewStatus]);
+  }, [activePreviewInstance, activePreviewIsTerminal, activePreviewStatus]);
 
   // Prefer the user-navigated iframe URL when available. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
   const currentPreviewIframeSrc = useMemo(
     () => previewIframeOverrideSrc ?? previewIframeSrc,
     [previewIframeOverrideSrc, previewIframeSrc]
   );
+  // Stream preview logs inline for terminal-mode instances while keeping the modal behavior unchanged. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+  const shouldStreamInlineTerminalLogs = activePreviewIsTerminal && activePreviewStatus !== 'stopped';
+  const shouldStreamPreviewLogs = previewLogsOpen || (previewPanelOpen && shouldStreamInlineTerminalLogs);
+  const showInlineTerminalLogs = activePreviewIsTerminal && (shouldStreamInlineTerminalLogs || previewLogsLoading || previewLogs.length > 0);
 
   const previewIframeOrigin = useMemo(() => {
     if (!currentPreviewIframeSrc) return '';
@@ -1135,8 +1144,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   }, [taskGroupId]);
 
   useEffect(() => {
-    // Maintain a live SSE connection when the preview logs modal is open. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (!previewLogsOpen) {
+    // Reuse the preview log SSE stream for both the logs modal and terminal-mode inline preview rendering. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    if (!shouldStreamPreviewLogs) {
       previewLogStreamRef.current?.close();
       previewLogStreamRef.current = null;
       setPreviewLogs([]);
@@ -1194,11 +1203,11 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       source.close();
       previewLogStreamRef.current = null;
     };
-  }, [activePreviewInstance?.name, previewLogsOpen, taskGroupId, PREVIEW_LOG_TAIL, PREVIEW_LOG_MAX]);
+  }, [activePreviewInstance?.name, shouldStreamPreviewLogs, taskGroupId, PREVIEW_LOG_TAIL, PREVIEW_LOG_MAX]);
 
   useEffect(() => {
-    // Subscribe to preview highlight commands and forward to the iframe bridge. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (!taskGroupId || !previewPanelOpen) {
+    // Limit highlight bridge subscriptions to webview instances because terminal mode has no iframe bridge target. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
+    if (!taskGroupId || !previewPanelOpen || activePreviewIsTerminal) {
       previewHighlightStreamRef.current?.close();
       previewHighlightStreamRef.current = null;
       return;
@@ -1239,7 +1248,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       source.close();
       previewHighlightStreamRef.current = null;
     };
-  }, [activePreviewInstance?.name, postPreviewBridgeMessage, previewPanelOpen, taskGroupId]);
+  }, [activePreviewInstance?.name, activePreviewIsTerminal, postPreviewBridgeMessage, previewPanelOpen, taskGroupId]);
 
   useEffect(() => {
     void refreshRepos();
@@ -1888,99 +1897,139 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                         onClick={() => setPreviewLogsOpen(true)}
                       />
                     </Tooltip>
-                    <Tooltip title={t('preview.action.openWindow')}>
-                      <Button
-                        size="small"
-                        type="text"
-                        icon={<ExportOutlined />}
-                        disabled={!currentPreviewIframeSrc}
-                        onClick={handleOpenPreviewWindow}
-                      />
-                    </Tooltip>
-                    <Tooltip title={t('preview.action.copyLink')}>
-                      <Button
-                        size="small"
-                        type="text"
-                        icon={<CopyOutlined />}
-                        disabled={!currentPreviewIframeSrc}
-                        onClick={handleCopyPreviewLink}
-                      />
-                    </Tooltip>
+                    {!activePreviewIsTerminal && (
+                      <>
+                        <Tooltip title={t('preview.action.openWindow')}>
+                          <Button
+                            size="small"
+                            type="text"
+                            icon={<ExportOutlined />}
+                            disabled={!currentPreviewIframeSrc}
+                            onClick={handleOpenPreviewWindow}
+                          />
+                        </Tooltip>
+                        <Tooltip title={t('preview.action.copyLink')}>
+                          <Button
+                            size="small"
+                            type="text"
+                            icon={<CopyOutlined />}
+                            disabled={!currentPreviewIframeSrc}
+                            onClick={handleCopyPreviewLink}
+                          />
+                        </Tooltip>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* Row 2: Navigation and Address Bar. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
-                <div className="hc-preview-header-toolbar">
-                  <div className="hc-preview-header-nav">
-                    <Button
+                {activePreviewIsTerminal ? (
+                  <div className="hc-preview-header-toolbar hc-preview-header-toolbar--terminal">
+                    {/* Show explicit terminal-mode context in the preview toolbar when iframe navigation is disabled. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
+                    <Typography.Text type="secondary">{t('preview.terminal.mode')}</Typography.Text>
+                  </div>
+                ) : (
+                  <div className="hc-preview-header-toolbar">
+                    <div className="hc-preview-header-nav">
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<ArrowLeftOutlined />}
+                        aria-label={t('preview.browser.back')}
+                        disabled={!currentPreviewIframeSrc}
+                        onClick={handlePreviewBack}
+                      />
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<ArrowRightOutlined />}
+                        aria-label={t('preview.browser.forward')}
+                        disabled={!currentPreviewIframeSrc}
+                        onClick={handlePreviewForward}
+                      />
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<ReloadOutlined />}
+                        aria-label={t('preview.browser.refresh')}
+                        disabled={!currentPreviewIframeSrc}
+                        onClick={handlePreviewReload}
+                      />
+                    </div>
+
+                    <Input
                       size="small"
-                      type="text"
-                      icon={<ArrowLeftOutlined />}
-                      aria-label={t('preview.browser.back')}
+                      className="hc-preview-header-browser-input"
+                      value={previewAddressInput}
+                      placeholder={t('preview.browser.placeholder')}
+                      aria-label={t('preview.browser.placeholder')}
+                      prefix={
+                        <span
+                          className={`hc-preview-header-browser-prefix${
+                            previewAddressMeta.isSecure ? ' hc-preview-header-browser-prefix--secure' : ''
+                          }`}
+                          aria-hidden="true"
+                        >
+                          {previewAddressMeta.isSecure ? <LockOutlined /> : <GlobalOutlined />}
+                        </span>
+                      }
+                      suffix={
+                        /* Toggle preview auto-navigation lock inside the address bar as a suffix action. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
+                        <Tooltip title={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}>
+                          <Button
+                            size="small"
+                            type="text"
+                            className="hc-preview-header-browser-lock"
+                            icon={previewAutoNavigateLocked ? <LockOutlined /> : <UnlockOutlined />}
+                            aria-label={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}
+                            onClick={() => setPreviewAutoNavigateLocked((prev) => !prev)}
+                          />
+                        </Tooltip>
+                      }
+                      title={previewAddressInput || previewAddress}
                       disabled={!currentPreviewIframeSrc}
-                      onClick={handlePreviewBack}
-                    />
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<ArrowRightOutlined />}
-                      aria-label={t('preview.browser.forward')}
-                      disabled={!currentPreviewIframeSrc}
-                      onClick={handlePreviewForward}
-                    />
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<ReloadOutlined />}
-                      aria-label={t('preview.browser.refresh')}
-                      disabled={!currentPreviewIframeSrc}
-                      onClick={handlePreviewReload}
+                      onChange={(event) => setPreviewAddressInput(event.target.value)}
+                      onFocus={() => setPreviewAddressEditing(true)}
+                      onBlur={() => {
+                        setPreviewAddressEditing(false);
+                        setPreviewAddressInput(previewAddress || currentPreviewIframeSrc);
+                      }}
+                      onPressEnter={() => handlePreviewNavigate()}
                     />
                   </div>
-
-                  <Input
-                    size="small"
-                    className="hc-preview-header-browser-input"
-                    value={previewAddressInput}
-                    placeholder={t('preview.browser.placeholder')}
-                    aria-label={t('preview.browser.placeholder')}
-                    prefix={
-                      <span
-                        className={`hc-preview-header-browser-prefix${
-                          previewAddressMeta.isSecure ? ' hc-preview-header-browser-prefix--secure' : ''
-                        }`}
-                        aria-hidden="true"
-                      >
-                        {previewAddressMeta.isSecure ? <LockOutlined /> : <GlobalOutlined />}
-                      </span>
-                    }
-                    suffix={
-                      /* Toggle preview auto-navigation lock inside the address bar as a suffix action. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
-                      <Tooltip title={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}>
-                        <Button
-                          size="small"
-                          type="text"
-                          className="hc-preview-header-browser-lock"
-                          icon={previewAutoNavigateLocked ? <LockOutlined /> : <UnlockOutlined />}
-                          aria-label={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}
-                          onClick={() => setPreviewAutoNavigateLocked((prev) => !prev)}
-                        />
-                      </Tooltip>
-                    }
-                    title={previewAddressInput || previewAddress}
-                    disabled={!currentPreviewIframeSrc}
-                    onChange={(event) => setPreviewAddressInput(event.target.value)}
-                    onFocus={() => setPreviewAddressEditing(true)}
-                    onBlur={() => {
-                      setPreviewAddressEditing(false);
-                      setPreviewAddressInput(previewAddress || currentPreviewIframeSrc);
-                    }}
-                    onPressEnter={() => handlePreviewNavigate()}
-                  />
-                </div>
+                )}
               </div>
               <div className="hc-preview-body">
-                {activePreviewStatus === 'running' && previewIframeSrc ? (
+                {showInlineTerminalLogs ? (
+                  <div className="hc-preview-terminal">
+                    <div className="hc-preview-log-meta">
+                      <Typography.Text type="secondary">{activePreviewStatusLabel}</Typography.Text>
+                      <Typography.Text type="secondary">
+                        {t('preview.logs.count', { count: previewLogs.length })}
+                      </Typography.Text>
+                    </div>
+                    <div className="hc-preview-log-body hc-preview-log-body--inline">
+                      {previewLogsLoading ? (
+                        <Typography.Text type="secondary">{t('preview.logs.loading')}</Typography.Text>
+                      ) : previewLogs.length === 0 ? (
+                        <Typography.Text type="secondary">{t('preview.logs.empty')}</Typography.Text>
+                      ) : (
+                        <div className="hc-preview-log-list">
+                          {previewLogs.map((entry, idx) => (
+                            <div
+                              key={`${entry.timestamp}-${idx}`}
+                              className={`hc-preview-log-line hc-preview-log-line--${entry.level}`}
+                            >
+                              <span className="hc-preview-log-time">{formatPreviewLogTime(entry.timestamp)}</span>
+                              <span className="hc-preview-log-level">{entry.level.toUpperCase()}</span>
+                              <span className="hc-preview-log-message">{entry.message}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : activePreviewStatus === 'running' && previewIframeSrc ? (
                   <>
                     {/* Sandbox the iframe so navigation stays inside the preview panel. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
                     {/* Wrap the iframe in a browser-style frame for depth and rounded corners. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
