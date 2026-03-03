@@ -40,6 +40,8 @@ const PREVIEW_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const PREVIEW_IDLE_POLL_MS = 60 * 1000;
 const PREVIEW_HIDDEN_TIMEOUT_MS = 30 * 60 * 1000;
 const PREVIEW_CONFIG_RELOAD_DEBOUNCE_MS = 750;
+// Strip ANSI escape codes so readiness regexes can match colorized logs. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+const stripAnsi = (input: string): string => input.replace(/\u001b\[[0-9;]*m/g, '');
 
 // Capture preview-specific error codes for controller mapping. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 class PreviewServiceError extends Error {
@@ -457,7 +459,8 @@ export class PreviewService implements OnModuleDestroy {
     const readyPattern = instance.config.readyPattern ? new RegExp(instance.config.readyPattern) : null;
     if (readyPattern) {
       const handleChunk = (data: Buffer) => {
-        const text = data.toString();
+        // Normalize ANSI-colored output before applying readiness regex. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+        const text = stripAnsi(data.toString());
         if (readyPattern.test(text)) {
           cleanup();
           markReady();
