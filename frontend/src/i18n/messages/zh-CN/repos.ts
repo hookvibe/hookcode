@@ -391,7 +391,10 @@ export const zhCNRepos = {
   'repos.robotForm.languagePlaceholder': '请选择语言',
   'repos.robotForm.defaultBranchPlaceholder': '不设置则按仓库默认分支',
   'repos.robotForm.isDefault': '设为默认',
-  'repos.robotForm.section.prompt': '默认提示词模板',
+  // Avoid duplicated zh-CN copy: Card title should be shorter than the field label. docs/en/developer/plans/robotform-i18n-fix-20260302/task_plan.md robotform-i18n-fix-20260302
+  'repos.robotForm.section.prompt': '默认提示词',
+  // Add missing Credentials section i18n key for the robot editor. docs/en/developer/plans/robotform-i18n-fix-20260302/task_plan.md robotform-i18n-fix-20260302
+  'repos.robotForm.section.credentials': '凭据',
   'repos.robotForm.promptRequired': '请输入默认提示词模板',
   'repos.robotForm.promptPlaceholder': '可使用 {{repo.name}}、{{robot.name}}、{{issue.number}} 等变量',
   'repos.robotForm.section.model': '模型设置',
