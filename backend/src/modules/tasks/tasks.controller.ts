@@ -108,7 +108,10 @@ export class TasksController {
           select: { repoId: true, role: true }
         })
       : [];
-    const roleMap = new Map<string, RepoRole>(memberships.map((row) => [String(row.repoId), row.role as RepoRole]));
+    // Keep membership mapper parameter typed explicitly so preview startup strict compilation avoids implicit-any failures. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const roleMap = new Map<string, RepoRole>(
+      memberships.map((row: { repoId: string; role: RepoRole | string }) => [String(row.repoId), row.role as RepoRole])
+    );
     return tasks.map((t) => {
       const role = t.repoId ? roleMap.get(String(t.repoId)) ?? null : null;
       const canManage = this.repoAccessService.buildRepoPermissions(role, false).canManage;

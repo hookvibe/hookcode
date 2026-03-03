@@ -68,3 +68,13 @@
 - Mitigation:
   - Added explicit callback parameter type for queue position rows.
   - Replaced `any[]` raw-query typing with a concrete `DailyVolumeRow` type and typed mapper callback.
+
+<!-- Capture preview-environment Prisma generation requirement for Git-cloned workspaces. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+## Post-Delivery Environment Finding (2026-03-03)
+- In fresh preview environments cloned from Git, backend startup can fail with `TS2305: Module "@prisma/client" has no exported member "Prisma"` when Prisma client generation is missing or incomplete.
+- This is environment-dependent and may not reproduce in long-lived local workspaces where Prisma artifacts already exist.
+- Mitigation in `.hookcode.yml` dependency install:
+  - Force dev dependency installation with `pnpm install --frozen-lockfile --prod=false`.
+  - Run `pnpm --dir backend run prisma:generate` before preview startup.
+- Additional compile-hardening:
+  - Added explicit mapper parameter typing in `tasks.controller.ts` to remove another `TS7006` startup blocker.

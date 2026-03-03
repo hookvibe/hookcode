@@ -5,7 +5,8 @@ dependency:
   failureMode: soft
   runtimes:
     - language: node
-      install: "pnpm install --frozen-lockfile"
+      # Force dev dependency install and generate Prisma client in fresh preview workspaces cloned from Git. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+      install: "pnpm install --frozen-lockfile --prod=false && pnpm --dir backend run prisma:generate"
 
 preview:
   instances:

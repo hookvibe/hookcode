@@ -141,3 +141,20 @@
   - `docs/en/developer/plans/preview-management-dashboard-20260303/progress.md`
 - Verification:
   - `pnpm --dir backend exec tsc -p tsconfig.json --noEmit` passed.
+
+<!-- Record follow-up fixes for Prisma client generation and controller typing in preview startup. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+## Post-Delivery Hotfix: Backend Preview Exited(1) Prisma + TS7006 (2026-03-03)
+- **Status:** complete
+- Actions taken:
+  - Investigated fresh failure logs showing:
+    - `TS7006` in `src/modules/tasks/tasks.controller.ts` (`memberships.map((row) => ...)`)
+    - `TS2305` in `src/prisma/selectors.ts` (`@prisma/client` Prisma export missing in preview environment).
+  - Added explicit mapper parameter type in `tasks.controller.ts` to remove strict-compilation implicit-any failure.
+  - Updated `.hookcode.yml` dependency install to enforce dev dependencies and explicit Prisma client generation in Git-cloned preview workspaces.
+- Files modified:
+  - `backend/src/modules/tasks/tasks.controller.ts`
+  - `.hookcode.yml`
+  - `docs/en/developer/plans/preview-management-dashboard-20260303/findings.md`
+  - `docs/en/developer/plans/preview-management-dashboard-20260303/progress.md`
+- Verification:
+  - `pnpm --dir backend exec tsc -p tsconfig.json --noEmit` passed.
