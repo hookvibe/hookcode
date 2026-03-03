@@ -75,6 +75,7 @@ import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { UserSettingsSidebar } from '../components/settings/UserSettingsSidebar';
 import { SettingsLogsPanel } from '../components/settings/SettingsLogsPanel';
 import { SettingsNotificationsPanel } from '../components/settings/SettingsNotificationsPanel';
+import { SettingsPreviewPanel } from '../components/settings/SettingsPreviewPanel';
 import { buildHomeHash, type SettingsTab } from '../router';
 
 // Re-use type aliases from the original panel component. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
@@ -201,7 +202,9 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         // Add admin log tab label mapping for settings. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
         logs: 'panel.tabs.logs',
         // Add notifications tab label mapping for settings. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
-        notifications: 'panel.tabs.notifications'
+        notifications: 'panel.tabs.notifications',
+        // Add preview tab title mapping for admin preview management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+        preview: 'panel.tabs.preview'
       }) as const,
     []
   );
@@ -975,6 +978,18 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           </div>
         );
 
+      case 'preview':
+        // Render admin preview management dashboard inside settings. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+        if (!isAdmin) {
+          return <Alert type="warning" showIcon message="Admin access is required to view preview management." />;
+        }
+        return (
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.tabs.preview')}</div>
+            <SettingsPreviewPanel />
+          </div>
+        );
+
       case 'settings':
       default:
         return (
@@ -1024,7 +1039,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
             title={t(tabTitleKey[activeTab] as any)}
             actions={
               // Avoid showing the global refresh button on the log tab (it has its own controls). docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-              activeTab !== 'settings' && activeTab !== 'logs' && activeTab !== 'notifications' ? (
+              activeTab !== 'settings' && activeTab !== 'logs' && activeTab !== 'notifications' && activeTab !== 'preview' ? (
                 <Button
                   type="text"
                   icon={<ReloadOutlined />}

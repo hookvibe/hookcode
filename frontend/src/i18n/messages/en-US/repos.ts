@@ -73,6 +73,10 @@ export const enUSRepos = {
   'repos.preview.reason.configMissing': 'Missing preview section in .hookcode.yml.',
   'repos.preview.reason.configInvalid': 'Invalid .hookcode.yml preview configuration.',
   'repos.preview.reason.workspaceMissing': 'Workspace folder not found (run a task to clone).',
+  // Add repo-level running preview task-group copy for preview management visibility. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  'repos.preview.activeGroups.title': 'Active preview task groups',
+  'repos.preview.activeGroups.empty': 'No active preview task groups for this repository.',
+  'repos.preview.activeGroups.repo': 'Repo {{repoId}}',
   'repos.detail.robotsTitle': 'Robots',
   'repos.detail.robotsEmpty': 'No robots',
   'repos.detail.robot.default': 'Default',

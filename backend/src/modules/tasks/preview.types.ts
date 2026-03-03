@@ -86,4 +86,39 @@ export interface RepoPreviewConfigSnapshot {
   available: boolean;
   instances: RepoPreviewInstanceSummary[];
   reason?: 'no_workspace' | 'config_missing' | 'config_invalid' | 'workspace_missing';
+  // Include currently running preview task groups for repo-level preview management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  activeTaskGroups: PreviewManagedTaskGroupSummary[];
+}
+
+// Represent one preview port allocation owner in the admin overview panel. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+export interface PreviewPortAllocationOwner {
+  taskGroupId: string;
+  ports: number[];
+}
+
+// Surface preview port usage and remaining capacity for admin diagnostics. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+export interface PreviewPortAllocationSnapshot {
+  rangeStart: number;
+  rangeEnd: number;
+  capacity: number;
+  inUseCount: number;
+  availableCount: number;
+  inUsePorts: number[];
+  allocations: PreviewPortAllocationOwner[];
+}
+
+// Reuse preview instance summaries under repo/admin management surfaces. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+export interface PreviewManagedTaskGroupSummary {
+  taskGroupId: string;
+  taskGroupTitle?: string;
+  repoId?: string;
+  aggregateStatus: PreviewInstanceStatus;
+  instances: PreviewInstanceSummary[];
+}
+
+// Describe the admin-wide preview management payload (groups + port pool state). docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+export interface PreviewAdminOverviewSnapshot {
+  generatedAt: string;
+  activeTaskGroups: PreviewManagedTaskGroupSummary[];
+  portAllocation: PreviewPortAllocationSnapshot;
 }

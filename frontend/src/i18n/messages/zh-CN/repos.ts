@@ -73,6 +73,10 @@ export const zhCNRepos = {
   'repos.preview.reason.configMissing': '缺少 .hookcode.yml 的 preview 配置。',
   'repos.preview.reason.configInvalid': '.hookcode.yml 的预览配置无效。',
   'repos.preview.reason.workspaceMissing': '工作区不存在（请先运行一次任务）。',
+  // Add repo-level running preview task-group copy for preview management visibility. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+  'repos.preview.activeGroups.title': '当前开启预览的任务组',
+  'repos.preview.activeGroups.empty': '当前仓库暂无开启预览的任务组。',
+  'repos.preview.activeGroups.repo': '仓库 {{repoId}}',
   'repos.detail.robotsTitle': '机器人',
   'repos.detail.robotsEmpty': '暂无机器人',
   'repos.detail.robot.default': '默认',

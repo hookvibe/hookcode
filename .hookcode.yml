@@ -20,14 +20,15 @@ preview:
         VITE_API_BASE_URL: "http://127.0.0.1:{{PORT:backend}}/api"
         # Keep frontend API base aligned with backend preview port via named placeholders. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
     - name: backend
-      # Ensure Nest uses the HookCode-assigned port even when backend/.env defines a fixed PORT. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
-      command: "pnpm dev"
+      # Run backend preview without watch mode so startup failures exit fast instead of hanging until timeout. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+      command: "pnpm exec nest start"
       workdir: "backend"
       env:
         PORT: "{{PORT:backend}}"
         # Mirror backend env overrides that do not contain fixed preview ports. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
         TASK_LOGS_ENABLED: "true"
-        ADMIN_TOOLS_ENABLED: "true"
+        # Disable embedded admin tools in preview to avoid fixed-port collisions across concurrent task-group backends. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+        ADMIN_TOOLS_ENABLED: "false"
         INLINE_WORKER_ENABLED: "false"
         HOOKCODE_TASK_GROUPS_ROOT: "~/.hookcode/task-groups"
         HOOKCODE_CONSOLE_BASE_URL: "http://127.0.0.1:{{PORT:frontend}}"

@@ -293,4 +293,115 @@ describe('PreviewService', () => {
     (previewService as any).groups.delete(taskGroupId);
     jest.useRealTimers();
   });
+
+  test('returns admin overview with active groups and port allocation snapshots', async () => {
+    // Verify preview management overview combines runtime groups and port pool snapshots. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const taskService = {
+      getTaskGroup: jest.fn(async (id: string) => ({
+        id,
+        title: id === 'group-a' ? 'Group A' : 'Group B',
+        repoId: id === 'group-a' ? 'repo-1' : 'repo-2'
+      }))
+    };
+    const previewService = new PreviewService(
+      taskService as any,
+      new HookcodeConfigService(),
+      {} as any,
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any
+    );
+    clearInterval((previewService as any).idleTimer);
+
+    (previewService as any).groups.set('group-a', {
+      taskGroupId: 'group-a',
+      workspaceDir: '/tmp/a',
+      configPath: '/tmp/a/.hookcode.yml',
+      instances: [
+        {
+          config: { name: 'frontend', command: 'pnpm dev', workdir: '.' },
+          port: 10000,
+          status: 'running',
+          startedAt: new Date().toISOString(),
+          lastAccessAt: Date.now(),
+          logs: []
+        }
+      ]
+    });
+    (previewService as any).groups.set('group-b', {
+      taskGroupId: 'group-b',
+      workspaceDir: '/tmp/b',
+      configPath: '/tmp/b/.hookcode.yml',
+      instances: [
+        {
+          config: { name: 'admin', command: 'pnpm dev', workdir: '.' },
+          port: 10001,
+          status: 'starting',
+          startedAt: new Date().toISOString(),
+          lastAccessAt: Date.now(),
+          logs: []
+        }
+      ]
+    });
+    (previewService as any).portPool.inUse.add(10000);
+    (previewService as any).portPool.inUse.add(10001);
+    (previewService as any).portPool.allocations.set('group-a', [10000]);
+    (previewService as any).portPool.allocations.set('group-b', [10001]);
+
+    const overview = await previewService.getPreviewAdminOverview();
+    expect(overview.activeTaskGroups).toHaveLength(2);
+    expect(overview.activeTaskGroups[0]?.taskGroupId).toBe('group-a');
+    expect(overview.activeTaskGroups[0]?.aggregateStatus).toBe('running');
+    expect(overview.activeTaskGroups[1]?.taskGroupId).toBe('group-b');
+    expect(overview.activeTaskGroups[1]?.aggregateStatus).toBe('starting');
+    expect(overview.portAllocation.inUseCount).toBe(2);
+    expect(overview.portAllocation.allocations).toEqual(
+      expect.arrayContaining([
+        { taskGroupId: 'group-a', ports: [10000] },
+        { taskGroupId: 'group-b', ports: [10001] }
+      ])
+    );
+
+    await previewService.onModuleDestroy();
+  });
+
+  test('includes active preview groups in repo preview config responses', async () => {
+    // Ensure repo detail preview APIs can show running preview task groups even when config discovery is unavailable. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const taskService = {
+      listTaskGroups: jest.fn(async () => []),
+      getTaskGroup: jest.fn(async () => ({ id: 'group-a', title: 'Group A', repoId: 'repo-1' }))
+    };
+    const previewService = new PreviewService(
+      taskService as any,
+      new HookcodeConfigService(),
+      {} as any,
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any
+    );
+    clearInterval((previewService as any).idleTimer);
+
+    (previewService as any).groups.set('group-a', {
+      taskGroupId: 'group-a',
+      workspaceDir: '/tmp/a',
+      configPath: '/tmp/a/.hookcode.yml',
+      instances: [
+        {
+          config: { name: 'frontend', command: 'pnpm dev', workdir: '.' },
+          port: 10002,
+          status: 'running',
+          startedAt: new Date().toISOString(),
+          lastAccessAt: Date.now(),
+          logs: []
+        }
+      ]
+    });
+
+    const response = await previewService.getRepoPreviewConfig('repo-1');
+    expect(response.available).toBe(false);
+    expect(response.reason).toBe('no_workspace');
+    expect(response.activeTaskGroups).toHaveLength(1);
+    expect(response.activeTaskGroups[0]?.taskGroupId).toBe('group-a');
+    expect(response.activeTaskGroups[0]?.instances[0]?.status).toBe('running');
+
+    await previewService.onModuleDestroy();
+  });
 });

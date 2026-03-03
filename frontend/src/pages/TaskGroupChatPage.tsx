@@ -431,8 +431,9 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   const previewAggregateStatus = useMemo(() => {
     if (!previewState || !previewAvailable) return 'stopped';
     const statuses = previewInstances.map((instance) => instance.status);
-    if (statuses.includes('starting')) return 'starting';
+    // Prioritize running over starting so stop actions remain available during mixed startup states. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
     if (statuses.includes('running')) return 'running';
+    if (statuses.includes('starting')) return 'starting';
     if (statuses.includes('failed')) return 'failed';
     if (statuses.includes('timeout')) return 'timeout';
     return 'stopped';
@@ -1747,7 +1748,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                   className="hc-nav-action--keepLabel"
                   icon={previewToggleIcon}
                   onClick={handlePreviewToggle}
-                  loading={previewActionLoading || previewAggregateStatus === 'starting'}
+                  // Only show button loading for explicit user actions to avoid false "starting" lock states. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+                  loading={previewActionLoading}
                   disabled={previewLoading || previewActionLoading}
                 >
                   {previewAggregateStatus === 'running' || previewAggregateStatus === 'starting'

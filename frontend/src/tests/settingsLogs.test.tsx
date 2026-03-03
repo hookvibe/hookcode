@@ -5,22 +5,25 @@ import { setStoredUser } from '../auth';
 import { setLocale } from '../i18n';
 
 // Validate admin-only visibility for the settings logs tab. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-describe('UserSettingsSidebar (logs tab)', () => {
+// Extend admin-only sidebar tests to include preview management navigation visibility. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+describe('UserSettingsSidebar (admin-only tabs)', () => {
   beforeEach(() => {
     setLocale('en-US');
   });
 
-  test('hides logs tab for non-admin users', () => {
+  test('hides logs and preview tabs for non-admin users', () => {
     setStoredUser({ id: 'u1', username: 'user', roles: ['member'] });
     render(<UserSettingsSidebar activeTab="account" />);
 
     expect(screen.queryByText('Logs')).not.toBeInTheDocument();
+    expect(screen.queryByText('Preview')).not.toBeInTheDocument();
   });
 
-  test('shows logs tab for admin users', () => {
+  test('shows logs and preview tabs for admin users', () => {
     setStoredUser({ id: 'u2', username: 'admin', roles: ['admin'] });
     render(<UserSettingsSidebar activeTab="account" />);
 
     expect(screen.getByText('Logs')).toBeInTheDocument();
+    expect(screen.getByText('Preview')).toBeInTheDocument();
   });
 });

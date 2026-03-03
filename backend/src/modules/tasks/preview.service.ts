@@ -20,7 +20,9 @@ import { RuntimeService } from '../../services/runtimeService';
 import { RepositoryService } from '../repositories/repository.service';
 import { PreviewPortPool } from './previewPortPool';
 import type {
+  PreviewAdminOverviewSnapshot,
   PreviewDiagnostics,
+  PreviewManagedTaskGroupSummary,
   PreviewInstanceStatus,
   PreviewInstanceSummary,
   PreviewLogEntry,
@@ -167,10 +169,11 @@ export class PreviewService implements OnModuleDestroy {
 
   async getRepoPreviewConfig(repoId: string): Promise<RepoPreviewConfigSnapshot> {
     // Resolve preview configuration for repo detail views without starting processes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    const activeTaskGroups = await this.getRepoPreviewTaskGroups(repoId);
     const groups = await this.taskService.listTaskGroups({ repoId, limit: 1, archived: 'all', includeMeta: false });
     const latestGroup = groups[0];
     if (!latestGroup) {
-      return { available: false, instances: [], reason: 'no_workspace' };
+      return { available: false, instances: [], reason: 'no_workspace', activeTaskGroups };
     }
 
     let workspaceDir = '';
@@ -179,10 +182,10 @@ export class PreviewService implements OnModuleDestroy {
     } catch (err) {
       if (err instanceof PreviewServiceError) {
         if (err.code === 'workspace_missing') {
-          return { available: false, instances: [], reason: 'workspace_missing' };
+          return { available: false, instances: [], reason: 'workspace_missing', activeTaskGroups };
         }
         if (err.code === 'missing_task') {
-          return { available: false, instances: [], reason: 'no_workspace' };
+          return { available: false, instances: [], reason: 'no_workspace', activeTaskGroups };
         }
       }
       throw err;
@@ -192,11 +195,11 @@ export class PreviewService implements OnModuleDestroy {
     try {
       config = await this.hookcodeConfigService.parseConfig(workspaceDir);
     } catch {
-      return { available: false, instances: [], reason: 'config_invalid' };
+      return { available: false, instances: [], reason: 'config_invalid', activeTaskGroups };
     }
 
     if (!config?.preview?.instances?.length) {
-      return { available: false, instances: [], reason: 'config_missing' };
+      return { available: false, instances: [], reason: 'config_missing', activeTaskGroups };
     }
 
     const instances: RepoPreviewInstanceSummary[] = config.preview.instances.map((instance) => ({
@@ -204,7 +207,22 @@ export class PreviewService implements OnModuleDestroy {
       workdir: instance.workdir
     }));
 
-    return { available: true, instances };
+    return { available: true, instances, activeTaskGroups };
+  }
+
+  async getRepoPreviewTaskGroups(repoId: string): Promise<PreviewManagedTaskGroupSummary[]> {
+    // Reuse runtime state to expose repo-scoped active preview groups in repo detail views. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    return this.collectManagedTaskGroups({ repoId });
+  }
+
+  async getPreviewAdminOverview(): Promise<PreviewAdminOverviewSnapshot> {
+    // Provide a global preview management snapshot for admin dashboards. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const activeTaskGroups = await this.collectManagedTaskGroups();
+    return {
+      generatedAt: new Date().toISOString(),
+      activeTaskGroups,
+      portAllocation: this.portPool.getSnapshot()
+    };
   }
 
   getActiveTaskGroupIds(): Set<string> {
@@ -811,6 +829,43 @@ export class PreviewService implements OnModuleDestroy {
     if (!repoId) return {};
     const config = await this.repositoryService.getRepoPreviewEnv(repoId);
     return config ?? {};
+  }
+
+  private async collectManagedTaskGroups(options?: { repoId?: string }): Promise<PreviewManagedTaskGroupSummary[]> {
+    // Build a stable list of runtime preview groups for repo/admin management UIs. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const entries = Array.from(this.groups.entries());
+    const result: Array<PreviewManagedTaskGroupSummary | null> = await Promise.all(
+      entries.map(async ([taskGroupId, runtime]) => {
+        const group = await this.taskService.getTaskGroup(taskGroupId, { includeMeta: false });
+        const repoId = group?.repoId ? String(group.repoId) : undefined;
+        if (options?.repoId && repoId !== options.repoId) return null;
+        const instances = runtime.instances.map((instance) => this.buildRuntimeSummary(taskGroupId, instance));
+        const summary: PreviewManagedTaskGroupSummary = {
+          taskGroupId,
+          aggregateStatus: this.buildManagedAggregateStatus(instances),
+          instances
+        };
+        if (group?.title) summary.taskGroupTitle = String(group.title);
+        if (repoId) summary.repoId = repoId;
+        return summary;
+      })
+    );
+    const summaries = result.filter((item): item is PreviewManagedTaskGroupSummary => item !== null);
+    return summaries.sort((a, b) => {
+      const repoCompare = String(a.repoId ?? '').localeCompare(String(b.repoId ?? ''));
+      if (repoCompare !== 0) return repoCompare;
+      return a.taskGroupId.localeCompare(b.taskGroupId);
+    });
+  }
+
+  private buildManagedAggregateStatus(instances: PreviewInstanceSummary[]): PreviewInstanceStatus {
+    // Prioritize running previews so mixed running/starting groups remain stoppable in management UIs. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    const statuses = instances.map((instance) => instance.status);
+    if (statuses.includes('running')) return 'running';
+    if (statuses.includes('starting')) return 'starting';
+    if (statuses.includes('failed')) return 'failed';
+    if (statuses.includes('timeout')) return 'timeout';
+    return 'stopped';
   }
 
 

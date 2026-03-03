@@ -438,6 +438,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     return '';
   }, [previewConfig?.reason, t]);
 
+  const activePreviewGroups = useMemo(
+    // Keep repo-level preview management rendering resilient when older API responses omit active groups. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    () => (Array.isArray(previewConfig?.activeTaskGroups) ? previewConfig.activeTaskGroups : []),
+    [previewConfig?.activeTaskGroups]
+  );
+
   const title = useMemo(() => repo?.name || repoId || t('repos.detail.titleFallback'), [repo?.name, repoId, t]);
 
   const formatTime = useCallback(
@@ -1822,6 +1828,51 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                             ) : null}
                           </Space>
                         )}
+                        {/* Render repo-scoped active preview groups for runtime management visibility. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 */}
+                        {!previewConfigLoading ? (
+                          <>
+                            <Divider style={{ margin: '12px 0' }} />
+                            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                              <Typography.Text type="secondary">{t('repos.preview.activeGroups.title')}</Typography.Text>
+                              {activePreviewGroups.length ? (
+                                activePreviewGroups.map((group) => (
+                                  <div key={group.taskGroupId} className="hc-section-block__row" style={{ alignItems: 'flex-start', gap: 8 }}>
+                                    <Space direction="vertical" size={2}>
+                                      <Space wrap>
+                                        <Typography.Text strong>{group.taskGroupTitle || group.taskGroupId}</Typography.Text>
+                                        <Typography.Text code>{group.taskGroupId}</Typography.Text>
+                                        {group.repoId ? <Tag>{t('repos.preview.activeGroups.repo', { repoId: group.repoId })}</Tag> : null}
+                                      </Space>
+                                      <Space wrap>
+                                        {group.instances.map((instance) => (
+                                          <Tag
+                                            key={`${group.taskGroupId}-${instance.name}`}
+                                            color={
+                                              instance.status === 'running'
+                                                ? 'green'
+                                                : instance.status === 'starting'
+                                                  ? 'blue'
+                                                  : instance.status === 'failed'
+                                                    ? 'red'
+                                                    : instance.status === 'timeout'
+                                                      ? 'gold'
+                                                      : 'default'
+                                            }
+                                          >
+                                            {instance.name}: {t(`preview.status.${instance.status}` as any)}
+                                            {instance.port ? ` (${instance.port})` : ''}
+                                          </Tag>
+                                        ))}
+                                      </Space>
+                                    </Space>
+                                  </div>
+                                ))
+                              ) : (
+                                <Typography.Text type="secondary">{t('repos.preview.activeGroups.empty')}</Typography.Text>
+                              )}
+                            </Space>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                   </Space>

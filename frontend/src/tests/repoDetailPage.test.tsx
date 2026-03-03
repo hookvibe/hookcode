@@ -204,7 +204,8 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
     vi.mocked(api.fetchRepoPreviewConfig).mockResolvedValueOnce({
       available: true,
-      instances: [{ name: 'frontend', workdir: 'frontend' }]
+      instances: [{ name: 'frontend', workdir: 'frontend' }],
+      activeTaskGroups: []
     });
 
     renderPage({ repoId: 'r1' });
@@ -212,6 +213,32 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await waitFor(() => expect(api.fetchRepoPreviewConfig).toHaveBeenCalled());
     const matches = await screen.findAllByText('frontend');
     expect(matches.length).toBeGreaterThan(0);
+  });
+
+  test('renders active preview task groups in repo preview card', async () => {
+    // Verify repo detail page lists running preview task groups returned by the preview config API. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    vi.mocked(api.fetchRepoPreviewConfig).mockResolvedValueOnce({
+      available: false,
+      instances: [],
+      reason: 'config_missing',
+      activeTaskGroups: [
+        {
+          taskGroupId: 'group-preview-1',
+          taskGroupTitle: 'Preview Group',
+          repoId: 'r1',
+          aggregateStatus: 'running',
+          instances: [{ name: 'frontend', status: 'running', port: 12000 }]
+        }
+      ]
+    });
+
+    renderPage({ repoId: 'r1' });
+
+    await waitFor(() => expect(api.fetchRepoPreviewConfig).toHaveBeenCalled());
+    expect(await screen.findByText('Preview Group')).toBeInTheDocument();
+    expect(screen.getByText('group-preview-1')).toBeInTheDocument();
+    expect(screen.getByText(/frontend: Running/i)).toBeInTheDocument();
   });
 
   test('saves preview env variables from the env tab', async () => {

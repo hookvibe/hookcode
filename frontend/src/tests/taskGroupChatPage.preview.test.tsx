@@ -29,6 +29,24 @@ describe('TaskGroupChatPage preview', () => {
     expect(screen.getByRole('button', { name: 'admin' })).toBeInTheDocument();
   });
 
+  test('keeps stop action clickable when at least one preview instance is running', async () => {
+    // Prevent mixed running+starting states from forcing the header action into a stuck loading state. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
+      available: true,
+      instances: [
+        { name: 'frontend', status: 'running', port: 12345, path: '/preview/g1/frontend/' },
+        { name: 'admin', status: 'starting', port: 12346, path: '/preview/g1/admin/' }
+      ]
+    });
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    await waitFor(() => expect(api.fetchTaskGroupPreviewStatus).toHaveBeenCalled());
+    const stopButton = await screen.findByRole('button', { name: 'Stop preview' });
+    expect(stopButton).toBeEnabled();
+    expect(stopButton.className).not.toContain('ant-btn-loading');
+  });
+
   test('defaults preview panel width to half on wide layouts', async () => {
     // Ensure the preview panel defaults to half width on wide layouts. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({

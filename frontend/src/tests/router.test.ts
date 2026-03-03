@@ -41,6 +41,11 @@ describe('router (hash routes)', () => {
     expect(parseRoute('#/repos/repo_1')).toEqual({ page: 'repo', repoId: 'repo_1' });
   });
 
+  test('parses settings preview tab route', () => {
+    // Ensure the admin preview management tab is routable from hash URLs. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+    expect(parseRoute('#/settings/preview')).toEqual({ page: 'settings', settingsTab: 'preview' });
+  });
+
   test('falls back to home for unknown routes', () => {
     expect(parseRoute('#/unknown/path')).toEqual({ page: 'home' });
   });
