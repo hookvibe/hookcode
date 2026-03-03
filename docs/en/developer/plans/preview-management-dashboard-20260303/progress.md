@@ -179,3 +179,24 @@
   - `pnpm --dir backend exec tsc -p tsconfig.json --noEmit` passed.
   - In the reported task-group workspace, `frontend/node_modules/react` and `backend/node_modules/@prisma/client` resolved after running the dependency install.
   - Confirmed the reported task-group workspace still contained older snapshots of `.hookcode.yml` and backend source files, so a new/updated task-group workspace is required to inherit repository-side fixes.
+
+<!-- Record transient DB ECONNRESET startup fix and validation after latest backend failure reports. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+## Post-Delivery Hotfix: Backend Preview Exited(1) ECONNRESET During ensureSchema (2026-03-03)
+- **Status:** complete
+- Actions taken:
+  - Investigated backend startup failures in preview logs showing transient DB socket resets (`errno=-54`, `code=ECONNRESET`) during startup bootstrap.
+  - Added `backend/src/utils/dbRetry.ts` to classify transient DB bootstrap errors and provide normalized retry settings/backoff helpers.
+  - Updated `backend/src/db.ts` so `ensureSchema()` retries transient startup DB errors with bounded linear backoff while preserving fail-fast behavior for non-transient schema errors.
+  - Added preview backend env defaults in `.hookcode.yml` (`HOOKCODE_DB_SCHEMA_RETRY_ATTEMPTS=5`, `HOOKCODE_DB_SCHEMA_RETRY_DELAY_MS=1500`) to increase retry tolerance in preview task-group runs.
+  - Added unit tests covering transient error classification, env normalization, and retry delay boundaries.
+- Files modified:
+  - `backend/src/utils/dbRetry.ts`
+  - `backend/src/db.ts`
+  - `.hookcode.yml`
+  - `backend/src/tests/unit/dbRetry.test.ts`
+  - `docs/en/developer/plans/preview-management-dashboard-20260303/findings.md`
+  - `docs/en/developer/plans/preview-management-dashboard-20260303/progress.md`
+- Verification:
+  - `pnpm --dir backend test -- dbRetry.test.ts --runInBand` passed.
+  - `pnpm --dir backend exec tsc -p tsconfig.json --noEmit` passed.
+  - Full test suite `pnpm test` passed (backend 96 suites, frontend 32 files).

@@ -31,6 +31,9 @@ preview:
         TASK_LOGS_ENABLED: "true"
         # Disable embedded admin tools in preview to avoid fixed-port collisions across concurrent task-group backends. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
         ADMIN_TOOLS_ENABLED: "false"
+        # Increase schema-bootstrap retry tolerance for transient remote DB resets in preview startup. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
+        HOOKCODE_DB_SCHEMA_RETRY_ATTEMPTS: "5"
+        HOOKCODE_DB_SCHEMA_RETRY_DELAY_MS: "1500"
         INLINE_WORKER_ENABLED: "false"
         HOOKCODE_TASK_GROUPS_ROOT: "~/.hookcode/task-groups"
         HOOKCODE_CONSOLE_BASE_URL: "http://127.0.0.1:{{PORT:frontend}}"

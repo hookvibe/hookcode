@@ -90,3 +90,15 @@
   - Move Prisma generation to backend preview startup command (`pnpm run prisma:generate && pnpm exec nest start`), which is not constrained by dependency command allowlist.
 - Operational note:
   - Existing task-group workspaces keep a snapshot of repository files at task creation time, so older groups will not automatically pick up these config/code fixes unless the task group is recreated or refreshed.
+
+<!-- Document transient DB bootstrap resets seen in preview startup and the retry mitigation. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+## Post-Delivery Database Stability Finding (2026-03-03)
+- Backend preview startup still failed for some task groups with transient Postgres transport errors (`ECONNRESET`) during `ensureSchema()` lock acquisition/migration bootstrap.
+- The failure happened before HTTP bind, so preview surfaced `exited (1)` even though subsequent retries often succeed manually.
+- Mitigation:
+  - Added transient DB startup error classification (`ECONNRESET`, `ETIMEDOUT`, `ECONNREFUSED`, selected PostgreSQL interruption codes).
+  - Added bounded retry in `ensureSchema()` with configurable attempts/delay envs:
+    - `HOOKCODE_DB_SCHEMA_RETRY_ATTEMPTS` (default `3`, range `1..10`)
+    - `HOOKCODE_DB_SCHEMA_RETRY_DELAY_MS` (default `1000`, range `100..10000`)
+  - Set preview backend defaults in `.hookcode.yml` to `HOOKCODE_DB_SCHEMA_RETRY_ATTEMPTS=5` and `HOOKCODE_DB_SCHEMA_RETRY_DELAY_MS=1500` for higher resilience in shared remote DB environments.
+  - Kept non-transient schema errors fail-fast (checksum mismatch, migration logic errors) to avoid masking real migration problems.
