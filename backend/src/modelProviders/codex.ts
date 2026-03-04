@@ -309,23 +309,38 @@ export const buildCodexSdkThreadOptions = (params: {
   model: CodexModel;
   sandbox: 'read-only' | 'workspace-write';
   modelReasoningEffort: CodexReasoningEffort;
+  includeModelReasoningEffort?: boolean;
 }): CodexSdkThreadOptions => {
   const sandboxMode = params.sandbox || 'read-only';
   const workingDir = params.workspaceDir ?? params.repoDir;
-
-  return {
+  const options: CodexSdkThreadOptions = {
     model: params.model,
     sandboxMode,
     // Run Codex from the task-group root when provided; fall back to repo root. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
     workingDirectory: workingDir,
     skipGitRepoCheck: true,
     approvalPolicy: 'never',
-    modelReasoningEffort: params.modelReasoningEffort as CodexSdkModelReasoningEffort,
     // Always enable Codex network access; the SDK no longer reads this from robot config. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
     networkAccessEnabled: true,
     additionalDirectories: sandboxMode === 'workspace-write' ? [path.join(params.repoDir, '.git')] : undefined
   };
+  if (params.includeModelReasoningEffort !== false) {
+    // Allow compatibility retries against gateways that reject the `reasoning` parameter. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+    options.modelReasoningEffort = params.modelReasoningEffort as CodexSdkModelReasoningEffort;
+  }
+  return options;
 };
+
+const UNKNOWN_REASONING_PARAM_PATTERN =
+  /unknown parameter:\s*['"]reasoning['"]|["']param["']\s*:\s*["']reasoning["']/i;
+
+const isUnknownReasoningParamError = (message: string): boolean => {
+  // Detect OpenAI-compatible gateway rejections for unsupported `reasoning` fields. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+  return UNKNOWN_REASONING_PARAM_PATTERN.test(message);
+};
+
+// Export reasoning-parameter detector for unit tests around compatibility fallback behavior. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+export const __test__isUnknownReasoningParamError = (message: string): boolean => isUnknownReasoningParamError(message);
 
 export const runCodexExecWithSdk = async (params: {
   repoDir: string;
@@ -360,130 +375,202 @@ export const runCodexExecWithSdk = async (params: {
     env: buildMergedProcessEnv(params.env)
   });
 
-  const threadOptions = buildCodexSdkThreadOptions({
-    repoDir: params.repoDir,
-    workspaceDir: params.workspaceDir,
-    model: params.model,
-    sandbox: params.sandbox,
-    // Thread options now always enable network access for Codex runs. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
-    modelReasoningEffort: params.modelReasoningEffort
-  });
-  const resumeThreadId = (params.resumeThreadId ?? '').trim();
-  console.log('codex threadOptions', threadOptions);
-  const thread = resumeThreadId
-    ? (() => {
-      try {
-        return codex.resumeThread(resumeThreadId, threadOptions);
-      } catch (err) {
-        console.warn('[codex] resumeThread failed; starting a new thread instead', { error: err });
-        return codex.startThread(threadOptions);
+  const runOnce = async (options: {
+    resumeThreadId?: string;
+    includeModelReasoningEffort: boolean;
+  }): Promise<{ threadId: string | null; finalResponse: string }> => {
+    const threadOptions = buildCodexSdkThreadOptions({
+      repoDir: params.repoDir,
+      workspaceDir: params.workspaceDir,
+      model: params.model,
+      sandbox: params.sandbox,
+      // Thread options now always enable network access for Codex runs. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
+      modelReasoningEffort: params.modelReasoningEffort,
+      includeModelReasoningEffort: options.includeModelReasoningEffort
+    });
+    console.log('codex threadOptions', threadOptions);
+
+    const resumeId = (options.resumeThreadId ?? '').trim();
+    const thread = resumeId
+      ? (() => {
+        try {
+          return codex.resumeThread(resumeId, threadOptions);
+        } catch (err) {
+          console.warn('[codex] resumeThread failed; starting a new thread instead', { error: err });
+          return codex.startThread(threadOptions);
+        }
+      })()
+      : codex.startThread(threadOptions);
+
+    let threadId: string | null = null;
+    let finalResponse = '';
+    let turnFailedMessage = '';
+    let streamErrorMessage = '';
+    const sideTasks: Promise<void>[] = [];
+
+    // Change record: use shared async logger to avoid blocking provider execution on DB/log persistence.
+    const logger = createAsyncLineLogger({ logLine: params.logLine, redact: params.redact, maxQueueSize: 500 });
+    const streamAbort = new AbortController();
+    if (params.signal) {
+      if (params.signal.aborted) {
+        streamAbort.abort(params.signal.reason);
+      } else {
+        // Link task-runner pause/delete cancellation into the provider stream abort signal. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+        params.signal.addEventListener('abort', () => streamAbort.abort(params.signal?.reason), { once: true });
       }
-    })()
-    : codex.startThread(threadOptions);
+    }
 
-  let threadId: string | null = null;
-  let finalResponse = '';
-  let turnFailedMessage = '';
-  let streamErrorMessage = '';
-  const sideTasks: Promise<void>[] = [];
+    // Pass optional outputSchema through turn options so Codex can return structured JSON outputs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
+    const turnOptions: { signal?: AbortSignal; outputSchema?: unknown } = { signal: streamAbort.signal };
+    if (params.outputSchema) turnOptions.outputSchema = params.outputSchema;
+    console.log('codex runStreamed turnOptions', turnOptions);
+    const { events } = await thread.runStreamed(prompt, turnOptions);
+    const iterator = events[Symbol.asyncIterator]();
 
-  // Change record: use shared async logger to avoid blocking provider execution on DB/log persistence.
-  const logger = createAsyncLineLogger({ logLine: params.logLine, redact: params.redact, maxQueueSize: 500 });
-  // Pass optional outputSchema through turn options so Codex can return structured JSON outputs. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-  const turnOptions: { signal?: AbortSignal; outputSchema?: unknown } = {};
-  if (params.signal) turnOptions.signal = params.signal;
-  if (params.outputSchema) turnOptions.outputSchema = params.outputSchema;
-  console.log('codex runStreamed turnOptions', turnOptions);
-  const { events } = await thread.runStreamed(prompt, turnOptions);
+    try {
+      // Consume streamed events via an explicit iterator so error-driven exits cannot block on iterator close. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+      while (true) {
+        const next = await iterator.next();
+        if (next.done) break;
+        const event = next.value as CodexSdkThreadEvent;
 
-  try {
-    for await (const event of events) {
-      if (event.type === 'thread.started') {
-        threadId = event.thread_id;
-      }
-      if (event.type === 'turn.failed') {
-        turnFailedMessage = String(event.error?.message ?? 'codex turn failed');
-      }
-      if (event.type === 'error') {
-        streamErrorMessage = String(event.message ?? 'codex stream error');
-      }
-      if (
-        (event.type === 'item.updated' || event.type === 'item.completed') &&
-        event.item?.type === 'agent_message' &&
-        typeof event.item.text === 'string'
-      ) {
-        finalResponse = event.item.text;
-      }
+        if (event.type === 'thread.started') {
+          threadId = event.thread_id;
+        }
+        if (event.type === 'turn.failed') {
+          turnFailedMessage = String(event.error?.message ?? 'codex turn failed');
+        }
+        if (event.type === 'error') {
+          streamErrorMessage = String(event.message ?? 'codex stream error');
+        }
+        if (
+          (event.type === 'item.updated' || event.type === 'item.completed') &&
+          event.item?.type === 'agent_message' &&
+          typeof event.item.text === 'string'
+        ) {
+          finalResponse = event.item.text;
+        }
 
-      logger.enqueue(JSON.stringify(event), {
-        important:
-          event.type === 'thread.started' ||
-          event.type === 'turn.completed' ||
-          event.type === 'turn.failed' ||
-          event.type === 'error'
-      });
+        logger.enqueue(JSON.stringify(event), {
+          important:
+            event.type === 'thread.started' ||
+            event.type === 'turn.completed' ||
+            event.type === 'turn.failed' ||
+            event.type === 'error'
+        });
 
-      if ((event.type === 'item.updated' || event.type === 'item.completed') && event.item?.type === 'file_change') {
-        const itemId = asString(event.item?.id).trim();
-        const changesRaw = Array.isArray(event.item?.changes) ? event.item?.changes : [];
-        if (itemId && changesRaw.length > 0) {
-          const changes = changesRaw
-            .map((entry: unknown) => {
-              if (!isRecord(entry)) return null;
-              const changePath = asString(entry.path).trim();
-              if (!changePath) return null;
-              const kind = asString(entry.kind).trim() as CodexFileChangeKind;
-              return { path: changePath, kind: kind || undefined };
-            })
-            .filter((v): v is { path: string; kind: CodexFileChangeKind | undefined } => Boolean(v));
+        if ((event.type === 'item.updated' || event.type === 'item.completed') && event.item?.type === 'file_change') {
+          const itemId = asString(event.item?.id).trim();
+          const changesRaw = Array.isArray(event.item?.changes) ? event.item?.changes : [];
+          if (itemId && changesRaw.length > 0) {
+            const changes = changesRaw
+              .map((entry: unknown) => {
+                if (!isRecord(entry)) return null;
+                const changePath = asString(entry.path).trim();
+                if (!changePath) return null;
+                const kind = asString(entry.kind).trim() as CodexFileChangeKind;
+                return { path: changePath, kind: kind || undefined };
+              })
+              .filter((v): v is { path: string; kind: CodexFileChangeKind | undefined } => Boolean(v));
 
-          if (changes.length) {
-            const capture =
-              params.__internal?.captureCodexFileDiffEvents ??
-              ((p: Parameters<typeof captureCodexFileDiffEvents>[0]) =>
-                captureCodexFileDiffEvents({
-                  ...p,
-                  __internal: { runGit: params.__internal?.runGit, readFileUtf8: params.__internal?.readFileUtf8 }
-                }));
+            if (changes.length) {
+              const capture =
+                params.__internal?.captureCodexFileDiffEvents ??
+                ((p: Parameters<typeof captureCodexFileDiffEvents>[0]) =>
+                  captureCodexFileDiffEvents({
+                    ...p,
+                    __internal: { runGit: params.__internal?.runGit, readFileUtf8: params.__internal?.readFileUtf8 }
+                  }));
 
-            // Capture diffs asynchronously so we do not slow down Codex streamed execution. yjlphd6rbkrq521ny796
-            sideTasks.push(
-              capture({ repoDir: params.repoDir, itemId, changes })
-                .then((diffEvents) => {
-                  for (const diffEvent of diffEvents) {
-                    logger.enqueue(JSON.stringify(diffEvent), { important: true });
-                  }
-                })
-                .catch((err: unknown) => {
-                  if (process.env.NODE_ENV !== 'test') {
-                    console.warn('[codex] capture file diffs failed (ignored)', { error: err });
-                  }
-                })
-            );
+              // Capture diffs asynchronously so we do not slow down Codex streamed execution. yjlphd6rbkrq521ny796
+              sideTasks.push(
+                capture({ repoDir: params.repoDir, itemId, changes })
+                  .then((diffEvents) => {
+                    for (const diffEvent of diffEvents) {
+                      logger.enqueue(JSON.stringify(diffEvent), { important: true });
+                    }
+                  })
+                  .catch((err: unknown) => {
+                    if (process.env.NODE_ENV !== 'test') {
+                      console.warn('[codex] capture file diffs failed (ignored)', { error: err });
+                    }
+                  })
+              );
+            }
           }
+        }
+
+        if (turnFailedMessage || streamErrorMessage) {
+          // Abort stream reads immediately after terminal error events to avoid hanging in SDK iterators. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+          if (!streamAbort.signal.aborted) streamAbort.abort(new Error('codex_stream_terminal_event'));
+          break;
+        }
+      }
+    } finally {
+      if (turnFailedMessage || streamErrorMessage) {
+        const returnFn = iterator.return?.bind(iterator);
+        if (returnFn) {
+          await Promise.race([
+            Promise.resolve(returnFn(undefined as any)).then(() => undefined).catch(() => undefined),
+            new Promise<void>((resolve) => setTimeout(resolve, 300))
+          ]);
         }
       }
 
-      if (turnFailedMessage || streamErrorMessage) break;
+      // Best-effort: wait for background diff capture tasks before flushing logs. yjlphd6rbkrq521ny796
+      if (sideTasks.length > 0) {
+        await Promise.race([
+          Promise.allSettled(sideTasks).then(() => undefined),
+          new Promise<void>((resolve) => setTimeout(resolve, 1500))
+        ]);
+      }
+      await logger.flushBestEffort(250);
     }
-  } finally {
-    // Best-effort: wait for background diff capture tasks before flushing logs. yjlphd6rbkrq521ny796
-    if (sideTasks.length > 0) {
-      await Promise.race([
-        Promise.allSettled(sideTasks).then(() => undefined),
-        new Promise<void>((resolve) => setTimeout(resolve, 1500))
-      ]);
+
+    const outputPath = path.isAbsolute(params.outputLastMessageFile)
+      ? params.outputLastMessageFile
+      : path.join(params.repoDir, params.outputLastMessageFile);
+    await writeFile(outputPath, finalResponse ?? '', 'utf8');
+
+    if (streamErrorMessage) throw new Error(streamErrorMessage);
+    if (turnFailedMessage) throw new Error(turnFailedMessage);
+
+    return { threadId: threadId ?? thread.id, finalResponse };
+  };
+
+  const runWithReasoningFallback = async (resumeId?: string): Promise<{ threadId: string | null; finalResponse: string }> => {
+    try {
+      return await runOnce({ resumeThreadId: resumeId, includeModelReasoningEffort: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!isUnknownReasoningParamError(message)) throw err;
+      if (params.logLine) {
+        await params.logLine('[codex] remote API rejected reasoning parameter; retrying without modelReasoningEffort.');
+      }
+
+      try {
+        return await runOnce({ resumeThreadId: resumeId, includeModelReasoningEffort: false });
+      } catch (retryErr) {
+        if (!resumeId) throw retryErr;
+        if (params.logLine) {
+          await params.logLine('[codex] reasoning-disabled resume failed; starting a new thread.');
+        }
+        return await runOnce({ includeModelReasoningEffort: false });
+      }
     }
-    await logger.flushBestEffort(250);
+  };
+
+  const resumeThreadId = (params.resumeThreadId ?? '').trim();
+  if (resumeThreadId) {
+    try {
+      return await runWithReasoningFallback(resumeThreadId);
+    } catch (err) {
+      if (params.logLine) {
+        await params.logLine('[codex] resume failed; starting a new thread');
+      }
+      return await runWithReasoningFallback(undefined);
+    }
   }
 
-  const outputPath = path.isAbsolute(params.outputLastMessageFile)
-    ? params.outputLastMessageFile
-    : path.join(params.repoDir, params.outputLastMessageFile);
-  await writeFile(outputPath, finalResponse ?? '', 'utf8');
-
-  if (streamErrorMessage) throw new Error(streamErrorMessage);
-  if (turnFailedMessage) throw new Error(turnFailedMessage);
-
-  return { threadId: threadId ?? thread.id, finalResponse };
+  return await runWithReasoningFallback(undefined);
 };
