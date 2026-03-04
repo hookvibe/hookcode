@@ -16,6 +16,7 @@ import {
 import type { TaskGroup, TaskGroupWithMeta } from '../../types/taskGroup';
 import type { RepoProvider } from '../../types/repository';
 import { isTruthy } from '../../utils/env';
+import { resolveProcessingStaleBefore, resolveProcessingStaleMs } from '../../utils/processingStale';
 import { extractTaskSchedule, isTimeWindowActive } from '../../utils/timeWindow';
 import type { TaskScheduleSnapshot } from '../../types/timeWindow';
 import { isUuidLike } from '../../utils/uuid'; // Share UUID validation across pagination and list filters. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
@@ -510,8 +511,8 @@ export class TaskService {
     type QueuePosRow = { id: string; ahead: number; total: number };
     type ProcessingCountsRow = { processing: number; stale_processing: number };
 
-    const staleMs = Number(process.env.PROCESSING_STALE_MS || 30 * 60 * 1000);
-    const staleBefore = new Date(Date.now() - (Number.isFinite(staleMs) && staleMs > 0 ? staleMs : 30 * 60 * 1000));
+    const staleMs = resolveProcessingStaleMs();
+    const staleBefore = resolveProcessingStaleBefore(staleMs);
 
     const inlineWorkerEnabled = isTruthy(process.env.INLINE_WORKER_ENABLED, true);
     const now = new Date();
@@ -531,12 +532,20 @@ export class TaskService {
         FROM q
         WHERE id = ANY(${queuedIds}::uuid[]);
       `,
-      db.$queryRaw<ProcessingCountsRow[]>`
-        SELECT COUNT(*)::int AS processing,
-               COUNT(*) FILTER (WHERE updated_at < ${staleBefore})::int AS stale_processing
-        FROM tasks
-        WHERE status = 'processing';
-      `
+      staleBefore
+        ? db.$queryRaw<ProcessingCountsRow[]>`
+            SELECT COUNT(*)::int AS processing,
+                   COUNT(*) FILTER (WHERE updated_at < ${staleBefore})::int AS stale_processing
+            FROM tasks
+            WHERE status = 'processing';
+          `
+        : db.$queryRaw<ProcessingCountsRow[]>`
+            -- Keep stale-processing metrics at zero when stale timeout is disabled by default. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+            SELECT COUNT(*)::int AS processing,
+                   0::int AS stale_processing
+            FROM tasks
+            WHERE status = 'processing';
+          `
     ]);
 
     // Keep query-row callback typing explicit so preview-start compilation does not infer implicit any. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
@@ -642,7 +651,9 @@ export class TaskService {
    * - Used for recovery after API/worker restarts or crashes (entry: `backend/src/worker.ts`).
    * - We only mark as failed and write a hint message; we do NOT auto-requeue to avoid accidentally triggering a large number of tasks.
    */
-  async recoverStaleProcessing(staleMs: number): Promise<number> {
+  async recoverStaleProcessing(staleMs: number | null): Promise<number> {
+    // Skip stale recovery when PROCESSING_STALE_MS is unset so processing runtime is unlimited by default. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+    if (typeof staleMs !== 'number' || !Number.isFinite(staleMs) || staleMs <= 0) return 0;
     const now = new Date();
     const threshold = new Date(now.getTime() - staleMs);
     // Change record (2026-01-15): stale processing warning message is now English to match UI expectations.

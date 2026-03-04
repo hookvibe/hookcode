@@ -59,11 +59,35 @@
   - `docs/en/developer/plans/worker-stuck-reasoning-20260304/progress.md`
   - `docs/en/change-log/0.0.0.md`
 
+### Phase 6: Stale Timeout Policy Update
+- **Status:** complete
+- Actions taken:
+  - Verified via PAT API debug that the two reported tasks failed due to `Unknown parameter: 'reasoning'` (not stale-processing timeout recovery).
+  - Changed stale-timeout behavior so `PROCESSING_STALE_MS` is opt-in; default (unset) disables automatic stale-processing recovery.
+  - Updated worker/API/task flows to respect disabled stale mode and keep stale metrics/retry gating behavior consistent.
+  - Added dedicated unit tests for stale-timeout parsing and stale-detection behavior.
+- Files created/modified:
+  - `backend/src/utils/processingStale.ts`
+  - `backend/src/worker.ts`
+  - `backend/src/bootstrap.ts`
+  - `backend/src/modules/tasks/task.service.ts`
+  - `backend/src/modules/tasks/tasks.controller.ts`
+  - `backend/.env.example`
+  - `docker/.env.example`
+  - `docker/ci/write-ci-env.sh`
+  - `backend/src/tests/unit/processingStale.test.ts`
+  - `docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md`
+  - `docs/en/developer/plans/worker-stuck-reasoning-20260304/findings.md`
+  - `docs/en/developer/plans/worker-stuck-reasoning-20260304/progress.md`
+  - `docs/en/change-log/0.0.0.md`
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | Targeted backend tests | `pnpm --filter hookcode-backend test -- codexExec.test.ts codexProviderConfig.test.ts` | New Codex fallback/hang-prevention tests pass | 2 suites passed, 14 tests passed | ✅ |
 | Full test suite | `pnpm test` | Backend + frontend pass after changes | Backend: 97/97 suites, 405/405 tests; Frontend: 34/34 files, 166/166 tests | ✅ |
+| Targeted stale policy tests | `pnpm --filter hookcode-backend test -- processingStale.test.ts taskServiceListTasks.test.ts` | New stale-timeout policy behavior passes unit tests | 2 suites passed, 13 tests passed | ✅ |
+| Full test suite (after stale policy changes) | `pnpm test` | Backend + frontend pass after stale policy changes | Backend: 98/98 suites, 410/410 tests; Frontend: 34/34 files, 166/166 tests | ✅ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -74,8 +98,8 @@
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 5 delivery complete |
+| Where am I? | Phase 6 delivery complete |
 | Where am I going? | Waiting for deployment + runtime verification |
-| What's the goal? | Fix worker liveness + reasoning parameter compatibility |
-| What have I learned? | Stuck task is blocked in Codex provider after error event; reasoning parameter is rejected by remote gateway |
-| What have I done? | Reproduced with production task data, implemented provider-layer fixes, and passed full test suite |
+| What's the goal? | Fix worker liveness + reasoning compatibility and disable default stale timeout limits |
+| What have I learned? | Reported failures were reasoning-param incompatibility; stale timeout defaults should be opt-in for long-running tasks |
+| What have I done? | Reproduced with production task data, implemented provider-layer fixes, changed stale-timeout defaults, and passed full test suite |

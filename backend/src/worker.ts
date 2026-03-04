@@ -15,6 +15,7 @@ import { TaskService } from './modules/tasks/task.service';
 import { WorkerModule } from './modules/worker/worker.module';
 import { isPreferredWorkerPresent, tryAcquirePreferredWorkerLock, type PreferredWorkerLockHandle } from './services/workerPriority';
 import { RuntimeService } from './services/runtimeService';
+import { formatProcessingStaleMs, resolveProcessingStaleMs } from './utils/processingStale';
 
 dotenv.config();
 
@@ -47,7 +48,7 @@ const toBoolean = (value: string | undefined, fallback: boolean): boolean => {
 
 const main = async () => {
   const pollIntervalMs = toNumber(process.env.WORKER_POLL_INTERVAL_MS, 2000);
-  const staleMs = toNumber(process.env.PROCESSING_STALE_MS, 30 * 60 * 1000);
+  const staleMs = resolveProcessingStaleMs();
   const preferWorker = toBoolean(process.env.WORKER_PREFERRED, false);
   const backoffOnPreferred = toBoolean(process.env.WORKER_BACKOFF_ON_PREFERRED, false);
   const preferredLockRetryIntervalMs = 30_000;
@@ -66,13 +67,18 @@ const main = async () => {
     console.warn('[worker] runtime detection failed (continuing)', err);
   }
 
-  try {
-    const recovered = await taskService.recoverStaleProcessing(staleMs);
-    if (recovered > 0) {
-      console.warn(`[worker] recovered ${recovered} stuck task(s) (processing timeout)`);
+  if (staleMs !== null) {
+    try {
+      const recovered = await taskService.recoverStaleProcessing(staleMs);
+      if (recovered > 0) {
+        console.warn(`[worker] recovered ${recovered} stuck task(s) (processing timeout)`);
+      }
+    } catch (err) {
+      console.error('[worker] recoverStaleProcessing failed', err);
     }
-  } catch (err) {
-    console.error('[worker] recoverStaleProcessing failed', err);
+  } else {
+    // Skip startup stale recovery when PROCESSING_STALE_MS is unset so default task runtime is unlimited. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+    console.log('[worker] stale-processing recovery disabled (PROCESSING_STALE_MS is not set)');
   }
 
   let stopping = false;
@@ -99,7 +105,7 @@ const main = async () => {
   }
 
   console.log(
-    `[worker] started (poll=${pollIntervalMs}ms, stale=${staleMs}ms, backoffOnPreferred=${backoffOnPreferred})`
+    `[worker] started (poll=${pollIntervalMs}ms, stale=${formatProcessingStaleMs(staleMs)}, backoffOnPreferred=${backoffOnPreferred})`
   );
 
   let lastBackoffLogAt = 0;

@@ -38,6 +38,7 @@ import { db } from '../../db';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { computeTaskLogsDelta, extractTaskLogsSnapshot, sliceLogsTail } from '../../services/taskLogs';
 import { isTruthy } from '../../utils/env';
+import { isProcessingStale, resolveProcessingStaleMs } from '../../utils/processingStale';
 import { normalizeString, parseOptionalBoolean, parsePositiveInt } from '../../utils/parse';
 import { decodeUpdatedAtCursor, encodeUpdatedAtCursor } from '../../utils/pagination'; // Share cursor parsing/encoding for task pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 import { extractTaskSchedule } from '../../utils/timeWindow';
@@ -549,13 +550,17 @@ export class TasksController {
       }
 
       if (existing.status === 'processing' && !force) {
-        const staleMs = Number(process.env.PROCESSING_STALE_MS || 30 * 60 * 1000);
+        const staleMs = resolveProcessingStaleMs();
         const updatedAt = new Date(existing.updatedAt).getTime();
-        const now = Date.now();
-        const isStale = Number.isFinite(updatedAt) && now - updatedAt > staleMs;
+        // Respect opt-in stale timeout policy; when unset, processing retry requires force=true. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+        const isStale = isProcessingStale({ updatedAtMs: updatedAt, staleMs });
         if (!isStale) {
+          const errorMessage =
+            staleMs === null
+              ? 'Task is processing; retry is blocked unless force=true (stale timeout is disabled)'
+              : 'Task is processing; retry is blocked unless stale or force=true';
           throw new ConflictException({
-            error: 'Task is processing; retry is blocked unless stale or force=true'
+            error: errorMessage
           });
         }
       }

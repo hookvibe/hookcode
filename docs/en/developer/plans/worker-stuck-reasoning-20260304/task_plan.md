@@ -5,10 +5,10 @@
 - **Created:** 2026-03-04
 
 ## Goal
-Diagnose why worker stops processing tasks after `Unknown parameter: 'reasoning'` and implement a robust fix so task processing continues and the remote compact request is compatible.
+Diagnose why worker stops processing tasks after `Unknown parameter: 'reasoning'`, implement a robust fix so task processing continues, and change stale-processing recovery defaults so no automatic processing timeout is applied unless explicitly configured.
 
 ## Current Phase
-Phase 5
+Phase 6
 
 ## Phases
 ### Phase 1: Requirements & Discovery
@@ -42,10 +42,19 @@ Phase 5
 - [x] Report root cause, fix, and validation details to user
 - **Status:** complete
 
+### Phase 6: Stale Timeout Policy Update
+- [x] Confirm whether reported tasks failed due to stale-processing recovery
+- [x] Change `PROCESSING_STALE_MS` default behavior to unlimited (disabled when unset)
+- [x] Update stale-related worker/API/task logic to respect disabled mode
+- [x] Add/adjust tests for stale timeout parsing/behavior
+- [x] Update docs/changelog and report behavior changes to user
+- **Status:** complete
+
 ## Key Questions
 1. Which provider integration emits `Error running remote compact task` and why does it send `reasoning`?
 2. Is the worker actually dead, blocked, or silently exiting after this error?
 3. What minimal safe fallback logic prevents invalid params while preserving model behavior?
+4. Should stale-processing auto-recovery be enabled by default or opt-in?
 
 ## Decisions Made
 | Decision | Rationale |

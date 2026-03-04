@@ -24,6 +24,7 @@ import { HttpErrorMessageFilter } from './modules/common/filters/http-error-mess
 import { AuditLogInterceptor } from './modules/logs/audit-log.interceptor';
 import { LogsService } from './modules/logs/logs.service';
 import { LogWriterService } from './modules/logs/log-writer.service';
+import { resolveProcessingStaleMs } from './utils/processingStale';
 
 dotenv.config();
 
@@ -194,36 +195,14 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
   const taskService = app.get(TaskService);
 
   // Recover "stuck" processing tasks periodically.
-  const staleMs = toNumber(process.env.PROCESSING_STALE_MS, 30 * 60 * 1000);
-  const intervalMs = Math.max(5_000, toNumber(process.env.PROCESSING_STALE_RECOVERY_INTERVAL_MS, 60_000));
-  try {
-    const recovered = await taskService.recoverStaleProcessing(staleMs);
-    if (recovered > 0) {
-      console.warn(`${logTag} recovered ${recovered} stuck task(s) (processing timeout)`);
-      // Emit system logs when stale task recovery succeeds. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-      void logWriter?.logSystem({
-        level: 'warn',
-        message: `Recovered ${recovered} stuck task(s) (processing timeout)`,
-        code: 'TASK_STALE_RECOVERED',
-        meta: { recovered, staleMs }
-      });
-    }
-  } catch (err) {
-    console.error(`${logTag} recoverStaleProcessing failed`, err);
-    // Emit system logs when stale task recovery fails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-    void logWriter?.logSystem({
-      level: 'error',
-      message: 'recoverStaleProcessing failed',
-      code: 'TASK_STALE_RECOVERY_FAILED',
-      meta: { error: err instanceof Error ? err.message : String(err) }
-    });
-  }
-  staleReaperTimer = setInterval(async () => {
+  const staleMs = resolveProcessingStaleMs();
+  if (staleMs !== null) {
+    const intervalMs = Math.max(5_000, toNumber(process.env.PROCESSING_STALE_RECOVERY_INTERVAL_MS, 60_000));
     try {
       const recovered = await taskService.recoverStaleProcessing(staleMs);
       if (recovered > 0) {
         console.warn(`${logTag} recovered ${recovered} stuck task(s) (processing timeout)`);
-        // Emit system logs when scheduled recovery succeeds. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+        // Emit system logs when stale task recovery succeeds. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
         void logWriter?.logSystem({
           level: 'warn',
           message: `Recovered ${recovered} stuck task(s) (processing timeout)`,
@@ -233,7 +212,7 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
       }
     } catch (err) {
       console.error(`${logTag} recoverStaleProcessing failed`, err);
-      // Emit system logs when scheduled recovery fails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+      // Emit system logs when stale task recovery fails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       void logWriter?.logSystem({
         level: 'error',
         message: 'recoverStaleProcessing failed',
@@ -241,7 +220,34 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
         meta: { error: err instanceof Error ? err.message : String(err) }
       });
     }
-  }, intervalMs);
+    staleReaperTimer = setInterval(async () => {
+      try {
+        const recovered = await taskService.recoverStaleProcessing(staleMs);
+        if (recovered > 0) {
+          console.warn(`${logTag} recovered ${recovered} stuck task(s) (processing timeout)`);
+          // Emit system logs when scheduled recovery succeeds. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+          void logWriter?.logSystem({
+            level: 'warn',
+            message: `Recovered ${recovered} stuck task(s) (processing timeout)`,
+            code: 'TASK_STALE_RECOVERED',
+            meta: { recovered, staleMs }
+          });
+        }
+      } catch (err) {
+        console.error(`${logTag} recoverStaleProcessing failed`, err);
+        // Emit system logs when scheduled recovery fails. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+        void logWriter?.logSystem({
+          level: 'error',
+          message: 'recoverStaleProcessing failed',
+          code: 'TASK_STALE_RECOVERY_FAILED',
+          meta: { error: err instanceof Error ? err.message : String(err) }
+        });
+      }
+    }, intervalMs);
+  } else {
+    // Skip API-side stale reaper by default so tasks do not fail on an implicit processing timeout. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+    console.log(`${logTag} stale-processing recovery disabled (PROCESSING_STALE_MS is not set)`);
+  }
 
   if (logsService) {
     // Schedule log retention cleanup to enforce 30-day policy. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302

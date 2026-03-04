@@ -132,7 +132,8 @@ write_kv TASK_LOGS_VISIBLE_ENABLED "${TASK_LOGS_VISIBLE_ENABLED:-true}"
 write_kv ADMIN_TOOLS_ENABLED "${ADMIN_TOOLS_ENABLED:-false}"
 write_kv INLINE_WORKER_ENABLED "${INLINE_WORKER_ENABLED:-false}"
 write_kv WORKER_POLL_INTERVAL_MS "${WORKER_POLL_INTERVAL_MS:-2000}"
-write_kv PROCESSING_STALE_MS "${PROCESSING_STALE_MS:-1800000}"
+# Keep stale timeout opt-in in CI-generated docker env so default task runtime remains unlimited. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+write_kv PROCESSING_STALE_MS "${PROCESSING_STALE_MS:-}"
 write_kv WORKER_BACKOFF_ON_PREFERRED "${WORKER_BACKOFF_ON_PREFERRED:-true}"
 
 echo "[ci] wrote docker env file: ${env_file} (values redacted)"
