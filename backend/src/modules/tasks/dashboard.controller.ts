@@ -153,11 +153,19 @@ export class DashboardController {
         return encodeUpdatedAtCursor({ id: lastTask.id, updatedAt: lastUpdatedAt });
       };
 
-      // Annotate task-group sidebar rows with preview activity state. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+      // Annotate task-group sidebar rows with preview + running-task activity state. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
       const previewActiveIds = this.previewService.getActiveTaskGroupIds();
+      const runningTaskGroupIds = await this.taskService.listRunningTaskGroupIds({
+        groupIds: taskGroups.map((group) => group.id),
+        repoId: repoId ?? undefined,
+        robotId: robotId ?? undefined,
+        allowedRepoIds: allowedRepoIds ?? undefined,
+        statuses: ['processing']
+      });
       const decoratedTaskGroups = taskGroups.map((group) => ({
         ...group,
-        previewActive: previewActiveIds.has(group.id)
+        previewActive: previewActiveIds.has(group.id),
+        hasRunningTasks: runningTaskGroupIds.has(group.id)
       }));
       // Emit a task-group cursor for sidebar load-more pagination when the page is full. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
       const lastGroup = decoratedTaskGroups[decoratedTaskGroups.length - 1];

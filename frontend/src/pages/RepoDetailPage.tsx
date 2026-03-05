@@ -3166,12 +3166,20 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                         </Form.Item>
                       </Col>
                       <Col xs={24} md={12}>
+                        {/* Use provider-specific sandbox labels for Claude/Gemini to match their tool-based permission model. docs/en/developer/plans/<SESSION_HASH>/task_plan.md <SESSION_HASH> */}
                         <Form.Item label={t('repos.robotForm.sandbox')} name={['modelProviderConfig', 'sandbox']} rules={[{ required: true, message: t('panel.validation.required') }]}>
                           <Select
-                            options={[
-                              { value: 'read-only', label: t('repos.robotForm.sandbox.readOnly') },
-                              { value: 'workspace-write', label: t('repos.robotForm.sandbox.workspaceWrite') }
-                            ]}
+                            options={
+                              isCodex
+                                ? [
+                                    { value: 'read-only', label: t('repos.robotForm.sandbox.readOnly') },
+                                    { value: 'workspace-write', label: t('repos.robotForm.sandbox.workspaceWrite') }
+                                  ]
+                                : [
+                                    { value: 'read-only', label: t('repos.robotForm.sandboxClaude.readOnly') },
+                                    { value: 'workspace-write', label: t('repos.robotForm.sandboxClaude.workspaceWrite') }
+                                  ]
+                            }
                           />
                         </Form.Item>
                       </Col>
@@ -3199,7 +3207,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                       {/* Hide network access toggle for Codex because it is always enabled. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127 */}
                       {!isCodex ? (
                         <Col xs={24} md={24}>
-                          <Form.Item label={t('repos.robotForm.networkAccess')} name={['modelProviderConfig', 'sandbox_workspace_write', 'network_access']} valuePropName="checked">
+                          {/* Use simplified network access label for Claude/Gemini providers. docs/en/developer/plans/<SESSION_HASH>/task_plan.md <SESSION_HASH> */}
+                          <Form.Item label={t('repos.robotForm.networkAccessClaude')} name={['modelProviderConfig', 'sandbox_workspace_write', 'network_access']} valuePropName="checked">
                             <Switch disabled={networkAccessDisabled} />
                           </Form.Item>
                         </Col>

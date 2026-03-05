@@ -127,6 +127,8 @@ export interface TaskGroup {
   skillSelections?: string[] | null; // Track task-group skill overrides for the chat UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   // Indicate whether a preview is currently running for the group. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
   previewActive?: boolean;
+  // Flag task groups with processing tasks for sidebar running indicators. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+  hasRunningTasks?: boolean;
   // Archived groups are excluded from default sidebar/chat lists. qnp1mtxhzikhbi0xspbc
   archivedAt?: string;
   createdAt: string;

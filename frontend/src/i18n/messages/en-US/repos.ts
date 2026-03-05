@@ -423,8 +423,13 @@ export const enUSRepos = {
   'repos.robotForm.sandbox': 'Sandbox',
   'repos.robotForm.sandbox.readOnly': 'read-only',
   'repos.robotForm.sandbox.workspaceWrite': 'workspace-write',
+  // Claude/Gemini sandbox labels use more intuitive terminology for non-Codex providers. <SESSION_HASH>
+  'repos.robotForm.sandboxClaude.readOnly': 'Read-only mode',
+  'repos.robotForm.sandboxClaude.workspaceWrite': 'Edit mode',
   'repos.robotForm.reasoningEffort': 'Reasoning effort',
   'repos.robotForm.networkAccess': 'Network access (workspace-write only)',
+  // Simplified network access label for Claude/Gemini providers. <SESSION_HASH>
+  'repos.robotForm.networkAccessClaude': 'Network access',
   'repos.robotForm.activationTip': 'Tip: test validates permissions and records identity info (token is never returned).',
   'repos.robotForm.activation.lastTestAt': 'Last test time',
   'repos.robotForm.activation.lastTestMessage': 'Last test message',

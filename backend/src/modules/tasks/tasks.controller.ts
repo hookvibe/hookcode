@@ -37,7 +37,7 @@ import { isTaskLogsEnabled } from '../../config/features';
 import { db } from '../../db';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
 import { computeTaskLogsDelta, extractTaskLogsSnapshot, sliceLogsTail } from '../../services/taskLogs';
-import { isTruthy } from '../../utils/env';
+import { isTruthy, parseOptionalDurationMs } from '../../utils/env';
 import { normalizeString, parseOptionalBoolean, parsePositiveInt } from '../../utils/parse';
 import { decodeUpdatedAtCursor, encodeUpdatedAtCursor } from '../../utils/pagination'; // Share cursor parsing/encoding for task pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 import { extractTaskSchedule } from '../../utils/timeWindow';
@@ -549,10 +549,11 @@ export class TasksController {
       }
 
       if (existing.status === 'processing' && !force) {
-        const staleMs = Number(process.env.PROCESSING_STALE_MS || 30 * 60 * 1000);
+        // Respect blank/zero PROCESSING_STALE_MS so retry gating does not treat tasks as stale. docs/en/developer/plans/stale-disable-20260305/task_plan.md stale-disable-20260305
+        const staleMs = parseOptionalDurationMs(process.env.PROCESSING_STALE_MS, 30 * 60 * 1000);
         const updatedAt = new Date(existing.updatedAt).getTime();
         const now = Date.now();
-        const isStale = Number.isFinite(updatedAt) && now - updatedAt > staleMs;
+        const isStale = staleMs !== null && Number.isFinite(updatedAt) && now - updatedAt > staleMs;
         if (!isStale) {
           throw new ConflictException({
             error: 'Task is processing; retry is blocked unless stale or force=true'

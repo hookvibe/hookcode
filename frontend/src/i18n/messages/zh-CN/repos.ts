@@ -430,8 +430,13 @@ export const zhCNRepos = {
   'repos.robotForm.sandbox': '沙箱（sandbox）',
   'repos.robotForm.sandbox.readOnly': 'read-only',
   'repos.robotForm.sandbox.workspaceWrite': 'workspace-write',
+  // Claude/Gemini 沙箱标签使用更直观的语义化术语。 <SESSION_HASH>
+  'repos.robotForm.sandboxClaude.readOnly': '只读模式',
+  'repos.robotForm.sandboxClaude.workspaceWrite': '编辑模式',
   'repos.robotForm.reasoningEffort': '推理力度（model_reasoning_effort）',
   'repos.robotForm.networkAccess': '网络访问（仅 workspace-write）',
+  // Claude/Gemini 网络访问标签简化显示。 <SESSION_HASH>
+  'repos.robotForm.networkAccessClaude': '网络访问',
   'repos.robotForm.activationTip': '提示：测试会校验 Token 权限并记录身份信息（不会回显 Token）。',
   'repos.robotForm.activation.lastTestAt': '最近测试时间',
   'repos.robotForm.activation.lastTestMessage': '最近测试信息',

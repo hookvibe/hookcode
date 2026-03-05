@@ -44,6 +44,10 @@ export class TaskGroupWithMetaDto {
   @ApiPropertyOptional({ description: 'Whether a preview is currently running for this task group.' })
   previewActive?: boolean;
 
+  // Expose running-task activity for sidebar indicators. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+  @ApiPropertyOptional({ description: 'Whether the task group currently has processing tasks.' })
+  hasRunningTasks?: boolean;
+
   @ApiPropertyOptional({ nullable: true, format: 'date-time' })
   archivedAt?: string | null;
 

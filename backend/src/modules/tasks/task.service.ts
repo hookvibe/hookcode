@@ -15,7 +15,7 @@ import {
 } from '../../types/task';
 import type { TaskGroup, TaskGroupWithMeta } from '../../types/taskGroup';
 import type { RepoProvider } from '../../types/repository';
-import { isTruthy } from '../../utils/env';
+import { isTruthy, parseOptionalDurationMs } from '../../utils/env';
 import { extractTaskSchedule, isTimeWindowActive } from '../../utils/timeWindow';
 import type { TaskScheduleSnapshot } from '../../types/timeWindow';
 import { isUuidLike } from '../../utils/uuid'; // Share UUID validation across pagination and list filters. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
@@ -350,6 +350,8 @@ export class TaskService {
     private readonly notificationRecipients?: NotificationRecipientService
   ) {}
 
+  private runningTaskGroupLogState = { lastLogAt: 0, lastCount: -1 }; // Throttle running-task group audit logs to avoid sidebar poll spam. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+
   private buildTaskGroupTopic(groupId: string): string {
     return `task-group:${groupId}`;
   }
@@ -510,8 +512,9 @@ export class TaskService {
     type QueuePosRow = { id: string; ahead: number; total: number };
     type ProcessingCountsRow = { processing: number; stale_processing: number };
 
-    const staleMs = Number(process.env.PROCESSING_STALE_MS || 30 * 60 * 1000);
-    const staleBefore = new Date(Date.now() - (Number.isFinite(staleMs) && staleMs > 0 ? staleMs : 30 * 60 * 1000));
+    // Treat blank/zero PROCESSING_STALE_MS as disabled so queue stats avoid false stale counts. docs/en/developer/plans/stale-disable-20260305/task_plan.md stale-disable-20260305
+    const staleMs = parseOptionalDurationMs(process.env.PROCESSING_STALE_MS, 30 * 60 * 1000);
+    const staleBefore = staleMs === null ? new Date(0) : new Date(Date.now() - staleMs);
 
     const inlineWorkerEnabled = isTruthy(process.env.INLINE_WORKER_ENABLED, true);
     const now = new Date();
@@ -932,6 +935,61 @@ export class TaskService {
     const groups = rows.map(taskGroupRecordToTaskGroup) as TaskGroupWithMeta[];
     if (!options?.includeMeta) return groups;
     return this.attachGroupMeta(groups);
+  }
+
+  async listRunningTaskGroupIds(options: {
+    groupIds: string[];
+    repoId?: string;
+    robotId?: string;
+    allowedRepoIds?: string[];
+    statuses?: TaskStatus[];
+  }): Promise<Set<string>> {
+    // Build running-task group ID set for sidebar indicators. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+    const groupIds = (options.groupIds ?? []).map(safeTrim).filter(isUuidLike);
+    if (!groupIds.length) return new Set();
+    const repoId = safeTrim(options.repoId);
+    const robotId = safeTrim(options.robotId);
+    if (repoId && !isUuidLike(repoId)) return new Set();
+    if (robotId && !isUuidLike(robotId)) return new Set();
+    if (options.allowedRepoIds && !repoId) {
+      if (options.allowedRepoIds.length === 0) return new Set();
+    }
+
+    const statuses = options.statuses?.length ? options.statuses : (['processing'] as TaskStatus[]);
+    const where: Record<string, any> = {
+      groupId: { in: groupIds },
+      status: { in: statuses },
+      archivedAt: null
+    };
+    if (repoId) where.repoId = repoId;
+    if (robotId) where.robotId = robotId;
+    if (options.allowedRepoIds && !repoId) {
+      where.repoId = { in: options.allowedRepoIds };
+    }
+
+    const rows = await db.task.findMany({ where, select: { groupId: true }, distinct: ['groupId'] });
+    const ids = new Set(rows.map((row) => safeTrim(row.groupId)).filter(isUuidLike));
+    if (this.logWriter && ids.size > 0) {
+      // Throttle audit logs so sidebar polling does not spam system logs. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+      const now = Date.now();
+      const shouldLog =
+        now - this.runningTaskGroupLogState.lastLogAt > 5 * 60 * 1000 ||
+        this.runningTaskGroupLogState.lastCount !== ids.size;
+      if (shouldLog) {
+        this.runningTaskGroupLogState = { lastLogAt: now, lastCount: ids.size };
+        void this.logWriter.logSystem({
+          level: 'info',
+          message: 'Running task groups detected for sidebar indicators',
+          code: 'TASK_GROUP_RUNNING_DETECTED',
+          repoId: repoId || undefined,
+          meta: {
+            count: ids.size,
+            statuses
+          }
+        });
+      }
+    }
+    return ids;
   }
 
   async getTaskGroup(id: string, options?: { includeMeta?: boolean }): Promise<TaskGroupWithMeta | undefined> {
