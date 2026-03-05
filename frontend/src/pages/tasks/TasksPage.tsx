@@ -1,16 +1,17 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Card, Empty, Input, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import type { Task, TaskStatusStats } from '../api';
-import { executeTaskNow, fetchTaskStats, fetchTasks, retryTask } from '../api';
-import { useLocale, useT } from '../i18n';
-import { buildTaskHash, buildTasksHash } from '../router';
-import { clampText, getTaskTitle, queuedHintText, statusTag } from '../utils/task';
-import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
-import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
-import { getStatusSummaryKey, normalizeStatusFilter, type StatusFilter, type StatusSummaryKey } from './tasks/taskFilters';
-import { formatTaskTimestamp } from './tasks/formatters';
+import type { Task, TaskStatusStats } from '../../api';
+import { executeTaskNow, fetchTaskStats, fetchTasks, retryTask } from '../../api';
+import { useLocale, useT } from '../../i18n';
+import { buildTaskHash, buildTasksHash } from '../../router';
+import { clampText, getTaskTitle, queuedHintText, statusTag } from '../../utils/task';
+import { PageNav, type PageNavMenuAction } from '../../components/nav/PageNav';
+import { CardListSkeleton } from '../../components/skeletons/CardListSkeleton';
+import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
+// Keep task list helpers colocated in the same page folder after the nested page refactor. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
+import { getStatusSummaryKey, normalizeStatusFilter, type StatusFilter, type StatusSummaryKey } from './taskFilters';
+import { formatTaskTimestamp } from './formatters';
 
 /**
  * TasksPage:

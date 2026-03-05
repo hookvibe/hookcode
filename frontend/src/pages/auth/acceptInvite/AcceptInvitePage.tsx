@@ -1,10 +1,11 @@
+// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { App, Alert, Button, Card, Divider, Form, Input, Space, Typography } from 'antd';
 import { MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { acceptRepoInvite } from '../api';
-import { saveLoginNext } from '../auth';
-import { buildLoginHash, buildRepoHash } from '../router';
-import { useT } from '../i18n';
+import { acceptRepoInvite } from '../../../api';
+import { saveLoginNext } from '../../../auth';
+import { buildLoginHash, buildRepoHash } from '../../../router';
+import { useT } from '../../../i18n';
 
 export interface AcceptInvitePageProps {
   email?: string;

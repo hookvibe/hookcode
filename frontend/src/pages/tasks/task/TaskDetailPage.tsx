@@ -1,3 +1,4 @@
+// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, App, Avatar, Button, Card, Col, Descriptions, Empty, Input, Popconfirm, Radio, Row, Select, Space, Switch, Tag, Typography } from 'antd';
 import {
@@ -14,16 +15,16 @@ import {
   RobotOutlined,
   UserOutlined
 } from '@ant-design/icons';
-import type { RepoRobot, Task, TaskRepoSummary, TaskRobotSummary } from '../api';
-import { deleteTask, executeTaskNow, fetchTask, listRepoRobots, pauseTask, resumeTask, retryTask } from '../api';
-import { useLocale, useT } from '../i18n';
-import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../router';
-import { JsonViewer } from '../components/JsonViewer';
-import { MarkdownViewer } from '../components/MarkdownViewer';
-import { TaskLogViewer } from '../components/TaskLogViewer';
-import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
-import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
-import { getPrevHashForBack, isInAppHash } from '../navHistory';
+import type { RepoRobot, Task, TaskRepoSummary, TaskRobotSummary } from '../../../api';
+import { deleteTask, executeTaskNow, fetchTask, listRepoRobots, pauseTask, resumeTask, retryTask } from '../../../api';
+import { useLocale, useT } from '../../../i18n';
+import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../../../router';
+import { JsonViewer } from '../../../components/JsonViewer';
+import { MarkdownViewer } from '../../../components/MarkdownViewer';
+import { TaskLogViewer } from '../../../components/TaskLogViewer';
+import { TaskGitStatusPanel } from '../../../components/tasks/TaskGitStatusPanel';
+import { PageNav, type PageNavMenuAction } from '../../../components/nav/PageNav';
+import { getPrevHashForBack, isInAppHash } from '../../../navHistory';
 import {
   eventTag,
   extractTargetLink,
@@ -34,11 +35,11 @@ import {
   isTerminalStatus,
   queuedHintText,
   statusTag
-} from '../utils/task';
-import { buildTaskTemplateContext, renderTemplate } from '../utils/template';
-import { LogViewerSkeleton } from '../components/skeletons/LogViewerSkeleton';
-import { TaskDetailSkeleton } from '../components/skeletons/TaskDetailSkeleton';
-import { getRobotProviderLabel } from '../utils/robot';
+} from '../../../utils/task';
+import { buildTaskTemplateContext, renderTemplate } from '../../../utils/template';
+import { LogViewerSkeleton } from '../../../components/skeletons/LogViewerSkeleton';
+import { TaskDetailSkeleton } from '../../../components/skeletons/TaskDetailSkeleton';
+import { getRobotProviderLabel } from '../../../utils/robot';
 
 /**
  * TaskDetailPage:

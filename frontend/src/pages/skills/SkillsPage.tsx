@@ -1,15 +1,16 @@
+// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Empty, Input, Modal, Switch, Tag, Typography, Upload } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons';
-import type { SkillSummary } from '../api';
-import { fetchSkills, patchSkill, uploadExtraSkill } from '../api';
-import { useT } from '../i18n';
-import { type SkillsTab, SKILLS_TABS } from '../router';
-import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
-import { SkillsSidebar } from '../components/skills/SkillsSidebar';
-import { filterSkillsByQueryAndTags } from '../utils/skills';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import type { SkillSummary } from '../../api';
+import { fetchSkills, patchSkill, uploadExtraSkill } from '../../api';
+import { useT } from '../../i18n';
+import { type SkillsTab, SKILLS_TABS } from '../../router';
+import { PageNav, type PageNavMenuAction } from '../../components/nav/PageNav';
+import { SkillsSidebar } from '../../components/skills/SkillsSidebar';
+import { filterSkillsByQueryAndTags } from '../../utils/skills';
+import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 
 /**
  * SkillsPage — skills marketplace with sidebar sub-navigation.

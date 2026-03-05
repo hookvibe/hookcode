@@ -1,9 +1,10 @@
+// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App as AntdApp, Modal } from 'antd';
 import { setLocale } from '../i18n';
-import { ReposPage } from '../pages/ReposPage';
+import { ReposPage } from '../pages/repos/ReposPage';
 import * as api from '../api';
 
 // Keep tests aligned with the create-repo form's new "repo URL" input and parsing behavior. 58w1q3n5nr58flmempxe

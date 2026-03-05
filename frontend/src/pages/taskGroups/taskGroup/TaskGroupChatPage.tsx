@@ -1,3 +1,4 @@
+// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Input, Modal, Popover, Select, Space, Tooltip, Typography } from 'antd';
 import {
@@ -30,7 +31,7 @@ import type {
   Task,
   TaskGroup,
   TimeWindow
-} from '../api';
+} from '../../../api';
 import {
   API_BASE_URL,
   executeChat,
@@ -48,21 +49,21 @@ import {
   startTaskGroupPreview,
   stopTaskGroupPreview,
   updateTaskGroupSkillSelection
-} from '../api';
-import { getToken } from '../auth';
-import { useLocale, useT } from '../i18n';
-import { buildTaskGroupHash, buildTaskGroupsHash, buildTaskHash } from '../router';
-import { TaskConversationItem } from '../components/chat/TaskConversationItem';
-import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
-import { isTerminalStatus } from '../utils/task';
-import { ChatTimelineSkeleton } from '../components/skeletons/ChatTimelineSkeleton';
-import { TimeWindowPicker } from '../components/TimeWindowPicker';
-import { formatTimeWindowLabel } from '../utils/timeWindow';
-import { formatRobotLabelWithProvider } from '../utils/robot';
-import { createAuthedEventSource } from '../utils/sse';
-import { matchPreviewTargetUrl, splitPreviewTargetUrlCandidates } from '../utils/previewRouteMatch';
-import { SkillSelectionPanel } from '../components/skills/SkillSelectionPanel';
-import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
+} from '../../../api';
+import { getToken } from '../../../auth';
+import { useLocale, useT } from '../../../i18n';
+import { buildTaskGroupHash, buildTaskGroupsHash, buildTaskHash } from '../../../router';
+import { TaskConversationItem } from '../../../components/chat/TaskConversationItem';
+import { PageNav, type PageNavMenuAction } from '../../../components/nav/PageNav';
+import { isTerminalStatus } from '../../../utils/task';
+import { ChatTimelineSkeleton } from '../../../components/skeletons/ChatTimelineSkeleton';
+import { TimeWindowPicker } from '../../../components/TimeWindowPicker';
+import { formatTimeWindowLabel } from '../../../utils/timeWindow';
+import { formatRobotLabelWithProvider } from '../../../utils/robot';
+import { createAuthedEventSource } from '../../../utils/sse';
+import { matchPreviewTargetUrl, splitPreviewTargetUrlCandidates } from '../../../utils/previewRouteMatch';
+import { SkillSelectionPanel } from '../../../components/skills/SkillSelectionPanel';
+import { useSkillsCatalog } from '../../../hooks/useSkillsCatalog';
 
 /**
  * TaskGroupChatPage:

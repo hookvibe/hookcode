@@ -1,3 +1,4 @@
+// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 /**
  * UserSettingsPage:
  * - Business context: standalone page for user settings, replacing the modal-based UserPanelPopover.
@@ -64,21 +65,21 @@ import {
   type UserModelCredentialsPublic,
   type UserModelProviderCredentialProfilePublic,
   type UserRepoProviderCredentialProfilePublic
-} from '../api';
-import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
-import { clearAuth, getStoredUser, getToken, setStoredUser, type AuthUser } from '../auth';
-import { setLocale, useLocale, useT } from '../i18n';
-import { getBooleanEnv } from '../utils/env';
-import { isTaskGroupGeneratedTokenName } from '../utils/apiTokens';
-import { uuid as generateUuid } from '../components/repoAutomation/utils';
-import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
-import { UserSettingsSidebar } from '../components/settings/UserSettingsSidebar';
-import { SettingsLogsPanel } from '../components/settings/SettingsLogsPanel';
-import { SettingsNotificationsPanel } from '../components/settings/SettingsNotificationsPanel';
-import { NotificationsPopover } from '../components/notifications/NotificationsPopover';
-import { SettingsPreviewPanel } from '../components/settings/SettingsPreviewPanel';
+} from '../../api';
+import { ModelProviderModelsButton } from '../../components/ModelProviderModelsButton';
+import { clearAuth, getStoredUser, getToken, setStoredUser, type AuthUser } from '../../auth';
+import { setLocale, useLocale, useT } from '../../i18n';
+import { getBooleanEnv } from '../../utils/env';
+import { isTaskGroupGeneratedTokenName } from '../../utils/apiTokens';
+import { uuid as generateUuid } from '../../components/repoAutomation/utils';
+import { PageNav, type PageNavMenuAction } from '../../components/nav/PageNav';
+import { UserSettingsSidebar } from '../../components/settings/UserSettingsSidebar';
+import { SettingsLogsPanel } from '../../components/settings/SettingsLogsPanel';
+import { SettingsNotificationsPanel } from '../../components/settings/SettingsNotificationsPanel';
+import { NotificationsPopover } from '../../components/notifications/NotificationsPopover';
+import { SettingsPreviewPanel } from '../../components/settings/SettingsPreviewPanel';
 // Keep both notifications and preview settings components available after branch sync. docs/en/developer/plans/sync-main-dev-20260303/task_plan.md sync-main-dev-20260303
-import { buildHomeHash, type SettingsTab } from '../router';
+import { buildHomeHash, type SettingsTab } from '../../router';
 
 // Re-use type aliases from the original panel component. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 type ThemePreference = 'system' | 'light' | 'dark';

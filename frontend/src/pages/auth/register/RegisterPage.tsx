@@ -1,10 +1,11 @@
+// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { FC, useCallback, useMemo, useState } from 'react';
 import { App, Alert, Button, Card, Divider, Form, Input, Space, Typography } from 'antd';
 import { LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons';
-import { register } from '../api';
-import { saveVerifyEmailAddress, setStoredUser, setToken } from '../auth';
-import { buildHomeHash, buildLoginHash, buildVerifyEmailHash } from '../router';
-import { useT } from '../i18n';
+import { register } from '../../../api';
+import { saveVerifyEmailAddress, setStoredUser, setToken } from '../../../auth';
+import { buildHomeHash, buildLoginHash, buildVerifyEmailHash } from '../../../router';
+import { useT } from '../../../i18n';
 
 export interface RegisterPageProps {
   registerEnabled?: boolean | null;
