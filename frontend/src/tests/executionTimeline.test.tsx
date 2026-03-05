@@ -125,4 +125,19 @@ describe('ExecutionTimeline', () => {
       expect(within(running).getByText('Running')).toBeInTheDocument();
     }
   });
+
+  test('only shows status badges for failed items', () => {
+    // Hide non-failure status badges to reduce chat noise while still surfacing failures. docs/en/developer/plans/chat-message-status-20260305/task_plan.md chat-message-status-20260305
+    const items: ExecutionItem[] = [
+      { kind: 'agent_message', id: 'msg_ok', status: 'completed', text: 'ok' },
+      { kind: 'agent_message', id: 'msg_fail', status: 'failed', text: 'boom' }
+    ];
+
+    const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    expect(container.querySelector('.chat-bubble__status.is-completed')).toBeNull();
+    const failedBadge = container.querySelector('.chat-bubble__status.is-failed');
+    expect(failedBadge).toBeTruthy();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+  });
 });
