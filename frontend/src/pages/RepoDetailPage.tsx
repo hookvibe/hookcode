@@ -1,4 +1,3 @@
-// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   App,
@@ -45,7 +44,7 @@ import type {
   UserModelCredentialsPublic,
   UserModelProviderCredentialProfilePublic,
   UserRepoProviderCredentialProfilePublic
-} from '../../../api';
+} from '../api';
 import {
   archiveRepo,
   createRepoRobot,
@@ -73,37 +72,37 @@ import {
   updateRepoMemberRole,
   updateRepoRobot,
   updateRepoSkillSelection
-} from '../../../api';
-import { supportedLocales, useLocale, useT } from '../../../i18n';
-import { buildReposHash, buildTaskHash, buildRepoHash } from '../../../router';
-import type { RepoTab } from '../../../router';
-import { getPrevHashForBack, isInAppHash } from '../../../navHistory';
-import { getStoredUser } from '../../../auth';
-import { RepoAutomationPanel } from '../../../components/repoAutomation/RepoAutomationPanel';
-import { RepoBranchesCard } from '../../../components/repos/RepoBranchesCard';
-import { RepoWebhookDeliveriesPanel } from '../../../components/repos/RepoWebhookDeliveriesPanel';
-import { WebhookIntroModal } from '../../../components/repos/WebhookIntroModal';
-import { RepoOnboardingWizard } from '../../../components/repos/RepoOnboardingWizard';
-import { ResponsiveDialog } from '../../../components/dialogs/ResponsiveDialog';
-import { TemplateEditor } from '../../../components/TemplateEditor';
-import { ScrollableTable } from '../../../components/ScrollableTable';
-import { PageNav, type PageNavMenuAction } from '../../../components/nav/PageNav';
-import { buildWebhookUrl } from '../../../utils/webhook';
-import { getRobotProviderLabel } from '../../../utils/robot';
-import { extractTaskGroupIdFromTokenName } from '../../../utils/apiTokens';
-import { RepoDetailSidebar } from '../../../components/repos/RepoDetailSidebar';
-import { RepoDetailSkeleton } from '../../../components/skeletons/RepoDetailSkeleton';
-import { RepoDetailDashboardSummaryStrip } from '../../../components/repos/RepoDetailDashboardSummaryStrip';
-import { RepoWebhookActivityCard } from '../../../components/repos/RepoWebhookActivityCard';
-import { RepoTaskActivityCard } from '../../../components/repos/RepoTaskActivityCard';
-import { ModelProviderModelsButton } from '../../../components/ModelProviderModelsButton';
-import { RepoDetailProviderActivityRow } from '../../../components/repos/RepoDetailProviderActivityRow';
-import { RepoEnvConfigPanel } from '../../../components/repos/RepoEnvConfigPanel'; // Render repo preview env editor panel. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
-import { TimeWindowPicker } from '../../../components/TimeWindowPicker';
-import { uuid as generateUuid } from '../../../components/repoAutomation/utils';
-import { useRepoWebhookDeliveries } from '../../../hooks/useRepoWebhookDeliveries';
-import { SkillSelectionPanel } from '../../../components/skills/SkillSelectionPanel';
-import { useSkillsCatalog } from '../../../hooks/useSkillsCatalog';
+} from '../api';
+import { supportedLocales, useLocale, useT } from '../i18n';
+import { buildReposHash, buildTaskHash, buildRepoHash } from '../router';
+import type { RepoTab } from '../router';
+import { getPrevHashForBack, isInAppHash } from '../navHistory';
+import { getStoredUser } from '../auth';
+import { RepoAutomationPanel } from '../components/repoAutomation/RepoAutomationPanel';
+import { RepoBranchesCard } from '../components/repos/RepoBranchesCard';
+import { RepoWebhookDeliveriesPanel } from '../components/repos/RepoWebhookDeliveriesPanel';
+import { WebhookIntroModal } from '../components/repos/WebhookIntroModal';
+import { RepoOnboardingWizard } from '../components/repos/RepoOnboardingWizard';
+import { ResponsiveDialog } from '../components/dialogs/ResponsiveDialog';
+import { TemplateEditor } from '../components/TemplateEditor';
+import { ScrollableTable } from '../components/ScrollableTable';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
+import { buildWebhookUrl } from '../utils/webhook';
+import { getRobotProviderLabel } from '../utils/robot';
+import { extractTaskGroupIdFromTokenName } from '../utils/apiTokens';
+import { RepoDetailSidebar } from '../components/repos/RepoDetailSidebar';
+import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
+import { RepoDetailDashboardSummaryStrip } from '../components/repos/RepoDetailDashboardSummaryStrip';
+import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
+import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
+import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
+import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailProviderActivityRow';
+import { RepoEnvConfigPanel } from '../components/repos/RepoEnvConfigPanel'; // Render repo preview env editor panel. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+import { TimeWindowPicker } from '../components/TimeWindowPicker';
+import { uuid as generateUuid } from '../components/repoAutomation/utils';
+import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
+import { SkillSelectionPanel } from '../components/skills/SkillSelectionPanel';
+import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
 
 /**
  * RepoDetailPage:

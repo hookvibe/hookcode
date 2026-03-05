@@ -1,11 +1,10 @@
-// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 // Share TaskGroupChatPage test setup and API mocks across spec files. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
 import { render } from '@testing-library/react';
 import { App as AntdApp } from 'antd';
 import { vi } from 'vitest';
 import { setLocale } from '../i18n';
-import { TaskGroupChatPage } from '../pages/taskGroups/taskGroup/TaskGroupChatPage';
+import { TaskGroupChatPage } from '../pages/TaskGroupChatPage';
 import * as api from '../api';
 
 const NOW = '2026-01-11T00:00:00.000Z'; // Keep a shared test timestamp for setup helpers while mocks inline their own copy to avoid hoisted TDZ issues. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203

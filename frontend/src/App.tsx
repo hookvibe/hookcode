@@ -14,8 +14,7 @@ import { getAntdLocale, useLocale, useT } from './i18n';
 import { NEUTRAL_ACCENT } from './theme/accent';
 import { consumeNextNavigationSource, setPrevHashForBack } from './navHistory';
 import { parseRoute } from './router';
-// Load the application shell from its dedicated folder after page directory restructuring. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
-import { AppShell, type ThemePreference } from './pages/appShell/AppShell';
+import { AppShell, type ThemePreference } from './pages/AppShell';
 
 const THEME_STORAGE_KEY = 'hookcode-theme';
 const ACCENT_VAR_PRIMARY = '--accent';

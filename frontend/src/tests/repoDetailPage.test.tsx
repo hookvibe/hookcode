@@ -1,10 +1,9 @@
-// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
-import { RepoDetailPage } from '../pages/repos/repo/RepoDetailPage';
+import { RepoDetailPage } from '../pages/RepoDetailPage';
 import type { RepoTab } from '../router';
 import * as api from '../api';
 

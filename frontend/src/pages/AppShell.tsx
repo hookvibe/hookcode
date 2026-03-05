@@ -1,30 +1,29 @@
 import { FC, useCallback, useEffect, useRef, useState } from 'react';
 import { Drawer } from 'antd';
-import { fetchAuthMe } from '../../api';
-import { AUTH_CHANGED_EVENT, getToken } from '../../auth';
-import { useT } from '../../i18n';
+import { fetchAuthMe } from '../api';
+import { AUTH_CHANGED_EVENT, getToken } from '../auth';
+import { useT } from '../i18n';
 import {
   buildHomeHash,
   type RouteState
-} from '../../router';
-import { UserPanelPopover } from '../../components/UserPanelPopover';
-import { NotificationsPopover } from '../../components/notifications/NotificationsPopover';
-import { LoginCardSkeleton } from '../../components/skeletons/LoginCardSkeleton';
-import { ModernSidebar } from '../../components/ModernSidebar';
-// Resolve route pages from nested per-page folders after the page-directory refactor. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
-import { LoginPage } from '../auth/login/LoginPage';
-import { RegisterPage } from '../auth/register/RegisterPage';
-import { VerifyEmailPage } from '../auth/verifyEmail/VerifyEmailPage';
-import { AcceptInvitePage } from '../auth/acceptInvite/AcceptInvitePage';
-import { RepoDetailPage } from '../repos/repo/RepoDetailPage';
-import { ReposPage } from '../repos/ReposPage';
-import { TaskDetailPage } from '../tasks/task/TaskDetailPage';
-import { TaskGroupChatPage } from '../taskGroups/taskGroup/TaskGroupChatPage';
-import { TaskGroupsPage } from '../taskGroups/TaskGroupsPage';
-import { TasksPage } from '../tasks/TasksPage';
-import { ArchivePage } from '../archive/ArchivePage';
-import { SkillsPage } from '../skills/SkillsPage';
-import { UserSettingsPage } from '../settings/UserSettingsPage'; // Standalone user settings page replacing modal panel. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+} from '../router';
+import { UserPanelPopover } from '../components/UserPanelPopover';
+import { NotificationsPopover } from '../components/notifications/NotificationsPopover';
+import { LoginCardSkeleton } from '../components/skeletons/LoginCardSkeleton';
+import { ModernSidebar } from '../components/ModernSidebar';
+import { LoginPage } from './LoginPage';
+import { RegisterPage } from './RegisterPage';
+import { VerifyEmailPage } from './VerifyEmailPage';
+import { AcceptInvitePage } from './AcceptInvitePage';
+import { RepoDetailPage } from './RepoDetailPage';
+import { ReposPage } from './ReposPage';
+import { TaskDetailPage } from './TaskDetailPage';
+import { TaskGroupChatPage } from './TaskGroupChatPage';
+import { TaskGroupsPage } from './TaskGroupsPage';
+import { TasksPage } from './TasksPage';
+import { ArchivePage } from './ArchivePage';
+import { SkillsPage } from './SkillsPage';
+import { UserSettingsPage } from './UserSettingsPage'; // Standalone user settings page replacing modal panel. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 

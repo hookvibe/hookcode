@@ -1,14 +1,13 @@
-// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Card, Empty, Input, Space, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import type { TaskGroup, TaskGroupKind } from '../../api';
-import { fetchTaskGroups } from '../../api';
-import { useLocale, useT } from '../../i18n';
-import { buildTaskGroupHash } from '../../router';
-import { PageNav, type PageNavMenuAction } from '../../components/nav/PageNav';
-import { CardListSkeleton } from '../../components/skeletons/CardListSkeleton';
-import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
+import type { TaskGroup, TaskGroupKind } from '../api';
+import { fetchTaskGroups } from '../api';
+import { useLocale, useT } from '../i18n';
+import { buildTaskGroupHash } from '../router';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
+import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 /**
  * TaskGroupsPage:

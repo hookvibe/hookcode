@@ -1,15 +1,14 @@
-// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Card, Empty, Form, Input, Modal, Select, Space, Tag, Typography } from 'antd';
 import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
-import type { RepoAutomationConfig, RepoProvider, Repository } from '../../api';
-import { createRepo, fetchRepo, listRepos } from '../../api';
-import { useLocale, useT } from '../../i18n';
-import { buildRepoHash } from '../../router';
-import { PageNav, type PageNavMenuAction } from '../../components/nav/PageNav';
-import { CardListSkeleton } from '../../components/skeletons/CardListSkeleton';
-import { parseRepoUrl } from '../../utils/repoUrl';
-import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
+import type { RepoAutomationConfig, RepoProvider, Repository } from '../api';
+import { createRepo, fetchRepo, listRepos } from '../api';
+import { useLocale, useT } from '../i18n';
+import { buildRepoHash } from '../router';
+import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
+import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
+import { parseRepoUrl } from '../utils/repoUrl';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 /**
  * ReposPage:

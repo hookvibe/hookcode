@@ -1,10 +1,9 @@
-// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
-import { TaskDetailPage } from '../pages/tasks/task/TaskDetailPage';
+import { TaskDetailPage } from '../pages/TaskDetailPage';
 import * as api from '../api';
 
 vi.mock('../api', () => {

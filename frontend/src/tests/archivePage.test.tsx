@@ -1,9 +1,8 @@
-// Update imports after per-page nested folder migration. docs/en/developer/plans/frontend-page-folder-refactor-20260305/task_plan.md frontend-page-folder-refactor-20260305
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { App as AntdApp } from 'antd';
 import { setLocale } from '../i18n';
-import { ArchivePage } from '../pages/archive/ArchivePage';
+import { ArchivePage } from '../pages/ArchivePage';
 import * as api from '../api';
 
 // Ensure Archive repo cards show archive semantics instead of misleading enabled status. qnp1mtxhzikhbi0xspbc
