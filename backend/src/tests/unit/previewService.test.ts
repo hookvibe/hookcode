@@ -57,6 +57,34 @@ describe('PreviewService', () => {
     await rm(workspaceDir, { recursive: true, force: true });
   });
 
+  test('returns workspace_missing snapshot when no task-group workspace exists', async () => {
+    // Keep preview status polling on the task-group page in a successful empty state when the workspace has not been created yet. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const taskGroupId = 'group-preview-missing-workspace';
+    const taskService = {
+      getTaskGroup: jest.fn(async () => ({ id: taskGroupId, repoProvider: 'github' })),
+      listTasksByGroup: jest.fn(async () => [
+        {
+          id: 'task-preview-missing-workspace',
+          repoProvider: 'github',
+          payload: { repository: { full_name: 'org/repo' } }
+        }
+      ])
+    };
+
+    const previewService = new PreviewService(
+      taskService as any,
+      new HookcodeConfigService(),
+      {} as any,
+      new PreviewLogStream(),
+      { getRepoPreviewEnv: jest.fn(async () => ({})) } as any // Keep repo-env resolution stubbed for preview status tests. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    );
+
+    const status = await previewService.getStatus(taskGroupId);
+    expect(status).toEqual({ available: false, instances: [], reason: 'workspace_missing' });
+
+    await previewService.onModuleDestroy();
+  });
+
   test('resolves workspace from older task payload when latest lacks repo metadata', async () => {
     // Verify preview status finds an existing workspace even if latest payload is missing repo info. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     const taskGroupId = 'group-preview-fallback';

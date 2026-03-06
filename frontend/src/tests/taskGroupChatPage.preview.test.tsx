@@ -48,7 +48,7 @@ describe('TaskGroupChatPage preview', () => {
   });
 
   test('defaults preview panel width to half on wide layouts', async () => {
-    // Ensure the preview panel defaults to half width on wide layouts. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
+    // Reopen wide-screen preview workspaces at the default 50% split instead of inheriting a stale remembered width. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValueOnce({
       available: true,
       instances: [{ name: 'frontend', display: 'webview', status: 'running', port: 12345, path: '/preview/g1/frontend/' }]
@@ -82,7 +82,7 @@ describe('TaskGroupChatPage preview', () => {
       };
     });
 
-    window.localStorage.removeItem('hc-preview-panel-width');
+    window.localStorage.setItem('hc-preview-panel-width', '420');
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
 
@@ -140,9 +140,12 @@ describe('TaskGroupChatPage preview', () => {
     expect(screen.queryByLabelText('Back')).not.toBeInTheDocument();
     expect(screen.queryByTitle('backend')).not.toBeInTheDocument();
 
-    const sources = (globalThis as any).__eventSourceInstances ?? [];
-    const logsSource = sources.find((source: any) => String(source.url).includes('/task-groups/g1/preview/backend/logs'));
-    expect(logsSource).toBeTruthy();
+    let logsSource: any;
+    await waitFor(() => {
+      const sources = (globalThis as any).__eventSourceInstances ?? [];
+      logsSource = sources.find((source: any) => String(source.url).includes('/task-groups/g1/preview/backend/logs'));
+      expect(logsSource).toBeTruthy();
+    });
     logsSource.emit('init', {
       data: JSON.stringify({
         instance: { name: 'backend', display: 'terminal', status: 'running', path: '/preview/g1/backend/' },
@@ -170,9 +173,12 @@ describe('TaskGroupChatPage preview', () => {
     Object.defineProperty(terminal, 'clientHeight', { value: 200, configurable: true });
     Object.defineProperty(terminal, 'scrollHeight', { value: 600, configurable: true });
 
-    const sources = (globalThis as any).__eventSourceInstances ?? [];
-    const logsSource = sources.find((source: any) => String(source.url).includes('/task-groups/g1/preview/backend/logs'));
-    expect(logsSource).toBeTruthy();
+    let logsSource: any;
+    await waitFor(() => {
+      const sources = (globalThis as any).__eventSourceInstances ?? [];
+      logsSource = sources.find((source: any) => String(source.url).includes('/task-groups/g1/preview/backend/logs'));
+      expect(logsSource).toBeTruthy();
+    });
     logsSource.emit('init', {
       data: JSON.stringify({
         instance: { name: 'backend', display: 'terminal', status: 'running', path: '/preview/g1/backend/' },

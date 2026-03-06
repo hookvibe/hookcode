@@ -331,10 +331,10 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     expect(events).toEqual(['start:t4', 'finish:t4:failed:boom']);
   });
 
-  // Simulate pause polling to ensure TaskRunner finalizes with paused status. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  test('marks task paused when control polling requests abort', async () => {
+  // Simulate stop polling to ensure TaskRunner finalizes manual stops as failures. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  test('marks task failed when control polling requests manual stop', async () => {
     const task = {
-      id: 't_pause',
+      id: 't_stop',
       eventType: 'commit',
       status: 'processing',
       payload: {},
@@ -345,9 +345,9 @@ describe('TaskRunner (finalization + DB write retry)', () => {
 
     const agentService = {
       callAgent: jest.fn((_: any, options: { signal?: AbortSignal }) => {
-        // Reject on AbortSignal so the TaskRunner can finalize paused tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+        // Reject on AbortSignal so the TaskRunner can finalize manual-stop requests consistently. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
         return new Promise((_, reject) => {
-          const err = new AgentExecutionError('aborted', { aborted: true }); // Keep abort tests aligned with new AgentExecutionError payloads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+          const err = new AgentExecutionError('aborted', { aborted: true });
           if (options?.signal?.aborted) {
             reject(err);
             return;
@@ -359,8 +359,8 @@ describe('TaskRunner (finalization + DB write retry)', () => {
 
     const taskService = {
       takeNextQueued: jest.fn().mockResolvedValueOnce(task).mockResolvedValueOnce(undefined),
-      getTaskControlState: jest.fn().mockResolvedValue({ status: 'paused', archivedAt: null }),
-      patchResult: jest.fn().mockResolvedValue({ ...task, status: 'processing' } as any)
+      getTaskControlState: jest.fn().mockResolvedValue({ status: 'processing', archivedAt: null, stopRequested: true }),
+      patchResult: jest.fn().mockResolvedValue({ ...task, status: 'failed' } as any)
     };
 
     const taskRunner = new TaskRunner(
@@ -373,15 +373,18 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     );
     const promise = taskRunner.trigger();
 
+    // Advance fake timers past the control-poll interval so the manual-stop abort can settle deterministically. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     await Promise.resolve();
     await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(2500);
     await promise;
 
     expect(taskService.getTaskControlState).toHaveBeenCalled();
     expect(taskService.patchResult).toHaveBeenLastCalledWith(
-      't_pause',
-      expect.objectContaining({ message: 'Task paused by user.' }),
-      'paused'
+      't_stop',
+      expect.objectContaining({ message: 'Task stopped manually.' }),
+      'failed'
     );
+
   });
 });

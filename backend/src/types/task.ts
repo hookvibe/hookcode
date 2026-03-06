@@ -3,14 +3,8 @@ import type { RobotPermission } from './repoRobot';
 import type { DependencyResult } from './dependency';
 import type { TimeWindowSource } from './timeWindow';
 
-// Add a paused state for mid-run stop/resume flows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-export type TaskStatus = 'queued' | 'processing' | 'paused' | 'succeeded' | 'failed' | 'commented';
-
-/**
- * Internal event types (extensible):
- * - Currently mainly used: issue / commit / merge_request (distinguish created/commented/updated via `payload.__subType`)
- * - Kept for legacy compatibility: issue_created / issue_comment / commit_review / push / note
- */
+// Keep a narrow task-status union while replacing pause/resume execution control with manual-stop failures. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
 export type TaskEventType =
   | 'issue'
   | 'commit'
@@ -22,58 +16,6 @@ export type TaskEventType =
   | 'note'
   | 'unknown'
   | (string & {});
-
-export interface TaskResult {
-  grade?: 'A' | 'B' | 'C' | 'D';
-  goLive?: boolean;
-  summary?: string;
-  risks?: string[];
-  suggestions?: string[];
-  message?: string;
-  // Legacy: logs moved to task_logs table for paged access. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
-  logs?: string[];
-  /**
-   * Monotonic log sequence number (total lines written so far).
-   * - Used by SSE DB polling to stream new log lines even when `logs[]` is capped and older lines are dropped.
-   */
-  // Legacy: sequence tracking now lives in task_logs table. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
-  logsSeq?: number;
-  /**
-   * Accumulated token usage for this task execution.
-   *
-   * Notes:
-   * - Derived from `codex exec --json` output (`turn.completed.usage`) during execution.
-   * - Persisted incrementally so the console can display partial usage while the task is still running.
-   */
-  tokenUsage?: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-  };
-  /**
-   * Redacted final output captured from provider output files (codex/claude/gemini) stored outside the repo. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
-   * - Intended to be safe for broader visibility than raw execution logs.
-   */
-  outputText?: string;
-  /**
-   * Accessible URL for the platform-side posted message (Issue/MR/Commit comment):
-   * - GitLab: typically `${project.web_url}/-/issues/:iid#note_:id` or `.../merge_requests/:iid#note_:id`
-   * - GitHub: `html_url` returned by the comment API
-   * - Used as a quick entry in the console for "view posted comment / jump to logs"
-   */
-  providerCommentUrl?: string;
-  /**
-   * Repository workflow metadata for UI/debugging (direct clone vs fork-based PR/MR). 24yz61mdik7tqdgaa152
-   */
-  repoWorkflow?: {
-    mode: 'direct' | 'fork';
-    provider?: RepoProvider;
-    upstream?: { slug?: string; webUrl?: string; cloneUrl?: string };
-    fork?: { slug?: string; webUrl?: string; cloneUrl?: string };
-  };
-  // Persist git change/push status for write-enabled robots. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-  gitStatus?: TaskGitStatus;
-}
 
 export interface TaskGitStatusSnapshot {
   // Capture the repo ref state at a point in time (branch + head + upstream divergence). docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
@@ -120,6 +62,13 @@ export interface TaskGitStatus {
   errors?: string[];
 }
 
+export interface TaskSequenceLink {
+  // Expose backend-derived queue links so the workspace can draw the execution path clearly. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  order: number;
+  previousTaskId?: string;
+  nextTaskId?: string;
+}
+
 // Include time-window gating as a first-class queue reason. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
 export type TaskQueueReasonCode =
   | 'queue_backlog'
@@ -139,7 +88,7 @@ export interface TaskQueueTimeWindow {
 export interface TaskQueueDiagnosis {
   reasonCode: TaskQueueReasonCode;
   /**
-   * Number of queued tasks ahead of this task (FIFO by `created_at`).
+   * Number of queued tasks ahead of this task based on explicit queue order.
    */
   ahead: number;
   queuedTotal: number;
@@ -148,6 +97,62 @@ export interface TaskQueueDiagnosis {
   inlineWorkerEnabled: boolean;
   // Attach time window context when tasks are blocked by schedule. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
   timeWindow?: TaskQueueTimeWindow;
+}
+
+export interface TaskResult {
+  grade?: 'A' | 'B' | 'C' | 'D';
+  goLive?: boolean;
+  summary?: string;
+  risks?: string[];
+  suggestions?: string[];
+  message?: string;
+  // Record manual stop requests and outcomes without reintroducing a resumable paused status. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  stopReason?: 'manual_stop';
+  stopRequestedAt?: string;
+  logs?: string[];
+  /**
+   * Monotonic log sequence number (total lines written so far).
+   *
+   * Legacy note:
+   * - Sequence tracking now lives in the `task_logs` table.
+   * - Keep this optional field in the type so old JSON payloads remain readable.
+   */
+  logsSeq?: number;
+  /**
+   * Accumulated token usage for this task execution.
+   *
+   * Notes:
+   * - Derived from `codex exec --json` output (`turn.completed.usage`) during execution.
+   * - Persisted incrementally so the console can display partial usage while the task is still running.
+   */
+  tokenUsage?: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
+  /**
+   * Redacted final output captured from provider output files (codex/claude/gemini) stored outside the repo. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
+   * - Intended to be safe for broader visibility than raw execution logs.
+   */
+  outputText?: string;
+  /**
+   * Accessible URL for the platform-side posted message (Issue/MR/Commit comment):
+   * - GitLab: typically `${project.web_url}/-/issues/:iid#note_:id` or `.../merge_requests/:iid#note_:id`
+   * - GitHub: `html_url` returned by the comment API
+   * - Used as a quick entry in the console for "view posted comment / jump to logs"
+   */
+  providerCommentUrl?: string;
+  /**
+   * Repository workflow metadata for UI/debugging (direct clone vs fork-based PR/MR). 24yz61mdik7tqdgaa152
+   */
+  repoWorkflow?: {
+    mode: 'direct' | 'fork';
+    provider?: RepoProvider;
+    upstream?: { slug?: string; webUrl?: string; cloneUrl?: string };
+    fork?: { slug?: string; webUrl?: string; cloneUrl?: string };
+  };
+  // Persist git change/push status for write-enabled robots. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
+  gitStatus?: TaskGitStatus;
 }
 
 export interface Task {
@@ -177,6 +182,9 @@ export interface Task {
   mrId?: number;
   issueId?: number;
   retries: number;
+  // Persist explicit queue order so the workspace can reorder queued tasks independently from timestamps. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  groupOrder?: number;
+  sequence?: TaskSequenceLink;
   // Provide a best-effort explanation for long-waiting queued tasks in the console UI. f3a9c2d8e1b7f4a0c6d1
   queue?: TaskQueueDiagnosis;
   result?: TaskResult;

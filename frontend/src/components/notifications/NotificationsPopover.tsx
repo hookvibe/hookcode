@@ -155,7 +155,7 @@ export const NotificationsPopover: FC = () => {
       content={content}
       trigger="click"
       open={open}
-      destroyTooltipOnHide // Unmount popover content when closed for reliable UX state. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
+      destroyOnHidden // Keep notification popover teardown aligned with the current Ant Design API. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
         if (nextOpen) {

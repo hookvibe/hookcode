@@ -69,16 +69,26 @@ export const retryTask = async (taskId: string, options?: { force?: boolean }): 
   return data.task;
 };
 
-export const pauseTask = async (taskId: string): Promise<Task> => {
-  // Pause an in-flight or queued task without deleting it. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/pause`);
+export const stopTask = async (taskId: string): Promise<Task> => {
+  // Stop queued or running tasks without preserving a resumable paused state. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/stop`);
   invalidateTaskCaches();
   return data.task;
 };
 
-export const resumeTask = async (taskId: string): Promise<Task> => {
-  // Resume a paused task by re-queueing it. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/resume`);
+export const updateQueuedTaskContent = async (taskId: string, text: string): Promise<Task> => {
+  // Edit queued manual task text before the worker starts execution. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  const { data } = await api.patch<{ task: Task }>(`/tasks/${taskId}/content`, { text });
+  invalidateTaskCaches();
+  return data.task;
+};
+
+export const reorderQueuedTask = async (
+  taskId: string,
+  action: 'move_earlier' | 'move_later' | 'insert_next'
+): Promise<Task> => {
+  // Reorder queued task-group work items using the backend's explicit sequence field. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/reorder`, { action });
   invalidateTaskCaches();
   return data.task;
 };

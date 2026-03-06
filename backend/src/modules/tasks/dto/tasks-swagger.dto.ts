@@ -257,9 +257,9 @@ export class TaskWithMetaDto {
   @ApiProperty()
   eventType!: string;
 
-  // Expose paused in task status enums for pause/resume controls. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  @ApiProperty({ enum: ['queued', 'processing', 'paused', 'succeeded', 'failed', 'commented'] })
-  status!: 'queued' | 'processing' | 'paused' | 'succeeded' | 'failed' | 'commented';
+  // Keep task status enums aligned with the stop-only execution model. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  @ApiProperty({ enum: ['queued', 'processing', 'succeeded', 'failed', 'commented'] })
+  status!: 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
 
   @ApiPropertyOptional({ nullable: true, format: 'date-time' })
   archivedAt?: string | null;
@@ -340,10 +340,6 @@ export class TaskStatusStatsDto {
   @ApiProperty()
   processing!: number;
 
-  // Track paused counts for dashboard/task summary displays. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  @ApiProperty()
-  paused!: number;
-
   @ApiProperty()
   success!: number;
 
@@ -366,7 +362,7 @@ export class RetryTaskResponseDto {
   task!: TaskWithMetaDto;
 }
 
-// Shared task response payload for pause/resume controls. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+// Shared task response payload for stop/edit/reorder controls. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 export class TaskControlResponseDto {
   @ApiProperty({ type: TaskWithMetaDto })
   task!: TaskWithMetaDto;

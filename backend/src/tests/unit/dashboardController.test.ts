@@ -4,8 +4,8 @@ import { DashboardController } from '../../modules/tasks/dashboard.controller';
 
 describe('DashboardController.sidebar', () => {
   test('returns a sanitized sidebar snapshot with permissions', async () => {
-    // Include paused in sidebar stats for pause/resume coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-    const stats = { total: 3, queued: 1, processing: 1, paused: 0, success: 1, failed: 0 };
+    // Keep sidebar stats aligned with the stop-only task lifecycle shape. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const stats = { total: 3, queued: 1, processing: 1, success: 1, failed: 0 };
     // Provide a request user for RBAC-protected endpoints in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
     const req = { user: { id: 'u1', username: 'u1', roles: ['admin'] } } as any;
     const makeTask = (id: string, status: any) => ({
@@ -70,8 +70,8 @@ describe('DashboardController.sidebar', () => {
     // Provide a request user for RBAC-protected endpoints in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
     const req = { user: { id: 'u1', username: 'u1', roles: ['admin'] } } as any;
     const taskService: any = {
-      // Mirror paused counts in sidebar stats mocks for pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-      getTaskStats: jest.fn().mockResolvedValue({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 }),
+      // Keep sidebar stats mocks aligned with the stop-only task lifecycle shape. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+      getTaskStats: jest.fn().mockResolvedValue({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 }),
       listTasks: jest.fn().mockResolvedValue([]),
       listTaskGroups: jest.fn().mockResolvedValue([]),
       // Stub running-task group lookup for filter tests. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305

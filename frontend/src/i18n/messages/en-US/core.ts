@@ -230,6 +230,8 @@ export const enUSCore = {
   'tasks.detailTitle': 'Task detail',
   'tasks.empty.noPermission': 'No permission to access this page',
   'tasks.retry': 'Retry',
+  // Add explicit stop copy after removing pause/resume task controls. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  'tasks.stop': 'Stop',
   // Pause/resume controls for task execution. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   'tasks.pause': 'Pause',
   'tasks.resume': 'Resume',

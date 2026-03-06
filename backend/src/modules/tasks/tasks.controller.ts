@@ -1,4 +1,5 @@
 import {
+  Body,
   BadRequestException,
   ConflictException,
   Controller,
@@ -8,6 +9,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -46,6 +48,7 @@ import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
 import { RepoAccessService, type RepoRole } from '../repositories/repo-access.service';
 import { LogWriterService } from '../logs/log-writer.service';
+import { TASK_REORDER_ACTIONS, type TaskReorderAction } from './task-control.constants';
 import {
   GetTaskResponseDto,
   ListTasksResponseDto,
@@ -75,11 +78,9 @@ export class TasksController {
     const raw = normalizeString(value);
     if (!raw) return undefined;
     if (raw === 'success') return 'success';
-    // Accept paused status filters for pause/resume workflows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     if (
       raw === 'queued' ||
       raw === 'processing' ||
-      raw === 'paused' ||
       raw === 'succeeded' ||
       raw === 'failed' ||
       raw === 'commented'
@@ -620,17 +621,17 @@ export class TasksController {
     }
   }
 
-  @Post(':id/pause')
+  @Post(':id/stop')
   @ApiOperation({
-    summary: 'Pause task',
-    description: 'Pause a queued or processing task without deleting it.',
-    operationId: 'tasks_pause'
+    summary: 'Stop task',
+    description: 'Stop a queued or processing task. Processing tasks finish as failed with a manual-stop reason.',
+    operationId: 'tasks_stop'
   })
   @ApiOkResponse({ description: 'OK', type: TaskControlResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async pause(@Req() req: Request, @Param('id') id: string) {
+  async stop(@Req() req: Request, @Param('id') id: string) {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const existing = await this.taskService.getTask(id);
@@ -639,41 +640,48 @@ export class TasksController {
       }
       await this.requireTaskManage(req.user, existing);
       if (existing.archivedAt) {
-        throw new ConflictException({ error: 'Task is archived; pause is blocked' });
+        throw new ConflictException({ error: 'Task is archived; stop is blocked' });
       }
-      if (existing.status === 'paused') {
+      if (existing.status !== 'processing' && existing.status !== 'queued') {
         const [decorated] = await this.attachTaskPermissions([existing] as any[], req.user);
         return { task: decorated };
       }
-      if (existing.status !== 'processing' && existing.status !== 'queued') {
-        throw new ConflictException({ error: 'Task cannot be paused unless queued or processing' });
-      }
 
-      // Pause task execution while keeping task history intact. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-      const task = await this.taskService.pauseTask(id);
+      // Stop queued or processing tasks without leaving a resumable paused state behind. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+      const task = await this.taskService.stopTask(id);
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
+      void this.logWriter.logOperation({
+        level: 'warn',
+        message: 'Task stop requested',
+        code: 'TASK_STOP_REQUESTED',
+        actorUserId: req.user.id,
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { status: task.status }
+      });
       const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
-      console.error('[tasks] pause failed', err);
-      throw new InternalServerErrorException({ error: 'Failed to pause task' });
+      console.error('[tasks] stop failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to stop task' });
     }
   }
 
-  @Post(':id/resume')
+  @Patch(':id/content')
   @ApiOperation({
-    summary: 'Resume task',
-    description: 'Resume a paused task by re-queueing it.',
-    operationId: 'tasks_resume'
+    summary: 'Edit queued task content',
+    description: 'Edit the text content of a queued manual task before it starts running.',
+    operationId: 'tasks_content_patch'
   })
   @ApiOkResponse({ description: 'OK', type: TaskControlResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async resume(@Req() req: Request, @Param('id') id: string) {
+  async patchQueuedContent(@Req() req: Request, @Param('id') id: string, @Body() body: { text?: string }) {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const existing = await this.taskService.getTask(id);
@@ -682,26 +690,91 @@ export class TasksController {
       }
       await this.requireTaskManage(req.user, existing);
       if (existing.archivedAt) {
-        throw new ConflictException({ error: 'Task is archived; resume is blocked' });
+        throw new ConflictException({ error: 'Task is archived; edit is blocked' });
       }
-      if (existing.status !== 'paused') {
-        throw new ConflictException({ error: 'Task is not paused' });
+      if (existing.status !== 'queued') {
+        throw new ConflictException({ error: 'Only queued tasks can be edited' });
       }
 
-      // Resume paused tasks by returning them to the queue. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-      const task = await this.taskService.resumeTask(id);
+      const text = typeof body?.text === 'string' ? body.text.trim() : '';
+      if (!text) {
+        throw new BadRequestException({ error: 'text is required' });
+      }
+
+      // Allow queued manual tasks to be edited before execution begins. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+      const task = await this.taskService.updateQueuedTaskText(id, text);
       if (!task) {
-        throw new NotFoundException({ error: 'Task not found' });
+        throw new ConflictException({ error: 'Task cannot be edited' });
       }
-      if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
-        this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
-      }
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Queued task content updated',
+        code: 'TASK_CONTENT_UPDATED',
+        actorUserId: req.user.id,
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { textLength: text.length }
+      });
       const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
-      console.error('[tasks] resume failed', err);
-      throw new InternalServerErrorException({ error: 'Failed to resume task' });
+      console.error('[tasks] content patch failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to update task content' });
+    }
+  }
+
+  @Post(':id/reorder')
+  @ApiOperation({
+    summary: 'Reorder queued task',
+    description: 'Move a queued task earlier, later, or to the next execution slot within its task group.',
+    operationId: 'tasks_reorder'
+  })
+  @ApiOkResponse({ description: 'OK', type: TaskControlResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  async reorder(@Req() req: Request, @Param('id') id: string, @Body() body: { action?: TaskReorderAction }) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      const existing = await this.taskService.getTask(id);
+      if (!existing) {
+        throw new NotFoundException({ error: 'Task not found' });
+      }
+      await this.requireTaskManage(req.user, existing);
+      if (existing.archivedAt) {
+        throw new ConflictException({ error: 'Task is archived; reorder is blocked' });
+      }
+      if (existing.status !== 'queued') {
+        throw new ConflictException({ error: 'Only queued tasks can be reordered' });
+      }
+      const action = typeof body?.action === 'string' ? body.action : '';
+      if (!TASK_REORDER_ACTIONS.includes(action as TaskReorderAction)) {
+        throw new BadRequestException({ error: 'Invalid reorder action' });
+      }
+
+      // Reorder queued tasks within the explicit task-group sequence instead of relying on timestamps. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+      const task = await this.taskService.reorderQueuedTask(id, action as TaskReorderAction);
+      if (!task) {
+        throw new ConflictException({ error: 'Task cannot be reordered' });
+      }
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Queued task reordered',
+        code: 'TASK_REORDERED',
+        actorUserId: req.user.id,
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { action }
+      });
+      const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
+      return { task: decorated };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[tasks] reorder failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to reorder task' });
     }
   }
 

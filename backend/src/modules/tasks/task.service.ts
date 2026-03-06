@@ -22,6 +22,11 @@ import { isUuidLike } from '../../utils/uuid'; // Share UUID validation across p
 import { EventStreamService } from '../events/event-stream.service';
 import { LogWriterService } from '../logs/log-writer.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
+import {
+  TASK_MANUAL_STOP_MESSAGE,
+  TASK_MANUAL_STOP_REASON,
+  type TaskReorderAction
+} from './task-control.constants';
 
 /**
  * tasks table access layer (the "source of truth" for the queue/task state machine):
@@ -106,7 +111,6 @@ export interface TaskStatusStats {
   total: number;
   queued: number;
   processing: number;
-  paused: number; // Track paused tasks for pause/resume controls. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   success: number;
   failed: number;
 }
@@ -157,6 +161,7 @@ const isTaskGroupProcessingConflict = (err: unknown): boolean => {
 const taskRecordToTask = (row: any): Task => ({
   id: String(row.id),
   groupId: row.groupId ? String(row.groupId) : undefined,
+  groupOrder: typeof row.groupOrder === 'number' ? row.groupOrder : Number.isFinite(Number(row.groupOrder)) ? Number(row.groupOrder) : undefined,
   eventType: row.eventType as TaskEventType,
   status: row.status as TaskStatus,
   // Archived tasks are excluded from the worker queue and default console lists. qnp1mtxhzikhbi0xspbc
@@ -184,6 +189,7 @@ const taskRecordToTask = (row: any): Task => ({
 const rowToTaskFromSql = (row: any): Task => ({
   id: String(row.id),
   groupId: row.group_id ? String(row.group_id) : undefined,
+  groupOrder: typeof row.group_order === 'number' ? row.group_order : Number.isFinite(Number(row.group_order)) ? Number(row.group_order) : undefined,
   eventType: row.event_type as TaskEventType,
   status: row.status as TaskStatus,
   // Archived tasks are excluded from the worker queue and default console lists. qnp1mtxhzikhbi0xspbc
@@ -503,6 +509,53 @@ export class TaskService {
     return 'unknown';
   }
 
+  private async getNextGroupOrder(groupId?: string | null): Promise<number | undefined> {
+    const id = safeTrim(groupId);
+    if (!isUuidLike(id)) return undefined;
+    // Persist explicit queue order so queued-task reordering does not depend on timestamps. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const row = await db.task.aggregate({
+      where: { groupId: id, archivedAt: null },
+      _max: { groupOrder: true }
+    });
+    const current = typeof row._max.groupOrder === 'number' ? row._max.groupOrder : 0;
+    return current + 1;
+  }
+
+  private attachSequenceLinks<T extends TaskWithMeta>(tasks: T[]): T[] {
+    // Derive previous/next task ids from explicit group order so the workspace can draw sequence connectors. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const ordered = [...tasks].sort((left, right) => {
+      const orderDiff = (left.groupOrder ?? Number.MAX_SAFE_INTEGER) - (right.groupOrder ?? Number.MAX_SAFE_INTEGER);
+      if (orderDiff !== 0) return orderDiff;
+      const createdDiff = new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+      if (createdDiff !== 0) return createdDiff;
+      return left.id.localeCompare(right.id);
+    });
+
+    return ordered.map((task, index) => ({
+      ...task,
+      sequence: {
+        order: index + 1,
+        previousTaskId: ordered[index - 1]?.id,
+        nextTaskId: ordered[index + 1]?.id
+      }
+    }));
+  }
+
+  private async rebalanceGroupTaskOrders(groupId: string, orderedTaskIds: string[]): Promise<void> {
+    const normalizedGroupId = safeTrim(groupId);
+    if (!isUuidLike(normalizedGroupId)) return;
+    if (!orderedTaskIds.length) return;
+    // Rewrite group order densely after each queue mutation so later reorders stay deterministic. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    await db.$transaction(
+      orderedTaskIds.map((taskId, index) =>
+        db.task.update({
+          where: { id: taskId },
+          data: { groupOrder: index + 1, updatedAt: new Date() }
+        })
+      )
+    );
+  }
+
   private async attachQueueDiagnosis(tasks: TaskWithMeta[]): Promise<TaskWithMeta[]> {
     // Attach best-effort queue diagnosis fields for queued tasks in list/detail APIs. f3a9c2d8e1b7f4a0c6d1
     const queued = tasks.filter((t) => t.status === 'queued');
@@ -523,10 +576,11 @@ export class TaskService {
       db.$queryRaw<QueuePosRow[]>`
         WITH q AS (
           SELECT id,
-                 row_number() OVER (ORDER BY created_at ASC) AS pos,
+                 row_number() OVER (ORDER BY COALESCE(group_order, 2147483647) ASC, created_at ASC, id ASC) AS pos,
                  count(*) OVER () AS total
           FROM tasks
           WHERE status = 'queued'
+            AND archived_at IS NULL
         )
         SELECT id::text AS id,
                (pos - 1)::int AS ahead,
@@ -673,10 +727,12 @@ export class TaskService {
     const id = randomUUID();
     const now = new Date();
     const groupId = await this.resolveOrCreateGroupId({ taskId: id, eventType, payload, meta });
+    const groupOrder = await this.getNextGroupOrder(groupId);
     const created = await db.task.create({
       data: {
         id,
         groupId,
+        groupOrder,
         eventType,
         status: 'queued',
         payload: payload as any,
@@ -732,6 +788,7 @@ export class TaskService {
 
     const id = randomUUID();
     const now = new Date();
+    const groupOrder = await this.getNextGroupOrder(groupId);
 
     // Touch the group so it stays active in the UI. Optionally update the displayed robotId (chat groups only).
     try {
@@ -751,6 +808,7 @@ export class TaskService {
       data: {
         id,
         groupId,
+        groupOrder,
         eventType,
         status: 'queued',
         payload: payload as any,
@@ -1035,24 +1093,26 @@ export class TaskService {
 
     const rows = await db.$queryRaw<any[]>`
       SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+             group_order,
              jsonb_strip_nulls(jsonb_build_object(
                'message', NULLIF(result_json->>'message', ''),
                'summary', NULLIF(result_json->>'summary', ''),
                'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                'tokenUsage', result_json->'tokenUsage',
-               'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+               'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+               'gitStatus', result_json->'gitStatus'
              )) AS result_json
       FROM tasks
       WHERE group_id = ${id}::uuid
         AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
-      ORDER BY created_at DESC
+      ORDER BY COALESCE(group_order, 2147483647) ASC, created_at ASC, id ASC
       LIMIT ${take};
     `; // Strip logs from task-group lists to prevent loading full result_json payloads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     const tasks = rows.map(rowToTaskFromSql) as TaskWithMeta[];
     if (!options?.includeMeta) return tasks;
     const withMeta = await this.attachMeta(tasks);
     // Preserve queue diagnosis for task-group detail views. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
-    return this.attachQueueDiagnosis(withMeta);
+    return this.attachSequenceLinks(await this.attachQueueDiagnosis(withMeta));
   }
 
   // Determine whether the task group already has another task so workers can reuse workspaces safely. docs/en/developer/plans/taskgroup-worker-env-20260203/task_plan.md taskgroup-worker-env-20260203
@@ -1316,12 +1376,10 @@ export class TaskService {
       _count: { _all: true }
     });
 
-    // Include paused counts so UI can report pause/resume state transitions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     const stats: TaskStatusStats = {
       total: 0,
       queued: 0,
       processing: 0,
-      paused: 0,
       success: 0,
       failed: 0
     };
@@ -1334,7 +1392,6 @@ export class TaskService {
       const status = String((row as any)?.status ?? '');
       if (status === 'queued') stats.queued += count;
       else if (status === 'processing') stats.processing += count;
-      else if (status === 'paused') stats.paused += count;
       else if (status === 'failed') stats.failed += count;
       else if (status === 'succeeded' || status === 'commented') stats.success += count;
     }
@@ -1510,15 +1567,20 @@ export class TaskService {
   async retryTask(id: string): Promise<Task | undefined> {
     const now = new Date();
     try {
-      const row = await db.task.update({
-        where: { id },
-        data: {
-          status: 'queued',
-          retries: { increment: 1 },
-          updatedAt: now
-        }
-      });
-      const task = taskRecordToTask(row);
+      const existing = await db.task.findUnique({ where: { id }, select: { groupId: true } });
+      const groupOrder = await this.getNextGroupOrder(existing?.groupId ?? null);
+      const rows = await db.$queryRaw<any[]>`
+        UPDATE tasks
+        SET status = 'queued',
+            result_json = NULL,
+            retries = retries + 1,
+            updated_at = ${now},
+            group_order = COALESCE(${groupOrder}::int, group_order)
+        WHERE id = ${id}
+        RETURNING *;
+      `;
+      const task = rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+      if (!task) return undefined;
       // Notify chat clients about retry status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
       void this.emitTaskGroupUpdate(task, 'status');
       return task;
@@ -1528,17 +1590,47 @@ export class TaskService {
     }
   }
 
-  async pauseTask(id: string): Promise<Task | undefined> {
+  async stopTask(id: string): Promise<Task | undefined> {
     const now = new Date();
+    const taskId = safeTrim(id);
+    if (!isUuidLike(taskId)) return undefined;
     try {
-      // Update status to paused so workers can stop mid-run. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-      const row = await db.task.update({
-        where: { id },
-        data: { status: 'paused', updatedAt: now }
+      const existing = await db.task.findUnique({ where: { id: taskId } });
+      if (!existing) return undefined;
+      if (existing.status === 'queued') {
+        const row = await db.task.update({
+          where: { id: taskId },
+          data: {
+            status: 'failed',
+            result: {
+              ...(typeof existing.result === 'object' && existing.result ? (existing.result as Record<string, unknown>) : {}),
+              message: TASK_MANUAL_STOP_MESSAGE,
+              stopReason: TASK_MANUAL_STOP_REASON
+            } as any,
+            updatedAt: now
+          }
+        });
+        const task = taskRecordToTask(row);
+        void this.emitTaskGroupUpdate(task, 'status');
+        return task;
+      }
+
+      if (existing.status !== 'processing') return taskRecordToTask(existing);
+
+      const patchJson = JSON.stringify({
+        stopRequestedAt: now.toISOString(),
+        stopReason: TASK_MANUAL_STOP_REASON,
+        message: TASK_MANUAL_STOP_MESSAGE
       });
-      const task = taskRecordToTask(row);
-      // Notify chat clients about pause status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
-      void this.emitTaskGroupUpdate(task, 'status');
+      const rows = await db.$queryRaw<any[]>`
+        UPDATE tasks
+        SET result_json = COALESCE(result_json, '{}'::jsonb) || ${patchJson}::jsonb,
+            updated_at = ${now}
+        WHERE id = ${taskId}
+        RETURNING *;
+      `;
+      const task = rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+      if (task) void this.emitTaskGroupUpdate(task, 'status');
       return task;
     } catch (err) {
       if (isNotFoundError(err)) return undefined;
@@ -1546,33 +1638,90 @@ export class TaskService {
     }
   }
 
-  async resumeTask(id: string): Promise<Task | undefined> {
-    const now = new Date();
-    try {
-      // Resume paused tasks by re-queueing them. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-      const row = await db.task.update({
-        where: { id },
-        data: { status: 'queued', updatedAt: now }
-      });
-      const task = taskRecordToTask(row);
-      // Notify chat clients about resume status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
-      void this.emitTaskGroupUpdate(task, 'status');
-      return task;
-    } catch (err) {
-      if (isNotFoundError(err)) return undefined;
-      throw err;
-    }
+  async updateQueuedTaskText(id: string, text: string): Promise<Task | undefined> {
+    const taskId = safeTrim(id);
+    const nextText = String(text ?? '').trim();
+    if (!isUuidLike(taskId) || !nextText) return undefined;
+    const existing = await db.task.findUnique({ where: { id: taskId } });
+    if (!existing || existing.status !== 'queued') return undefined;
+
+    const payload = (existing.payload ?? {}) as Record<string, any>;
+    const nextPayload = {
+      ...payload,
+      __chat: { ...(payload.__chat ?? {}), text: nextText },
+      object_attributes: payload.object_attributes ? { ...payload.object_attributes, note: nextText } : payload.object_attributes,
+      comment: payload.comment ? { ...payload.comment, body: nextText } : payload.comment
+    };
+    const nextTitle = `Chat · ${nextText.replace(/\s+/g, ' ').trim().slice(0, 80)}`;
+    // Update queued manual-task payloads in place so users can edit work before execution starts. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const row = await db.task.update({
+      where: { id: taskId },
+      data: {
+        payload: nextPayload as any,
+        title: nextTitle,
+        updatedAt: new Date()
+      }
+    });
+    const task = taskRecordToTask(row);
+    void this.emitTaskGroupUpdate(task, 'status');
+    return task;
   }
 
-  async getTaskControlState(id: string): Promise<{ status: TaskStatus; archivedAt?: string } | null> {
+  async reorderQueuedTask(id: string, action: TaskReorderAction): Promise<Task | undefined> {
+    const taskId = safeTrim(id);
+    if (!isUuidLike(taskId)) return undefined;
+    const existing = await db.task.findUnique({ where: { id: taskId }, select: { id: true, groupId: true, status: true, archivedAt: true } });
+    if (!existing || existing.status !== 'queued' || existing.archivedAt) return undefined;
+    const groupId = safeTrim(existing.groupId);
+    if (!isUuidLike(groupId)) return undefined;
+
+    const rows = await db.$queryRaw<any[]>`
+      SELECT id, group_id, group_order, created_at, status
+      FROM tasks
+      WHERE group_id = ${groupId}::uuid
+        AND archived_at IS NULL
+      ORDER BY COALESCE(group_order, 2147483647) ASC, created_at ASC, id ASC;
+    `;
+    const ordered = rows.map((row) => ({
+      id: String(row.id),
+      status: String(row.status),
+      groupOrder: typeof row.group_order === 'number' ? row.group_order : Number(row.group_order ?? 0) || 0,
+      createdAt: toIso(row.created_at)
+    }));
+    const queueIds = ordered.filter((task) => task.status === 'queued').map((task) => task.id);
+    const currentIndex = queueIds.findIndex((queuedId) => queuedId === taskId);
+    if (currentIndex < 0) return undefined;
+
+    const nextQueueIds = [...queueIds];
+    if (action === 'move_earlier' && currentIndex > 0) {
+      [nextQueueIds[currentIndex - 1], nextQueueIds[currentIndex]] = [nextQueueIds[currentIndex], nextQueueIds[currentIndex - 1]];
+    } else if (action === 'move_later' && currentIndex < nextQueueIds.length - 1) {
+      [nextQueueIds[currentIndex], nextQueueIds[currentIndex + 1]] = [nextQueueIds[currentIndex + 1], nextQueueIds[currentIndex]];
+    } else if (action === 'insert_next') {
+      nextQueueIds.splice(currentIndex, 1);
+      nextQueueIds.unshift(taskId);
+    }
+
+    const terminalIds = ordered.filter((task) => task.status !== 'queued').map((task) => task.id);
+    await this.rebalanceGroupTaskOrders(groupId, [...terminalIds, ...nextQueueIds]);
+
+    const refreshed = await db.task.findUnique({ where: { id: taskId } });
+    const task = refreshed ? taskRecordToTask(refreshed) : undefined;
+    if (task) void this.emitTaskGroupUpdate(task, 'status');
+    return task;
+  }
+
+  async getTaskControlState(id: string): Promise<{ status: TaskStatus; archivedAt?: string; stopRequested: boolean } | null> {
     const taskId = safeTrim(id);
     if (!isUuidLike(taskId)) return null;
-    // Return minimal task control state for pause/resume polling and worker abort checks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-    const row = await db.task.findUnique({ where: { id: taskId }, select: { status: true, archivedAt: true } });
+    // Return minimal task control state for stop polling and worker abort checks. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const row = await db.task.findUnique({ where: { id: taskId }, select: { status: true, archivedAt: true, result: true } });
     if (!row) return null;
+    const result = (row.result ?? {}) as Record<string, unknown>;
     return {
       status: row.status as TaskStatus,
-      archivedAt: row.archivedAt ? toIso(row.archivedAt) : undefined
+      archivedAt: row.archivedAt ? toIso(row.archivedAt) : undefined,
+      stopRequested: typeof result.stopRequestedAt === 'string' && result.stopRequestedAt.trim().length > 0
     };
   }
 
@@ -1621,7 +1770,7 @@ export class TaskService {
       FROM tasks
       WHERE status = 'queued'
         AND archived_at IS NULL
-      ORDER BY created_at ASC
+      ORDER BY COALESCE(group_order, 2147483647) ASC, created_at ASC, id ASC
       LIMIT ${batchSize};
     `;
 
@@ -1649,7 +1798,12 @@ export class TaskService {
             )
           RETURNING *;
         `;
-        if (claimed?.[0]) return rowToTaskFromSql(claimed[0]);
+        if (claimed?.[0]) {
+          // Push the queued->processing transition immediately so new task-group workspaces do not stay visually stale after claim. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+          const claimedTask = rowToTaskFromSql(claimed[0]);
+          void this.emitTaskGroupUpdate(claimedTask, 'status');
+          return claimedTask;
+        }
       } catch (err) {
         if (isTaskGroupProcessingConflict(err)) {
           continue;

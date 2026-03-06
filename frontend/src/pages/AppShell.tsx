@@ -225,10 +225,10 @@ export const AppShell: FC<AppShellProps> = ({
           <TaskDetailPage taskId={route.taskId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} navToggle={navToggle} />
         ) : null}
         {(route.page === 'home' || route.page === 'taskGroup') ? (
+          // Render the task-group workspace without the retired task-log feature flag prop after the workspace rewrite. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
           <TaskGroupChatPage
             taskGroupId={route.page === 'taskGroup' ? route.taskGroupId : undefined}
             userPanel={userPanel}
-            taskLogsEnabled={taskLogsEnabled}
             navToggle={navToggle}
           />
         ) : null}

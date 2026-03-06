@@ -1,6 +1,7 @@
 // Define notification API types for the header panel and settings tab. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
 export type NotificationLevel = 'info' | 'warn' | 'error';
-export type NotificationType = 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_PAUSED' | 'TASK_DELETED';
+// Align notification types with the stop-only task lifecycle used by the backend. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+export type NotificationType = 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_STOPPED' | 'TASK_DELETED';
 
 export interface NotificationEntry {
   id: string;

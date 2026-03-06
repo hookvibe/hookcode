@@ -1050,6 +1050,9 @@ async function callAgent(
   let writeEnabled = false;
   // Honor pause/stop signals from the task runner. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   const abortSignal = options?.signal;
+  // Route task abort signals into every workspace shell command so clone/pull/install stages stop with the task. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  const streamTaskCommand = (command: string, log: (msg: string) => Promise<void>, commandOptions: StreamOptions = {}) =>
+    streamCommand(command, log, { ...commandOptions, signal: abortSignal });
 
   let persistLogsDisabled = false;
   let lastPersistErrorAt = 0;
@@ -1310,7 +1313,7 @@ async function callAgent(
         try {
           await appendLog(`Cloning repository (branch ${checkoutRef}) ${injected.displayUrl}`);
           // Use gitProxyFlags to pass proxy config to git commands. gitproxyfix20260127
-          await streamCommand(
+          await streamTaskCommand(
             `git ${gitProxyFlags} clone --branch ${shDoubleQuote(checkoutRef)} ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
             appendRawLog,
             {
@@ -1326,7 +1329,7 @@ async function callAgent(
 
       await appendLog(`Cloning repository ${injected.displayUrl}`);
       // Use gitProxyFlags to pass proxy config to git commands. gitproxyfix20260127
-      await streamCommand(
+      await streamTaskCommand(
         `git ${gitProxyFlags} clone ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
         appendRawLog,
         {
@@ -1380,13 +1383,13 @@ async function callAgent(
     if (checkoutRef) {
       try {
         await appendLog(`Checking out branch ${checkoutRef}`);
-        await streamCommand(`cd ${repoDir} && git checkout ${shDoubleQuote(checkoutRef)}`, appendRawLog, {
+        await streamTaskCommand(`cd ${repoDir} && git checkout ${shDoubleQuote(checkoutRef)}`, appendRawLog, {
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
         });
         if (allowNetworkPull) {
           // Use gitProxyFlags to pass proxy config to git pull. gitproxyfix20260127
-          await streamCommand(
+          await streamTaskCommand(
             `cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`,
             appendRawLog,
             {
@@ -1405,7 +1408,7 @@ async function callAgent(
       try {
         await appendLog('Updating default branch');
         // Use gitProxyFlags to pass proxy config to git pull. gitproxyfix20260127
-        await streamCommand(`cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase`, appendRawLog, {
+        await streamTaskCommand(`cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase`, appendRawLog, {
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
         });
@@ -1470,7 +1473,7 @@ exit 0
       // Persist expected remotes under valid git config keys for the pre-push guard. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
       const expectedUpstream = normalizeGitRemoteUrl(params.expectedUpstream);
       const expectedPush = normalizeGitRemoteUrl(params.expectedPush);
-      await streamCommand(
+      await streamTaskCommand(
         `cd ${repoDir} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.upstream)} ${shDoubleQuote(expectedUpstream)} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.push)} ${shDoubleQuote(expectedPush)}`,
         appendRawLog,
         { redact: redactSensitiveText }
@@ -1523,7 +1526,7 @@ exit 0
       })();
 
       const upstreamInjected = injectBasicAuth(repoUrl, auth);
-      await streamCommand(
+      await streamTaskCommand(
         `cd ${repoDir} && git remote set-url origin ${shDoubleQuote(upstreamInjected.execUrl)}`,
         appendRawLog,
         { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
@@ -1536,7 +1539,7 @@ exit 0
       const upstreamCanPush = canTokenPushToUpstream(execution!.provider, execution!.robot.repoTokenRepoRole);
 
       // Always reset origin push URL first to avoid stale fork pushUrl when workflow changes. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
-      await streamCommand(
+      await streamTaskCommand(
         `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(upstreamInjected.execUrl)}`,
         appendRawLog,
         { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
@@ -1564,7 +1567,7 @@ exit 0
           }
 
           const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-          await streamCommand(
+          await streamTaskCommand(
             `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
             appendRawLog,
             { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
@@ -1584,7 +1587,7 @@ exit 0
           }
 
           const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-          await streamCommand(
+          await streamTaskCommand(
             `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
             appendRawLog,
             { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
@@ -1623,7 +1626,7 @@ exit 0
         }
 
         const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-        await streamCommand(
+        await streamTaskCommand(
           `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
           appendRawLog,
           { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
@@ -1646,7 +1649,7 @@ exit 0
         }
 
         const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-        await streamCommand(
+        await streamTaskCommand(
           `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
           appendRawLog,
           { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
@@ -1703,7 +1706,8 @@ exit 0
             const { exitCode, output } = await runCommandWithLogs(command, appendRawLog, {
               cwd,
               timeoutMs,
-              redact: redactSensitiveText
+              redact: redactSensitiveText,
+              signal: abortSignal
             });
             return { exitCode, output };
           },
@@ -1815,7 +1819,7 @@ exit 0
       }
       try {
         await appendLog(`Configuring git identity: ${gitUserName} <${gitUserEmail}>`);
-        await streamCommand(
+        await streamTaskCommand(
           `cd ${repoDir} && git config --local user.name ${shDoubleQuote(gitUserName)} && git config --local user.email ${shDoubleQuote(gitUserEmail)}`,
           appendRawLog,
           { redact: redactSensitiveText }
@@ -2172,28 +2176,46 @@ exit 0
 
 export { callAgent };
 
-const runCommandWithLogs = async (
+export const runCommandWithLogs = async (
   command: string,
   log: (msg: string) => Promise<void>,
   options: StreamOptions = {}
 ): Promise<{ exitCode: number; output: string }> => {
   // Capture streaming command output for dependency installs while keeping log behavior consistent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   const redact = options.redact ?? redactSensitiveText;
+  if (options.signal?.aborted) {
+    return { exitCode: -1, output: '' };
+  }
   return await new Promise((resolve, reject) => {
-    // Run commands in the resolved workspace cwd to avoid shell cd path drift. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    // Spawn detached shell commands on POSIX so stop requests can terminate the whole process group, not only the parent shell. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     const child = spawn('sh', ['-c', command], {
       env: { ...process.env, ...(options.env ?? {}) },
       cwd: options.cwd,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
     });
 
     let timedOut = false;
+    let aborted = false;
     let timer: NodeJS.Timeout | null = null;
+    let abortKillTimer: NodeJS.Timeout | null = null;
+    const handleAbort = () => {
+      aborted = true;
+      stopSpawnedShellCommand(child, 'SIGTERM');
+      abortKillTimer = setTimeout(() => {
+        stopSpawnedShellCommand(child, 'SIGKILL');
+      }, COMMAND_ABORT_FORCE_KILL_MS);
+      abortKillTimer.unref?.();
+    };
     if (options.timeoutMs && options.timeoutMs > 0) {
       timer = setTimeout(() => {
         timedOut = true;
-        child.kill('SIGKILL');
+        stopSpawnedShellCommand(child, 'SIGKILL');
       }, options.timeoutMs);
+    }
+    if (options.signal) {
+      if (options.signal.aborted) handleAbort();
+      else options.signal.addEventListener('abort', handleAbort, { once: true });
     }
 
     let chain = Promise.resolve();
@@ -2235,15 +2257,21 @@ const runCommandWithLogs = async (
 
     child.on('error', (err) => {
       if (timer) clearTimeout(timer);
+      if (abortKillTimer) clearTimeout(abortKillTimer);
+      if (options.signal) options.signal.removeEventListener('abort', handleAbort);
       reject(err);
     });
     child.on('close', async (code) => {
       if (timer) clearTimeout(timer);
+      if (abortKillTimer) clearTimeout(abortKillTimer);
+      if (options.signal) options.signal.removeEventListener('abort', handleAbort);
       stdoutBuffer.flush();
       stderrBuffer.flush();
 
-      const exitCode = timedOut ? -1 : typeof code === 'number' ? code : -1;
-      if (timedOut) {
+      const exitCode = timedOut || aborted ? -1 : typeof code === 'number' ? code : -1
+      if (aborted) {
+        enqueue(`[aborted] ${command}`);
+      } else if (timedOut) {
         enqueue(`[timeout] ${command}`);
       } else if (exitCode !== 0) {
         enqueue(`[exit ${exitCode}] ${command}`);
@@ -2273,6 +2301,7 @@ interface StreamOptions {
   timeoutMs?: number;
   // Allow explicit command cwd to keep dependency installs on the intended repo root. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   cwd?: string;
+  signal?: AbortSignal;
 }
 
 interface CaptureOptions {
@@ -2280,7 +2309,32 @@ interface CaptureOptions {
   redact?: (text: string) => string;
   // Allow explicit cwd for command capture outside agent flow. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   cwd?: string;
+  signal?: AbortSignal;
 }
+
+const COMMAND_ABORT_FORCE_KILL_MS = 1500;
+
+const stopSpawnedShellCommand = (
+  child: ReturnType<typeof spawn>,
+  signal: 'SIGTERM' | 'SIGKILL'
+) => {
+  // Kill the spawned shell process group so task stop requests also interrupt git clone/pull/install subprocesses. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  if (child.exitCode !== null || child.signalCode) return;
+  const pid = typeof child.pid === 'number' ? child.pid : 0;
+  if (pid > 0 && process.platform !== 'win32') {
+    try {
+      process.kill(-pid, signal);
+      return;
+    } catch {
+      // Fall back to the direct child when process-group signaling is unavailable. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    }
+  }
+  try {
+    child.kill(signal);
+  } catch {
+    // Ignore double-kill races because command shutdown is best effort. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  }
+};
 
 // Export command capture for shared git operations outside the agent run. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 export const runCommandCapture = async (
@@ -2289,16 +2343,34 @@ export const runCommandCapture = async (
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
   // Capture command output for git status probing without spamming task logs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   const redact = options.redact ?? redactSensitiveText;
+  if (options.signal?.aborted) {
+    return { stdout: '', stderr: '', exitCode: -1 };
+  }
   return await new Promise((resolve, reject) => {
-    // Honor explicit cwd to keep non-agent commands aligned with task-group workspaces. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
+    // Keep capture commands abortable too so future task-stop flows do not hang in silent git probes. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     const child = spawn('sh', ['-c', command], {
       env: { ...process.env, ...(options.env ?? {}) },
       cwd: options.cwd,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
     });
 
     let stdout = '';
     let stderr = '';
+    let aborted = false;
+    let abortKillTimer: NodeJS.Timeout | null = null;
+    const handleAbort = () => {
+      aborted = true;
+      stopSpawnedShellCommand(child, 'SIGTERM');
+      abortKillTimer = setTimeout(() => {
+        stopSpawnedShellCommand(child, 'SIGKILL');
+      }, COMMAND_ABORT_FORCE_KILL_MS);
+      abortKillTimer.unref?.();
+    };
+    if (options.signal) {
+      if (options.signal.aborted) handleAbort();
+      else options.signal.addEventListener('abort', handleAbort, { once: true });
+    }
 
     child.stdout.on('data', (data: Buffer) => {
       stdout += data.toString();
@@ -2308,13 +2380,17 @@ export const runCommandCapture = async (
     });
 
     child.on('error', (err) => {
+      if (abortKillTimer) clearTimeout(abortKillTimer);
+      if (options.signal) options.signal.removeEventListener('abort', handleAbort);
       reject(err);
     });
     child.on('close', (code) => {
+      if (abortKillTimer) clearTimeout(abortKillTimer);
+      if (options.signal) options.signal.removeEventListener('abort', handleAbort);
       resolve({
         stdout: redact(stdout).trimEnd(),
         stderr: redact(stderr).trimEnd(),
-        exitCode: typeof code === 'number' ? code : 1
+        exitCode: aborted ? -1 : typeof code === 'number' ? code : 1
       });
     });
   });

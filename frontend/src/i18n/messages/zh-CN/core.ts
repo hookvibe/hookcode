@@ -230,6 +230,8 @@ export const zhCNCore = {
   'tasks.detailTitle': '任务详情',
   'tasks.empty.noPermission': '无权限访问该页面',
   'tasks.retry': '重试',
+  // Add explicit stop copy after removing pause/resume task controls. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  'tasks.stop': '停止',
   // Pause/resume controls for task execution. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   'tasks.pause': '暂停',
   'tasks.resume': '继续',

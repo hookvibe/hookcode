@@ -324,9 +324,10 @@
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
-/* Enhance git status card design in chat timeline for better visual hierarchy. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
+/* Center expanded git status cards inside task cards so compact details stay visually balanced in the workspace. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
 .hc-chat-git-status {
   width: min(960px, 100%);
+  margin-inline: auto;
   border: 2px solid var(--hc-border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }

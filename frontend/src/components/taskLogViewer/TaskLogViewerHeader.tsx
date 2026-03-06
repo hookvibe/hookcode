@@ -9,10 +9,7 @@ export type TaskLogViewerHeaderProps = {
   showLoadEarlier: boolean;
   loadingEarlier: boolean;
   onLoadEarlier: () => void;
-  showPauseButton: boolean;
   showReconnectButton: boolean;
-  paused: boolean;
-  onTogglePaused: () => void;
   onReconnect: () => void;
   mode: ViewerMode;
   onToggleMode: () => void;
@@ -27,12 +24,6 @@ export type TaskLogViewerHeaderProps = {
   clearing: boolean;
 };
 
-const IconPause = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-);
-const IconPlay = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-);
 const IconRefresh = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
 );
@@ -63,10 +54,7 @@ export const TaskLogViewerHeader = ({
   showLoadEarlier,
   loadingEarlier,
   onLoadEarlier,
-  showPauseButton,
   showReconnectButton,
-  paused,
-  onTogglePaused,
   onReconnect,
   mode,
   onToggleMode,
@@ -90,17 +78,11 @@ export const TaskLogViewerHeader = ({
     </div>
 
     <div className="log-header__actions">
-      {/* Show load-earlier control for paged task log access. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306 */}
+      {/* Keep load-earlier visible for paged task log access in the tabbed workspace. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
       {showLoadEarlier && (
         <button className="log-btn" onClick={onLoadEarlier} disabled={loadingEarlier} title={t('logViewer.actions.loadEarlier')}>
           {loadingEarlier ? <IconSpinner /> : <IconArrowUp />}
           <span>{loadingEarlier ? t('logViewer.loading') : t('logViewer.actions.loadEarlier')}</span>
-        </button>
-      )}
-      {showPauseButton && (
-        <button className="log-btn" onClick={onTogglePaused} title={paused ? t('logViewer.actions.resume') : t('logViewer.actions.pause')}>
-          {paused ? <IconPlay /> : <IconPause />}
-          <span>{paused ? t('logViewer.actions.resume') : t('logViewer.actions.pause')}</span>
         </button>
       )}
       {showReconnectButton && (
@@ -108,7 +90,7 @@ export const TaskLogViewerHeader = ({
           <IconRefresh />
         </button>
       )}
-      
+
       <div className="log-header__sep" />
 
       <button className="log-btn" onClick={onToggleMode} title={mode === 'timeline' ? t('execViewer.actions.showRaw') : t('execViewer.actions.showTimeline')}>

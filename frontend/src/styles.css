@@ -19,6 +19,8 @@
 @import './styles/preview-shell.css';
 @import './styles/preview-logs.css';
 @import './styles/chat-timeline.css';
+@import './styles/task-group-workspace.css';
+@import './styles/task-group-workspace.css'; /* Task-group workspace cards + tabbed logs. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
 @import './styles/log-viewer.css';
 @import './styles/execution-dialog.css';
 @import './styles/execution-thoughtchain.css';
@@ -28,7 +30,8 @@
 @import './styles/user-panel.css';
 @import './styles/settings.css';
 @import './styles/composer.css';
-@import './styles/antd-overrides.css';@import './styles/welcome-page.css';
+@import './styles/antd-overrides.css';
+@import './styles/welcome-page.css';
 @import './styles/modern-page-nav.css';
 @import './styles/modern-user-panel.css';
 @import './styles/skills.css'; /* Skills registry dashboard styling. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225 */

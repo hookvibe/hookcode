@@ -142,7 +142,6 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
     total: 0,
     queued: 0,
     processing: 0,
-    paused: 0,
     success: 0,
     failed: 0
   });
@@ -243,7 +242,7 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
     refreshSidebarPromiseRef.current = (async () => {
       const canQuery = authEnabled === false || Boolean(authToken);
       if (!canQuery) {
-        setTaskStats({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 });
+        setTaskStats({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 });
         setTasksByStatus(defaultTasksByStatus);
         // Reset sidebar status pagination state when auth is unavailable. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
         setTasksByStatusNextCursor(defaultTasksByStatusCursor);
@@ -309,8 +308,8 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
           setTaskGroupsNextCursor(snapshot.taskGroupsNextCursor ?? null);
         }
         return stats;
-      } catch (err) {
-        console.error(err);
+      } catch {
+        // Keep sidebar polling failures non-fatal because the last successful snapshot remains usable during task-group workspace debugging. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
         return null;
       } finally {
         setSidebarLoading(false);
@@ -338,9 +337,10 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
              timer = window.setTimeout(loop, SIDEBAR_POLL_IDLE_MS);
              return;
          }
-         await refreshSidebar();
+         const stats = await refreshSidebar();
          if (disposed) return;
-         timer = window.setTimeout(loop, SIDEBAR_POLL_ACTIVE_MS);
+         // Back off to the idle interval after failed sidebar refreshes so transient backend issues do not spam the console/network panel. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+         timer = window.setTimeout(loop, stats ? SIDEBAR_POLL_ACTIVE_MS : SIDEBAR_POLL_IDLE_MS);
      }
      void loop();
      return () => {

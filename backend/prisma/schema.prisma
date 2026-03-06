@@ -10,6 +10,7 @@ datasource db {
 model Task {
   id           String   @id @db.Uuid
   groupId      String?  @map("group_id") @db.Uuid
+  groupOrder   Int?     @map("group_order")
   eventType    String   @map("event_type")
   status       String
   archivedAt   DateTime? @map("archived_at") @db.Timestamptz(6)
@@ -39,6 +40,7 @@ model Task {
   @@map("tasks")
   @@index([status, createdAt], map: "tasks_status_created_at_idx")
   @@index([groupId, createdAt], map: "tasks_group_id_created_at_idx")
+  @@index([groupId, groupOrder], map: "tasks_group_id_group_order_idx")
   @@index([archivedAt], map: "tasks_archived_at_idx")
   /// Speed up repo-scoped task lists and stats with repo/status/time indexes. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   @@index([repoId, status, updatedAt], map: "tasks_repo_status_updated_at_idx")

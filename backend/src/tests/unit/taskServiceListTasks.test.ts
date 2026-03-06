@@ -197,7 +197,7 @@ describe('taskService.listTasks', () => {
     (db.task.groupBy as any).mockResolvedValue([
       { status: 'queued', _count: { _all: 2 } },
       { status: 'processing', _count: { _all: 3 } },
-      // Include paused in status aggregation coverage for pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      // Keep unknown historical statuses in aggregation input to verify the stop-only stats shape ignores them. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
       { status: 'paused', _count: { _all: 4 } },
       { status: 'succeeded', _count: { _all: 10 } },
       { status: 'commented', _count: { _all: 5 } },
@@ -213,12 +213,11 @@ describe('taskService.listTasks', () => {
         where: { archivedAt: null }
       })
     );
-    // Validate paused counts appear in aggregated stats for pause/resume UI. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    // Validate task stats only expose the active stop-only lifecycle fields on the dashboard. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     expect(stats).toEqual({
       total: 25,
       queued: 2,
       processing: 3,
-      paused: 4,
       success: 15,
       failed: 1
     });

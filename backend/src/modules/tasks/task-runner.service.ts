@@ -7,6 +7,7 @@ import { TaskLogsService } from './task-logs.service';
 import { LogWriterService } from '../logs/log-writer.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
+import { TASK_MANUAL_STOP_MESSAGE } from './task-control.constants';
 
 export interface TaskRunnerFinishInfo {
   status: TaskStatus;
@@ -28,9 +29,9 @@ export interface TaskRunnerHooks {
  */
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-type TaskAbortReason = 'paused' | 'deleted';
+type TaskAbortReason = 'manual_stop' | 'deleted';
 
-// Poll task control state so workers can pause/stop running tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+// Poll task control state so workers can stop running tasks without a resumable paused state. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 const TASK_CONTROL_POLL_INTERVAL_MS = 2000;
 
 const resolveWorkerConcurrency = (): number => {
@@ -116,7 +117,7 @@ export class TaskRunner {
   }
 
   private startControlPolling(taskId: string, onAbort: (reason: TaskAbortReason) => void): () => void {
-    // Poll DB status so pause/delete requests can stop active executions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    // Poll DB control flags so stop/delete requests can abort active executions quickly. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     let stopped = false;
     const poll = async () => {
       if (stopped) return;
@@ -126,8 +127,8 @@ export class TaskRunner {
           onAbort('deleted');
           return;
         }
-        if (state.status === 'paused') {
-          onAbort('paused');
+        if (state.stopRequested) {
+          onAbort('manual_stop');
         }
       } catch (err) {
         console.warn('[taskRunner] control poll failed (ignored)', taskId, err);
@@ -234,39 +235,38 @@ export class TaskRunner {
       const message = getErrorMessage(err);
 
       if (!abortReason && err instanceof AgentExecutionError && err.aborted) {
-        // Treat provider aborts as pause requests when no explicit reason is tracked. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-        abortReason = 'paused';
+        // Treat provider aborts as manual-stop requests when no explicit reason is tracked. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+        abortReason = 'manual_stop';
       }
 
-      if (abortReason === 'paused') {
-        const pauseMessage = 'Task paused by user.';
-        // Store pause metadata without task log payload duplication. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
-        await this.finalizeWithRetry(task.id, 'paused', {
-          message: pauseMessage,
+      if (abortReason === 'manual_stop') {
+        // Finalize manual stops as failures so the queue has no resumable paused branch. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+        await this.finalizeWithRetry(task.id, 'failed', {
+          message: TASK_MANUAL_STOP_MESSAGE,
           providerCommentUrl,
           gitStatus
         });
-        // Persist pause events for audit visibility. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+        // Persist manual-stop events for audit visibility. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
         void this.logWriter.logExecution({
           level: 'warn',
-          message: pauseMessage,
-          code: 'TASK_PAUSED',
+          message: TASK_MANUAL_STOP_MESSAGE,
+          code: 'TASK_STOPPED',
           repoId: task.repoId,
           taskId: task.id,
           taskGroupId: task.groupId,
           meta: { durationMs: Date.now() - startedAt, retries: task.retries }
         });
-        // Notify the triggering user (or repo owner) about paused execution. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        // Notify the triggering user (or repo owner) about manually stopped execution. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
         void this.emitTaskNotification(task, {
-          type: 'TASK_PAUSED',
+          type: 'TASK_STOPPED',
           level: 'warn',
-          message: `Task paused: ${buildTaskLabel(task)}`,
-          code: 'TASK_PAUSED',
+          message: `Task stopped: ${buildTaskLabel(task)}`,
+          code: 'TASK_STOPPED',
           meta: { durationMs: Date.now() - startedAt, retries: task.retries }
         });
         await this.runHookFinish(task, {
-          status: 'paused',
-          message: pauseMessage,
+          status: 'failed',
+          message: TASK_MANUAL_STOP_MESSAGE,
           providerCommentUrl,
           durationMs: Date.now() - startedAt
         });
@@ -336,7 +336,7 @@ export class TaskRunner {
 
   private async emitTaskNotification(
     task: Task,
-    params: { type: 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_PAUSED' | 'TASK_DELETED'; level: 'info' | 'warn' | 'error'; message: string; code: string; meta?: Record<string, unknown> }
+    params: { type: 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_STOPPED' | 'TASK_DELETED'; level: 'info' | 'warn' | 'error'; message: string; code: string; meta?: Record<string, unknown> }
   ): Promise<void> {
     // Best-effort: emit user notifications without blocking task completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
     try {

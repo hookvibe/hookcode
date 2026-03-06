@@ -178,6 +178,8 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
     <Card
       size="small"
       className={variant === 'compact' ? 'hc-card hc-chat-git-status' : 'hc-card'}
+      // Stop nested git-status interactions from bubbling into the task card click handler that opens logs. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+      onClick={(event) => event.stopPropagation()}
       title={
         <Space align="center">
           <span>{t('tasks.gitStatus.title')}</span>
@@ -192,7 +194,8 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
       }
       styles={{ body: { padding: variant === 'compact' ? 12 : 16 } }}
     >
-      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+      {/* Keep git status cards on the non-deprecated Ant Design Space API for the task-group workspace refresh. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
+      <Space orientation="vertical" size={12} style={{ width: '100%' }}>
         {isCompact ? (
           <button
             type="button"
@@ -257,7 +260,7 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
                 gap: '12px'
               }}
             >
-              <Space direction="vertical" size={4}>
+              <Space orientation="vertical" size={4}>
                 <Typography.Text type="secondary" strong>
                   {t('tasks.gitStatus.branch')}
                 </Typography.Text>
@@ -270,7 +273,7 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
                 )}
               </Space>
 
-              <Space direction="vertical" size={4}>
+              <Space orientation="vertical" size={4}>
                 <Typography.Text type="secondary" strong>
                   {t('tasks.gitStatus.commit')}
                 </Typography.Text>
@@ -285,7 +288,7 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
                 )}
               </Space>
 
-              <Space direction="vertical" size={4}>
+              <Space orientation="vertical" size={4}>
                 <Typography.Text type="secondary" strong>
                   {t('tasks.gitStatus.pushTarget')}
                 </Typography.Text>
@@ -298,7 +301,7 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
                 )}
               </Space>
 
-              <Space direction="vertical" size={4}>
+              <Space orientation="vertical" size={4}>
                 <Typography.Text type="secondary" strong>
                   {t('tasks.gitStatus.divergence')}
                 </Typography.Text>
@@ -309,14 +312,14 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
             <Divider style={{ margin: '12px 0' }} />
 
             {/* Simplify file list display with better grouping. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */}
-            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            <Space orientation="vertical" size={8} style={{ width: '100%' }}>
               <Typography.Text strong style={{ fontSize: '15px' }}>
                 {t('tasks.gitStatus.files')}
               </Typography.Text>
               {view.totalChanges === 0 ? (
                 <Typography.Text type="secondary">{t('tasks.gitStatus.files.none')}</Typography.Text>
               ) : (
-                <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                <Space orientation="vertical" size={10} style={{ width: '100%' }}>
                   {view.staged.length ? (
                     <div
                       style={{ padding: '8px 12px', background: 'rgba(82, 196, 26, 0.08)', borderRadius: '6px', border: '1px solid rgba(82, 196, 26, 0.2)' }}
@@ -324,7 +327,7 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
                       <Typography.Text type="secondary" strong style={{ display: 'block', marginBottom: '6px' }}>
                         {t('tasks.gitStatus.files.staged', { count: view.staged.length })}
                       </Typography.Text>
-                      <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                      <Space orientation="vertical" size={2} style={{ width: '100%' }}>
                         {view.staged.slice(0, 10).map((file) => (
                           <Typography.Text key={`staged-${file}`} code style={{ fontSize: '12px', display: 'block' }}>
                             {file}
@@ -340,7 +343,7 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
                       <Typography.Text type="secondary" strong style={{ display: 'block', marginBottom: '6px' }}>
                         {t('tasks.gitStatus.files.unstaged', { count: view.unstaged.length })}
                       </Typography.Text>
-                      <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                      <Space orientation="vertical" size={2} style={{ width: '100%' }}>
                         {view.unstaged.slice(0, 10).map((file) => (
                           <Typography.Text key={`unstaged-${file}`} code style={{ fontSize: '12px', display: 'block' }}>
                             {file}
@@ -356,7 +359,7 @@ export const TaskGitStatusPanel: FC<TaskGitStatusPanelProps> = ({ task, variant 
                       <Typography.Text type="secondary" strong style={{ display: 'block', marginBottom: '6px' }}>
                         {t('tasks.gitStatus.files.untracked', { count: view.untracked.length })}
                       </Typography.Text>
-                      <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                      <Space orientation="vertical" size={2} style={{ width: '100%' }}>
                         {view.untracked.slice(0, 10).map((file) => (
                           <Typography.Text key={`untracked-${file}`} code style={{ fontSize: '12px', display: 'block' }}>
                             {file}

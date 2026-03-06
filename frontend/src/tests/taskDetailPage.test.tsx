@@ -69,26 +69,17 @@ vi.mock('../api', () => {
       updatedAt: '2026-01-11T00:00:00.000Z',
       permissions: { canManage: true }
     })),
-    // Mock pause/resume APIs for task control actions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-    pauseTask: vi.fn(async () => ({
+    // Mock stop API for task control actions after removing pause/resume. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    stopTask: vi.fn(async () => ({
       id: 't1',
       eventType: 'chat',
       title: 'Task t1',
-      status: 'paused',
+      status: 'failed',
       retries: 0,
       createdAt: '2026-01-11T00:00:00.000Z',
       updatedAt: '2026-01-11T00:00:00.000Z',
-      permissions: { canManage: true }
-    })),
-    resumeTask: vi.fn(async () => ({
-      id: 't1',
-      eventType: 'chat',
-      title: 'Task t1',
-      status: 'queued',
-      retries: 0,
-      createdAt: '2026-01-11T00:00:00.000Z',
-      updatedAt: '2026-01-11T00:00:00.000Z',
-      permissions: { canManage: true }
+      permissions: { canManage: true },
+      result: { stopReason: 'manual_stop' }
     })),
     deleteTask: vi.fn(async () => undefined),
     // Provide robot provider lookup for task detail provider labels. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
@@ -262,13 +253,13 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     await waitFor(() => expect(api.executeTaskNow).toHaveBeenCalledWith('tq2'));
   });
 
-  // Verify pause control in task detail header actions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  test('pauses a processing task from the header actions', async () => {
+  // Verify stop control in task detail header actions after removing pause/resume. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  test('stops a processing task from the header actions', async () => {
     const ui = userEvent.setup();
     vi.mocked(api.fetchTask).mockResolvedValueOnce({
-      id: 't_pause',
+      id: 't_stop',
       eventType: 'chat',
-      title: 'Task pause',
+      title: 'Task stop',
       status: 'processing',
       retries: 0,
       createdAt: '2026-01-11T00:00:00.000Z',
@@ -282,42 +273,12 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
       payload: { user_name: 'Alice', user_username: 'alice' }
     } as any);
 
-    renderPage({ taskId: 't_pause' });
+    renderPage({ taskId: 't_stop' });
 
-    // Match the accessible name that includes the AntD icon label. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-    const pauseButton = await screen.findByRole('button', { name: /Pause/ });
-    await ui.click(pauseButton);
+    const stopButton = await screen.findByRole('button', { name: /Stop/ });
+    await ui.click(stopButton);
 
-    await waitFor(() => expect(api.pauseTask).toHaveBeenCalledWith('t_pause'));
-  });
-
-  // Verify resume control in task detail header actions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  test('resumes a paused task from the header actions', async () => {
-    const ui = userEvent.setup();
-    vi.mocked(api.fetchTask).mockResolvedValueOnce({
-      id: 't_resume',
-      eventType: 'chat',
-      title: 'Task resume',
-      status: 'paused',
-      retries: 0,
-      createdAt: '2026-01-11T00:00:00.000Z',
-      updatedAt: '2026-01-11T00:00:00.000Z',
-      permissions: { canManage: true },
-      repoId: 'r1',
-      repoProvider: 'gitlab',
-      repo: { id: 'r1', provider: 'gitlab', name: 'Repo r1', enabled: true },
-      robotId: 'bot1',
-      robot: { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true },
-      payload: { user_name: 'Alice', user_username: 'alice' }
-    } as any);
-
-    renderPage({ taskId: 't_resume' });
-
-    // Match the accessible name that includes the AntD icon label. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-    const resumeButton = await screen.findByRole('button', { name: /Resume/ });
-    await ui.click(resumeButton);
-
-    await waitFor(() => expect(api.resumeTask).toHaveBeenCalledWith('t_resume'));
+    await waitFor(() => expect(api.stopTask).toHaveBeenCalledWith('t_stop'));
   });
 
   test('shows prompt patch template + rendered preview side-by-side', async () => {

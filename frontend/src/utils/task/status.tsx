@@ -8,17 +8,25 @@ import { getTaskEventText } from './labels';
 export const isTerminalStatus = (status: TaskStatus): boolean =>
   status === 'succeeded' || status === 'failed' || status === 'commented';
 
-export const statusTag = (t: TFunction, status: TaskStatus) => {
-  const map: Record<TaskStatus, { color: string; text: string }> = {
+export const statusTag = (t: TFunction, status: TaskStatus | string | null | undefined) => {
+  const map: Record<string, { color: string; text: string }> = {
     queued: { color: 'blue', text: t('task.status.queued') },
     processing: { color: 'gold', text: t('task.status.processing') },
-    // Add paused status tags for stop/resume workflows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-    paused: { color: 'orange', text: t('task.status.paused') },
+    paused: { color: 'default', text: t('task.status.paused') },
     succeeded: { color: 'green', text: t('task.status.succeeded') },
     failed: { color: 'red', text: t('task.status.failed') },
     commented: { color: 'purple', text: t('task.status.commented') }
   };
-  const item = map[status];
+  // Guard task-card status badges against unexpected runtime statuses so the queue workspace never crashes on partial payloads. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  const normalizedStatus = typeof status === 'string' && status.trim() ? status.trim() : 'unknown';
+  const item = map[normalizedStatus] ?? {
+    color: 'default',
+    text: (() => {
+      const translated = t(`task.status.${normalizedStatus}` as never);
+      if (translated && translated !== `task.status.${normalizedStatus}`) return translated;
+      return normalizedStatus.replace(/_/gu, ' ');
+    })()
+  };
   return <Tag color={item.color}>{item.text}</Tag>;
 };
 

@@ -18,13 +18,10 @@ interface Props {
   canManage?: boolean;
   variant?: 'panel' | 'flat';
   controls?: {
-    pause?: boolean;
     reconnect?: boolean;
   };
   emptyMessage?: string;
   emptyHint?: string;
-  paused?: boolean;
-  onPausedChange?: (paused: boolean) => void;
   reconnectKey?: number;
   focusText?: string;
   focusKey?: number;
@@ -42,8 +39,6 @@ export const TaskLogViewer: FC<Props> = ({
   controls,
   emptyMessage,
   emptyHint,
-  paused: pausedProp,
-  onPausedChange,
   reconnectKey,
   focusText,
   focusKey,
@@ -55,11 +50,9 @@ export const TaskLogViewer: FC<Props> = ({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const scrollTargetRef = useRef<HTMLElement | Window | null>(null);
-  const pausedRef = useRef(false);
   const focusedKeyRef = useRef<number | null>(null);
   const autoScrollRef = useRef(true);
 
-  const showPauseButton = controls?.pause !== false;
   const showReconnectButton = controls?.reconnect !== false;
 
   const [logs, setLogs] = useState<string[]>([]);
@@ -68,8 +61,6 @@ export const TaskLogViewer: FC<Props> = ({
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [mode, setMode] = useState<ViewerMode>('timeline');
   const [connecting, setConnecting] = useState(true);
-  const [pausedInternal, setPausedInternal] = useState(false);
-  const paused = pausedProp ?? pausedInternal;
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState(0);
   const [clearing, setClearing] = useState(false);
@@ -86,26 +77,11 @@ export const TaskLogViewer: FC<Props> = ({
   const historyBootstrapInFlightRef = useRef(false);
 
   useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
-
-  useEffect(() => {
     // Keep log paging refs in sync for SSE handlers. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     logsRef.current = logs;
     seqRangeRef.current = seqRange;
     nextBeforeRef.current = nextBefore;
   }, [logs, nextBefore, seqRange]);
-
-  const setPaused = useCallback(
-    (next: boolean) => {
-      if (pausedProp !== undefined) {
-        onPausedChange?.(next);
-        return;
-      }
-      setPausedInternal(next);
-    },
-    [onPausedChange, pausedProp]
-  );
 
   const lines = useMemo(() => logs.join('\n'), [logs]);
   const buildLineId = useCallback((idx: number) => `task-log-${taskId}-${idx}`, [taskId]);
@@ -427,7 +403,6 @@ export const TaskLogViewer: FC<Props> = ({
 
       eventSource.addEventListener('log', (ev) => {
         if (!alive) return;
-        if (pausedRef.current) return;
         try {
           const payload = JSON.parse((ev as MessageEvent).data) as StreamLogPayload;
           if (!payload?.line || !Number.isFinite(payload.seq)) return;
@@ -473,10 +448,7 @@ export const TaskLogViewer: FC<Props> = ({
             showLoadEarlier={false}
             loadingEarlier={false}
             onLoadEarlier={() => {}}
-            showPauseButton={showPauseButton}
             showReconnectButton={showReconnectButton}
-            paused={paused}
-            onTogglePaused={() => setPaused(!paused)}
             onReconnect={() => setSession((v) => v + 1)}
             mode={mode}
             onToggleMode={() => setMode((v) => (v === 'timeline' ? 'raw' : 'timeline'))}
@@ -529,10 +501,7 @@ export const TaskLogViewer: FC<Props> = ({
         showLoadEarlier={canLoadEarlier}
         loadingEarlier={loadingEarlier}
         onLoadEarlier={() => void loadEarlier()}
-        showPauseButton={showPauseButton}
         showReconnectButton={showReconnectButton}
-        paused={paused}
-        onTogglePaused={() => setPaused(!paused)}
         onReconnect={() => setSession((v) => v + 1)}
         mode={mode}
         onToggleMode={() => setMode((v) => (v === 'timeline' ? 'raw' : 'timeline'))}

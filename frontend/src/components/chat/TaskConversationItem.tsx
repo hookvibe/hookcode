@@ -97,13 +97,11 @@ export const TaskConversationItem: FC<Props> = ({
   const emptyLogMessage = useMemo(() => {
     if (mergedTask.status === 'queued') return t('logViewer.empty.queued.title');
     if (mergedTask.status === 'processing') return t('logViewer.empty.processing.title');
-    if (mergedTask.status === 'paused') return t('logViewer.empty.paused.title');
     return undefined;
   }, [mergedTask.status, t]);
   const emptyLogHint = useMemo(() => {
     if (mergedTask.status === 'queued') return t('logViewer.empty.queued.hint');
     if (mergedTask.status === 'processing') return t('logViewer.empty.processing.hint');
-    if (mergedTask.status === 'paused') return t('logViewer.empty.paused.hint');
     return undefined;
   }, [mergedTask.status, t]);
   // Attach an entry animation class when a new task should transition into view. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123

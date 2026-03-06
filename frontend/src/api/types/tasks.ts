@@ -41,6 +41,8 @@ export interface Task {
   mrId?: number;
   issueId?: number;
   retries: number;
+  groupOrder?: number;
+  sequence?: TaskSequenceLink;
   queue?: TaskQueueDiagnosis;
   result?: TaskResult;
   // Capture dependency install results for display/diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
@@ -97,9 +99,18 @@ export interface TaskGitStatus {
   errors?: string[];
 }
 
+export interface TaskSequenceLink {
+  // Mirror backend-derived queue links so the workspace can render explicit execution connectors. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  order: number;
+  previousTaskId?: string;
+  nextTaskId?: string;
+}
+
 export interface TaskResult {
   summary?: string;
   message?: string;
+  stopReason?: 'manual_stop';
+  stopRequestedAt?: string;
   // Legacy: logs were embedded in task results before log-table paging. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   logs?: string[];
   outputText?: string;
@@ -150,7 +161,6 @@ export interface TaskStatusStats {
   total: number;
   queued: number;
   processing: number;
-  paused: number; // Surface paused task counts in UI summaries. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   success: number;
   failed: number;
 }
