@@ -1,6 +1,6 @@
 // Split TaskGroupChatPage timeline tests into a dedicated spec file. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { App as AntdApp } from 'antd';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
@@ -75,6 +75,53 @@ describe('TaskGroupChatPage timeline', () => {
     // Validate the expanded empty-group hint text for dialog-only fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     expect(screen.getByText('Start a new task below or return to the task group list.')).toBeInTheDocument();
     expect(screen.queryByText('What can I do for you?')).not.toBeInTheDocument();
+  });
+
+  test('renders enriched metadata in each task card', async () => {
+    // Verify the redesigned task card surfaces high-signal metadata (event marker/repo/robot/tokens). docs/en/developer/plans/task-group-card-modernize-20260306/task_plan.md task-group-card-modernize-20260306
+    const now = '2026-01-11T00:00:00.000Z';
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([
+      {
+        id: 't_meta',
+        eventType: 'issue',
+        issueId: 42,
+        status: 'succeeded',
+        title: 'Refactor card metadata',
+        retries: 0,
+        createdAt: now,
+        updatedAt: now,
+        repo: { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true },
+        robot: { id: 'bot1', repoId: 'r1', name: 'Robot 1', permission: 'read', modelProvider: 'codex', enabled: true }
+      } as any
+    ]);
+    vi.mocked(api.fetchTask).mockResolvedValue({
+      id: 't_meta',
+      eventType: 'issue',
+      issueId: 42,
+      status: 'succeeded',
+      title: 'Refactor card metadata',
+      retries: 0,
+      createdAt: now,
+      updatedAt: now,
+      repo: { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true },
+      robot: { id: 'bot1', repoId: 'r1', name: 'Robot 1', permission: 'read', modelProvider: 'codex', enabled: true },
+      result: { tokenUsage: { inputTokens: 1200, outputTokens: 230, totalTokens: 1430 } }
+    } as any);
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    await screen.findByText('Task ID');
+    const taskCard = document.querySelector('.hc-chat-task-card');
+    expect(taskCard).toBeTruthy();
+    const card = within(taskCard as HTMLElement);
+
+    expect(card.getByText('Refactor card metadata')).toBeInTheDocument();
+    expect(card.getByText('Task ID')).toBeInTheDocument();
+    expect(card.getByText('t_meta')).toBeInTheDocument();
+    expect(card.getByText('#42')).toBeInTheDocument();
+    expect(card.getByText('Repository')).toBeInTheDocument();
+    expect(card.getByText('Robot')).toBeInTheDocument();
+    expect(await card.findByText('Input 1,200 · Output 230 · Total 1,430')).toBeInTheDocument();
   });
 
   // Refresh chat timeline when SSE pushes a task-group update. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302

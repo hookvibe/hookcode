@@ -29,6 +29,7 @@ import {
   extractTargetLink,
   extractUser,
   extractTaskResultText,
+  extractTaskTokenUsage,
   formatRef,
   getTaskTitle,
   isTerminalStatus,
@@ -219,15 +220,8 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     return trimmed ? trimmed : '';
   }, [task?.result?.providerCommentUrl]);
 
-  const tokenUsage = useMemo(() => {
-    const raw = task?.result?.tokenUsage as any;
-    if (!raw) return null;
-    const inputTokens = typeof raw.inputTokens === 'number' && Number.isFinite(raw.inputTokens) ? raw.inputTokens : 0;
-    const outputTokens = typeof raw.outputTokens === 'number' && Number.isFinite(raw.outputTokens) ? raw.outputTokens : 0;
-    const totalTokens = typeof raw.totalTokens === 'number' && Number.isFinite(raw.totalTokens) ? raw.totalTokens : inputTokens + outputTokens;
-    if (inputTokens <= 0 && outputTokens <= 0 && totalTokens <= 0) return null;
-    return { inputTokens, outputTokens, totalTokens };
-  }, [task?.result?.tokenUsage]);
+  // Reuse shared token-usage normalization so Task Detail and Task Group cards stay aligned. docs/en/developer/plans/task-group-card-modernize-20260306/task_plan.md task-group-card-modernize-20260306
+  const tokenUsage = useMemo(() => extractTaskTokenUsage(task), [task]);
 
   const repoWorkflow = useMemo(() => {
     // Display direct-vs-fork repo workflow metadata from the agent for debugging and clarity. 24yz61mdik7tqdgaa152
