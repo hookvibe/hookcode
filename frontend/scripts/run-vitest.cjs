@@ -11,6 +11,8 @@ const child = spawn(vitestBin, defaultArgs, {
   stdio: 'inherit',
   env: {
     ...process.env,
+    // Force React to use the non-production build so `act()` works in Vitest. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+    NODE_ENV: 'test',
     VITE_CJS_IGNORE_WARNING: '1'
   }
 });

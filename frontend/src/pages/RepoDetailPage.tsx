@@ -67,6 +67,7 @@ import {
   unarchiveRepo,
   testRepoRobot,
   testRepoRobotWorkflow, // Add workflow-mode test API to validate direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+  testRepoWorkflow, // Allow workflow checks before robot save by using selected credentials. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
   updateRepo,
   updateRepoAutomation,
   updateRepoMemberRole,
@@ -95,6 +96,7 @@ import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
 import { RepoDetailDashboardSummaryStrip } from '../components/repos/RepoDetailDashboardSummaryStrip';
 import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
 import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
+import { RepoTaskGroupsCard } from '../components/repos/RepoTaskGroupsCard'; // Surface repo task groups alongside task activity in overview. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
 import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
 import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailProviderActivityRow';
 import { RepoEnvConfigPanel } from '../components/repos/RepoEnvConfigPanel'; // Render repo preview env editor panel. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
@@ -426,6 +428,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
   }, [webhookPath]);
 
   const webhookVerified = Boolean(repo?.webhookVerifiedAt);
+  const onboardingAlreadyConfigured = useMemo(() => {
+    // Avoid reopening (or flashing) the onboarding wizard once a repo already has robots/webhooks configured. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+    const hasRobots = robotsSorted.length > 0;
+    return hasRobots || Boolean(repo?.webhookVerifiedAt);
+  }, [repo?.webhookVerifiedAt, robotsSorted.length]);
 
   // Map preview config reason codes to localized helper text. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const previewConfigReasonText = useMemo(() => {
@@ -635,6 +642,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     // Keep onboarding visibility aligned with the current repo id (hash route may change without a full reload). 58w1q3n5nr58flmempxe
     setOnboardingOpen(!getOnboardingDone(repoId));
   }, [repoId]);
+
+  useEffect(() => {
+    // Auto-dismiss onboarding when the repo is already configured (robots/webhook) to avoid repeated wizard redirects. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+    if (!onboardingOpen || repoReadOnly) return;
+    if (!onboardingAlreadyConfigured) return;
+    markOnboardingDone(repoId, 'completed');
+    setOnboardingOpen(false);
+  }, [onboardingAlreadyConfigured, onboardingOpen, repoId, repoReadOnly]);
 
   useEffect(() => {
     // Business intent: hide the webhook secret after reloads or secret rotations unless the user re-opens it. (Change record: 2026-01-15)
@@ -1583,17 +1598,47 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
 
   const handleTestRobotWorkflow = useCallback(
     async () => {
-      // Validate the selected repo workflow mode using the saved robot credentials. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
+      // Validate workflow mode using either the saved robot credentials or the unsaved form draft. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
       if (!repo || repoReadOnly) return; // Block workflow checks for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-      if (!editingRobot?.id) {
-        message.warning(t('repos.robotForm.workflowMode.saveRequired'));
-        return;
-      }
       const modeRaw = robotForm.getFieldValue('repoWorkflowMode');
       const mode = modeRaw === 'direct' || modeRaw === 'fork' || modeRaw === 'auto' ? modeRaw : 'auto';
-      setRobotWorkflowTestingId(editingRobot.id);
+
+      const draftTestingKey = '__draft__';
+      const testingKey = editingRobot?.id ?? draftTestingKey;
+
+      if (!editingRobot?.id) {
+        const repoCredentialSourceRaw = robotForm.getFieldValue('repoCredentialSource');
+        const repoCredentialSource =
+          repoCredentialSourceRaw === 'robot' ? 'robot' : repoCredentialSourceRaw === 'repo' ? 'repo' : 'user';
+        const tokenRaw = robotForm.getFieldValue('token');
+        const tokenValue = typeof tokenRaw === 'string' ? tokenRaw.trim() : '';
+        if (repoCredentialSource === 'robot' && !tokenValue) {
+          message.warning(t('repos.robotForm.repoCredential.tokenRequired'));
+          return;
+        }
+      }
+
+      setRobotWorkflowTestingId(testingKey);
       try {
-        const result = await testRepoRobotWorkflow(repo.id, editingRobot.id, { mode });
+        const result = editingRobot?.id
+          ? await testRepoRobotWorkflow(repo.id, editingRobot.id, { mode })
+          : await (async () => {
+              const repoCredentialSourceRaw = robotForm.getFieldValue('repoCredentialSource');
+              const repoCredentialSource =
+                repoCredentialSourceRaw === 'robot' ? 'robot' : repoCredentialSourceRaw === 'repo' ? 'repo' : 'user';
+              const profileRaw = robotForm.getFieldValue('repoCredentialProfileId');
+              const repoCredentialProfileId =
+                typeof profileRaw === 'string' && profileRaw.trim() ? profileRaw.trim() : null;
+              const tokenRaw = robotForm.getFieldValue('token');
+              const tokenValue = typeof tokenRaw === 'string' && tokenRaw.trim() ? tokenRaw.trim() : null;
+              return testRepoWorkflow(repo.id, {
+                mode,
+                repoCredentialSource,
+                repoCredentialProfileId,
+                token: repoCredentialSource === 'robot' ? tokenValue : null,
+                permission: 'write'
+              });
+            })();
         if (result.ok) {
           message.success(t('repos.robotForm.workflowMode.checkOk'));
         } else {
@@ -1746,7 +1791,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
 	        <div className="hc-page__body">
           {repo ? (
             // Skip onboarding wizard for read-only repositories to avoid exposing edit flows. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-            onboardingOpen && !repoReadOnly ? (
+            onboardingOpen && !repoReadOnly && !onboardingAlreadyConfigured ? (
               <RepoOnboardingWizard
                 repo={repo}
                 robots={robotsSorted}
@@ -1796,6 +1841,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                       }}
                     />
                     <RepoTaskActivityCard repoId={repo.id} />
+                    <RepoTaskGroupsCard repoId={repo.id} />
                     <RepoDetailProviderActivityRow
                       repo={repo}
                       repoScopedCredentials={repoScopedCredentials}
@@ -2876,7 +2922,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                 </Form.Item>
                 <Button
                   onClick={() => void handleTestRobotWorkflow()}
-                  loading={robotWorkflowTestingId === editingRobot?.id}
+                  loading={robotWorkflowTestingId === (editingRobot?.id ?? '__draft__')}
                 >
                   {t('repos.robotForm.workflowMode.check')}
                 </Button>

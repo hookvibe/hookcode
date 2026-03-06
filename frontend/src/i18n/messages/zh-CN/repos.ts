@@ -9,6 +9,7 @@ export const zhCNRepos = {
   'repos.page.empty': '暂无仓库',
   'repos.page.meta.robots': '机器人 {{enabled}}/{{total}}',
   'repos.page.meta.triggers': '触发器 {{enabled}}/{{total}}',
+  'repos.page.meta.creator': '创建人 {{name}}', // Show repo creator on list cards. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
   'repos.form.providerRequired': '请选择平台',
   'repos.form.repoUrl': '仓库地址',
   'repos.form.repoUrlRequired': '请输入仓库地址',
@@ -123,6 +124,11 @@ export const zhCNRepos = {
   'repos.dashboard.activity.tasks.status.paused': '已暂停',
   'repos.dashboard.activity.tasks.status.success': '成功',
   'repos.dashboard.activity.tasks.status.failed': '失败',
+
+  // Repo task-group overview list card. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+  'repos.dashboard.activity.taskGroups.title': '任务组',
+  'repos.dashboard.activity.taskGroups.empty': '暂无任务组记录',
+  'repos.dashboard.activity.taskGroups.loadFailed': '加载任务组失败',
 
   // --- Repo detail (tabs) ---
   'repos.detail.tabs.basic': '基础',

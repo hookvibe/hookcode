@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { db } from '../../db';
+import type { RepoCreatorSummary } from '../../types/repository';
 import { generateToken, hashToken } from '../../utils/token';
 import { sendMail } from '../../services/mailService';
 import { UserService } from '../users/user.service';
@@ -85,6 +86,21 @@ const buildInviteLink = (params: { email: string; token: string }): string => {
 // Handle repo member CRUD + invite flows for RBAC. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
 export class RepoMemberService {
   constructor(private readonly userService: UserService) {}
+
+  async getRepoCreator(repoId: string): Promise<RepoCreatorSummary | null> {
+    // Derive the repo creator from the earliest owner membership for list-card display. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+    const row = await db.repoMember.findFirst({
+      where: { repoId, role: 'owner' },
+      orderBy: { createdAt: 'asc' },
+      include: { user: { select: { id: true, username: true, displayName: true } } }
+    });
+    if (!row) return null;
+    return {
+      userId: String(row.userId),
+      username: String(row.user.username),
+      displayName: row.user.displayName ?? undefined
+    };
+  }
 
   async listMembers(repoId: string): Promise<RepoMemberSummary[]> {
     const rows = await db.repoMember.findMany({

@@ -86,4 +86,40 @@ describe('ReposPage (frontend-chat migration)', () => {
     // Repo create should route to repo detail so onboarding shows first (no webhook modal). 58w1q3n5nr58flmempxe
     await waitFor(() => expect(window.location.hash).toBe('#/repos/r_new'));
   });
+
+  test('renders repo creator on the card and hides redundant manage action', async () => {
+    // Ensure repo list cards show the creator and rely on card click navigation (no Manage button). docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+    vi.mocked(api.listRepos).mockResolvedValueOnce({
+      repos: [
+        {
+          id: 'r1',
+          provider: 'gitlab',
+          name: 'Repo 1',
+          enabled: true,
+          createdAt: '2026-03-05T00:00:00.000Z',
+          updatedAt: '2026-03-05T00:00:00.000Z'
+        } as any
+      ],
+      nextCursor: null
+    });
+    vi.mocked(api.fetchRepo).mockResolvedValueOnce({
+      repo: {
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'Repo 1',
+        enabled: true,
+        createdAt: '2026-03-05T00:00:00.000Z',
+        updatedAt: '2026-03-05T00:00:00.000Z',
+        creator: { userId: 'u1', username: 'alice', displayName: 'Alice' }
+      } as any,
+      robots: [],
+      automationConfig: null
+    } as any);
+
+    renderPage();
+
+    expect(await screen.findByText('Repo 1')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Creator Alice')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /manage/i })).not.toBeInTheDocument();
+  });
 });

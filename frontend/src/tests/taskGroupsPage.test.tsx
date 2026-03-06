@@ -67,6 +67,23 @@ describe('TaskGroupsPage (card list)', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/task-groups/g_alpha'));
   });
 
+  test('requests repo-scoped task groups when repoId is provided', async () => {
+    // Ensure repo dashboards can reuse TaskGroupsPage with a repoId scope filter. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+    vi.mocked(api.fetchTaskGroups).mockResolvedValueOnce({ taskGroups: [] });
+
+    render(
+      <AntdApp>
+        <TaskGroupsPage repoId="repo_1" />
+      </AntdApp>
+    );
+
+    await waitFor(() =>
+      expect(api.fetchTaskGroups).toHaveBeenCalledWith(
+        expect.objectContaining({ repoId: 'repo_1' })
+      )
+    );
+  });
+
   test('loads more task groups when a nextCursor is available', async () => {
     // Verify infinite scroll pagination requests the next cursor page. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
     vi.mocked(api.fetchTaskGroups)
