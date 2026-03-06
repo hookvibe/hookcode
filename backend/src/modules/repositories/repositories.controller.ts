@@ -42,7 +42,7 @@ import { db } from '../../db';
 import { GitlabService } from '../../services/gitlabService';
 import { GithubService } from '../../services/githubService';
 import { UserService } from '../users/user.service';
-import { inferRobotRepoProviderCredentialSource, resolveRobotProviderToken } from '../../services/repoRobotAccess';
+import { inferRobotRepoProviderCredentialSource, resolveRobotProviderToken, type RepoProviderCredentialSource } from '../../services/repoRobotAccess';
 import { fetchRepoProviderActivity, RepoProviderAuthRequiredError } from '../../services/repoProviderActivity';
 import type { RepoProvider, Repository, RepositoryBranch } from '../../types/repository';
 import type { RobotDefaultBranchRole } from '../../types/repoRobot';
@@ -99,6 +99,7 @@ import {
   resolveRepoWorkflowMode
 } from '../../services/repoWorkflowMode'; // Import fork workflow helpers for controller checks. docs/en/developer/plans/repoctrlfix20260124/task_plan.md repoctrlfix20260124
 import { TestRepoRobotWorkflowDto } from './dto/test-repo-robot-workflow.dto';
+import { TestRepoWorkflowDto } from './dto/test-repo-workflow.dto';
 
 const normalizeProvider = (value: unknown): RepoProvider => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -411,9 +412,10 @@ export class RepositoriesController {
       // Use a relative webhook path; the frontend can prefix with current origin / VITE_API_BASE_URL.
       const webhookPath = `/api/webhook/${created.repo.provider}/${created.repo.id}`;
       const [decorated] = await this.attachRepoPermissions([created.repo], user);
+      const creator = authEnabled ? await this.repoMemberService.getRepoCreator(created.repo.id) : null; // Return repo creator metadata for immediate post-create routing. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
 
       return {
-        repo: decorated,
+        repo: { ...decorated, creator: creator ?? null },
         webhookSecret: created.webhookSecret,
         webhookPath
       };
@@ -450,12 +452,14 @@ export class RepositoriesController {
 
       // Parallelize repo detail hydration to reduce initial repo dashboard latency. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
       // Load repo preview env config alongside credentials for the detail response. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
-      const [robots, automationConfig, repoSecretRow, repoScopedCredentialsRow, repoPreviewEnvRow] = await Promise.all([
+      // Attach repo creator metadata so repo list cards can show "created by" without an extra members fetch. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+      const [robots, automationConfig, repoSecretRow, repoScopedCredentialsRow, repoPreviewEnvRow, creator] = await Promise.all([
         this.repoRobotService.listByRepo(repoId),
         this.repoAutomationService.getConfig(repoId),
         this.repositoryService.getByIdWithSecret(repoId),
         this.repositoryService.getRepoScopedCredentials(repoId),
-        this.repositoryService.getRepoPreviewEnvConfig(repoId)
+        this.repositoryService.getRepoPreviewEnvConfig(repoId),
+        this.repoMemberService.getRepoCreator(repoId)
       ]);
       const webhookPath = `/api/webhook/${repo.provider}/${repoId}`;
       const webhookSecret = repoSecretRow?.webhookSecret ?? null;
@@ -463,7 +467,15 @@ export class RepositoriesController {
       const previewEnvConfig = repoPreviewEnvRow?.public ?? undefined;
 
       const [decorated] = await this.attachRepoPermissions([repo], user);
-      return { repo: decorated, robots, automationConfig, webhookSecret, webhookPath, repoScopedCredentials, previewEnvConfig };
+      return {
+        repo: { ...decorated, creator: creator ?? null },
+        robots,
+        automationConfig,
+        webhookSecret,
+        webhookPath,
+        repoScopedCredentials,
+        previewEnvConfig
+      };
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[repos] get failed', err);
@@ -2134,6 +2146,195 @@ export class RepositoriesController {
       if (message.includes('repoWorkflowMode must be')) {
         throw new BadRequestException({ error: message });
       }
+      return { ok: false, mode: resolvedMode, message };
+    }
+  }
+
+  @Post(':id/workflow/test')
+  @ApiOperation({
+    summary: 'Test repository workflow (direct/fork)',
+    description: 'Validate the selected repo workflow mode using the provided credentials (no saved robot required).',
+    operationId: 'repos_test_workflow'
+  })
+  @ApiOkResponse({ description: 'OK', type: TestRobotWorkflowResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async testRepoWorkflowDraft(@Param('id') id: string, @Req() req: Request, @Body() body: TestRepoWorkflowDto) {
+    // Validate workflow mode using selected credentials so users can check before saving robots. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+    let resolvedMode: 'auto' | 'direct' | 'fork' = 'auto';
+    try {
+      const user = ensureRequestUser(req);
+      const repoId = id;
+      const repo = await this.repositoryService.getById(repoId);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoManage(user, repoId);
+      assertRepoWritable(repo); // Reject draft workflow checks for archived repos to keep archived state stable. qnp1mtxhzikhbi0xspbc
+
+      const requestedMode = body?.mode === undefined ? undefined : normalizeRepoWorkflowModeInput(body?.mode);
+      resolvedMode = resolveRepoWorkflowMode(requestedMode);
+
+      const sourceInput = body?.repoCredentialSource === undefined ? undefined : normalizeRepoCredentialSource(body?.repoCredentialSource);
+      const source: RepoProviderCredentialSource = sourceInput ?? 'auto';
+      const repoCredentialProfileId = typeof body?.repoCredentialProfileId === 'string' ? body.repoCredentialProfileId : null;
+      const tokenInput = typeof body?.token === 'string' ? body.token : null;
+
+      const permissionRaw = typeof body?.permission === 'string' ? body.permission.trim().toLowerCase() : '';
+      const permission = permissionRaw ? permissionRaw : 'write';
+      if (permission !== 'read' && permission !== 'write') {
+        throw new BadRequestException({ error: 'permission must be read/write or null' });
+      }
+
+      const userCredentials = await this.userService.getModelCredentialsRaw(user.id);
+      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+      const token = resolveRobotProviderToken({
+        provider: repo.provider,
+        robot: {
+          token: tokenInput,
+          repoCredentialSource: sourceInput ?? undefined,
+          repoCredentialProfileId
+        },
+        userCredentials,
+        repoCredentials: repoScopedCredentials?.repoProvider ?? null,
+        source
+      });
+      if (!token) {
+        throw new BadRequestException({
+          error: 'repo provider token is required for workflow test (configure per-robot, account-level, or repo-scoped credentials)'
+        });
+      }
+
+      const externalId = (repo.externalId ?? '').trim();
+      const repoIdentity = externalId || (repo.name ?? '').trim();
+      if (!repoIdentity) {
+        throw new BadRequestException({ error: 'repo identity is required for workflow test (externalId or name)' });
+      }
+
+      const apiBaseUrl = (repo.apiBaseUrl ?? '').trim() || undefined;
+
+      const pickAutoMode = (canPush: boolean): 'direct' | 'fork' => {
+        // Keep auto mode aligned with agent workflow rules for write vs read robots. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+        if (permission !== 'write') return 'direct';
+        return canPush ? 'direct' : 'fork';
+      };
+
+      if (repo.provider === 'github') {
+        const github = new GithubService({ token, apiBaseUrl });
+        let repoInfo: any;
+        if (repoIdentity.includes('/')) {
+          const [owner, repoName] = repoIdentity.split('/');
+          if (!owner || !repoName) throw new BadRequestException({ error: 'invalid github repo identity (expected owner/repo)' });
+          repoInfo = await github.getRepository(owner, repoName);
+        } else {
+          repoInfo = await github.getRepositoryById(repoIdentity);
+        }
+
+        const perms = (repoInfo as any)?.permissions ?? null;
+        const canPush = Boolean(perms?.admin || perms?.maintain || perms?.push);
+        const finalMode = resolvedMode === 'auto' ? pickAutoMode(canPush) : resolvedMode;
+        resolvedMode = finalMode;
+
+        if (finalMode === 'direct') {
+          if (permission === 'write' && !canPush) {
+            void this.logWriter.logOperation({
+              level: 'info',
+              message: 'Repo workflow check failed',
+              code: 'REPO_WORKFLOW_CHECK_FAILED',
+              actorUserId: user.id,
+              repoId,
+              meta: { provider: 'github', mode: finalMode, credentialSource: sourceInput ?? null, repoCredentialProfileId }
+            });
+            return { ok: false, mode: finalMode, message: 'token lacks upstream push permission for direct workflow' };
+          }
+          void this.logWriter.logOperation({
+            level: 'info',
+            message: 'Repo workflow check passed',
+            code: 'REPO_WORKFLOW_CHECK_OK',
+            actorUserId: user.id,
+            repoId,
+            meta: { provider: 'github', mode: finalMode, credentialSource: sourceInput ?? null, repoCredentialProfileId }
+          });
+          return { ok: true, mode: finalMode, message: 'direct workflow check ok' };
+        }
+
+        const fullName = String((repoInfo as any)?.full_name ?? '').trim();
+        const [owner, repoName] = fullName.includes('/') ? fullName.split('/') : repoIdentity.split('/');
+        if (!owner || !repoName) throw new BadRequestException({ error: 'github repo identity is missing for fork workflow' });
+        await ensureGithubForkRepo({ github, upstream: { owner, repo: repoName } });
+        void this.logWriter.logOperation({
+          level: 'info',
+          message: 'Repo workflow check passed',
+          code: 'REPO_WORKFLOW_CHECK_OK',
+          actorUserId: user.id,
+          repoId,
+          meta: { provider: 'github', mode: finalMode, credentialSource: sourceInput ?? null, repoCredentialProfileId }
+        });
+        return { ok: true, mode: finalMode, message: 'fork workflow check ok' };
+      }
+
+      if (repo.provider === 'gitlab') {
+        const gitlab = new GitlabService({ token, baseUrl: apiBaseUrl });
+        const project = await gitlab.getProject(repoIdentity);
+        const me = await gitlab.getCurrentUser();
+        const member = await gitlab.getProjectMember(project.id, me.id);
+
+        const accessLevel = typeof (member as any)?.access_level === 'number' ? (member as any).access_level : -1;
+        const canPush = accessLevel >= 30;
+        const finalMode = resolvedMode === 'auto' ? pickAutoMode(canPush) : resolvedMode;
+        resolvedMode = finalMode;
+
+        if (finalMode === 'direct') {
+          if (permission === 'write' && !canPush) {
+            void this.logWriter.logOperation({
+              level: 'info',
+              message: 'Repo workflow check failed',
+              code: 'REPO_WORKFLOW_CHECK_FAILED',
+              actorUserId: user.id,
+              repoId,
+              meta: { provider: 'gitlab', mode: finalMode, credentialSource: sourceInput ?? null, repoCredentialProfileId }
+            });
+            return { ok: false, mode: finalMode, message: 'token lacks upstream push permission for direct workflow' };
+          }
+          void this.logWriter.logOperation({
+            level: 'info',
+            message: 'Repo workflow check passed',
+            code: 'REPO_WORKFLOW_CHECK_OK',
+            actorUserId: user.id,
+            repoId,
+            meta: { provider: 'gitlab', mode: finalMode, credentialSource: sourceInput ?? null, repoCredentialProfileId }
+          });
+          return { ok: true, mode: finalMode, message: 'direct workflow check ok' };
+        }
+
+        await ensureGitlabForkProject({ gitlab, upstreamProject: project.id });
+        void this.logWriter.logOperation({
+          level: 'info',
+          message: 'Repo workflow check passed',
+          code: 'REPO_WORKFLOW_CHECK_OK',
+          actorUserId: user.id,
+          repoId,
+          meta: { provider: 'gitlab', mode: finalMode, credentialSource: sourceInput ?? null, repoCredentialProfileId }
+        });
+        return { ok: true, mode: finalMode, message: 'fork workflow check ok' };
+      }
+
+      throw new BadRequestException({ error: `unsupported provider: ${repo.provider}` });
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      const message = err?.message ? String(err.message) : 'repo workflow test failed';
+      if (message.includes('repoWorkflowMode must be')) {
+        throw new BadRequestException({ error: message });
+      }
+      void this.logWriter.logOperation({
+        level: 'warn',
+        message: 'Repo workflow check errored',
+        code: 'REPO_WORKFLOW_CHECK_ERROR',
+        actorUserId: ensureRequestUser(req).id,
+        repoId: id,
+        meta: { mode: resolvedMode, detail: message }
+      });
       return { ok: false, mode: resolvedMode, message };
     }
   }

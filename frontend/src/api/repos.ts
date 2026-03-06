@@ -343,6 +343,24 @@ export const testRepoRobotWorkflow = async (
   return data;
 };
 
+// Trigger a workflow check without saving a robot by using the currently selected credentials. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+export const testRepoWorkflow = async (
+  repoId: string,
+  params?: {
+    mode?: 'auto' | 'direct' | 'fork' | null;
+    repoCredentialSource?: 'robot' | 'user' | 'repo' | null;
+    repoCredentialProfileId?: string | null;
+    token?: string | null;
+    permission?: 'read' | 'write' | null;
+  }
+): Promise<{ ok: boolean; mode: 'auto' | 'direct' | 'fork'; message?: string }> => {
+  const { data } = await api.post<{ ok: boolean; mode: 'auto' | 'direct' | 'fork'; message?: string }>(
+    `/repos/${repoId}/workflow/test`,
+    params
+  );
+  return data;
+};
+
 export const deleteRepoRobot = async (repoId: string, robotId: string): Promise<void> => {
   await api.delete(`/repos/${repoId}/robots/${robotId}`);
   // Refresh repo caches after robot deletion to avoid stale robot summaries. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128

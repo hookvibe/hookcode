@@ -12,6 +12,12 @@ import type {
 export type RepoProvider = 'gitlab' | 'github';
 export type RepoRole = 'owner' | 'maintainer' | 'member';
 
+export interface RepoCreatorSummary {
+  userId: string;
+  username: string;
+  displayName?: string;
+} // Show repo creator metadata on repo cards and dashboards. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+
 export interface RepoPermissions {
   canRead: boolean;
   canManage: boolean;
@@ -40,6 +46,7 @@ export interface Repository {
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
+  creator?: RepoCreatorSummary | null;
   // Include RBAC context for repo pages. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
   myRole?: RepoRole | null;
   permissions?: RepoPermissions;

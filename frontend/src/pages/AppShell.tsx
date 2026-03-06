@@ -220,7 +220,8 @@ export const AppShell: FC<AppShellProps> = ({
         {route.page === 'tasks' ? (
           <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} navToggle={navToggle} />
         ) : null}
-        {route.page === 'taskGroups' ? <TaskGroupsPage userPanel={userPanel} navToggle={navToggle} /> : null}
+        {/* Pass optional repo scope so repo dashboards can link to filtered task-group lists. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5 */}
+        {route.page === 'taskGroups' ? <TaskGroupsPage repoId={route.taskGroupsRepoId} userPanel={userPanel} navToggle={navToggle} /> : null}
         {route.page === 'task' && route.taskId ? (
           <TaskDetailPage taskId={route.taskId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} navToggle={navToggle} />
         ) : null}

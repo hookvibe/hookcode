@@ -9,6 +9,7 @@ export const enUSRepos = {
   'repos.page.empty': 'No repositories',
   'repos.page.meta.robots': 'Robots {{enabled}}/{{total}}',
   'repos.page.meta.triggers': 'Triggers {{enabled}}/{{total}}',
+  'repos.page.meta.creator': 'Creator {{name}}', // Show repo creator on list cards. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
   'repos.form.providerRequired': 'Please select a platform',
   'repos.form.repoUrl': 'Repository URL',
   'repos.form.repoUrlRequired': 'Please enter repository URL',
@@ -124,6 +125,11 @@ export const enUSRepos = {
   'repos.dashboard.activity.tasks.status.paused': 'Paused',
   'repos.dashboard.activity.tasks.status.success': 'Success',
   'repos.dashboard.activity.tasks.status.failed': 'Failed',
+
+  // Repo task-group overview list card. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+  'repos.dashboard.activity.taskGroups.title': 'Task groups',
+  'repos.dashboard.activity.taskGroups.empty': 'No task groups yet',
+  'repos.dashboard.activity.taskGroups.loadFailed': 'Failed to load task groups',
 
   // --- Repo detail (tabs) ---
   'repos.detail.tabs.basic': 'Basic',

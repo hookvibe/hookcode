@@ -1,6 +1,6 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { App, Button, Card, Empty, Form, Input, Modal, Select, Space, Tag, Typography } from 'antd';
-import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import { App, Button, Empty, Form, Input, Modal, Select, Space, Tag, Typography } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import type { RepoAutomationConfig, RepoProvider, Repository } from '../api';
 import { createRepo, fetchRepo, listRepos } from '../api';
 import { useLocale, useT } from '../i18n';
@@ -29,7 +29,14 @@ const REPOS_PAGE_SIZE = 30; // Keep repo list pages lightweight for infinite scr
 
 type RepoSummary =
   | { loading: true }
-  | { loading: false; robotsTotal: number; robotsEnabled: number; triggersTotal: number; triggersEnabled: number }
+  | {
+      loading: false;
+      robotsTotal: number;
+      robotsEnabled: number;
+      triggersTotal: number;
+      triggersEnabled: number;
+      creatorName: string | null;
+    } // Include creator name so repo cards can show who created the repo. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
   | { loading: false; error: true };
 
 const summarizeAutomation = (config?: RepoAutomationConfig | null) => {
@@ -146,9 +153,12 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel, navToggle }) => {
             const robotsTotal = detail.robots?.length ?? 0;
             const robotsEnabled = (detail.robots ?? []).filter((r) => Boolean(r?.enabled)).length;
             const { triggersTotal, triggersEnabled } = summarizeAutomation(detail.automationConfig);
+            const creatorNameRaw =
+              detail.repo?.creator?.displayName || detail.repo?.creator?.username || detail.repo?.creator?.userId || '';
+            const creatorName = creatorNameRaw.trim() ? creatorNameRaw.trim() : null;
             setRepoSummaryById((prev) => ({
               ...prev,
-              [id]: { loading: false, robotsTotal, robotsEnabled, triggersTotal, triggersEnabled }
+              [id]: { loading: false, robotsTotal, robotsEnabled, triggersTotal, triggersEnabled, creatorName }
             }));
           } catch (err) {
             console.error('[repos] load summary failed', err);
@@ -230,6 +240,12 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel, navToggle }) => {
                     : 'error' in summary
                       ? '—'
                       : t('repos.page.meta.triggers', { enabled: summary.triggersEnabled, total: summary.triggersTotal });
+                const creatorText =
+                  !summary || summary.loading
+                    ? '…'
+                    : 'error' in summary
+                      ? '—'
+                      : t('repos.page.meta.creator', { name: summary.creatorName || '—' });
 
                 return (
                   <div
@@ -273,23 +289,12 @@ export const ReposPage: FC<ReposPageProps> = ({ userPanel, navToggle }) => {
                     <div className="hc-modern-card__meta-item">
                       <Tag color="purple" style={{ margin: 0 }}>{triggersText}</Tag>
                     </div>
+                    <div className="hc-modern-card__meta-item">
+                      <Tag style={{ margin: 0 }}>{creatorText}</Tag>
+                    </div>
                     <div className="hc-modern-card__meta-item" style={{ marginLeft: 'auto' }}>
                       {formatTime(repo.updatedAt)}
                     </div>
-                  </div>
-
-                  <div className="hc-modern-card__actions">
-                    <Button
-                      size="small"
-                      icon={<SettingOutlined />}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        openRepo(repo);
-                      }}
-                    >
-                      {t('common.manage')}
-                    </Button>
                   </div>
                 </div>
                 );

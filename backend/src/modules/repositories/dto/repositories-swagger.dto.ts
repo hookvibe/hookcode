@@ -35,6 +35,17 @@ export class RepoPermissionsSwaggerDto {
   canManageTasks!: boolean;
 }
 
+export class RepoCreatorSwaggerDto {
+  @ApiProperty()
+  userId!: string;
+
+  @ApiProperty()
+  username!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  displayName?: string | null;
+} // Expose repo creator metadata for repo list cards. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+
 export class RepositorySwaggerDto {
   @ApiProperty()
   id!: string;
@@ -72,6 +83,9 @@ export class RepositorySwaggerDto {
 
   @ApiProperty({ format: 'date-time' })
   updatedAt!: string;
+
+  @ApiPropertyOptional({ type: RepoCreatorSwaggerDto, nullable: true })
+  creator?: RepoCreatorSwaggerDto | null;
 
   @ApiPropertyOptional({ enum: ['owner', 'maintainer', 'member'], nullable: true })
   myRole?: 'owner' | 'maintainer' | 'member' | null;

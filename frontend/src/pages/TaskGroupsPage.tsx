@@ -1,13 +1,14 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { App, Button, Card, Empty, Input, Space, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import type { TaskGroup, TaskGroupKind } from '../api';
+import type { TaskGroup } from '../api';
 import { fetchTaskGroups } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildTaskGroupHash } from '../router';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { getTaskGroupKindColor, getTaskGroupKindLabel, getTaskGroupTitle } from '../utils/taskGroup'; // Share task-group label helpers across list and dashboards. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
 
 /**
  * TaskGroupsPage:
@@ -18,50 +19,15 @@ import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
  * - 2026-01-28: Added taskgroup card list page for quick navigation. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
  */
 
-const getKindLabel = (t: ReturnType<typeof useT>, kind: TaskGroupKind): string => {
-  // Normalize task group kind labels for the card list. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
-  switch (kind) {
-    case 'chat':
-      return t('task.event.chat');
-    case 'issue':
-      return t('task.event.issue');
-    case 'merge_request':
-      return t('task.event.merge_request');
-    case 'commit':
-      return t('task.event.commit');
-    case 'task':
-      return t('taskGroups.kind.task');
-    default:
-      return t('taskGroups.kind.unknown');
-  }
-};
-
-const getKindColor = (kind: TaskGroupKind): string | undefined => {
-  // Apply consistent tag colors per task group kind for faster scanning. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
-  switch (kind) {
-    case 'chat':
-      return 'geekblue';
-    case 'issue':
-      return 'gold';
-    case 'merge_request':
-      return 'purple';
-    case 'commit':
-      return 'cyan';
-    case 'task':
-      return 'green';
-    default:
-      return undefined;
-  }
-};
-
 export interface TaskGroupsPageProps {
+  repoId?: string; // Support repo-scoped task-group lists (e.g. from repo dashboards). docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
   userPanel?: ReactNode;
   navToggle?: PageNavMenuAction;
 }
 
 const TASK_GROUPS_PAGE_SIZE = 50; // Keep task-group pagination aligned with existing list limits. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 
-export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel, navToggle }) => {
+export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ repoId, userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
@@ -73,6 +39,12 @@ export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel, navToggle }
   const [loadingMore, setLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
+  const repoIdFilter = useMemo(() => {
+    // Keep Task Groups compatible with both global and repo-scoped entry points. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+    const trimmed = String(repoId ?? '').trim();
+    return trimmed || undefined;
+  }, [repoId]);
+
   const fetchPage = useCallback(
     async (options: { cursor?: string; append: boolean }) => {
       // Fetch task groups for the card list page without blocking UI interactions. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
@@ -82,8 +54,9 @@ export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel, navToggle }
         setLoading(true);
       }
       try {
-        const params: { limit: number; cursor?: string } = { limit: TASK_GROUPS_PAGE_SIZE };
+        const params: { limit: number; cursor?: string; repoId?: string } = { limit: TASK_GROUPS_PAGE_SIZE };
         if (options.cursor) params.cursor = options.cursor;
+        if (repoIdFilter) params.repoId = repoIdFilter;
         const { taskGroups, nextCursor: cursor } = await fetchTaskGroups(params);
         setGroups((prev) => (options.append ? [...prev, ...taskGroups] : taskGroups));
         setNextCursor(cursor ?? null);
@@ -102,7 +75,7 @@ export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel, navToggle }
         }
       }
     },
-    [message, t]
+    [message, repoIdFilter, t]
   );
 
   const refresh = useCallback(async () => {
@@ -182,9 +155,9 @@ export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel, navToggle }
         {filtered.length ? (
           <div className="hc-card-list">
             {/* Switch taskgroup list to a responsive grid with segmented card sections. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw */}
-            <div className="hc-card-grid">
-              {filtered.map((group) => {
-                const title = String(group.title ?? '').trim() || group.bindingKey || group.id;
+              <div className="hc-card-grid">
+                {filtered.map((group) => {
+                const title = getTaskGroupTitle(group);
                 const repoName = group.repo?.name ?? group.repoId ?? '-';
                 const provider = group.repo?.provider ?? group.repoProvider;
                 const providerLabel = provider === 'github' ? 'GitHub' : provider === 'gitlab' ? 'GitLab' : '';
@@ -208,7 +181,7 @@ export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ userPanel, navToggle }
                             {title}
                           </Typography.Text>
                           <Space size={6} wrap>
-                            <Tag color={getKindColor(group.kind)}>{getKindLabel(t, group.kind)}</Tag>
+                            <Tag color={getTaskGroupKindColor(group.kind)}>{getTaskGroupKindLabel(t, group.kind)}</Tag>
                             {providerLabel ? <Tag color="geekblue">{providerLabel}</Tag> : null}
                           </Space>
                         </Space>
