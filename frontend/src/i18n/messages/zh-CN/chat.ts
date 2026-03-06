@@ -34,6 +34,13 @@ export const zhCNChat = {
   'chat.message.userTextFallback': '（无用户输入）',
   'chat.message.openTask': '查看任务',
   'chat.message.resultEmpty': '暂无输出',
+  // Add manual task chain loading button for failed/slow log loads. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  'chat.loadPreviousTask': '加载上一个任务',
+  // Add progress indicator for task chain loading. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  'chat.progress.loadedTasks': '已加载 {{loaded}} / {{total}} 个任务',
+  // Add collapsible logs to prevent blocking task navigation. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  'chat.logs.expand': '显示日志',
+  'chat.logs.collapse': '隐藏日志',
   'chat.think.expand': '展开思维链',
   'chat.think.collapse': '收起思维链',
   // Preview panel labels align with the merged start-and-open control. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -159,6 +166,8 @@ export const zhCNChat = {
   'logViewer.clearNotAllowed': '无权限清空日志',
   'logViewer.clearSuccess': '日志已清空',
   'logViewer.clearFailed': '清空日志失败',
+  // Add loading indicator label for log pagination. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  'logViewer.loading': '加载中…',
 
   // --- Agent Chat (static demo) ---
   'agentChat.brand': 'HookCode',

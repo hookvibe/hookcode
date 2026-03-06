@@ -1,6 +1,6 @@
-import { FC, useMemo } from 'react';
+import { FC, useMemo, useState } from 'react';
 import { Alert, Button, Card, Space, Typography } from 'antd';
-import { FileTextOutlined } from '@ant-design/icons';
+import { FileTextOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
 import type { Task } from '../../api';
 import { useT } from '../../i18n';
 import { MarkdownViewer } from '../MarkdownViewer';
@@ -56,6 +56,8 @@ export const TaskConversationItem: FC<Props> = ({
   entering
 }) => {
   const t = useT();
+  // Add collapsible log state to prevent long logs from blocking task navigation. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  const [logsExpanded, setLogsExpanded] = useState(false);
 
   const mergedTask = taskDetail ?? task;
   const effectiveTaskLogsEnabled = taskLogsEnabled === undefined ? true : taskLogsEnabled; // Keep chat UI consistent with backend log feature gating to avoid confusing errors. 0nazpc53wnvljv5yh7c6
@@ -122,29 +124,46 @@ export const TaskConversationItem: FC<Props> = ({
 
       {/* 3) Dialog-style execution logs (non-bubble work area). docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
       <div className="hc-chat-item__assistant hc-chat-item__assistant_margin">
-          {/* Always render the dialog-style logs inline to keep TaskGroup parity with Task Detail. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
-          {/* Guard SSE logs viewer when backend task logs are disabled. 0nazpc53wnvljv5yh7c6 */}
-          {effectiveTaskLogsEnabled === false ? (
-            <Alert type="info" showIcon message={t('logViewer.disabled')} />
-          ) : effectiveTaskLogsEnabled === null ? (
-            <>
-              {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
-              <LogViewerSkeleton lines={8} ariaLabel={t('common.loading')} />
-            </>
-          ) : (
-            <TaskLogViewer
-              taskId={task.id}
-              canManage={Boolean(task.permissions?.canManage)}
-              tail={400}
-              variant="flat"
-              emptyMessage={emptyLogMessage}
-              emptyHint={emptyLogHint}
-              // Bubble task-level paging status/events to TaskGroupChatPage for chained loading. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
-              onHistoryExhaustedChange={(exhausted) => onLogHistoryExhaustedChange?.(task.id, exhausted)}
-              onLoadingEarlierChange={(loading) => onLogLoadingEarlierChange?.(task.id, loading)}
-              loadEarlierSignal={logLoadEarlierSignal}
-            />
-          )}
+        {/* Add collapse/expand button for logs to prevent blocking task navigation. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */}
+        {effectiveTaskLogsEnabled !== false && effectiveTaskLogsEnabled !== null && (
+          <Button
+            size="small"
+            type="default"
+            icon={logsExpanded ? <UpOutlined /> : <DownOutlined />}
+            onClick={() => setLogsExpanded(!logsExpanded)}
+            className="hc-chat-logs-toggle"
+          >
+            {logsExpanded ? t('chat.logs.collapse') : t('chat.logs.expand')}
+          </Button>
+        )}
+
+        {logsExpanded && (
+          <div className="hc-chat-logs-container">
+            {/* Always render the dialog-style logs inline to keep TaskGroup parity with Task Detail. docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
+            {/* Guard SSE logs viewer when backend task logs are disabled. 0nazpc53wnvljv5yh7c6 */}
+            {effectiveTaskLogsEnabled === false ? (
+              <Alert type="info" showIcon message={t('logViewer.disabled')} />
+            ) : effectiveTaskLogsEnabled === null ? (
+              <>
+                {/* Show a log-shaped skeleton while the logs feature gate is still loading. ro3ln7zex8d0wyynfj0m */}
+                <LogViewerSkeleton lines={8} ariaLabel={t('common.loading')} />
+              </>
+            ) : (
+              <TaskLogViewer
+                taskId={task.id}
+                canManage={Boolean(task.permissions?.canManage)}
+                tail={400}
+                variant="flat"
+                emptyMessage={emptyLogMessage}
+                emptyHint={emptyLogHint}
+                // Bubble task-level paging status/events to TaskGroupChatPage for chained loading. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+                onHistoryExhaustedChange={(exhausted) => onLogHistoryExhaustedChange?.(task.id, exhausted)}
+                onLoadingEarlierChange={(loading) => onLogLoadingEarlierChange?.(task.id, loading)}
+                loadEarlierSignal={logLoadEarlierSignal}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* 4) Final text output Remove it for now. */}

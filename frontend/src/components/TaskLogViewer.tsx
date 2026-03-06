@@ -1,4 +1,5 @@
 import { FC, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { List } from 'react-window'; // Add virtual scrolling for long log lists. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
 import { clearTaskLogs, fetchTaskLogsPage } from '../api';
 import { useT } from '../i18n';
 import { createAuthedEventSource } from '../utils/sse';
@@ -9,6 +10,7 @@ import { TaskLogViewerHeader } from './taskLogViewer/TaskLogViewerHeader';
 import { MAX_LOG_LINES } from './taskLogViewer/constants';
 import { timelineReducer, type ViewerMode } from './taskLogViewer/timeline';
 import type { StreamInitPayload, StreamLogPayload } from './taskLogViewer/types';
+import { LogViewerSkeleton } from './skeletons/LogViewerSkeleton'; // Show skeleton during initial log load. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
 
 interface Props {
   taskId: string;
@@ -458,6 +460,44 @@ export const TaskLogViewer: FC<Props> = ({
   const resolvedEmptyMessage = emptyMessage ?? t('logViewer.empty');
   const canLoadEarlier = Boolean(nextBefore);
 
+  // Show skeleton loader during initial connection to prevent layout shift. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  if (connecting && !logs.length && !error) {
+    return (
+      <div className="log-viewer" ref={rootRef}>
+        {variant === 'panel' && (
+          <TaskLogViewerHeader
+            t={t}
+            connecting={connecting}
+            error={null}
+            logsCount={0}
+            showLoadEarlier={false}
+            loadingEarlier={false}
+            onLoadEarlier={() => {}}
+            showPauseButton={showPauseButton}
+            showReconnectButton={showReconnectButton}
+            paused={paused}
+            onTogglePaused={() => setPaused(!paused)}
+            onReconnect={() => setSession((v) => v + 1)}
+            mode={mode}
+            onToggleMode={() => setMode((v) => (v === 'timeline' ? 'raw' : 'timeline'))}
+            showReasoning={showReasoning}
+            onToggleShowReasoning={setShowReasoning}
+            wrapDiffLines={wrapDiffLines}
+            onToggleWrapDiffLines={setWrapDiffLines}
+            showLineNumbers={showLineNumbers}
+            onToggleShowLineNumbers={setShowLineNumbers}
+            onCopy={() => void copyAll()}
+            onClear={() => void clear()}
+            clearing={clearing}
+          />
+        )}
+        <div className="log-viewer__body">
+          <LogViewerSkeleton lines={8} ariaLabel={t('logViewer.loading')} />
+        </div>
+      </div>
+    );
+  }
+
   if (variant === 'flat') {
     return (
       <TaskLogViewerFlat
@@ -511,19 +551,38 @@ export const TaskLogViewer: FC<Props> = ({
         <div className="log-error">
            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
            <span>{error}</span>
+           {/* Add retry button for failed log connections. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */}
+           <button className="log-btn log-btn--small" onClick={() => setSession((v) => v + 1)} style={{ marginLeft: 'auto' }}>
+             {t('logViewer.actions.reconnect')}
+           </button>
         </div>
       ) : null}
 
       <div className="log-viewer__body">
         {mode === 'raw' ? (
           logs.length ? (
-            <pre className="log-viewer__pre">
-              {logs.map((line, idx) => (
-                <div key={idx} id={buildLineId(idx)}>
-                  {line}
-                </div>
-              ))}
-            </pre>
+            // Use virtual scrolling for long log lists to prevent render lag. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+            logs.length > 100 ? (
+              <List
+                height={600}
+                rowCount={logs.length}
+                rowHeight={20}
+                rowComponent={({ index, style }) => (
+                  <div style={style} id={buildLineId(index)} className="log-viewer__virtual-line">
+                    {logs[index]}
+                  </div>
+                )}
+                rowProps={{}}
+              />
+            ) : (
+              <pre className="log-viewer__pre">
+                {logs.map((line, idx) => (
+                  <div key={idx} id={buildLineId(idx)}>
+                    {line}
+                  </div>
+                ))}
+              </pre>
+            )
           ) : (
             <div className="log-viewer__empty">
               <span className="text-secondary">{resolvedEmptyMessage}</span>

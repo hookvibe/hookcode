@@ -1643,6 +1643,22 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     }
   }, [loadOlderTasks]);
 
+  useEffect(() => {
+    // Debounce scroll events to reduce handler overhead. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+    const container = chatBodyRef.current;
+    if (!container) return;
+    let timeoutId: number | null = null;
+    const debouncedScroll = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => handleChatScroll(), 100);
+    };
+    container.addEventListener('scroll', debouncedScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', debouncedScroll);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [handleChatScroll]);
+
   useLayoutEffect(() => {
     // Preserve scroll position when the chain loader prepends an older task above the viewport. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     const container = chatBodyRef.current;
@@ -1925,9 +1941,17 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       <PageNav
         title={taskGroupId ? groupTitle || t('chat.page.groupTitleFallback') : t('chat.page.newGroupTitle')}
         meta={
-          <Typography.Text type="secondary">
-            {taskGroupId ? `${t('chat.page.updatedAt')}: ${groupUpdatedAtText || '-'}` : t('chat.page.newGroupHint')}
-          </Typography.Text>
+          <>
+            <Typography.Text type="secondary">
+              {taskGroupId ? `${t('chat.page.updatedAt')}: ${groupUpdatedAtText || '-'}` : t('chat.page.newGroupHint')}
+            </Typography.Text>
+            {/* Show task loading progress when older tasks are hidden. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */}
+            {taskGroupId && hasOlderHiddenTask && (
+              <Typography.Text type="secondary" style={{ marginLeft: 12, fontSize: 12, opacity: 0.8 }}>
+                • {t('chat.progress.loadedTasks', { loaded: visibleTasks.length, total: orderedTasks.length })}
+              </Typography.Text>
+            )}
+          </>
         }
         actions={
           <Space>
@@ -1965,7 +1989,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         ref={layoutRef}
       >
         <div className="hc-chat-panel">
-          <div className="hc-chat-body" ref={chatBodyRef} onScroll={handleChatScroll}>
+          <div className="hc-chat-body" ref={chatBodyRef}>
             {isGroupBlocking ? (
               // Render skeleton chat items while the active task group is blocking on data. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
               <ChatTimelineSkeleton testId="hc-chat-group-skeleton" ariaLabel={t('common.loading')} />
@@ -2001,21 +2025,49 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                   </div>
                 ) : (
                   // Animate the most recent message to create a smooth transition into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-                  visibleTasks.map((task) => (
-                    <TaskConversationItem
-                      key={task.id}
-                      task={task}
-                      entering={task.id === recentTaskId}
-                      taskDetail={taskDetailsById[task.id] ?? null}
-                      onOpenTask={openTask}
-                      taskLogsEnabled={effectiveTaskLogsEnabled}
-                      onSuggestionClick={handleSuggestionClick}
-                      // Wire task-log paging events into TaskGroup chain scrolling so logs are loaded task-by-task. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
-                      onLogHistoryExhaustedChange={handleTaskLogHistoryExhaustedChange}
-                      onLogLoadingEarlierChange={handleTaskLogLoadingEarlierChange}
-                      logLoadEarlierSignal={taskLogLoadSignalById[task.id] ?? 0}
-                    />
-                  ))
+                  <>
+                    {/* Show manual "Load previous task" button when older tasks are hidden. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */}
+                    {hasOlderHiddenTask && (
+                      <div style={{ padding: '24px 16px', textAlign: 'center', borderBottom: '1px solid var(--hc-border)' }}>
+                        <Button
+                          type="dashed"
+                          onClick={() => {
+                            if (chatPrependInFlightRef.current) return;
+                            const nextTask = orderedTasks[visibleTaskStartIndex - 1];
+                            if (!nextTask) return;
+                            const container = chatBodyRef.current;
+                            if (container) {
+                              chatPrependInFlightRef.current = true;
+                              chatPrependScrollRestoreRef.current = { scrollTop: container.scrollTop, scrollHeight: container.scrollHeight };
+                            }
+                            setOldestVisibleTaskId(nextTask.id);
+                          }}
+                          loading={chatPrependInFlightRef.current}
+                          style={{ minWidth: 160 }}
+                        >
+                          {t('chat.loadPreviousTask')}
+                        </Button>
+                        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                          {t('chat.progress.loadedTasks', { loaded: visibleTasks.length, total: orderedTasks.length })}
+                        </Typography.Text>
+                      </div>
+                    )}
+                    {visibleTasks.map((task) => (
+                      <TaskConversationItem
+                        key={task.id}
+                        task={task}
+                        entering={task.id === recentTaskId}
+                        taskDetail={taskDetailsById[task.id] ?? null}
+                        onOpenTask={openTask}
+                        taskLogsEnabled={effectiveTaskLogsEnabled}
+                        onSuggestionClick={handleSuggestionClick}
+                        // Wire task-log paging events into TaskGroup chain scrolling so logs are loaded task-by-task. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+                        onLogHistoryExhaustedChange={handleTaskLogHistoryExhaustedChange}
+                        onLogLoadingEarlierChange={handleTaskLogLoadingEarlierChange}
+                        logLoadEarlierSignal={taskLogLoadSignalById[task.id] ?? 0}
+                      />
+                    ))}
+                  </>
                 )}
               </div>
             )}

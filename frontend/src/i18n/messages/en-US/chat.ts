@@ -34,6 +34,13 @@ export const enUSChat = {
   'chat.message.userTextFallback': '(No user input)',
   'chat.message.openTask': 'Open task',
   'chat.message.resultEmpty': 'No output',
+  // Add manual task chain loading button for failed/slow log loads. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  'chat.loadPreviousTask': 'Load previous task',
+  // Add progress indicator for task chain loading. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  'chat.progress.loadedTasks': 'Loaded {{loaded}} / {{total}} tasks',
+  // Add collapsible logs to prevent blocking task navigation. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  'chat.logs.expand': 'Show logs',
+  'chat.logs.collapse': 'Hide logs',
   'chat.think.expand': 'Expand thought chain',
   'chat.think.collapse': 'Collapse thought chain',
   // Preview panel labels align with the merged start-and-open control. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -159,6 +166,8 @@ export const enUSChat = {
   'logViewer.clearNotAllowed': 'Not allowed to clear logs',
   'logViewer.clearSuccess': 'Logs cleared',
   'logViewer.clearFailed': 'Failed to clear logs',
+  // Add loading indicator label for log pagination. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  'logViewer.loading': 'Loading…',
 
   // --- Agent Chat (static demo) ---
   'agentChat.brand': 'HookCode',

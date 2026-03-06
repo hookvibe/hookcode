@@ -19,7 +19,7 @@
   padding: 18px 0 24px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 0;
   /* Align timeline width with composer for visual consistency. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
   max-width: 800px;
   margin: 0 auto;
@@ -47,6 +47,14 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Add visual separation between task items for better readability. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-chat-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 /* Animate newly sent chat items as they settle into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */
@@ -83,6 +91,7 @@
 
 .hc-chat-item__assistant_margin {
   margin-top: 10px;
+  flex-direction: column;
 }
 
 .hc-chat-bubble {
@@ -203,13 +212,41 @@
   font-size: 12px;
   color: var(--hc-text-secondary);
 }
+
+/* Style the log expand/collapse toggle button for better visibility. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */
+.hc-chat-logs-toggle {
+  width: 100%;
+  text-align: left;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.hc-chat-logs-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Add visual container around expanded logs for better visual separation. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */
+.hc-chat-logs-container {
+  margin-top: 6px;
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+}
 /* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */
 
 /* Tighten timeline/composer padding on mobile to avoid wasted space. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */
 @media (max-width: 768px) {
   .hc-chat-timeline {
     padding: 12px 0 16px;
-    gap: 14px;
+    gap: 0;
+  }
+
+  .hc-chat-item {
+    padding-bottom: 14px;
   }
 
   .hc-chat-composer {
