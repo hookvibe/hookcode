@@ -724,6 +724,17 @@ export const buildGitProxyFlags = (): string => {
   return `-c http.proxy=${shDoubleQuote(proxy)} -c https.proxy=${shDoubleQuote(proxy)}`;
 };
 
+const GIT_TRANSIENT_NETWORK_ERROR_PATTERN =
+  /(openssl ssl_read|unexpected eof while reading|recv failure: connection reset by peer|rpc failed; curl|http\/2 stream|gnutls_handshake|failed to connect|connection timed out|operation timed out|connection reset by peer|could not resolve host|tlsv1 alert)/i;
+
+const isRetryableGitTransportError = (message: string): boolean => {
+  // Detect transient git transport errors so clone can retry with safer HTTP transport settings. docs/en/developer/plans/gitclone128-20260304/task_plan.md gitclone128-20260304
+  return GIT_TRANSIENT_NETWORK_ERROR_PATTERN.test(message);
+};
+
+// Export transport-error matcher for unit tests around git clone fallback behavior. docs/en/developer/plans/gitclone128-20260304/task_plan.md gitclone128-20260304
+export const __test__isRetryableGitTransportError = (message: string): boolean => isRetryableGitTransportError(message);
+
 /**
  * Configure repo-local git proxy settings to override user's global ~/.gitconfig.
  *
@@ -1308,6 +1319,22 @@ async function callAgent(
 
     const cloneRepo = async () => {
       const injected = upstreamInjected;
+      const runCloneCommand = async (params: { branch?: string; forceHttp11?: boolean }) => {
+        const gitCloneSegments = [
+          'git',
+          gitProxyFlags,
+          params.forceHttp11 ? '-c http.version=HTTP/1.1' : '',
+          'clone',
+          params.branch ? `--branch ${shDoubleQuote(params.branch)}` : '',
+          shDoubleQuote(injected.execUrl),
+          shDoubleQuote(repoDir)
+        ].filter(Boolean);
+        const command = gitCloneSegments.join(' ');
+        await streamCommand(command, appendRawLog, {
+          env: { GIT_TERMINAL_PROMPT: '0' },
+          redact: redactSensitiveText
+        });
+      };
 
       if (checkoutRef) {
         try {
@@ -1323,7 +1350,18 @@ async function callAgent(
           );
           return;
         } catch (err: any) {
-          await appendLog(`Branch clone failed; falling back to default clone: ${err?.message || err}`);
+          let branchError: any = err;
+          const branchMessage = String(err?.message || err);
+          if (isRetryableGitTransportError(branchMessage)) {
+            await appendLog('Branch clone hit a transient git transport error; retrying with HTTP/1.1');
+            try {
+              await runCloneCommand({ branch: checkoutRef, forceHttp11: true });
+              return;
+            } catch (retryErr: any) {
+              branchError = retryErr;
+            }
+          }
+          await appendLog(`Branch clone failed; falling back to default clone: ${branchError?.message || branchError}`);
         }
       }
 
@@ -2283,15 +2321,46 @@ export const runCommandWithLogs = async (
   });
 };
 
+const COMMAND_FAILURE_DETAIL_PATTERN =
+  /(fatal:|error:|remote:|unable to access|authentication failed|repository not found|could not read username|could not resolve host|permission denied|terminal prompts disabled)/i;
+
+const summarizeCommandFailureDetail = (output: string): string => {
+  // Surface redacted fatal/error lines so command failures are actionable in task logs and ThoughtChain. docs/en/developer/plans/gitclone128-20260304/task_plan.md gitclone128-20260304
+  const lines = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^\[exit\s+-?\d+\]\s+/.test(line));
+  if (lines.length === 0) return '';
+
+  const prioritized = lines.filter((line) => COMMAND_FAILURE_DETAIL_PATTERN.test(line));
+  const source = prioritized.length > 0 ? prioritized : lines;
+  const detail = source.slice(-3).join(' | ');
+  const MAX_DETAIL_LENGTH = 360;
+  if (detail.length <= MAX_DETAIL_LENGTH) return detail;
+  return `${detail.slice(0, MAX_DETAIL_LENGTH - 3)}...`;
+};
+
+const buildCommandFailureMessage = (params: { exitCode: number; output: string }): string => {
+  // Keep thrown command errors concise while preserving the most relevant redacted stderr context. docs/en/developer/plans/gitclone128-20260304/task_plan.md gitclone128-20260304
+  const detail = summarizeCommandFailureDetail(params.output);
+  if (!detail) return `command failed with code ${params.exitCode}`;
+  return `command failed with code ${params.exitCode}: ${detail}`;
+};
+
+// Export command failure formatter for unit tests that validate clone/pull diagnostics. docs/en/developer/plans/gitclone128-20260304/task_plan.md gitclone128-20260304
+export const __test__buildCommandFailureMessage = (params: { exitCode: number; output: string }): string =>
+  buildCommandFailureMessage(params);
+
 async function streamCommand(
   command: string,
   log: (msg: string) => Promise<void>,
   options: StreamOptions = {}
 ): Promise<void> {
-  // Stream command output into task logs while preserving failure handling. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
+  // Stream command output and bubble redacted root-cause hints on failures (for example git code 128). docs/en/developer/plans/gitclone128-20260304/task_plan.md gitclone128-20260304
   const result = await runCommandWithLogs(command, log, options);
   if (result.exitCode !== 0) {
-    throw new Error(`command failed with code ${result.exitCode}`);
+    throw new Error(buildCommandFailureMessage({ exitCode: result.exitCode, output: result.output }));
   }
 }
 

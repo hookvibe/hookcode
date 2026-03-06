@@ -24,6 +24,7 @@ import { HttpErrorMessageFilter } from './modules/common/filters/http-error-mess
 import { AuditLogInterceptor } from './modules/logs/audit-log.interceptor';
 import { LogsService } from './modules/logs/logs.service';
 import { LogWriterService } from './modules/logs/log-writer.service';
+import { resolveProcessingStaleMs } from './utils/processingStale';
 
 dotenv.config();
 

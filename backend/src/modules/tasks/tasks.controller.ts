@@ -599,8 +599,12 @@ export class TasksController {
         const now = Date.now();
         const isStale = staleMs !== null && Number.isFinite(updatedAt) && now - updatedAt > staleMs;
         if (!isStale) {
+          const errorMessage =
+            staleMs === null
+              ? 'Task is processing; retry is blocked unless force=true (stale timeout is disabled)'
+              : 'Task is processing; retry is blocked unless stale or force=true';
           throw new ConflictException({
-            error: 'Task is processing; retry is blocked unless stale or force=true'
+            error: errorMessage
           });
         }
       }

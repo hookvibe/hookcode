@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
-import { runCodexExecWithSdk } from '../../modelProviders/codex';
+import { __test__isUnknownReasoningParamError, runCodexExecWithSdk } from '../../modelProviders/codex';
 
 describe('codex exec', () => {
   const makeTempDir = async () => await fs.mkdtemp(path.join(os.tmpdir(), 'hookcode-codex-'));
@@ -198,6 +198,149 @@ describe('codex exec', () => {
 
       expect(result.threadId).toBe('t_123');
       expect(result.finalResponse).toBe('hi');
+    } finally {
+      await fs.rm(repoDir, { recursive: true, force: true });
+    }
+  });
+
+  test('runCodexExecWithSdk detects unknown reasoning parameter errors', () => {
+    // Detect reasoning-param incompatibility text from OpenAI-compatible gateways for fallback retries. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+    expect(
+      __test__isUnknownReasoningParamError(
+        "Error running remote compact task: {\"error\":{\"message\":\"Unknown parameter: 'reasoning'.\",\"param\":\"reasoning\"}}"
+      )
+    ).toBe(true);
+    expect(__test__isUnknownReasoningParamError('network timeout')).toBe(false);
+  });
+
+  test('runCodexExecWithSdk retries without reasoning effort when gateway rejects reasoning parameter', async () => {
+    const repoDir = await makeTempDir();
+    try {
+      const promptFile = path.join(repoDir, 'prompt.txt');
+      await fs.writeFile(promptFile, 'hello', 'utf8');
+
+      async function* failingEvents() {
+        yield { type: 'thread.started', thread_id: 't_fail' } as any;
+        yield {
+          type: 'error',
+          message:
+            "Error running remote compact task: {\"error\":{\"message\":\"Unknown parameter: 'reasoning'.\",\"param\":\"reasoning\"}}"
+        } as any;
+      }
+
+      async function* successEvents() {
+        yield { type: 'thread.started', thread_id: 't_ok' } as any;
+        yield { type: 'item.completed', item: { type: 'agent_message', text: 'recovered' } } as any;
+        yield { type: 'turn.completed', usage: { input_tokens: 1, output_tokens: 2 } } as any;
+      }
+
+      const runStreamedFirst = jest.fn(async () => ({ events: failingEvents() }));
+      const runStreamedSecond = jest.fn(async () => ({ events: successEvents() }));
+
+      let startCall = 0;
+      const startThreadMock = jest.fn((options: any) => {
+        const callIndex = startCall++;
+        if (callIndex === 0) {
+          return { id: 'thread-first', runStreamed: runStreamedFirst } as any;
+        }
+        return { id: 'thread-second', runStreamed: runStreamedSecond } as any;
+      });
+
+      class FakeCodex {
+        constructor(_options: any) {}
+        startThread(options: any) {
+          return startThreadMock(options);
+        }
+        resumeThread(_threadId: string, options: any) {
+          return startThreadMock(options);
+        }
+      }
+
+      const logged: string[] = [];
+      const result = await runCodexExecWithSdk({
+        repoDir,
+        promptFile,
+        model: 'gpt-5.2',
+        sandbox: 'read-only',
+        modelReasoningEffort: 'high',
+        apiKey: 'test-key',
+        outputLastMessageFile: 'codex-output.txt',
+        logLine: async (line) => {
+          logged.push(line);
+        },
+        __internal: {
+          importCodexSdk: async () => ({ Codex: FakeCodex } as any)
+        }
+      });
+
+      expect(result.threadId).toBe('t_ok');
+      expect(result.finalResponse).toBe('recovered');
+      expect(startThreadMock).toHaveBeenCalledTimes(2);
+      expect(startThreadMock.mock.calls[0][0].modelReasoningEffort).toBe('high');
+      expect(startThreadMock.mock.calls[1][0].modelReasoningEffort).toBeUndefined();
+      expect(logged.some((line) => line.includes('retrying without modelReasoningEffort'))).toBe(true);
+    } finally {
+      await fs.rm(repoDir, { recursive: true, force: true });
+    }
+  });
+
+  test('runCodexExecWithSdk does not hang when stream emits error and iterator close stalls', async () => {
+    const repoDir = await makeTempDir();
+    try {
+      const promptFile = path.join(repoDir, 'prompt.txt');
+      await fs.writeFile(promptFile, 'hello', 'utf8');
+
+      const stalledEvents = {
+        [Symbol.asyncIterator]() {
+          let emitted = false;
+          return {
+            next: async () => {
+              if (emitted) return await new Promise<never>(() => {});
+              emitted = true;
+              return {
+                done: false,
+                value: { type: 'error', message: 'Error running remote compact task: {"error":{"message":"Unknown parameter: \'reasoning\'."}}' }
+              } as any;
+            },
+            return: async () => await new Promise<never>(() => {})
+          };
+        }
+      };
+
+      const thread = {
+        id: 't_stalled',
+        runStreamed: jest.fn(async () => ({ events: stalledEvents as any }))
+      };
+
+      class FakeCodex {
+        constructor(_options: any) {}
+        startThread() {
+          return thread as any;
+        }
+        resumeThread() {
+          return thread as any;
+        }
+      }
+
+      let timeoutId: NodeJS.Timeout | undefined;
+      const timeout = new Promise<never>((_resolve, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('timeout')), 2000);
+      });
+      const run = runCodexExecWithSdk({
+        repoDir,
+        promptFile,
+        model: 'gpt-5.2',
+        sandbox: 'read-only',
+        modelReasoningEffort: 'medium',
+        apiKey: 'test-key',
+        outputLastMessageFile: 'codex-output.txt',
+        __internal: {
+          importCodexSdk: async () => ({ Codex: FakeCodex } as any)
+        }
+      });
+
+      await expect(Promise.race([run, timeout])).rejects.toThrow(/Unknown parameter: 'reasoning'|reasoning parameter/i);
+      if (timeoutId) clearTimeout(timeoutId);
     } finally {
       await fs.rm(repoDir, { recursive: true, force: true });
     }

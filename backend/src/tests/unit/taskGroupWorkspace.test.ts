@@ -12,11 +12,13 @@ import {
   buildTaskGroupGeminiContent,
   buildTaskGroupRootDir,
   buildTaskGroupWorkspaceDir,
+  __test__buildCommandFailureMessage,
   __test__buildCodexSchemaContents,
   __test__buildTaskGroupWorkspacePromptPrefix,
   __test__ensureTaskGroupTemplateDir,
   __test__ensureTaskGroupPat,
   __test__readCodexOutputSchema,
+  __test__isRetryableGitTransportError,
   __test__resolveTaskGroupApiBaseUrl,
   __test__syncTaskGroupSkillEnvFiles,
   setAgentServices,
@@ -89,6 +91,44 @@ describe('buildTaskGroupWorkspaceDir', () => {
 
     // Maintain deterministic fallback paths when task group ids are unavailable. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
     expect(result).toBe(path.join(TASK_GROUP_WORKSPACE_ROOT, 'task-789', 'repo'));
+  });
+});
+
+describe('command failure diagnostics', () => {
+  test('extracts fatal details into command failure messages', () => {
+    const message = __test__buildCommandFailureMessage({
+      exitCode: 128,
+      output: [
+        "Cloning into '/tmp/repo'...",
+        "fatal: unable to access 'https://github.com/org/repo.git/': OpenSSL SSL_read: unexpected eof while reading",
+        '[exit 128] git clone https://github.com/org/repo.git /tmp/repo'
+      ].join('\n')
+    });
+
+    // Keep task failure messages actionable by bubbling redacted fatal stderr details. docs/en/developer/plans/gitclone128-20260304/task_plan.md gitclone128-20260304
+    expect(message).toContain('command failed with code 128');
+    expect(message).toContain('fatal: unable to access');
+    expect(message).not.toContain('[exit 128]');
+  });
+
+  test('falls back to exit code when command output is empty', () => {
+    const message = __test__buildCommandFailureMessage({ exitCode: 128, output: '' });
+    expect(message).toBe('command failed with code 128');
+  });
+});
+
+describe('git transport retry matching', () => {
+  test('matches SSL EOF clone failures as retryable transport errors', () => {
+    // Recognize transient TLS read EOF failures so clone retries with HTTP/1.1. docs/en/developer/plans/gitclone128-20260304/task_plan.md gitclone128-20260304
+    expect(
+      __test__isRetryableGitTransportError(
+        "fatal: unable to access 'https://github.com/org/repo.git/': OpenSSL SSL_read: unexpected eof while reading"
+      )
+    ).toBe(true);
+  });
+
+  test('does not mark auth failures as retryable transport errors', () => {
+    expect(__test__isRetryableGitTransportError('remote: Invalid username or token.')).toBe(false);
   });
 });
 

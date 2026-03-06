@@ -85,6 +85,18 @@ describe('codex provider config', () => {
     expect(opts.additionalDirectories).toEqual(['/repo/.git']);
   });
 
+  test('buildCodexSdkThreadOptions 在 includeModelReasoningEffort=false 时省略 reasoning 参数', () => {
+    const opts = buildCodexSdkThreadOptions({
+      repoDir: '/repo',
+      model: 'gpt-5.1-codex-max',
+      sandbox: 'read-only',
+      modelReasoningEffort: 'medium',
+      includeModelReasoningEffort: false
+    });
+    // Keep compatibility fallback explicit for gateways that reject reasoning fields. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
+    expect((opts as any).modelReasoningEffort).toBeUndefined();
+  });
+
   test('normalizeCodexApiBaseUrl 在未设置时返回 undefined', () => {
     expect(normalizeCodexApiBaseUrl('')).toBeUndefined();
     expect(normalizeCodexApiBaseUrl('   ')).toBeUndefined();
