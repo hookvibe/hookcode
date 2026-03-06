@@ -138,6 +138,8 @@ export const zhCNChat = {
   'logViewer.lines': '{{count}} 行',
   'logViewer.actions.resume': '继续',
   'logViewer.actions.pause': '暂停',
+  // Add log paging action label for the task log viewer. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  'logViewer.actions.loadEarlier': '加载更早',
   'logViewer.actions.reconnect': '重连',
   'logViewer.actions.copy': '复制',
   'logViewer.actions.clear': '清空',

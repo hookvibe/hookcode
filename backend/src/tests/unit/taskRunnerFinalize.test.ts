@@ -4,8 +4,6 @@ jest.useFakeTimers();
 
 jest.mock('../../agent/agent', () => {
   class AgentExecutionError extends Error {
-    logs: string[];
-    logsSeq: number;
     providerCommentUrl?: string;
     // Expose abort markers for pause/resume TaskRunner coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     aborted?: boolean;
@@ -14,8 +12,6 @@ jest.mock('../../agent/agent', () => {
     constructor(
       message: string,
       params: {
-        logs: string[];
-        logsSeq: number;
         providerCommentUrl?: string;
         gitStatus?: unknown;
         cause?: unknown;
@@ -24,8 +20,7 @@ jest.mock('../../agent/agent', () => {
     ) {
       super(message);
       this.name = 'AgentExecutionError';
-      this.logs = params.logs;
-      this.logsSeq = params.logsSeq;
+      // Mirror the task-log table migration by dropping log payloads from AgentExecutionError. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       this.providerCommentUrl = params.providerCommentUrl;
       // Keep abort flag aligned with pause/resume error handling. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
       this.aborted = params.aborted;
@@ -60,6 +55,11 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     resolveRecipientsForTask: jest.fn().mockResolvedValue([])
   }); // Provide recipient stubs for TaskRunner tests. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
 
+  const createTaskLogsService = () => ({
+    // Stub task log storage for pre-run log resets. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    clearLogs: jest.fn().mockResolvedValue(0)
+  });
+
   beforeEach(() => {
     jest.restoreAllMocks();
     jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -78,7 +78,8 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     } as any;
 
     const agentService = {
-      callAgent: jest.fn().mockRejectedValueOnce(new AgentExecutionError('boom', { logs: ['l1'], logsSeq: 0, cause: new Error('boom') }))
+      // Use AgentExecutionError without log payloads after the task_logs migration. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      callAgent: jest.fn().mockRejectedValueOnce(new AgentExecutionError('boom', { cause: new Error('boom') }))
     };
 
     const taskService = {
@@ -92,6 +93,7 @@ describe('TaskRunner (finalization + DB write retry)', () => {
 
     const taskRunner = new TaskRunner(
       taskService as any,
+      createTaskLogsService() as any,
       agentService as any,
       createLogWriter() as any,
       createNotificationsService() as any,
@@ -109,12 +111,12 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     expect(taskService.patchResult).toHaveBeenCalledTimes(3);
     expect(taskService.patchResult).toHaveBeenLastCalledWith(
       't1',
-      expect.objectContaining({ logs: ['l1'], message: 'boom' }),
+      expect.objectContaining({ message: 'boom' }), // Failed patches no longer carry log arrays. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       'failed'
     );
   });
 
-  test('writes logs once and marks succeeded (successful task)', async () => {
+  test('writes outputText once and marks succeeded (successful task)', async () => {
     const task = {
       id: 't2',
       eventType: 'commit',
@@ -126,7 +128,8 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     } as any;
 
     const agentService = {
-      callAgent: jest.fn().mockResolvedValueOnce({ logs: ['ok'], outputText: 'OUT' })
+      // Return only outputText because logs are persisted separately. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      callAgent: jest.fn().mockResolvedValueOnce({ outputText: 'OUT' })
     };
 
     const taskService = {
@@ -139,6 +142,7 @@ describe('TaskRunner (finalization + DB write retry)', () => {
 
     const taskRunner = new TaskRunner(
       taskService as any,
+      createTaskLogsService() as any,
       agentService as any,
       createLogWriter() as any,
       createNotificationsService() as any,
@@ -151,7 +155,7 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     // Allow extra result fields (e.g., gitStatus) without breaking this regression test. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
     expect(taskService.patchResult).toHaveBeenLastCalledWith(
       't2',
-      expect.objectContaining({ logs: ['ok'], outputText: 'OUT' }),
+      expect.objectContaining({ outputText: 'OUT' }), // Log lines live in task_logs after the migration. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       'succeeded'
     );
   });
@@ -170,7 +174,8 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     } as any;
 
     const agentService = {
-      callAgent: jest.fn().mockResolvedValueOnce({ logs: ['ok'], outputText: 'OUT' })
+      // Align success mock with log-table storage (no in-memory log arrays). docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      callAgent: jest.fn().mockResolvedValueOnce({ outputText: 'OUT' })
     };
 
     const taskService = {
@@ -183,6 +188,7 @@ describe('TaskRunner (finalization + DB write retry)', () => {
 
     const taskRunner = new TaskRunner(
       taskService as any,
+      createTaskLogsService() as any,
       agentService as any,
       createLogWriter() as any,
       createNotificationsService() as any,
@@ -251,6 +257,7 @@ describe('TaskRunner (finalization + DB write retry)', () => {
 
       const taskRunner = new TaskRunner(
         taskService as any,
+        createTaskLogsService() as any,
         agentService as any,
         createLogWriter() as any,
         createNotificationsService() as any,
@@ -263,8 +270,8 @@ describe('TaskRunner (finalization + DB write retry)', () => {
 
       expect(agentService.callAgent).toHaveBeenCalledTimes(2);
 
-      resolveFirst?.({ logs: [], outputText: '' });
-      resolveSecond?.({ logs: [], outputText: '' });
+      resolveFirst?.({ outputText: '' }); // Keep concurrency mocks free of legacy log fields. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      resolveSecond?.({ outputText: '' }); // Keep concurrency mocks free of legacy log fields. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
 
       await triggerPromise;
     } finally {
@@ -304,6 +311,7 @@ describe('TaskRunner (finalization + DB write retry)', () => {
 
     const taskRunner = new TaskRunner(
       taskService as any,
+      createTaskLogsService() as any,
       agentService as any,
       createLogWriter() as any,
       createNotificationsService() as any,
@@ -339,7 +347,7 @@ describe('TaskRunner (finalization + DB write retry)', () => {
       callAgent: jest.fn((_: any, options: { signal?: AbortSignal }) => {
         // Reject on AbortSignal so the TaskRunner can finalize paused tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
         return new Promise((_, reject) => {
-          const err = new AgentExecutionError('aborted', { logs: [], logsSeq: 0, aborted: true });
+          const err = new AgentExecutionError('aborted', { aborted: true }); // Keep abort tests aligned with new AgentExecutionError payloads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
           if (options?.signal?.aborted) {
             reject(err);
             return;
@@ -357,6 +365,7 @@ describe('TaskRunner (finalization + DB write retry)', () => {
 
     const taskRunner = new TaskRunner(
       taskService as any,
+      createTaskLogsService() as any,
       agentService as any,
       createLogWriter() as any,
       createNotificationsService() as any,

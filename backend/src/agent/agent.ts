@@ -52,6 +52,7 @@ import type {
 import type { RepoRobotService } from '../modules/repositories/repo-robot.service';
 import type { TaskService } from '../modules/tasks/task.service';
 import type { TaskLogStream } from '../modules/tasks/task-log-stream.service';
+import type { TaskLogsService } from '../modules/tasks/task-logs.service';
 import type { UserService } from '../modules/users/user.service';
 import type { SkillsService } from '../modules/skills/skills.service';
 import {
@@ -80,7 +81,7 @@ import type { DependencyResult, HookcodeConfig, RobotDependencyConfig } from '..
  * - Behavior: clones/updates the target repo under `backend/src/agent/build/`, writes the prompt file, runs the selected model
  *   provider (Codex / Claude Code / Gemini CLI), writes output to an output file, and posts the result back to the provider (GitLab/GitHub).
  * - Change record: extended the provider execution paths from Codex-only to include Claude Code (`claude_code`) and Gemini CLI (`gemini_cli`).
- * - Logs: continuously writes logs into `tasks.result.logs` (see `backend/src/services/taskService.ts`) and pushes them in-process via `taskLogStream`,
+ * - Logs: writes execution logs into `task_logs` and streams them via `taskLogStream` for the console UI. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
  *   which powers console SSE (`backend/src/routes/tasks.ts`) and the frontend log viewer (`frontend/src/components/TaskLogViewer.tsx`).
  * - Security: redacts sensitive info in external logs (tokens / URL basic auth) to avoid storing secrets in DB or provider comments.
  */
@@ -113,10 +114,11 @@ const resolveTaskGroupWorkspaceRoot = (buildRoot: string): string => {
 };
 // Centralize task-group workspace root so each group maps to a single checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
 export const TASK_GROUP_WORKSPACE_ROOT = resolveTaskGroupWorkspaceRoot(BUILD_ROOT);
-const MAX_LOG_LINES = 1000;
+// Task logs are persisted per-line in the database, so no in-memory cap is required. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
 
 let taskService: TaskService;
 let taskLogStream: TaskLogStream;
+let taskLogsService: TaskLogsService;
 let repositoryService: RepositoryService;
 let repoRobotService: RepoRobotService;
 let userService: UserService;
@@ -128,6 +130,7 @@ let skillsService: SkillsService;
 export const setAgentServices = (services: {
   taskService: TaskService;
   taskLogStream: TaskLogStream;
+  taskLogsService: TaskLogsService;
   repositoryService: RepositoryService;
   repoRobotService: RepoRobotService;
   userService: UserService;
@@ -139,6 +142,7 @@ export const setAgentServices = (services: {
   // Inject runtime/config services so dependency installs run inside the agent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   taskService = services.taskService;
   taskLogStream = services.taskLogStream;
+  taskLogsService = services.taskLogsService; // Register task log persistence for the new log table. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   repositoryService = services.repositoryService;
   repoRobotService = services.repoRobotService;
   userService = services.userService;
@@ -153,6 +157,7 @@ const assertAgentServicesReady = () => {
   if (
     !taskService ||
     !taskLogStream ||
+    !taskLogsService ||
     !repositoryService ||
     !repoRobotService ||
     !userService ||
@@ -909,8 +914,7 @@ const getNoteText = (provider: RepoProvider, payload: any): string | undefined =
 };
 
 export class AgentExecutionError extends Error {
-  readonly logs: string[];
-  readonly logsSeq: number;
+  // Exclude log payloads from errors because logs now live in task_logs. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   readonly providerCommentUrl?: string;
   readonly aborted?: boolean; // Flag abort-driven exits for pause/stop handling. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   // Attach git status snapshot for failed tasks to preserve change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
@@ -919,8 +923,6 @@ export class AgentExecutionError extends Error {
   constructor(
     message: string,
     params: {
-      logs: string[];
-      logsSeq: number;
       providerCommentUrl?: string;
       gitStatus?: TaskResult['gitStatus'];
       cause?: unknown;
@@ -929,8 +931,6 @@ export class AgentExecutionError extends Error {
   ) {
     super(message);
     this.name = 'AgentExecutionError';
-    this.logs = params.logs;
-    this.logsSeq = params.logsSeq;
     this.providerCommentUrl = params.providerCommentUrl;
     this.aborted = params.aborted;
     this.gitStatus = params.gitStatus;
@@ -1028,11 +1028,13 @@ export const resolveExecution = async (
 async function callAgent(
   task: Task,
   options?: { signal?: AbortSignal }
-): Promise<{ logs: string[]; logsSeq: number; providerCommentUrl?: string; outputText?: string; gitStatus?: TaskResult['gitStatus'] }> {
+): Promise<{ providerCommentUrl?: string; outputText?: string; gitStatus?: TaskResult['gitStatus'] }> {
   assertAgentServicesReady();
 
-  const logs: string[] = [];
   let logsSeq = 0;
+  // Keep a bounded in-memory log tail for provider comment details. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  const logs: string[] = [];
+  const MAX_LOG_DETAIL_LINES = 200;
   let execution: ResolvedExecution | null = null;
   let tokenUsage: TaskTokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
   let repoWorkflow: TaskResult['repoWorkflow'] | undefined; // Surface direct-vs-fork workflow to UI/logs. 24yz61mdik7tqdgaa152
@@ -1052,6 +1054,8 @@ async function callAgent(
   let persistLogsDisabled = false;
   let lastPersistErrorAt = 0;
   let lastPersistErrorLogAt = 0;
+  let lastLogWriteErrorAt = 0;
+  let lastLogWriteErrorLogAt = 0;
   const persistLogsBestEffort = async () => {
     if (persistLogsDisabled) return;
     if (!isUuidLike(task.id)) {
@@ -1065,12 +1069,9 @@ async function callAgent(
     const now = Date.now();
     if (lastPersistErrorAt > 0 && now - lastPersistErrorAt < 5000) return;
     try {
+      // Persist token usage metadata without embedding log arrays in result_json. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       const patch: any = { tokenUsage };
       if (repoWorkflow) patch.repoWorkflow = repoWorkflow;
-      if (taskLogsDbEnabled) {
-        patch.logs = logs;
-        patch.logsSeq = logsSeq;
-      }
       await taskService.patchResult(task.id, patch);
     } catch (err) {
       lastPersistErrorAt = now;
@@ -1084,12 +1085,25 @@ async function callAgent(
   const appendLine = async (line: string) => {
     if (!taskLogsDbEnabled) return;
     logsSeq += 1;
-    logs.push(line);
-    if (logs.length > MAX_LOG_LINES) {
-      logs.splice(0, logs.length - MAX_LOG_LINES);
-    }
-    taskLogStream.publish(task.id, line);
+    taskLogStream.publish(task.id, line, logsSeq);
     console.log(line);
+    // Maintain a rolling log tail for provider detail rendering. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    logs.push(line);
+    if (logs.length > MAX_LOG_DETAIL_LINES) {
+      logs.splice(0, logs.length - MAX_LOG_DETAIL_LINES);
+    }
+    // Persist each log line to the task_logs table so paging can fetch full history. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    try {
+      await taskLogsService.appendLog(task.id, logsSeq, line);
+    } catch (err) {
+      const now = Date.now();
+      if (lastLogWriteErrorAt > 0 && now - lastLogWriteErrorAt < 5000) return;
+      lastLogWriteErrorAt = now;
+      if (now - lastLogWriteErrorLogAt > 30_000) {
+        lastLogWriteErrorLogAt = now;
+        console.warn('[agent] task log write failed (will retry)', { taskId: task.id, seq: logsSeq, error: toErrorSummary(err) });
+      }
+    }
     await persistLogsBestEffort();
   };
 
@@ -2063,7 +2077,7 @@ exit 0
     // - Change record: skip `postToProvider()` when `eventType=chat` or payload explicitly sets `__skipProviderPost`.
     if (skipProviderPost) {
       await appendLog('Provider posting skipped (chat/manual task)');
-      return { logs, logsSeq, outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
+      return { outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
     }
 
     const details = buildGitlabLogDetails(logs);
@@ -2086,15 +2100,14 @@ exit 0
       await appendLog('Posted successfully');
     }
 
-    return { logs, logsSeq, providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
+    return { providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
   } catch (err: any) {
     // Short-circuit aborts so pause/stop does not post failure comments. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     if (abortSignal?.aborted) {
       await appendLog('Execution aborted by user request.');
       const safeMessage = redactSensitiveText(err?.message || 'Task execution aborted');
+      // Strip log payloads from AgentExecutionError now that logs live in task_logs. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       throw new AgentExecutionError(safeMessage, {
-        logs,
-        logsSeq,
         gitStatus,
         cause: err,
         aborted: true
@@ -2153,7 +2166,7 @@ exit 0
 
     const safeMessage = redactSensitiveText(err?.message || String(err));
     // Bubble git status into failed task results for UI visibility. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-    throw new AgentExecutionError(safeMessage, { logs, logsSeq, providerCommentUrl, gitStatus, cause: err });
+    throw new AgentExecutionError(safeMessage, { providerCommentUrl, gitStatus, cause: err });
   }
 }
 

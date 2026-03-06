@@ -6,6 +6,7 @@ import { RepoRobotService } from '../repositories/repo-robot.service';
 import { UserService } from '../users/user.service';
 import { UserApiTokenService } from '../users/user-api-token.service';
 import { TaskLogStream } from './task-log-stream.service';
+import { TaskLogsService } from './task-logs.service';
 import { TaskService } from './task.service';
 import { RuntimeService } from '../../services/runtimeService';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
@@ -16,6 +17,7 @@ export class AgentService {
   constructor(
     taskService: TaskService,
     taskLogStream: TaskLogStream,
+    taskLogsService: TaskLogsService,
     repositoryService: RepositoryService,
     repoRobotService: RepoRobotService,
     userService: UserService,
@@ -29,6 +31,7 @@ export class AgentService {
     setAgentServices({
       taskService,
       taskLogStream,
+      taskLogsService, // Wire task-log persistence for DB-backed log storage. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       repositoryService,
       repoRobotService,
       userService,

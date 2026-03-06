@@ -1,5 +1,5 @@
 import { api, getCached, invalidateTaskCaches } from './client';
-import type { ArchiveScope, DashboardSidebarSnapshot, Task, TaskStatus, TaskStatusStats, TaskVolumePoint } from './types';
+import type { ArchiveScope, DashboardSidebarSnapshot, Task, TaskLogsPage, TaskStatus, TaskStatusStats, TaskVolumePoint } from './types';
 
 // Split task list/stat/actions APIs into a dedicated module for clearer ownership. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
 export const fetchTasks = async (options?: {
@@ -100,6 +100,14 @@ export const pushTaskGitChanges = async (taskId: string): Promise<Task> => {
 export const deleteTask = async (taskId: string): Promise<void> => {
   await api.delete(`/tasks/${taskId}`);
   invalidateTaskCaches();
+};
+
+export const fetchTaskLogsPage = async (
+  taskId: string,
+  options?: { limit?: number; before?: number }
+): Promise<TaskLogsPage> => {
+  // Fetch paged task logs for the log viewer's "load earlier" flow. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  return getCached<TaskLogsPage>(`/tasks/${taskId}/logs`, { params: options, cacheTtlMs: 0 });
 };
 
 export const clearTaskLogs = async (taskId: string): Promise<void> => {

@@ -100,6 +100,7 @@ export interface TaskGitStatus {
 export interface TaskResult {
   summary?: string;
   message?: string;
+  // Legacy: logs were embedded in task results before log-table paging. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   logs?: string[];
   outputText?: string;
   providerCommentUrl?: string;
@@ -107,6 +108,14 @@ export interface TaskResult {
   // Surface backend git status in task result payloads for UI reuse. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   gitStatus?: TaskGitStatus;
   [key: string]: unknown;
+}
+
+// Represent paged task log payloads returned by the backend. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+export interface TaskLogsPage {
+  logs: string[];
+  startSeq: number;
+  endSeq: number;
+  nextBefore?: number;
 }
 
 // Change record: add `chat` to support console manual-trigger task groups.

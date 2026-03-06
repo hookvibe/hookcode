@@ -75,6 +75,8 @@ vi.mock('../api', () => {
       mode: 'repo_default'
     })),
     fetchTaskGroupTasks: vi.fn(async () => []),
+    // Keep task-log pagination mocked so TaskGroup timeline tests can drive chained scroll behavior. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    fetchTaskLogsPage: vi.fn(async () => ({ logs: [], startSeq: 0, endSeq: 0, nextBefore: null })),
     // Mock preview endpoints so TaskGroupChatPage can render preview UI state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     fetchTaskGroupPreviewStatus: vi.fn(async () => ({ available: false, instances: [] })),
     // Mock preview visibility updates for hidden auto-stop logic. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
@@ -135,6 +137,8 @@ export const setupTaskGroupChatMocks = () => {
     } as any
   ]);
   vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([]);
+  // Reset log-page mocks so each timeline test starts from a known chain-pagination baseline. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  vi.mocked(api.fetchTaskLogsPage).mockResolvedValue({ logs: [], startSeq: 0, endSeq: 0, nextBefore: null } as any);
   vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValue({ available: false, instances: [] });
   // Reset preview visibility mock per test run. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
   vi.mocked(api.setTaskGroupPreviewVisibility).mockResolvedValue({ success: true });

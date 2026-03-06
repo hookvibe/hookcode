@@ -2,7 +2,7 @@ jest.mock('../../db', () => ({
   __esModule: true,
   db: {
     task: { findFirst: jest.fn() },
-    $queryRaw: jest.fn()
+    taskLog: { findFirst: jest.fn() } // Mock task_logs lookups for log-table-backed checks. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   }
 }));
 
@@ -58,16 +58,16 @@ describe('TaskService task-group execution hints', () => {
   });
 
   test('hasTaskGroupLogs returns true when log query finds a row', async () => {
-    (db.$queryRaw as jest.Mock).mockResolvedValue([{ id: 'log-task' }]);
+    (db.taskLog.findFirst as jest.Mock).mockResolvedValue({ id: 'log-task' }); // Simulate task_logs hit after log-table migration. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
 
     const result = await taskService.hasTaskGroupLogs('55555555-5555-5555-5555-555555555555');
 
     expect(result).toBe(true);
-    expect(db.$queryRaw).toHaveBeenCalled();
+    expect(db.taskLog.findFirst).toHaveBeenCalled();
   });
 
   test('hasTaskGroupLogs returns false when no logs are found', async () => {
-    (db.$queryRaw as jest.Mock).mockResolvedValue([]);
+    (db.taskLog.findFirst as jest.Mock).mockResolvedValue(null); // Treat missing task_logs rows as no logs available. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
 
     const result = await taskService.hasTaskGroupLogs('66666666-6666-6666-6666-666666666666');
 

@@ -33,6 +33,8 @@ model Task {
   updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   group        TaskGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  /// Access task log rows stored in task_logs for pagination. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  logs         TaskLog[]
 
   @@map("tasks")
   @@index([status, createdAt], map: "tasks_status_created_at_idx")
@@ -42,6 +44,22 @@ model Task {
   @@index([repoId, status, updatedAt], map: "tasks_repo_status_updated_at_idx")
   @@index([repoId, createdAt], map: "tasks_repo_created_at_idx")
   @@index([repoId, archivedAt], map: "tasks_repo_archived_at_idx")
+}
+
+/// Store task execution log lines in a separate table for pagination and performance. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+model TaskLog {
+  id        String   @id @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  seq       Int
+  line      String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_logs")
+  @@unique([taskId, seq], map: "task_logs_task_id_seq_unique")
+  @@index([taskId, seq], map: "task_logs_task_id_seq_idx")
+  @@index([taskId, createdAt], map: "task_logs_task_id_created_at_idx")
 }
 
 model TaskGroup {

@@ -3,6 +3,7 @@ import { AgentExecutionError } from '../../agent/agent';
 import { Task, type TaskResult, type TaskStatus } from '../../types/task';
 import { AgentService } from './agent.service';
 import { TaskService } from './task.service';
+import { TaskLogsService } from './task-logs.service';
 import { LogWriterService } from '../logs/log-writer.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
@@ -59,6 +60,7 @@ export class TaskRunner {
 
   constructor(
     private readonly taskService: TaskService,
+    private readonly taskLogsService: TaskLogsService, // Clear task log rows before each run to reset history. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     private readonly agentService: AgentService,
     private readonly logWriter: LogWriterService,
     private readonly notificationsService: NotificationsService,
@@ -186,10 +188,10 @@ export class TaskRunner {
 
     try {
       try {
+        // Reset task_logs rows so retries start with a clean log stream. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+        await this.taskLogsService.clearLogs(task.id);
         await this.taskService.patchResult(task.id, {
           outputText: '',
-          logs: [],
-          logsSeq: 0,
           tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
         });
       } catch (err) {
@@ -197,10 +199,11 @@ export class TaskRunner {
       }
 
       // Persist git status alongside logs/output so the UI can display change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-      const { logs, logsSeq, providerCommentUrl, outputText, gitStatus } = await this.agentService.callAgent(task, {
+      const { providerCommentUrl, outputText, gitStatus } = await this.agentService.callAgent(task, {
         signal: abortController.signal
       });
-      await this.finalizeWithRetry(task.id, 'succeeded', { logs, logsSeq, providerCommentUrl, outputText, gitStatus });
+      // Finalize without embedding log arrays because logs are stored in task_logs. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      await this.finalizeWithRetry(task.id, 'succeeded', { providerCommentUrl, outputText, gitStatus });
       // Record successful task completion in the audit log. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       void this.logWriter.logExecution({
         level: 'info',
@@ -225,8 +228,6 @@ export class TaskRunner {
         durationMs: Date.now() - startedAt
       });
     } catch (err) {
-      const logs = err instanceof AgentExecutionError ? err.logs : [];
-      const logsSeq = err instanceof AgentExecutionError ? err.logsSeq : undefined;
       const providerCommentUrl = err instanceof AgentExecutionError ? err.providerCommentUrl : undefined;
       // Preserve git status on failed runs so the UI can show unpushed changes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
       const gitStatus = err instanceof AgentExecutionError ? err.gitStatus : undefined;
@@ -239,9 +240,8 @@ export class TaskRunner {
 
       if (abortReason === 'paused') {
         const pauseMessage = 'Task paused by user.';
+        // Store pause metadata without task log payload duplication. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
         await this.finalizeWithRetry(task.id, 'paused', {
-          logs,
-          logsSeq,
           message: pauseMessage,
           providerCommentUrl,
           gitStatus
@@ -303,7 +303,8 @@ export class TaskRunner {
       }
 
       console.error('[taskRunner] task failed', task.id, err);
-      await this.finalizeWithRetry(task.id, 'failed', { logs, logsSeq, message, providerCommentUrl, gitStatus });
+      // Persist failure metadata without duplicating log payloads in result_json. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      await this.finalizeWithRetry(task.id, 'failed', { message, providerCommentUrl, gitStatus });
       // Capture failures in the execution log stream for debugging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       void this.logWriter.logExecution({
         level: 'error',

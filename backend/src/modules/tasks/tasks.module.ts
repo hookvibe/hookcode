@@ -10,6 +10,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AgentService } from './agent.service';
 import { TaskGitPushService } from './task-git-push.service';
 import { TaskLogStream } from './task-log-stream.service';
+import { TaskLogsService } from './task-logs.service';
 import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
@@ -39,6 +40,8 @@ import { PreviewHighlightService } from './preview-highlight.service';
   providers: [
     TaskService,
     TaskLogStream,
+    // Provide task-log persistence for paged log reads and SSE polling. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    TaskLogsService,
     // Provide preview log streaming for SSE clients. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     PreviewLogStream,
     // Register preview WS proxy service for HMR upgrades. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -58,6 +61,8 @@ import { PreviewHighlightService } from './preview-highlight.service';
   exports: [
     TaskService,
     TaskLogStream,
+    // Export task-log storage to controllers/agents needing log access. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    TaskLogsService,
     PreviewLogStream,
     // Export preview highlight publisher for HTTP controllers. docs/en/developer/plans/taskgrouppreviewdi20260201/task_plan.md taskgrouppreviewdi20260201
     PreviewHighlightService,

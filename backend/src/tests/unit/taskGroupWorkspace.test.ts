@@ -232,6 +232,7 @@ describe('ensureTaskGroupPat', () => {
     setAgentServices({
       taskService: {} as any,
       taskLogStream: { publish: jest.fn(), subscribe: jest.fn() } as any,
+      taskLogsService: { appendLog: jest.fn() } as any, // Stub task_logs persistence for agent service wiring. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       repositoryService: {} as any,
       repoRobotService: {} as any,
       userService: userService as any,
@@ -265,6 +266,7 @@ describe('ensureTaskGroupPat', () => {
     setAgentServices({
       taskService: {} as any,
       taskLogStream: { publish: jest.fn(), subscribe: jest.fn() } as any,
+      taskLogsService: { appendLog: jest.fn() } as any, // Stub task_logs persistence for agent service wiring. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       repositoryService: {} as any,
       repoRobotService: {} as any,
       userService: userService as any,

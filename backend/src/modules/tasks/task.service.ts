@@ -28,7 +28,7 @@ import { NotificationRecipientService } from '../notifications/notification-reci
  * - Enqueue: `backend/src/routes/webhook.ts` calls `createTask()` to persist a Webhook event as queued.
  * - Consume: `backend/src/modules/tasks/task-runner.service.ts` uses `takeNextQueued()` to claim tasks while enforcing per-group exclusivity. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
  * - Display: `backend/src/routes/tasks.ts` uses `listTasks()` / `getTask()` to serve the frontend console.
- * - Logs: `backend/src/agent/agent.ts` writes execution logs into `result_json.logs` for console SSE/polling.
+ * - Logs: `backend/src/agent/agent.ts` writes execution logs into `task_logs` for paged/SSE log access. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
  */
 export interface TaskCreateMeta {
   title?: string;
@@ -1004,6 +1004,22 @@ export class TaskService {
     return withMeta;
   }
 
+  async getTaskAccessSummary(id: string): Promise<{ id: string; repoId?: string; groupId?: string } | undefined> {
+    // Fetch minimal task fields for log access checks without loading bulky result_json. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    const taskId = safeTrim(id);
+    if (!isUuidLike(taskId)) return undefined;
+    const row = await db.task.findUnique({
+      where: { id: taskId },
+      select: { id: true, repoId: true, groupId: true }
+    });
+    if (!row) return undefined;
+    return {
+      id: String(row.id),
+      repoId: row.repoId ? String(row.repoId) : undefined,
+      groupId: row.groupId ? String(row.groupId) : undefined
+    };
+  }
+
   async listTasksByGroup(
     groupId: string,
     options?: { limit?: number; includeMeta?: boolean; archived?: 'active' | 'archived' | 'all' }
@@ -1014,12 +1030,25 @@ export class TaskService {
 
     // Default to active-only tasks in group views so deleted/archived items do not linger. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     const archiveScope = options?.archived ?? 'active';
-    const where: Record<string, any> = { groupId: id };
-    if (archiveScope === 'active') where.archivedAt = null;
-    if (archiveScope === 'archived') where.archivedAt = { not: null };
+    const listAllArchived = archiveScope === 'all';
+    const listArchivedOnly = archiveScope === 'archived';
 
-    const rows = await db.task.findMany({ where, orderBy: { createdAt: 'desc' }, take });
-    const tasks = rows.map(taskRecordToTask) as TaskWithMeta[];
+    const rows = await db.$queryRaw<any[]>`
+      SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+             jsonb_strip_nulls(jsonb_build_object(
+               'message', NULLIF(result_json->>'message', ''),
+               'summary', NULLIF(result_json->>'summary', ''),
+               'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
+               'tokenUsage', result_json->'tokenUsage',
+               'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+             )) AS result_json
+      FROM tasks
+      WHERE group_id = ${id}::uuid
+        AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
+      ORDER BY created_at DESC
+      LIMIT ${take};
+    `; // Strip logs from task-group lists to prevent loading full result_json payloads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    const tasks = rows.map(rowToTaskFromSql) as TaskWithMeta[];
     if (!options?.includeMeta) return tasks;
     const withMeta = await this.attachMeta(tasks);
     // Preserve queue diagnosis for task-group detail views. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
@@ -1043,20 +1072,12 @@ export class TaskService {
   async hasTaskGroupLogs(groupId: string): Promise<boolean> {
     const id = safeTrim(groupId);
     if (!isUuidLike(id)) return false;
-    const rows = await db.$queryRaw<{ id: string }[]>`
-      SELECT id
-      FROM tasks
-      WHERE group_id = ${id}
-        AND (
-          CASE
-            WHEN jsonb_typeof(result_json->'logs') = 'array' THEN jsonb_array_length(result_json->'logs')
-            ELSE 0
-          END > 0
-          OR COALESCE((result_json->>'logsSeq')::int, 0) > 0
-        )
-      LIMIT 1
-    `;
-    return rows.length > 0;
+    // Check task_logs for any entries tied to the task group. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    const row = await db.taskLog.findFirst({
+      where: { task: { groupId: id } },
+      select: { id: true }
+    });
+    return Boolean(row);
   }
 
   async listTasks(options?: TaskListOptions): Promise<TaskWithMeta[]> {
@@ -1470,6 +1491,20 @@ export class TaskService {
       void this.emitTaskGroupUpdate(task, 'status');
     }
     return task;
+  }
+
+  async stripTaskResultLogs(id: string): Promise<void> {
+    // Remove legacy log payloads from result_json after log-table migration/clears. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    const taskId = safeTrim(id);
+    if (!isUuidLike(taskId)) return;
+    await db.$queryRaw`
+      UPDATE tasks
+      SET result_json = CASE
+        WHEN result_json IS NULL THEN NULL
+        ELSE result_json - 'logs' - 'logsSeq'
+      END
+      WHERE id = ${taskId};
+    `;
   }
 
   async retryTask(id: string): Promise<Task | undefined> {

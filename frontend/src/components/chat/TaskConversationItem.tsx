@@ -36,6 +36,10 @@ interface Props {
   onOpenTask?: (task: Task) => void;
   taskLogsEnabled?: boolean | null;
   onSuggestionClick?: (suggestion: string, task: Task) => void;
+  // Forward per-task log paging state to the parent TaskGroup chain loader. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  onLogHistoryExhaustedChange?: (taskId: string, exhausted: boolean) => void;
+  onLogLoadingEarlierChange?: (taskId: string, loading: boolean) => void;
+  logLoadEarlierSignal?: number;
   // Mark the newest chat item so it can animate in-place during task-group creation. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
   entering?: boolean;
 }
@@ -46,6 +50,9 @@ export const TaskConversationItem: FC<Props> = ({
   onOpenTask,
   taskLogsEnabled,
   onSuggestionClick,
+  onLogHistoryExhaustedChange,
+  onLogLoadingEarlierChange,
+  logLoadEarlierSignal,
   entering
 }) => {
   const t = useT();
@@ -132,6 +139,10 @@ export const TaskConversationItem: FC<Props> = ({
               variant="flat"
               emptyMessage={emptyLogMessage}
               emptyHint={emptyLogHint}
+              // Bubble task-level paging status/events to TaskGroupChatPage for chained loading. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+              onHistoryExhaustedChange={(exhausted) => onLogHistoryExhaustedChange?.(task.id, exhausted)}
+              onLoadingEarlierChange={(loading) => onLogLoadingEarlierChange?.(task.id, loading)}
+              loadEarlierSignal={logLoadEarlierSignal}
             />
           )}
       </div>

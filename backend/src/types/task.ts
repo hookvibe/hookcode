@@ -30,11 +30,13 @@ export interface TaskResult {
   risks?: string[];
   suggestions?: string[];
   message?: string;
+  // Legacy: logs moved to task_logs table for paged access. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   logs?: string[];
   /**
    * Monotonic log sequence number (total lines written so far).
    * - Used by SSE DB polling to stream new log lines even when `logs[]` is capped and older lines are dropped.
    */
+  // Legacy: sequence tracking now lives in task_logs table. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   logsSeq?: number;
   /**
    * Accumulated token usage for this task execution.

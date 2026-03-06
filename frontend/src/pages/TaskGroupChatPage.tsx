@@ -267,16 +267,69 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     return list;
   }, [tasks]);
 
-  const TASK_PAGE_SIZE = 3;
-  const [taskHiddenCount, setTaskHiddenCount] = useState(0);
-  const [taskPagingPinnedToLatest, setTaskPagingPinnedToLatest] = useState(true);
+  const [oldestVisibleTaskId, setOldestVisibleTaskId] = useState<string | null>(null);
+  const [taskLogHistoryExhaustedById, setTaskLogHistoryExhaustedById] = useState<Record<string, boolean>>({});
+  const [taskLogLoadingEarlierById, setTaskLogLoadingEarlierById] = useState<Record<string, boolean>>({});
+  const [taskLogLoadSignalById, setTaskLogLoadSignalById] = useState<Record<string, number>>({});
+  const visibleTaskStartIndex = useMemo(() => {
+    if (!orderedTasks.length) return 0;
+    if (!oldestVisibleTaskId) return orderedTasks.length - 1;
+    const index = orderedTasks.findIndex((task) => task.id === oldestVisibleTaskId);
+    return index >= 0 ? index : orderedTasks.length - 1;
+  }, [oldestVisibleTaskId, orderedTasks]);
+  const visibleTasks = useMemo(() => orderedTasks.slice(visibleTaskStartIndex), [orderedTasks, visibleTaskStartIndex]);
+  const oldestVisibleTask = visibleTasks[0] ?? null;
+  const hasOlderHiddenTask = visibleTaskStartIndex > 0;
 
-  const pinnedHiddenCount = Math.max(0, orderedTasks.length - TASK_PAGE_SIZE);
-  const effectiveHiddenCount = Math.max(
-    0,
-    Math.min(taskPagingPinnedToLatest ? pinnedHiddenCount : taskHiddenCount, orderedTasks.length)
-  );
-  const visibleTasks = useMemo(() => orderedTasks.slice(effectiveHiddenCount), [effectiveHiddenCount, orderedTasks]);
+  useEffect(() => {
+    // Keep chained task paging anchored to the latest task and prune stale per-task log state. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    if (!orderedTasks.length) {
+      setOldestVisibleTaskId(null);
+      return;
+    }
+    setOldestVisibleTaskId((prev) => {
+      if (prev && orderedTasks.some((task) => task.id === prev)) return prev;
+      return orderedTasks[orderedTasks.length - 1].id;
+    });
+
+    const taskIds = new Set(orderedTasks.map((task) => task.id));
+    setTaskLogHistoryExhaustedById((prev) => {
+      const next: Record<string, boolean> = {};
+      let changed = false;
+      for (const [taskId, exhausted] of Object.entries(prev)) {
+        if (!taskIds.has(taskId)) {
+          changed = true;
+          continue;
+        }
+        next[taskId] = exhausted;
+      }
+      return changed ? next : prev;
+    });
+    setTaskLogLoadingEarlierById((prev) => {
+      const next: Record<string, boolean> = {};
+      let changed = false;
+      for (const [taskId, loading] of Object.entries(prev)) {
+        if (!taskIds.has(taskId)) {
+          changed = true;
+          continue;
+        }
+        next[taskId] = loading;
+      }
+      return changed ? next : prev;
+    });
+    setTaskLogLoadSignalById((prev) => {
+      const next: Record<string, number> = {};
+      let changed = false;
+      for (const [taskId, signal] of Object.entries(prev)) {
+        if (!taskIds.has(taskId)) {
+          changed = true;
+          continue;
+        }
+        next[taskId] = signal;
+      }
+      return changed ? next : prev;
+    });
+  }, [orderedTasks]);
 
   // Prefer pausing active processing tasks, otherwise allow resuming the most recent paused task. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   const processingTask = useMemo(
@@ -849,13 +902,15 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   );
 
   useEffect(() => {
-    // Reset TaskGroup paging when switching groups so users always start from the latest page. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
+    // Reset chained task/log paging when switching groups so the timeline always starts at the newest task. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     chatDidInitScrollRef.current = false;
     chatAutoScrollEnabledRef.current = true;
     chatPrependInFlightRef.current = false;
     chatPrependScrollRestoreRef.current = null;
-    setTaskPagingPinnedToLatest(true);
-    setTaskHiddenCount(0);
+    setOldestVisibleTaskId(null);
+    setTaskLogHistoryExhaustedById({});
+    setTaskLogLoadingEarlierById({});
+    setTaskLogLoadSignalById({});
   }, [taskGroupId]);
 
   useEffect(() => {
@@ -1509,19 +1564,67 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     window.location.hash = buildTaskGroupsHash();
   }, []);
 
+  const handleTaskLogHistoryExhaustedChange = useCallback((taskId: string, exhausted: boolean) => {
+    // Track per-task log pagination completion so task-group scrolling can unlock previous tasks in order. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    setTaskLogHistoryExhaustedById((prev) => {
+      if (prev[taskId] === exhausted) return prev;
+      return { ...prev, [taskId]: exhausted };
+    });
+  }, []);
+
+  const handleTaskLogLoadingEarlierChange = useCallback((taskId: string, loading: boolean) => {
+    // Prevent repeated top-scroll triggers while the active task is already fetching earlier logs. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    setTaskLogLoadingEarlierById((prev) => {
+      if (prev[taskId] === loading) return prev;
+      return { ...prev, [taskId]: loading };
+    });
+  }, []);
+
   const loadOlderTasks = useCallback(() => {
     const container = chatBodyRef.current;
     if (!container) return;
-    // Keep the default view bounded (latest 3 tasks) until users explicitly scroll up to load older tasks. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
-    const currentHidden = taskPagingPinnedToLatest ? pinnedHiddenCount : taskHiddenCount;
-    if (currentHidden <= 0) return;
+    const activeTask = oldestVisibleTask;
+    if (!activeTask) return;
+
+    if (effectiveTaskLogsEnabled !== true) {
+      // Fall back to task-only chaining when log viewer callbacks are unavailable (feature disabled/loading). docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      if (!hasOlderHiddenTask) return;
+      if (chatPrependInFlightRef.current) return;
+      const nextTask = orderedTasks[visibleTaskStartIndex - 1];
+      if (!nextTask) return;
+      chatPrependInFlightRef.current = true;
+      chatPrependScrollRestoreRef.current = { scrollTop: container.scrollTop, scrollHeight: container.scrollHeight };
+      setOldestVisibleTaskId(nextTask.id);
+      return;
+    }
+
+    if (taskLogLoadingEarlierById[activeTask.id]) return;
+
+    // Chain loading: finish current task logs first, then prepend the previous task once history is exhausted. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    if (!taskLogHistoryExhaustedById[activeTask.id]) {
+      setTaskLogLoadSignalById((prev) => ({
+        ...prev,
+        [activeTask.id]: (prev[activeTask.id] ?? 0) + 1
+      }));
+      return;
+    }
+    if (!hasOlderHiddenTask) return;
     if (chatPrependInFlightRef.current) return;
 
+    const nextTask = orderedTasks[visibleTaskStartIndex - 1];
+    if (!nextTask) return;
     chatPrependInFlightRef.current = true;
     chatPrependScrollRestoreRef.current = { scrollTop: container.scrollTop, scrollHeight: container.scrollHeight };
-    setTaskPagingPinnedToLatest(false);
-    setTaskHiddenCount(Math.max(0, currentHidden - TASK_PAGE_SIZE));
-  }, [pinnedHiddenCount, taskHiddenCount, taskPagingPinnedToLatest]);
+    setOldestVisibleTaskId(nextTask.id);
+  }, [
+    effectiveTaskLogsEnabled,
+    hasOlderHiddenTask,
+    oldestVisibleTask,
+    orderedTasks,
+    taskLogHistoryExhaustedById,
+    taskLogLoadingEarlierById,
+    visibleTaskStartIndex
+  ]);
 
   // Use group-id readiness to gate blocking UI states so stale loading flags cannot mask loaded content. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
   // Treat missing groups as ready to show empty-state messaging. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
@@ -1541,7 +1644,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
   }, [loadOlderTasks]);
 
   useLayoutEffect(() => {
-    // Preserve scroll position when older tasks are prepended (reverse paging). docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
+    // Preserve scroll position when the chain loader prepends an older task above the viewport. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     const container = chatBodyRef.current;
     const pending = chatPrependScrollRestoreRef.current;
     if (!container || !pending) return;
@@ -1550,7 +1653,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     container.scrollTop = pending.scrollTop + Math.max(0, delta);
     chatPrependScrollRestoreRef.current = null;
     chatPrependInFlightRef.current = false;
-  }, [taskHiddenCount, orderedTasks.length]);
+  }, [oldestVisibleTaskId, orderedTasks.length]);
 
   useLayoutEffect(() => {
     // Default the TaskGroup chat view to the bottom (latest tasks) and keep it pinned when the user is already at the bottom. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
@@ -1572,7 +1675,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     if (chatAutoScrollEnabledRef.current) {
       container.scrollTop = container.scrollHeight;
     }
-  }, [isGroupBlocking, taskGroupId, visibleTasks.length, orderedTasks.length, taskHiddenCount]);
+  }, [isGroupBlocking, taskGroupId, visibleTasks.length, orderedTasks.length, oldestVisibleTaskId]);
 
   useEffect(() => {
     // Keep the chat pinned to the bottom when async log rendering changes height and the user hasn't scrolled away. docs/en/developer/plans/taskgroupscrollbottom20260123/task_plan.md taskgroupscrollbottom20260123
@@ -1907,6 +2010,10 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                       onOpenTask={openTask}
                       taskLogsEnabled={effectiveTaskLogsEnabled}
                       onSuggestionClick={handleSuggestionClick}
+                      // Wire task-log paging events into TaskGroup chain scrolling so logs are loaded task-by-task. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+                      onLogHistoryExhaustedChange={handleTaskLogHistoryExhaustedChange}
+                      onLogLoadingEarlierChange={handleTaskLogLoadingEarlierChange}
+                      logLoadEarlierSignal={taskLogLoadSignalById[task.id] ?? 0}
                     />
                   ))
                 )}

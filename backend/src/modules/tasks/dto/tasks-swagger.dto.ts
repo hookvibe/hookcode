@@ -120,12 +120,7 @@ export class TaskResultDto {
   @ApiPropertyOptional()
   message?: string;
 
-  @ApiPropertyOptional({ type: String, isArray: true })
-  logs?: string[];
-
-  @ApiPropertyOptional()
-  logsSeq?: number;
-
+  // Task logs are served via `/tasks/:id/logs` and omitted from task result payloads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   @ApiPropertyOptional({ type: TaskTokenUsageDto })
   tokenUsage?: TaskTokenUsageDto;
 
@@ -378,8 +373,18 @@ export class TaskControlResponseDto {
 }
 
 export class TaskLogsResponseDto {
+  // Expose pagination metadata for task log pages. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   @ApiProperty({ type: String, isArray: true })
   logs!: string[];
+
+  @ApiProperty({ example: 1, description: 'Sequence number of the first log line in this page.' })
+  startSeq!: number;
+
+  @ApiProperty({ example: 200, description: 'Sequence number of the last log line in this page.' })
+  endSeq!: number;
+
+  @ApiProperty({ required: false, description: 'Cursor for fetching earlier log lines.' })
+  nextBefore?: number;
 }
 
 export class TaskVolumePointDto {

@@ -138,6 +138,8 @@ export const enUSChat = {
   'logViewer.lines': '{{count}} lines',
   'logViewer.actions.resume': 'Resume',
   'logViewer.actions.pause': 'Pause',
+  // Add log paging action label for the task log viewer. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  'logViewer.actions.loadEarlier': 'Load earlier',
   'logViewer.actions.reconnect': 'Reconnect',
   'logViewer.actions.copy': 'Copy',
   'logViewer.actions.clear': 'Clear',

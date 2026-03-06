@@ -82,6 +82,12 @@
   transition: all 0.2s;
 }
 
+/* Make disabled log viewer buttons obvious for paging controls. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306 */
+.log-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .log-btn:hover {
   background: var(--hc-surface-hover);
   border-color: var(--hc-border-hover);
@@ -162,4 +168,12 @@
 .text-secondary {
   color: var(--muted);
   font-size: 13px;
+}
+
+/* Space out flat log view actions when paging earlier lines. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306 */
+.log-flat-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }

@@ -1,6 +1,6 @@
 /**
  * Process-local pub/sub for task logs:
- * - Producer: `backend/src/agent/agent.ts` continuously calls `publish(taskId, line)` while executing a task.
+ * - Producer: `backend/src/agent/agent.ts` continuously calls `publish(taskId, line, seq)` while executing a task. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
  * - Consumer: the SSE endpoint in `backend/src/routes/tasks.ts` calls `subscribe()` and pushes to the frontend (`frontend/src/components/TaskLogViewer.tsx`).
  *
  * Note: this is in-memory and cannot be shared across processes/containers; therefore tasks SSE also has a DB polling fallback (see `backend/src/routes/tasks.ts`).
@@ -9,6 +9,7 @@ import { Injectable } from '@nestjs/common';
 
 export interface TaskLogStreamEvent {
   line: string;
+  seq: number;
 }
 
 type LogListener = (event: TaskLogStreamEvent) => void;
@@ -17,11 +18,12 @@ type LogListener = (event: TaskLogStreamEvent) => void;
 export class TaskLogStream {
   private readonly listenersByTaskId = new Map<string, Set<LogListener>>();
 
-  publish(taskId: string, line: string) {
+  publish(taskId: string, line: string, seq: number) {
+    // Include sequence ids in log stream events to support paged SSE consumers. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     const listeners = this.listenersByTaskId.get(taskId);
     if (!listeners || listeners.size === 0) return;
 
-    const event: TaskLogStreamEvent = { line };
+    const event: TaskLogStreamEvent = { line, seq };
     listeners.forEach((listener) => {
       try {
         listener(event);
@@ -44,4 +46,3 @@ export class TaskLogStream {
     };
   }
 }
-
