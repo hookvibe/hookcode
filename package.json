@@ -6,13 +6,14 @@
   "workspaces": [
     "backend",
     "frontend",
-    "docs"
+    "docs",
+    "worker"
   ],
   "scripts": {
     "dev": "concurrently  \"pnpm dev:backend\" \"pnpm dev:frontend\"",
     "dev:backend": "ADMIN_TOOLS_EMBEDDED=false pnpm --filter hookcode-backend dev",
     "dev:tools": "pnpm --filter hookcode-backend dev:tools",
-    "dev:worker": "pnpm --filter hookcode-backend dev:worker",
+    "dev:worker": "pnpm --filter hookcode-worker dev",
     "dev:frontend": "pnpm --filter hookcode-frontend dev",
     "dev:db": "docker compose -f docker/docker-compose.yml up db -d",
     "dev:doc": "pnpm --filter hookcode-docs dev",
@@ -27,7 +28,9 @@
     "build:backend": "pnpm --filter hookcode-backend build",
     "build:frontend": "pnpm --filter hookcode-frontend build",
     "lint": "echo \"add lint in packages\"",
-    "test": "pnpm --filter hookcode-backend test && pnpm --filter hookcode-frontend test"
+    "test": "pnpm --filter hookcode-backend test && pnpm --filter hookcode-frontend test && pnpm --filter hookcode-worker test",
+    "build:worker": "pnpm --filter hookcode-worker build",
+    "test:worker": "pnpm --filter hookcode-worker test"
   },
   "engines": {
     "node": ">=18.0.0"

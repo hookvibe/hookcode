@@ -80,6 +80,7 @@ vi.mock('../api', () => {
       revokedAt: new Date().toISOString(),
       lastUsedAt: null
     })),
+    testRepoWorkflow: vi.fn(async () => ({ ok: true, mode: 'direct', message: 'direct workflow check ok' })), // Support draft workflow checks before robot save. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
     // Mock task stats fetch with paused counts for repo detail dashboard coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     fetchTaskStats: vi.fn(async () => ({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 })),
     // Mock paginated task list responses for repo detail coverage. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
@@ -98,6 +99,7 @@ vi.mock('../api', () => {
     listMyModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
     listRepoModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
     fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' })),
+    fetchWorkers: vi.fn(async () => [{ id: 'w1', name: 'Worker 1', kind: 'remote', status: 'online', systemManaged: false, maxConcurrency: 1, currentConcurrency: 0, createdAt: '2026-01-11T00:00:00.000Z', updatedAt: '2026-01-11T00:00:00.000Z' }]),
     fetchRepoProviderActivity: vi.fn(async () => ({
       provider: 'gitlab',
       commits: { items: [], page: 1, pageSize: 5, hasMore: false },
@@ -462,6 +464,60 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await screen.findByLabelText('Name');
   });
 
+  test('auto-dismisses onboarding when repo already has robots', async () => {
+    // Prevent configured repos from reopening the onboarding wizard when localStorage is empty. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+    vi.mocked(api.fetchRepo).mockResolvedValueOnce({
+      repo: {
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'Repo 1',
+        externalId: '',
+        apiBaseUrl: '',
+        enabled: true,
+        permissions: {
+          canRead: true,
+          canManage: true,
+          canDelete: true,
+          canManageMembers: false,
+          canManageTasks: true
+        },
+        createdAt: '2026-01-11T00:00:00.000Z',
+        updatedAt: '2026-01-11T00:00:00.000Z'
+      },
+      robots: [
+        {
+          id: 'rb1',
+          repoId: 'r1',
+          name: 'Bot 1',
+          enabled: true,
+          activatedAt: '2026-01-11T00:00:00.000Z',
+          permission: 'write',
+          isDefault: true
+        } as any
+      ],
+      automationConfig: null,
+      webhookSecret: null,
+      webhookPath: null,
+      repoScopedCredentials: {
+        repoProvider: { profiles: [], defaultProfileId: null },
+        modelProvider: {
+          codex: { profiles: [], defaultProfileId: null },
+          claude_code: { profiles: [], defaultProfileId: null },
+          gemini_cli: { profiles: [], defaultProfileId: null }
+        }
+      },
+      previewEnvConfig: { variables: [] }
+    });
+
+    renderPage({ repoId: 'r1', repoTab: 'basic' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+    await waitFor(() => expect(window.localStorage.getItem('hookcode-repo-onboarding:r1')).toBeTruthy());
+
+    expect(screen.queryByText('Repository setup guide')).not.toBeInTheDocument();
+    await screen.findByLabelText('Name');
+  });
+
   test('treats archived repositories as read-only (no write actions)', async () => {
     // Ensure archived repositories do not expose write affordances in the repo detail page. qnp1mtxhzikhbi0xspbc
     const archivedRepoMock = {
@@ -639,6 +695,34 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await waitFor(() => expect(modelInput).toHaveValue('gpt-4o'));
   });
 
+  test('checks workflow before saving a new robot by using draft credentials', async () => {
+    // Ensure workflow checks are available without persisting the robot first. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    vi.mocked(api.testRepoWorkflow).mockResolvedValueOnce({ ok: true, mode: 'direct', message: 'direct workflow check ok' });
+
+    renderPage({ repoId: 'r1', repoTab: 'robots' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+
+    await ui.click(screen.getByRole('button', { name: /new robot/i }));
+
+    const tokenInput = await screen.findByLabelText('Token');
+    await ui.type(tokenInput, 'token-123');
+
+    await ui.click(screen.getByRole('button', { name: 'Check workflow' }));
+
+    await waitFor(() =>
+      expect(api.testRepoWorkflow).toHaveBeenCalledWith(
+        'r1',
+        expect.objectContaining({
+          repoCredentialSource: 'robot',
+          token: 'token-123'
+        })
+      )
+    );
+  });
+
   test('opens repo model credential modal from robot form when repo credentials are missing', async () => {
     // Surface the repo-scoped model credential CTA inside the robot form to avoid a setup dead-end. docs/en/developer/plans/repo-guide-visibility-20260227/task_plan.md repo-guide-visibility-20260227
     const ui = userEvent.setup();
@@ -668,6 +752,29 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await ui.click(addRepoCredential);
 
     expect(await screen.findByText('Add credential profile')).toBeInTheDocument();
+  });
+
+
+  test('shows default worker selector in robot editor for admins', async () => {
+    // Verify repo robot settings can bind a default worker when the current user is an admin. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    window.localStorage.setItem('hookcode-user', JSON.stringify({ id: 'u_admin', username: 'admin', roles: ['admin'] }));
+
+    renderPage({ repoId: 'r1', repoTab: 'robots' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+    await waitFor(() => expect(api.fetchWorkers).toHaveBeenCalled());
+
+    await ui.click(screen.getByRole('button', { name: /new robot/i }));
+
+    const workerLabel = await screen.findByText('Default worker');
+    const workerItem = workerLabel.closest('.ant-form-item');
+    expect(workerItem).toBeTruthy();
+    const workerSelect = workerItem?.querySelector('.ant-select') as HTMLElement | null;
+    expect(workerSelect).toBeTruthy();
+    fireEvent.mouseDown(workerSelect as HTMLElement);
+    expect(await screen.findByText('Worker 1 · Remote · Online')).toBeInTheDocument();
   });
 
   test('shows dependency override controls in robot editor', async () => {

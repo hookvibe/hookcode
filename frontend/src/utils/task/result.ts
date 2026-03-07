@@ -8,6 +8,12 @@ export type StructuredTaskOutput = {
   nextActions: string[];
 };
 
+export type TaskTokenUsageSummary = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+};
+
 const parseStructuredTaskOutput = (raw: string): StructuredTaskOutput | null => {
   // Parse Codex structured outputs (output + next_actions) without breaking plain-text responses. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
   const trimmed = raw.trim();
@@ -53,4 +59,16 @@ export const extractTaskResultSuggestions = (task?: Task | null): string[] => {
   if (!outputText) return [];
   const structured = parseStructuredTaskOutput(outputText);
   return structured?.nextActions ?? [];
+};
+
+export const extractTaskTokenUsage = (task?: Task | null): TaskTokenUsageSummary | null => {
+  // Normalize task token usage once so task detail and chat cards render consistent metrics. docs/en/developer/plans/task-group-card-modernize-20260306/task_plan.md task-group-card-modernize-20260306
+  const raw = task?.result?.tokenUsage as any;
+  if (!raw) return null;
+  const inputTokens = typeof raw.inputTokens === 'number' && Number.isFinite(raw.inputTokens) ? raw.inputTokens : 0;
+  const outputTokens = typeof raw.outputTokens === 'number' && Number.isFinite(raw.outputTokens) ? raw.outputTokens : 0;
+  const totalTokens =
+    typeof raw.totalTokens === 'number' && Number.isFinite(raw.totalTokens) ? raw.totalTokens : inputTokens + outputTokens;
+  if (inputTokens <= 0 && outputTokens <= 0 && totalTokens <= 0) return null;
+  return { inputTokens, outputTokens, totalTokens };
 };

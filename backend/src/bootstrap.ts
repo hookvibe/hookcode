@@ -9,7 +9,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { NestFactory } from '@nestjs/core';
 import { verifyToken } from './auth/authService';
 import { closeDb, ensureSchema } from './db';
-import { isTruthy } from './utils/env';
+import { isTruthy, parseOptionalDurationMs } from './utils/env';
 import { parsePositiveInt } from './utils/parse'; // Reuse numeric parsing helpers for env-configured retention. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 import { isAdminToolsEmbeddedEnabled } from './adminTools/config';
 import { startAdminTools, type AdminToolsHandle } from './adminTools/startAdminTools';
@@ -20,6 +20,10 @@ import { RuntimeService } from './services/runtimeService';
 import { OpenApiSpecStore } from './modules/openapi/openapi-spec.store';
 import { PreviewWsProxyService } from './modules/tasks/preview-ws-proxy.service';
 import { PreviewHostProxyService } from './modules/tasks/preview-host-proxy.service';
+import { WorkersConnectionService } from './modules/workers/workers-connection.service';
+import { LocalWorkerSupervisorService } from './modules/workers/local-worker-supervisor.service';
+import { WorkersService } from './modules/workers/workers.service';
+import { readExternalSystemWorkerConfig, readSystemWorkerMode } from './modules/workers/system-worker-config';
 import { HttpErrorMessageFilter } from './modules/common/filters/http-error-message.filter';
 import { AuditLogInterceptor } from './modules/logs/audit-log.interceptor';
 import { LogsService } from './modules/logs/logs.service';
@@ -195,9 +199,19 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
   const taskService = app.get(TaskService);
 
   // Recover "stuck" processing tasks periodically.
-  const staleMs = resolveProcessingStaleMs();
-  if (staleMs !== null) {
-    const intervalMs = Math.max(5_000, toNumber(process.env.PROCESSING_STALE_RECOVERY_INTERVAL_MS, 60_000));
+  // Respect blank/zero PROCESSING_STALE_MS to disable stale recovery. docs/en/developer/plans/stale-disable-20260305/task_plan.md stale-disable-20260305
+  const staleMs = parseOptionalDurationMs(process.env.PROCESSING_STALE_MS, 30 * 60 * 1000);
+  const intervalMs = Math.max(5_000, toNumber(process.env.PROCESSING_STALE_RECOVERY_INTERVAL_MS, 60_000));
+  if (staleMs === null) {
+    console.warn(`${logTag} stale processing recovery disabled (PROCESSING_STALE_MS is blank or 0)`);
+    // Emit system logs when stale recovery is intentionally disabled. docs/en/developer/plans/stale-disable-20260305/task_plan.md stale-disable-20260305
+    void logWriter?.logSystem({
+      level: 'info',
+      message: 'Stale processing recovery disabled via PROCESSING_STALE_MS',
+      code: 'TASK_STALE_RECOVERY_DISABLED',
+      meta: { source: 'api', staleMs: null }
+    });
+  } else {
     try {
       const recovered = await taskService.recoverStaleProcessing(staleMs);
       if (recovered > 0) {
@@ -244,9 +258,6 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
         });
       }
     }, intervalMs);
-  } else {
-    // Skip API-side stale reaper by default so tasks do not fail on an implicit processing timeout. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
-    console.log(`${logTag} stale-processing recovery disabled (PROCESSING_STALE_MS is not set)`);
   }
 
   if (logsService) {
@@ -292,6 +303,48 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
     console.warn(`${logTag} preview WS proxy attach failed`, err);
   }
 
+  try {
+    // Attach the worker control socket so remote/local executors can register and receive task assignments. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    const workersConnections = app.get(WorkersConnectionService);
+    workersConnections.attach(app.getHttpServer());
+  } catch (err) {
+    console.warn(`${logTag} worker WS attach failed`, err);
+  }
+
+  let localWorkerSupervisor: LocalWorkerSupervisorService | null = null;
+  const backendBaseUrl = `http://${host}:${port}/${globalPrefix}`;
+  const systemWorkerMode = readSystemWorkerMode(process.env);
+  if (systemWorkerMode === 'local') {
+    try {
+      // Start one colocated worker for each backend instance only in local mode so source-based deployments keep the simplest default executor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      const resolvedLocalWorkerSupervisor = app.get(LocalWorkerSupervisorService);
+      localWorkerSupervisor = resolvedLocalWorkerSupervisor;
+      await resolvedLocalWorkerSupervisor.start({ backendBaseUrl });
+    } catch (err) {
+      console.warn(`${logTag} local worker supervisor start failed`, err);
+      localWorkerSupervisor = null;
+    }
+  } else if (systemWorkerMode === 'external') {
+    // Bootstrap one backend-owned external worker record from env so Docker/production can default to a remote executor without starting a local supervisor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    const externalSystemWorker = readExternalSystemWorkerConfig(process.env);
+    const workersService = app.get(WorkersService);
+    await workersService.ensureExternalSystemWorker({
+      workerId: externalSystemWorker!.workerId,
+      token: externalSystemWorker!.token,
+      name: externalSystemWorker!.name,
+      maxConcurrency: externalSystemWorker!.maxConcurrency,
+      backendBaseUrl
+    });
+  } else {
+    // Allow advanced deployments to disable automatic system-worker bootstrapping entirely when they only want manually managed workers. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    void logWriter?.logSystem({
+      level: 'info',
+      message: 'System worker bootstrap disabled via HOOKCODE_SYSTEM_WORKER_MODE',
+      code: 'WORKER_SYSTEM_BOOTSTRAP_DISABLED',
+      meta: { mode: systemWorkerMode }
+    });
+  }
+
   const adminToolsEmbedded = isAdminToolsEmbeddedEnabled();
   if (adminToolsEmbedded) {
     adminTools = await startAdminTools({
@@ -303,6 +356,14 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
   const stop = async () => {
     if (staleReaperTimer) clearInterval(staleReaperTimer);
     if (logRetentionTimer) clearInterval(logRetentionTimer);
+    try {
+      if (localWorkerSupervisor) {
+        // Stop the colocated worker only when bootstrap started it successfully for this backend instance. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+        await localWorkerSupervisor.stop();
+      }
+    } catch (err) {
+      console.error(`${logTag} stop local worker supervisor failed`, err);
+    }
     try {
       await adminTools?.stop();
     } catch (err) {

@@ -45,9 +45,9 @@ Some endpoints stream Server-Sent Events:
 - `GET /api/events/stream`
 - `GET /api/tasks/:id/logs/stream`
  - `GET /api/logs/stream`
-<!-- Add system log SSE to the API reference list. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+{/* Add system log SSE to the API reference list. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
 - `GET /api/events/stream?topics=notifications`
-<!-- Document notification SSE topic usage. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Document notification SSE topic usage. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 
 These support `?token=<token>` for clients that cannot set headers (e.g. `EventSource`).
 
@@ -56,9 +56,10 @@ These support `?token=<token>` for clients that cannot set headers (e.g. `EventS
 - [OpenAPI Spec](./openapi)
 - [Auth & Users](./auth-users)
 - [Repositories](./repositories)
+- [Workers](./workers)
 - [Tasks, Task Groups & Chat](./tasks-and-groups)
 - [System Logs](./logs)
-<!-- Link new system log API page. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+{/* Link new system log API page. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
 - [Notifications](./notifications)
-<!-- Link notifications API page. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Link notifications API page. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 - [Webhooks, Events, Tools & Health](./webhooks-events-tools)

@@ -10,3 +10,4 @@ export * from './types/automation';
 export * from './types/skills'; // Add skills registry types for the console page. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
 export * from './types/logs'; // Expose system log types for admin log UI. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 export * from './types/notifications'; // Expose notification types for user alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+export * from './types/workers'; // Expose worker registry types for admin panels and executor selectors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307

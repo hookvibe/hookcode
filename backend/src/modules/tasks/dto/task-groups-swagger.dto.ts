@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TaskRepoSummaryDto, TaskRobotSummaryDto, TaskWithMetaDto } from './tasks-swagger.dto';
+import { TaskRepoSummaryDto, TaskRobotSummaryDto, TaskWithMetaDto, WorkerSummaryDto } from './tasks-swagger.dto';
 
 export class TaskGroupWithMetaDto {
   @ApiProperty()
@@ -27,6 +27,10 @@ export class TaskGroupWithMetaDto {
   @ApiPropertyOptional({ nullable: true })
   robotId?: string | null;
 
+  @ApiPropertyOptional({ nullable: true })
+  // Surface the bound worker id so task-group UIs can show which executor owns the shared workspace. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId?: string | null;
+
   @ApiPropertyOptional()
   issueId?: number;
 
@@ -44,6 +48,13 @@ export class TaskGroupWithMetaDto {
   @ApiPropertyOptional({ description: 'Whether a preview is currently running for this task group.' })
   previewActive?: boolean;
 
+  // Expose running-task activity for sidebar indicators. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+  @ApiPropertyOptional({ description: 'Whether the task group currently has processing tasks.' })
+  hasRunningTasks?: boolean;
+
+  @ApiPropertyOptional({ description: 'Whether the task group is blocked because its assigned worker is offline.' })
+  blockedByWorkerOffline?: boolean;
+
   @ApiPropertyOptional({ nullable: true, format: 'date-time' })
   archivedAt?: string | null;
 
@@ -58,6 +69,9 @@ export class TaskGroupWithMetaDto {
 
   @ApiPropertyOptional({ type: TaskRobotSummaryDto })
   robot?: TaskRobotSummaryDto;
+
+  @ApiPropertyOptional({ type: WorkerSummaryDto })
+  workerSummary?: WorkerSummaryDto;
 }
 
 export class ListTaskGroupsResponseDto {

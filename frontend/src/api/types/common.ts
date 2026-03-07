@@ -2,7 +2,7 @@
 
 export type ArchiveScope = 'active' | 'archived' | 'all'; // Keep archive filtering consistent with backend query params. qnp1mtxhzikhbi0xspbc
 
-export type TaskStatus = 'queued' | 'processing' | 'paused' | 'succeeded' | 'failed' | 'commented'; // Include paused for task stop/resume UX. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented'; // Align frontend task statuses with the stop-only execution flow. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 export type TaskQueueReasonCode =
   | 'queue_backlog'
   | 'no_active_worker'

@@ -9,6 +9,7 @@ export const enUSRepos = {
   'repos.page.empty': 'No repositories',
   'repos.page.meta.robots': 'Robots {{enabled}}/{{total}}',
   'repos.page.meta.triggers': 'Triggers {{enabled}}/{{total}}',
+  'repos.page.meta.creator': 'Creator {{name}}', // Show repo creator on list cards. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
   'repos.form.providerRequired': 'Please select a platform',
   'repos.form.repoUrl': 'Repository URL',
   'repos.form.repoUrlRequired': 'Please enter repository URL',
@@ -124,6 +125,11 @@ export const enUSRepos = {
   'repos.dashboard.activity.tasks.status.paused': 'Paused',
   'repos.dashboard.activity.tasks.status.success': 'Success',
   'repos.dashboard.activity.tasks.status.failed': 'Failed',
+
+  // Repo task-group overview list card. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+  'repos.dashboard.activity.taskGroups.title': 'Task groups',
+  'repos.dashboard.activity.taskGroups.empty': 'No task groups yet',
+  'repos.dashboard.activity.taskGroups.loadFailed': 'Failed to load task groups',
 
   // --- Repo detail (tabs) ---
   'repos.detail.tabs.basic': 'Basic',
@@ -306,6 +312,7 @@ export const enUSRepos = {
   'repos.robots.title': 'Robots',
   'repos.robots.createRobot': 'New robot',
   'repos.robots.permission': 'Permission',
+  'repos.robots.worker': 'Worker',
   'repos.robots.default': 'Default',
   'repos.robots.status.pending': 'Pending activation',
   'repos.robots.lastTest': 'Last test',
@@ -340,6 +347,9 @@ export const enUSRepos = {
   'repos.robotForm.workflowMode.checkFailed': 'Workflow check failed: {message}',
   'repos.robotForm.workflowMode.saveRequired': 'Save the robot before checking workflow',
   'repos.robotForm.timeWindow': 'Execution window',
+  // Add robot-level worker selection copy for the external executor flow. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  'repos.robotForm.defaultWorker': 'Default worker',
+  'repos.robotForm.defaultWorkerPlaceholder': 'Follow local worker or chat override',
   'repos.robotForm.language': 'Language',
   'repos.robotForm.modelProvider': 'Model provider',
   'repos.robotForm.modelProviderRequired': 'Please select a model provider',
@@ -386,6 +396,8 @@ export const enUSRepos = {
   'repos.robotForm.defaultBranchPlaceholder': 'Defaults to repo default branch',
   'repos.robotForm.isDefault': 'Set as default',
   'repos.robotForm.section.prompt': 'Default prompt',
+  // Add missing Credentials section i18n key for the robot editor. docs/en/developer/plans/robotform-i18n-fix-20260302/task_plan.md robotform-i18n-fix-20260302
+  'repos.robotForm.section.credentials': 'Credentials',
   'repos.robotForm.promptRequired': 'Please enter default prompt template',
   'repos.robotForm.promptPlaceholder': 'You can use variables like {{repo.name}}, {{robot.name}}, {{issue.number}}',
   'repos.robotForm.section.model': 'Model settings',
@@ -421,8 +433,13 @@ export const enUSRepos = {
   'repos.robotForm.sandbox': 'Sandbox',
   'repos.robotForm.sandbox.readOnly': 'read-only',
   'repos.robotForm.sandbox.workspaceWrite': 'workspace-write',
+  // Claude/Gemini sandbox labels use more intuitive terminology for non-Codex providers. <SESSION_HASH>
+  'repos.robotForm.sandboxClaude.readOnly': 'Read-only mode',
+  'repos.robotForm.sandboxClaude.workspaceWrite': 'Edit mode',
   'repos.robotForm.reasoningEffort': 'Reasoning effort',
   'repos.robotForm.networkAccess': 'Network access (workspace-write only)',
+  // Simplified network access label for Claude/Gemini providers. <SESSION_HASH>
+  'repos.robotForm.networkAccessClaude': 'Network access',
   'repos.robotForm.activationTip': 'Tip: test validates permissions and records identity info (token is never returned).',
   'repos.robotForm.activation.lastTestAt': 'Last test time',
   'repos.robotForm.activation.lastTestMessage': 'Last test message',

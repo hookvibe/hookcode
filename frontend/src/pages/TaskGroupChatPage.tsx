@@ -1,68 +1,22 @@
-import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { App, Button, Input, Modal, Popover, Select, Space, Tooltip, Typography } from 'antd';
-import {
-  ArrowLeftOutlined,
-  ArrowRightOutlined,
-  ClockCircleOutlined,
-  CopyOutlined,
-  ExportOutlined,
-  FileTextOutlined,
-  GlobalOutlined,
-  LockOutlined,
-  PauseCircleOutlined,
-  PlayCircleOutlined,
-  ReloadOutlined,
-  SendOutlined,
-  UnlockOutlined,
-  UnorderedListOutlined,
-  ToolOutlined
-} from '@ant-design/icons';
-import type {
-  PreviewHighlightCommand,
-  PreviewHighlightEvent,
-  PreviewInstanceSummary,
-  PreviewLogEntry,
-  PreviewStatusResponse,
-  RepoRobot,
-  Repository,
-  SkillSelectionKey,
-  SkillSelectionState,
-  Task,
-  TaskGroup,
-  TimeWindow
-} from '../api';
-import {
-  API_BASE_URL,
-  executeChat,
-  fetchTask,
-  fetchTaskGroup,
-  fetchTaskGroupSkillSelection,
-  fetchTaskGroupPreviewStatus,
-  fetchTaskGroupTasks,
-  fetchAllRepos,
-  installTaskGroupPreviewDependencies,
-  listRepoRobots,
-  pauseTask,
-  resumeTask,
-  setTaskGroupPreviewVisibility,
-  startTaskGroupPreview,
-  stopTaskGroupPreview,
-  updateTaskGroupSkillSelection
-} from '../api';
-import { getToken } from '../auth';
+import { FC, useCallback, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
+import { App, Button, Modal, Popover, Space, Typography } from 'antd';
+import { FileTextOutlined, ReloadOutlined } from '@ant-design/icons';
+import type { Task } from '../api';
 import { useLocale, useT } from '../i18n';
-import { buildTaskGroupHash, buildTaskGroupsHash, buildTaskHash } from '../router';
-import { TaskConversationItem } from '../components/chat/TaskConversationItem';
+import { buildTaskGroupsHash } from '../router';
+import { TaskGroupComposer } from '../components/taskGroupWorkspace/TaskGroupComposer';
+import { TaskGroupLogPanel } from '../components/taskGroupWorkspace/TaskGroupLogPanel';
+import { TaskGroupTaskCard } from '../components/taskGroupWorkspace/TaskGroupTaskCard';
+import { TaskGroupWorkspacePanel } from '../components/taskGroupWorkspace/TaskGroupWorkspacePanel';
+import { WorkerSummaryTag } from '../components/workers/WorkerSummaryTag';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
-import { isTerminalStatus } from '../utils/task';
+import { getTaskTitle } from '../utils/task';
 import { ChatTimelineSkeleton } from '../components/skeletons/ChatTimelineSkeleton';
-import { TimeWindowPicker } from '../components/TimeWindowPicker';
-import { formatTimeWindowLabel } from '../utils/timeWindow';
-import { formatRobotLabelWithProvider } from '../utils/robot';
-import { createAuthedEventSource } from '../utils/sse';
-import { matchPreviewTargetUrl, splitPreviewTargetUrlCandidates } from '../utils/previewRouteMatch';
 import { SkillSelectionPanel } from '../components/skills/SkillSelectionPanel';
 import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
+import { useTaskGroupPreviewWorkspace } from './taskGroupChatPage/useTaskGroupPreviewWorkspace';
+import { useTaskGroupTaskActions } from './taskGroupChatPage/useTaskGroupTaskActions';
+import { useTaskGroupWorkspaceData } from './taskGroupChatPage/useTaskGroupWorkspaceData';
 
 /**
  * TaskGroupChatPage:
@@ -74,7 +28,7 @@ import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
  * Key requirements (migration step 1):
  * - Repo must be selected before creating a new task group.
  * - Robot must be selected before sending a task.
- * - Thought chain == real-time task logs (handled by `TaskConversationItem`).
+ * - Task cards own submission metadata while execution logs move into the shared right workspace.
  *
  * Change record:
  * - 2026-01-11: Added for `frontend-chat` Home page migration (replace `#/chat` with `#/`).
@@ -84,1737 +38,251 @@ import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
 export interface TaskGroupChatPageProps {
   taskGroupId?: string;
   userPanel?: ReactNode;
-  taskLogsEnabled?: boolean | null;
   navToggle?: PageNavMenuAction;
 }
 
-export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, userPanel, taskLogsEnabled, navToggle }) => {
+export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, userPanel, navToggle }) => {
   const locale = useLocale();
   const t = useT();
   const { message } = App.useApp();
-
-  const effectiveTaskLogsEnabled = taskLogsEnabled === undefined ? true : taskLogsEnabled; // Reuse `/auth/me` feature toggles to avoid repeated SSE 404 retries when logs are disabled. 0nazpc53wnvljv5yh7c6
-
-  const [reposLoading, setReposLoading] = useState(false);
-  const [repos, setRepos] = useState<Repository[]>([]);
-  const [repoId, setRepoId] = useState('');
-
-  const [robotsLoading, setRobotsLoading] = useState(false);
-  const [robots, setRobots] = useState<RepoRobot[]>([]);
-  const [robotId, setRobotId] = useState('');
-
-  const [group, setGroup] = useState<TaskGroup | null>(null);
-  // Flag 404 task-group fetches to render a dedicated empty state. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const [groupMissing, setGroupMissing] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [taskDetailsById, setTaskDetailsById] = useState<Record<string, Task | null>>({});
-  // Track the latest sent task so it can animate into its final chat position. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-  const [recentTaskId, setRecentTaskId] = useState<string | null>(null);
-  // Track SSE connectivity for task-group timeline updates. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
-  const [taskGroupStreamConnected, setTaskGroupStreamConnected] = useState(false);
-  const taskGroupStreamRef = useRef<EventSource | null>(null);
-
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
-  // Track pause/resume button loading state for active task groups. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const [controlLoading, setControlLoading] = useState(false);
-  // Track optional chat-level time windows for manual scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
-  const [chatTimeWindow, setChatTimeWindow] = useState<TimeWindow | null>(null);
-  // Compute a concise label for the chat time window icon badge. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
-  const chatTimeWindowLabel = useMemo(() => formatTimeWindowLabel(chatTimeWindow), [chatTimeWindow]);
-  // Control the composer actions popover for time window + preview shortcuts. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
-  const [composerActionsOpen, setComposerActionsOpen] = useState(false);
+  const [openTaskLogIds, setOpenTaskLogIds] = useState<string[]>([]);
+  const [activeWorkspaceTabKey, setActiveWorkspaceTabKey] = useState<string | null>(null);
   const { skills: skillsCatalog, loading: skillsCatalogLoading, refresh: refreshSkillsCatalog } = useSkillsCatalog();
-  // Track task-group skill overrides for the chat-level selection modal. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-  const [skillSelection, setSkillSelection] = useState<SkillSelectionState | null>(null);
-  const [skillSelectionLoading, setSkillSelectionLoading] = useState(false);
-  const [skillSelectionSaving, setSkillSelectionSaving] = useState(false);
-  const [skillSelectionOpen, setSkillSelectionOpen] = useState(false);
 
-  // Track TaskGroup preview status to render the dev server panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const [previewState, setPreviewState] = useState<PreviewStatusResponse | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewActionLoading, setPreviewActionLoading] = useState(false);
-  // Track preview start modal visibility and manual dependency installs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const [previewStartModalOpen, setPreviewStartModalOpen] = useState(false);
-  const [previewInstallLoading, setPreviewInstallLoading] = useState(false);
-  // Keep preview tabs and logs state aligned with multi-instance previews. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const [activePreviewName, setActivePreviewName] = useState<string | null>(null);
-  const [previewLogsOpen, setPreviewLogsOpen] = useState(false);
-  const [previewLogsLoading, setPreviewLogsLoading] = useState(false);
-  const [previewLogs, setPreviewLogs] = useState<PreviewLogEntry[]>([]);
-  const previewLogStreamRef = useRef<EventSource | null>(null);
-  // Track terminal preview scroll state so auto-follow pauses while users inspect older log lines. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-  const previewTerminalBodyRef = useRef<HTMLDivElement | null>(null);
-  const previewTerminalAutoScrollRef = useRef(true);
-  // Track preview bridge readiness for cross-origin highlight commands. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const [previewBridgeReady, setPreviewBridgeReady] = useState(false);
-  const previewBridgeReadyRef = useRef(false);
-  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
-  const previewHighlightStreamRef = useRef<EventSource | null>(null);
-  // Track preview iframe navigation + address bar state for the embedded browser UI. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-  const [previewIframeOverrideSrc, setPreviewIframeOverrideSrc] = useState<string | null>(null);
-  const [previewAddress, setPreviewAddress] = useState('');
-  const [previewAddressInput, setPreviewAddressInput] = useState('');
-  const [previewAddressEditing, setPreviewAddressEditing] = useState(false);
-  // Control automatic preview navigation triggered by highlight commands. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
-  const [previewAutoNavigateLocked, setPreviewAutoNavigateLocked] = useState(false);
-  // Stash pending highlight commands until the preview bridge is ready after navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
-  const pendingPreviewHighlightRef = useRef<PreviewHighlightCommand | null>(null);
-  // Maintain draggable preview panel sizing state for Phase 3 layout updates. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const [previewPanelWidth, setPreviewPanelWidth] = useState<number | null>(null);
-  const [previewDragActive, setPreviewDragActive] = useState(false);
-  const [previewLayoutWidth, setPreviewLayoutWidth] = useState(0);
-  const previewDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
-  const layoutRef = useRef<HTMLDivElement | null>(null);
+  // Keep group/task data orchestration out of the page component so this file stays focused on workspace composition. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  const {
+    chatBodyRef,
+    reposLoading,
+    repoId,
+    setRepoId,
+    repoOptions,
+    repoLocked,
+    robotsLoading,
+    robotId,
+    setRobotId,
+    robotOptions,
+    workersLoading,
+    workerId,
+    setWorkerId,
+    workerOptions,
+    workerLocked,
+    showWorkerSelector,
+    group,
+    groupMissing,
+    orderedTasks,
+    taskById,
+    taskDetailsById,
+    setTaskDetailsById,
+    draft,
+    setDraft,
+    sending,
+    chatTimeWindow,
+    setChatTimeWindow,
+    skillSelection,
+    skillSelectionLoading,
+    skillSelectionSaving,
+    skillSelectionOpen,
+    setSkillSelectionOpen,
+    skillModeLabel,
+    groupTitle,
+    groupUpdatedAtText,
+    canRunChatInGroup,
+    canSend,
+    isGroupBlocking,
+    isEmptyGroup,
+    isCentered,
+    refreshSkillSelection,
+    saveSkillSelection,
+    refreshGroupDetail,
+    ensureTaskDetail,
+    handleSend
+  } = useTaskGroupWorkspaceData({
+    taskGroupId,
+    locale,
+    t,
+    message
+  });
 
-  const handleSuggestionClick = useCallback((suggestion: string) => {
-    // Append suggested next actions into the chat composer draft for quick follow-up. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-    setDraft((prev) => {
-      if (!prev.trim()) return suggestion;
-      if (prev.endsWith('\n')) return `${prev}${suggestion}`;
-      return `${prev}\n${suggestion}`;
-    });
-  }, []);
-
-  const refreshSkillSelection = useCallback(async () => {
-    // Load task-group skill selections for the chat-level override modal. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-    if (!taskGroupId) return;
-    setSkillSelectionLoading(true);
-    try {
-      const selection = await fetchTaskGroupSkillSelection(taskGroupId);
-      setSkillSelection(selection);
-    } catch (err) {
-      console.error(err);
-      message.error(t('skills.selection.toast.fetchFailed'));
-      setSkillSelection(null);
-    } finally {
-      setSkillSelectionLoading(false);
-    }
-  }, [message, t, taskGroupId]);
-
-  const saveSkillSelection = useCallback(
-    async (nextSelection: SkillSelectionKey[] | null) => {
-      // Persist task-group skill overrides for the current conversation. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-      if (!taskGroupId) return;
-      setSkillSelectionSaving(true);
-      try {
-        const updated = await updateTaskGroupSkillSelection(taskGroupId, nextSelection);
-        setSkillSelection(updated);
-        message.success(t('skills.selection.toast.saved'));
-      } catch (err) {
-        console.error(err);
-        message.error(t('skills.selection.toast.saveFailed'));
-      } finally {
-        setSkillSelectionSaving(false);
-      }
-    },
-    [message, t, taskGroupId]
-  );
-
-  const pollTimerRef = useRef<number | null>(null);
-  const chatBodyRef = useRef<HTMLDivElement | null>(null);
-  const chatAutoScrollEnabledRef = useRef(true);
-  const chatDidInitScrollRef = useRef(false);
-  const chatPrependScrollRestoreRef = useRef<null | { scrollTop: number; scrollHeight: number }>(null);
-  const chatPrependInFlightRef = useRef(false);
-  const groupRef = useRef<TaskGroup | null>(null);
-  // Preserve the newly created group id so route-driven refresh stays non-blocking. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-  const optimisticGroupIdRef = useRef<string | null>(null);
-  const groupRequestSeqRef = useRef(0);
-  const groupRequestInFlightRef = useRef(false);
-  // Throttle polling error toasts so network flaps don't spam the UI. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126
-  const lastGroupRefreshNoticeAtRef = useRef(0);
-  const GROUP_REFRESH_NOTICE_COOLDOWN_MS = 15000;
-  const GROUP_REFRESH_NOTICE_KEY = 'task-group-refresh-warning';
-  // Cap preview log buffering on the frontend to keep the modal responsive. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const PREVIEW_LOG_TAIL = 200;
-  const PREVIEW_LOG_MAX = 500;
-  // Configure preview panel sizing defaults and responsive breakpoints. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
-  const PREVIEW_PANEL_MIN_WIDTH = 320;
-  const PREVIEW_PANEL_MIN_CHAT_WIDTH = 420;
-  const PREVIEW_PANEL_DEFAULT_RATIO = 0.5;
-  const PREVIEW_PANEL_STACK_BREAKPOINT = 1024;
-  const PREVIEW_PANEL_STORAGE_KEY = 'hc-preview-panel-width';
-
-  const repoLocked = Boolean(taskGroupId);
-
-  const enabledRepos = useMemo(() => repos.filter((r) => r.enabled), [repos]);
-  const enabledRobots = useMemo(() => robots.filter((r) => Boolean(r?.enabled)), [robots]);
-
-  const repoOptions = useMemo(
-    () =>
-      enabledRepos.map((r) => ({
-        value: r.id,
-        label: r.name ? `${r.name} (${r.provider === 'github' ? 'GitHub' : 'GitLab'})` : r.id
-      })),
-    [enabledRepos]
-  );
-
-  const robotOptions = useMemo(
-    () =>
-      enabledRobots.map((r) => ({
-        value: r.id,
-        // Add bound AI provider to robot labels in the picker. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
-        label: formatRobotLabelWithProvider(r.name || r.id, r.modelProvider)
-      })),
-    [enabledRobots]
-  );
-
-  const orderedTasks = useMemo(() => {
-    const list = [...tasks];
-    list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    return list;
-  }, [tasks]);
-
-  const TASK_PAGE_SIZE = 3;
-  const [taskHiddenCount, setTaskHiddenCount] = useState(0);
-  const [taskPagingPinnedToLatest, setTaskPagingPinnedToLatest] = useState(true);
-
-  const pinnedHiddenCount = Math.max(0, orderedTasks.length - TASK_PAGE_SIZE);
-  const effectiveHiddenCount = Math.max(
-    0,
-    Math.min(taskPagingPinnedToLatest ? pinnedHiddenCount : taskHiddenCount, orderedTasks.length)
-  );
-  const visibleTasks = useMemo(() => orderedTasks.slice(effectiveHiddenCount), [effectiveHiddenCount, orderedTasks]);
-
-  // Prefer pausing active processing tasks, otherwise allow resuming the most recent paused task. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const processingTask = useMemo(
-    () => [...orderedTasks].reverse().find((task) => task.status === 'processing') ?? null,
-    [orderedTasks]
-  );
-  const pausedTask = useMemo(
-    () => [...orderedTasks].reverse().find((task) => task.status === 'paused') ?? null,
-    [orderedTasks]
-  );
-  const controlTask = processingTask ?? pausedTask;
-  const controlMode: 'pause' | 'resume' | null = processingTask ? 'pause' : pausedTask ? 'resume' : null;
-  const canControlTask = Boolean(controlTask?.permissions?.canManage);
-
-  const previewInstances = previewState?.instances ?? [];
-  const previewAvailable = previewState?.available ?? false;
-  // Compute the maximum preview width based on the current layout size. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const previewPanelMaxWidth = useMemo(() => {
-    if (!previewLayoutWidth) return 0;
-    return Math.max(PREVIEW_PANEL_MIN_WIDTH, previewLayoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
-  }, [PREVIEW_PANEL_MIN_CHAT_WIDTH, PREVIEW_PANEL_MIN_WIDTH, previewLayoutWidth]);
-
-  useLayoutEffect(() => {
-    // Track layout width so the preview resize bounds adapt on window changes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (!taskGroupId) return;
-    const layout = layoutRef.current;
-    if (!layout) return;
-    const updateLayoutWidth = () => {
-      setPreviewLayoutWidth(layout.getBoundingClientRect().width);
-    };
-    updateLayoutWidth();
-    window.addEventListener('resize', updateLayoutWidth);
-    return () => window.removeEventListener('resize', updateLayoutWidth);
-  }, [taskGroupId]);
-
-  useLayoutEffect(() => {
-    // Seed preview panel width from storage or defaults once layout metrics are available. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (!taskGroupId || !previewLayoutWidth || previewPanelWidth !== null) return;
-    let storedWidth: number | null = null;
-    try {
-      const raw = window.localStorage.getItem(PREVIEW_PANEL_STORAGE_KEY);
-      const parsed = raw ? Number(raw) : NaN;
-      if (Number.isFinite(parsed)) storedWidth = parsed;
-    } catch {
-      storedWidth = null;
-    }
-    const fallback = Math.round(previewLayoutWidth * PREVIEW_PANEL_DEFAULT_RATIO);
-    const maxWidth = Math.max(PREVIEW_PANEL_MIN_WIDTH, previewLayoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
-    const nextWidth = Math.min(Math.max(storedWidth ?? fallback, PREVIEW_PANEL_MIN_WIDTH), maxWidth);
-    setPreviewPanelWidth(nextWidth);
-  }, [
-    PREVIEW_PANEL_DEFAULT_RATIO,
-    PREVIEW_PANEL_MIN_CHAT_WIDTH,
-    PREVIEW_PANEL_MIN_WIDTH,
-    PREVIEW_PANEL_STORAGE_KEY,
-    previewLayoutWidth,
+  // Keep preview runtime state inside a dedicated hook so the page only orchestrates task-group data + workspace composition. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  const {
+    layoutRef,
+    previewDragActive,
+    previewPanelOpen,
+    previewPanelMinWidth,
+    previewPanelMaxWidth,
     previewPanelWidth,
-    taskGroupId
-  ]);
+    previewPanelStyle,
+    handlePreviewDividerPointerDown,
+    previewLoading,
+    previewActionLoading,
+    previewStartModalOpen,
+    previewInstallLoading,
+    previewLogTabOpen,
+    previewStartDisabled,
+    previewAggregateStatus,
+    previewAggregateStatusLabel,
+    previewToggleIcon,
+    previewTabItem,
+    previewLogTabItem,
+    handlePreviewToggle,
+    handlePreviewStart,
+    handlePreviewReinstall,
+    handleComposerPreviewStart,
+    closePreviewStartModal,
+    closePreviewLogTab
+  } = useTaskGroupPreviewWorkspace({
+    taskGroupId,
+    locale,
+    t,
+    message,
+    activeWorkspaceTabKey,
+    setActiveWorkspaceTabKey
+  });
+  const workspacePanelOpen = Boolean(taskGroupId) && (previewPanelOpen || previewLogTabOpen || openTaskLogIds.length > 0);
 
-  useEffect(() => {
-    // Clamp preview panel width when the layout shrinks. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (!previewLayoutWidth || previewPanelWidth === null) return;
-    const maxWidth = Math.max(PREVIEW_PANEL_MIN_WIDTH, previewLayoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
-    const clamped = Math.min(Math.max(previewPanelWidth, PREVIEW_PANEL_MIN_WIDTH), maxWidth);
-    if (clamped !== previewPanelWidth) setPreviewPanelWidth(clamped);
-  }, [PREVIEW_PANEL_MIN_CHAT_WIDTH, PREVIEW_PANEL_MIN_WIDTH, previewLayoutWidth, previewPanelWidth]);
-
-  useEffect(() => {
-    // Persist preview panel width so it survives refreshes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (previewPanelWidth === null) return;
-    try {
-      window.localStorage.setItem(PREVIEW_PANEL_STORAGE_KEY, String(previewPanelWidth));
-    } catch {
-      // ignore
-    }
-  }, [PREVIEW_PANEL_STORAGE_KEY, previewPanelWidth]);
-
-  const handlePreviewDividerPointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      // Start dragging only on wide layouts where the preview sits side-by-side. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
-      if (
-        !layoutRef.current ||
-        window.matchMedia(`(max-width: ${PREVIEW_PANEL_STACK_BREAKPOINT}px)`).matches
-      )
-        return;
-      const layoutWidth = layoutRef.current.getBoundingClientRect().width;
-      if (!layoutWidth) return;
-      const maxWidth = Math.max(PREVIEW_PANEL_MIN_WIDTH, layoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
-      const fallbackWidth = Math.round(layoutWidth * PREVIEW_PANEL_DEFAULT_RATIO);
-      const startWidth = Math.min(
-        Math.max(previewPanelWidth ?? fallbackWidth, PREVIEW_PANEL_MIN_WIDTH),
-        maxWidth
-      );
-      previewDragRef.current = { startX: event.clientX, startWidth };
-      setPreviewDragActive(true);
-      event.preventDefault();
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+  const handleOpenTaskLogs = useCallback(
+    (task: Task) => {
+      // Open task execution logs as browser-like workspace tabs instead of inline chat details. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+      const nextTabKey = `task-log:${task.id}`;
+      setOpenTaskLogIds((prev) => (prev.includes(task.id) ? prev : [...prev, task.id]));
+      setActiveWorkspaceTabKey(nextTabKey);
+      void ensureTaskDetail(task.id);
     },
-    [
-      PREVIEW_PANEL_DEFAULT_RATIO,
-      PREVIEW_PANEL_MIN_CHAT_WIDTH,
-      PREVIEW_PANEL_MIN_WIDTH,
-      PREVIEW_PANEL_STACK_BREAKPOINT,
-      previewPanelWidth
-    ]
+    [ensureTaskDetail]
   );
 
-  useEffect(() => {
-    // Track pointer movement while resizing the preview panel. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (!previewDragActive) return;
-    const handleMove = (event: PointerEvent) => {
-      const drag = previewDragRef.current;
-      const layout = layoutRef.current;
-      if (!drag || !layout) return;
-      const layoutWidth = layout.getBoundingClientRect().width;
-      if (!layoutWidth) return;
-      const maxWidth = Math.max(PREVIEW_PANEL_MIN_WIDTH, layoutWidth - PREVIEW_PANEL_MIN_CHAT_WIDTH);
-      const deltaX = event.clientX - drag.startX;
-      const nextWidth = Math.min(Math.max(drag.startWidth - deltaX, PREVIEW_PANEL_MIN_WIDTH), maxWidth);
-      setPreviewPanelWidth(nextWidth);
-    };
-
-    const handleUp = () => {
-      setPreviewDragActive(false);
-      previewDragRef.current = null;
-    };
-
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
-    return () => {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
-    };
-  }, [PREVIEW_PANEL_MIN_CHAT_WIDTH, PREVIEW_PANEL_MIN_WIDTH, previewDragActive]);
-
-  useEffect(() => {
-    // Keep the active preview tab in sync with available instances. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (previewInstances.length === 0) {
-      setActivePreviewName(null);
-      return;
-    }
-    if (!activePreviewName || !previewInstances.some((instance) => instance.name === activePreviewName)) {
-      setActivePreviewName(previewInstances[0].name);
-    }
-  }, [activePreviewName, previewInstances]);
-
-  const activePreviewInstance = useMemo<PreviewInstanceSummary | null>(
-    () => previewInstances.find((instance) => instance.name === activePreviewName) ?? previewInstances[0] ?? null,
-    [activePreviewName, previewInstances]
-  );
-  // Drive preview rendering mode from backend summary data so each instance can be iframe or terminal. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-  const activePreviewDisplay = activePreviewInstance?.display ?? 'webview';
-  const activePreviewIsTerminal = activePreviewDisplay === 'terminal';
-
-  // Aggregate preview statuses so the toggle reflects multi-instance state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const previewAggregateStatus = useMemo(() => {
-    if (!previewState || !previewAvailable) return 'stopped';
-    const statuses = previewInstances.map((instance) => instance.status);
-    // Prioritize running over starting so stop actions remain available during mixed startup states. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
-    if (statuses.includes('running')) return 'running';
-    if (statuses.includes('starting')) return 'starting';
-    if (statuses.includes('failed')) return 'failed';
-    if (statuses.includes('timeout')) return 'timeout';
-    return 'stopped';
-  }, [previewAvailable, previewInstances, previewState]);
-
-  // Disable the composer preview action when preview is already active or unavailable. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
-  const previewStartDisabled =
-    !taskGroupId || previewAggregateStatus === 'running' || previewAggregateStatus === 'starting';
-
-  // Keep the preview panel visible when previews are active or starting. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const previewPanelOpen = previewAvailable && (previewAggregateStatus !== 'stopped' || previewActionLoading);
-
-  useEffect(() => {
-    // Stop drag interactions when the preview panel is hidden. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (previewPanelOpen) return;
-    setPreviewDragActive(false);
-    previewDragRef.current = null;
-  }, [previewPanelOpen]);
-
-  const previewAggregateStatusLabel = useMemo(() => {
-    if (!previewState) return t('preview.status.idle');
-    if (!previewAvailable) return t('preview.status.unavailable');
-    switch (previewAggregateStatus) {
-      case 'starting':
-        return t('preview.status.starting');
-      case 'running':
-        return t('preview.status.running');
-      case 'failed':
-        return t('preview.status.failed');
-      case 'timeout':
-        return t('preview.status.timeout');
-      default:
-        return t('preview.status.stopped');
-    }
-  }, [previewAggregateStatus, previewAvailable, previewState, t]);
-
-  const previewToggleIcon = useMemo(
-    () => (
-      // Render the status dot via the icon slot so PageNav can hide labels on small screens. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
-      <span className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`} aria-hidden="true" />
-    ),
-    [previewAggregateStatus]
-  );
-
-  const activePreviewStatus = activePreviewInstance?.status ?? 'stopped';
-  const activePreviewStatusLabel = useMemo(() => {
-    if (!previewState) return t('preview.status.idle');
-    if (!previewAvailable) return t('preview.status.unavailable');
-    switch (activePreviewStatus) {
-      case 'starting':
-        return t('preview.status.starting');
-      case 'running':
-        return t('preview.status.running');
-      case 'failed':
-        return t('preview.status.failed');
-      case 'timeout':
-        return t('preview.status.timeout');
-      default:
-        return t('preview.status.stopped');
-    }
-  }, [activePreviewStatus, previewAvailable, previewState, t]);
-
-  const previewPlaceholderText = useMemo(() => {
-    if (!previewAvailable) return t('preview.empty.unavailable');
-    if (activePreviewStatus === 'starting') return t('preview.empty.starting');
-    if (activePreviewStatus === 'running') return t('preview.empty.running');
-    if (activePreviewStatus === 'failed') return t('preview.empty.failed');
-    if (activePreviewStatus === 'timeout') return t('preview.empty.timeout');
-    return t('preview.empty.stopped');
-  }, [activePreviewStatus, previewAvailable, t]);
-
-  // Provide diagnostic excerpts for failed/timeout preview states. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const previewDiagnostics = activePreviewInstance?.diagnostics;
-  // Limit diagnostics log excerpts to keep the placeholder compact. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const previewDiagnosticsLogs = useMemo(
-    () => previewDiagnostics?.logs?.slice(-6) ?? [],
-    [previewDiagnostics?.logs]
-  );
-  // Track when the preview should use side-by-side sizing so mobile can use CSS layout. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
-  const previewPanelSideBySide = previewLayoutWidth > PREVIEW_PANEL_STACK_BREAKPOINT;
-  // Apply persisted preview panel width only on wide layouts to keep mobile panels compact. docs/en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan.md 2gtiyjttzqy1dd3s4k1o
-  const previewPanelStyle = useMemo(
-    () => (previewPanelWidth === null || !previewPanelSideBySide ? undefined : { width: previewPanelWidth }),
-    [previewPanelSideBySide, previewPanelWidth]
-  );
-
-  const previewIframeSrc = useMemo(() => {
-    // Skip iframe URL resolution for terminal-mode instances because they render log streams instead. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-    if (activePreviewIsTerminal) return '';
-    if (!activePreviewInstance || (activePreviewStatus !== 'running' && activePreviewStatus !== 'starting')) {
-      return '';
-    }
-
-    // Prefer direct port access when both UI + API are local. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
-    const isUiLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
-    let isApiLocal = false;
-    if (typeof window !== 'undefined') {
-      try {
-        const apiUrl = new URL(API_BASE_URL, window.location.origin);
-        isApiLocal = apiUrl.hostname === 'localhost' || apiUrl.hostname === '127.0.0.1' || apiUrl.hostname === '::1';
-      } catch {
-        isApiLocal = false;
-      }
-    }
-    if (isUiLocal && isApiLocal && activePreviewInstance.port) {
-      return `http://127.0.0.1:${activePreviewInstance.port}/`;
-    }
-
-    const base = API_BASE_URL.replace(/\/$/, '');
-    const baseUrl = activePreviewInstance.publicUrl ?? (activePreviewInstance.path ? `${base}${activePreviewInstance.path}` : '');
-    if (!baseUrl) return '';
-    const token = getToken();
-    if (!token) return baseUrl;
-    const sep = baseUrl.includes('?') ? '&' : '?';
-    return `${baseUrl}${sep}token=${encodeURIComponent(token)}`;
-  }, [activePreviewInstance, activePreviewIsTerminal, activePreviewStatus]);
-
-  // Prefer the user-navigated iframe URL when available. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-  const currentPreviewIframeSrc = useMemo(
-    () => previewIframeOverrideSrc ?? previewIframeSrc,
-    [previewIframeOverrideSrc, previewIframeSrc]
-  );
-  // Stream preview logs inline for terminal-mode instances while keeping the modal behavior unchanged. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-  const shouldStreamInlineTerminalLogs = activePreviewIsTerminal && activePreviewStatus !== 'stopped';
-  const shouldStreamPreviewLogs = previewLogsOpen || (previewPanelOpen && shouldStreamInlineTerminalLogs);
-  const showInlineTerminalLogs = activePreviewIsTerminal && (shouldStreamInlineTerminalLogs || previewLogsLoading || previewLogs.length > 0);
-  // Render terminal-mode previews as plain log text to match a terminal-like output flow. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-  const previewTerminalOutput = useMemo(() => previewLogs.map((entry) => entry.message).join('\n'), [previewLogs]);
-  const handlePreviewTerminalScroll = useCallback(() => {
-    // Disable auto-follow when users scroll up, then re-enable it once they return to the bottom. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-    const panel = previewTerminalBodyRef.current;
-    if (!panel) return;
-    const remaining = panel.scrollHeight - panel.clientHeight - panel.scrollTop;
-    previewTerminalAutoScrollRef.current = remaining <= 24;
-  }, []);
-
-  useEffect(() => {
-    // Reset terminal auto-follow when switching to non-terminal previews or changing instances. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-    if (!showInlineTerminalLogs) {
-      previewTerminalAutoScrollRef.current = true;
-      return;
-    }
-    const panel = previewTerminalBodyRef.current;
-    if (!panel) return;
-    panel.scrollTop = panel.scrollHeight;
-    previewTerminalAutoScrollRef.current = true;
-  }, [activePreviewInstance?.name, showInlineTerminalLogs]);
-
-  useEffect(() => {
-    // Follow incoming terminal logs only when auto-follow is enabled. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-    if (!showInlineTerminalLogs || !previewTerminalAutoScrollRef.current) return;
-    const panel = previewTerminalBodyRef.current;
-    if (!panel) return;
-    panel.scrollTop = panel.scrollHeight;
-  }, [previewTerminalOutput, showInlineTerminalLogs]);
-
-  const previewIframeOrigin = useMemo(() => {
-    if (!currentPreviewIframeSrc) return '';
-    try {
-      return new URL(currentPreviewIframeSrc).origin;
-    } catch {
-      return '';
-    }
-  }, [currentPreviewIframeSrc]);
-
-  const previewAddressMeta = useMemo(() => {
-    // Derive address-bar metadata for browser chrome cues. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-    const value = (previewAddressEditing ? previewAddressInput : previewAddress).trim();
-    if (!value) return { protocol: '', host: '', isSecure: false };
-    try {
-      const url = new URL(value);
-      return { protocol: url.protocol, host: url.host, isSecure: url.protocol === 'https:' };
-    } catch {
-      return { protocol: '', host: '', isSecure: false };
-    }
-  }, [previewAddress, previewAddressEditing, previewAddressInput]);
-
-  useEffect(() => {
-    // Reset iframe navigation overrides when the active preview URL changes. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-    if (!previewIframeSrc) {
-      setPreviewIframeOverrideSrc(null);
-      setPreviewAddress('');
-      if (!previewAddressEditing) setPreviewAddressInput('');
-      return;
-    }
-    setPreviewIframeOverrideSrc(null);
-    setPreviewAddress(previewIframeSrc);
-    if (!previewAddressEditing) setPreviewAddressInput(previewIframeSrc);
-  }, [previewAddressEditing, previewIframeSrc]);
-
-  const postPreviewBridgeMessage = useCallback(
-    (payload: Record<string, unknown>) => {
-      if (!previewIframeOrigin) return;
-      const target = previewIframeRef.current?.contentWindow;
-      if (!target) return;
-      target.postMessage(payload, previewIframeOrigin);
-    },
-    [previewIframeOrigin]
-  );
-
-  const normalizePreviewUrl = useCallback(
-    (raw: string) => {
-      // Normalize address bar inputs into absolute iframe URLs. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-      const trimmed = raw.trim();
-      if (!trimmed) return '';
-      if (/^[a-zA-Z][a-zA-Z\\d+.-]*:/.test(trimmed)) {
-        try {
-          return new URL(trimmed).toString();
-        } catch {
-          return '';
-        }
-      }
-      const base = currentPreviewIframeSrc || (typeof window === 'undefined' ? '' : window.location.origin);
-      if (trimmed.startsWith('/') && base) {
-        try {
-          return new URL(trimmed, base).toString();
-        } catch {
-          return '';
-        }
-      }
-      const looksLocal = /^(localhost|127\\.0\\.0\\.1|::1)(:|$)/.test(trimmed);
-      const withScheme = looksLocal || trimmed.includes(':') ? `http://${trimmed}` : `https://${trimmed}`;
-      try {
-        return new URL(withScheme).toString();
-      } catch {
-        return '';
-      }
-    },
-    [currentPreviewIframeSrc]
-  );
-
-  const isPreviewUrlEquivalent = useCallback(
-    // Match preview URLs against targetUrl route rules before auto-navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
-    (currentUrl: string, targetUrl: string) => matchPreviewTargetUrl(currentUrl, targetUrl),
-    []
-  );
-
-  const resolvePreviewTargetUrl = useCallback((rawTargetUrl: string) => {
-    // Pick the primary navigation target when multiple targetUrl patterns are provided. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
-    const candidates = splitPreviewTargetUrlCandidates(rawTargetUrl);
-    return candidates[0] ?? rawTargetUrl;
-  }, []);
-
-  const applyPreviewNavigation = useCallback((nextUrl: string, options: { updateInput: boolean }) => {
-    // Update iframe src + address bar state so back/forward history includes auto-navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
-    setPreviewIframeOverrideSrc(nextUrl);
-    setPreviewAddress(nextUrl);
-    if (options.updateInput) setPreviewAddressInput(nextUrl);
-  }, []);
-
-  const syncPreviewAddress = useCallback(() => {
-    // Sync address bar state after iframe navigation events. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-    const frame = previewIframeRef.current;
-    if (!frame) return;
-    let nextAddress = '';
-    try {
-      nextAddress = frame.contentWindow?.location?.href ?? '';
-    } catch {
-      nextAddress = '';
-    }
-    if (!nextAddress) {
-      nextAddress = frame.getAttribute('src') || frame.src || currentPreviewIframeSrc || '';
-    }
-    if (!nextAddress) return;
-    setPreviewAddress(nextAddress);
-    if (!previewAddressEditing) setPreviewAddressInput(nextAddress);
-    if (nextAddress !== currentPreviewIframeSrc) {
-      setPreviewIframeOverrideSrc(nextAddress);
-    }
-  }, [currentPreviewIframeSrc, previewAddressEditing]);
-
-  const handlePreviewNavigate = useCallback(
-    (value?: string) => {
-      // Navigate the iframe to a user-entered address. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-      const nextUrl = normalizePreviewUrl(value ?? previewAddressInput);
-      if (!nextUrl) return;
-      applyPreviewNavigation(nextUrl, { updateInput: true });
-      setPreviewAddressEditing(false);
-    },
-    [applyPreviewNavigation, normalizePreviewUrl, previewAddressInput]
-  );
-
-  const maybeAutoNavigatePreview = useCallback(
-    (rawTargetUrl?: string) => {
-      // Auto-navigate previews when highlight commands include a target URL (unless locked). docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
-      if (!rawTargetUrl || previewAutoNavigateLocked || previewAddressEditing) return { didNavigate: false };
-      const currentUrl = previewAddress || currentPreviewIframeSrc;
-      if (currentUrl && isPreviewUrlEquivalent(currentUrl, rawTargetUrl)) return { didNavigate: false };
-      const primaryTargetUrl = resolvePreviewTargetUrl(rawTargetUrl);
-      const nextUrl = normalizePreviewUrl(primaryTargetUrl);
-      if (!nextUrl) return { didNavigate: false };
-      applyPreviewNavigation(nextUrl, { updateInput: !previewAddressEditing });
-      return { didNavigate: true, url: nextUrl };
-    },
-    [
-      applyPreviewNavigation,
-      currentPreviewIframeSrc,
-      isPreviewUrlEquivalent,
-      normalizePreviewUrl,
-      previewAddress,
-      previewAddressEditing,
-      previewAutoNavigateLocked,
-      resolvePreviewTargetUrl
-    ]
-  );
-
-  // Keep the latest auto-navigation handler in a ref to avoid resubscribing the highlight SSE on state changes. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-  const maybeAutoNavigatePreviewRef = useRef(maybeAutoNavigatePreview);
-
-  useEffect(() => {
-    // Sync the ref so highlight handlers always use the latest navigation logic. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-    maybeAutoNavigatePreviewRef.current = maybeAutoNavigatePreview;
-  }, [maybeAutoNavigatePreview]);
-
-  const flushPendingHighlight = useCallback(() => {
-    // Send any pending highlight once the bridge becomes ready after navigation. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
-    const pending = pendingPreviewHighlightRef.current;
-    if (!pending) return;
-    pendingPreviewHighlightRef.current = null;
-    postPreviewBridgeMessage({ type: 'hookcode:preview:highlight', ...pending });
-  }, [postPreviewBridgeMessage]);
-
-  const handlePreviewBack = useCallback(() => {
-    // Drive iframe history navigation from the toolbar. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-    const target = previewIframeRef.current?.contentWindow;
-    if (!target) return;
-    try {
-      target.history.back();
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const handlePreviewForward = useCallback(() => {
-    // Drive iframe forward navigation from the toolbar. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-    const target = previewIframeRef.current?.contentWindow;
-    if (!target) return;
-    try {
-      target.history.forward();
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const handlePreviewReload = useCallback(() => {
-    // Refresh the iframe document without leaving the preview panel. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-    const frame = previewIframeRef.current;
-    if (!frame) return;
-    try {
-      frame.contentWindow?.location.reload();
-      return;
-    } catch {
-      // ignore
-    }
-    if (currentPreviewIframeSrc) {
-      frame.src = currentPreviewIframeSrc;
-    }
-  }, [currentPreviewIframeSrc]);
-
-  const handlePreviewIframeLoad = useCallback(() => {
-    // Trigger a bridge handshake when the preview iframe finishes loading. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    syncPreviewAddress(); // Keep address bar in sync with iframe navigations. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-    if (!previewIframeOrigin) return;
-    postPreviewBridgeMessage({ type: 'hookcode:preview:ping' });
-  }, [postPreviewBridgeMessage, previewIframeOrigin, syncPreviewAddress]);
-
-  useEffect(() => {
-    // Keep bridge readiness ref in sync for SSE highlight forwarding. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    previewBridgeReadyRef.current = previewBridgeReady;
-  }, [previewBridgeReady]);
-
-  useEffect(() => {
-    // Reset bridge readiness whenever the iframe origin changes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    previewBridgeReadyRef.current = false;
-    setPreviewBridgeReady(false);
-  }, [previewIframeOrigin]);
-
-  useEffect(() => {
-    // Listen for bridge handshake responses from the preview iframe. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    if (!previewIframeOrigin) return;
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== previewIframeOrigin) return;
-      const payload = event.data as { type?: string } | null;
-      if (!payload || payload.type !== 'hookcode:preview:pong') return;
-      previewBridgeReadyRef.current = true;
-      setPreviewBridgeReady(true);
-      flushPendingHighlight();
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [flushPendingHighlight, previewIframeOrigin]);
-
-  // Format preview log timestamps for the log viewer. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const formatPreviewLogTime = useCallback(
-    (value: string) => {
-      try {
-        return new Intl.DateTimeFormat(locale, { timeStyle: 'medium' }).format(new Date(value));
-      } catch {
-        return value;
-      }
-    },
-    [locale]
-  );
-
-  useEffect(() => {
-    // Reset TaskGroup paging when switching groups so users always start from the latest page. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
-    chatDidInitScrollRef.current = false;
-    chatAutoScrollEnabledRef.current = true;
-    chatPrependInFlightRef.current = false;
-    chatPrependScrollRestoreRef.current = null;
-    setTaskPagingPinnedToLatest(true);
-    setTaskHiddenCount(0);
-  }, [taskGroupId]);
-
-  useEffect(() => {
-    // Refresh chat-level skill selections when the active task group changes. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-    if (!taskGroupId) return;
-    void refreshSkillSelection();
-    void refreshSkillsCatalog();
-  }, [refreshSkillSelection, refreshSkillsCatalog, taskGroupId]);
-
-  const groupTitle = useMemo(() => {
-    if (!group) return '';
-    const title = String(group.title ?? '').trim();
-    return title || group.id;
-  }, [group]);
-
-  const groupUpdatedAtText = useMemo(() => {
-    if (!group?.updatedAt) return '';
-    try {
-      return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
-        new Date(group.updatedAt)
-      );
-    } catch {
-      return group.updatedAt;
-    }
-  }, [group?.updatedAt, locale]);
-
-  useEffect(() => {
-    // UX: keep a ref to the latest group so refresh helpers can stay dependency-free (avoid re-starting timers on every render).
-    groupRef.current = group;
-  }, [group]);
-
-  const refreshRepos = useCallback(async () => {
-    setReposLoading(true);
-    try {
-      // Fetch all repo pages for the chat repo picker after list pagination changes. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
-      const data = await fetchAllRepos();
-      setRepos(data);
-      if (!repoId) {
-        const firstEnabled = data.find((r) => r.enabled);
-        if (firstEnabled) setRepoId(firstEnabled.id);
-      }
-    } catch (err) {
-      console.error(err);
-      message.error(t('toast.chat.reposLoadFailed'));
-      setRepos([]);
-    } finally {
-      setReposLoading(false);
-    }
-  }, [message, repoId, t]);
-
-  const refreshRobots = useCallback(
-    async (targetRepoId: string, preferredRobotId?: string) => {
-      if (!targetRepoId) {
-        setRobots([]);
-        setRobotId('');
+  const handleCloseWorkspaceTab = useCallback(
+    (targetKey: string) => {
+      if (targetKey === 'preview') return;
+      if (targetKey === 'preview-log') {
+        closePreviewLogTab(previewPanelOpen ? 'preview' : null);
         return;
       }
-      setRobotsLoading(true);
-      try {
-        const data = await listRepoRobots(targetRepoId);
-        const list = Array.isArray(data) ? data : [];
-        setRobots(list);
-
-        // Select a reasonable default robot for the sender:
-        // - Prefer the task group robotId (if any), then the repo default, then the first enabled robot.
-        const enabled = list.filter((r) => Boolean(r?.enabled));
-        const next =
-          (preferredRobotId && enabled.find((r) => r.id === preferredRobotId)) ||
-          enabled.find((r) => r.isDefault) ||
-          enabled[0] ||
-          null;
-
-        setRobotId((prev) => {
-          const stillValid = prev && enabled.some((r) => r.id === prev);
-          return stillValid ? prev : next?.id ?? '';
-        });
-      } catch (err) {
-        console.error(err);
-        message.error(t('toast.chat.robotsLoadFailed'));
-        setRobots([]);
-        setRobotId('');
-      } finally {
-        setRobotsLoading(false);
-      }
-    },
-    [message, t]
-  );
-
-  const refreshGroupDetail = useCallback(
-    async (targetGroupId: string, options?: { mode?: 'blocking' | 'refreshing' }) => {
-      // Change record (2026-01-12):
-      // - Fix "stuck loading" by versioning in-flight requests and clearing loading flags on fast navigation.
-      // - Avoid flashing the whole chat timeline during polling by keeping the `blocking` loading state scoped to route switches only.
-      if (!targetGroupId) {
-        // Navigation note: ensure any pending request becomes stale so a late response cannot overwrite the "new group" UI.
-        groupRequestSeqRef.current += 1;
-        groupRequestInFlightRef.current = false;
-        groupRef.current = null;
-        setGroup(null);
-        setGroupMissing(false);
-        setTasks([]);
-        setTaskDetailsById({});
-        return;
-      }
-
-      const mode = options?.mode ?? 'blocking';
-      // Loading UI is derived from group-id readiness so stale flags cannot lock the skeleton. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
-      if (mode === 'refreshing' && groupRequestInFlightRef.current) return;
-
-      const requestSeq = (groupRequestSeqRef.current += 1);
-      groupRequestInFlightRef.current = true;
-      setGroupMissing(false);
-
-      try {
-        const [g, taskList] = await Promise.all([fetchTaskGroup(targetGroupId), fetchTaskGroupTasks(targetGroupId, { limit: 50 })]);
-        if (groupRequestSeqRef.current !== requestSeq) return;
-        setGroup(g);
-        // UX: keep `groupRef` in sync immediately so refresh-mode decisions are reliable even before effects run.
-        groupRef.current = g;
-        setGroupMissing(false);
-        setTasks(taskList);
-        if (g?.repoId) setRepoId(g.repoId);
-      } catch (err) {
-        if (groupRequestSeqRef.current !== requestSeq) return;
-        console.error(err);
-        const error = err as any;
-        const status = error?.response?.status as number | undefined;
-        const isNetworkFailure = !error?.response;
-        if (status === 404) {
-          // Surface missing groups as empty states instead of blocking skeletons. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-          groupRef.current = null;
-          setGroup(null);
-          setGroupMissing(true);
-          setTasks([]);
-          setTaskDetailsById({});
-          return;
-        }
-        // Preserve the last snapshot on transient refresh failures to prevent UI resets. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126
-        const shouldPreserveSnapshot = Boolean(groupRef.current) && (isNetworkFailure || (status !== undefined && status >= 500));
-        const shouldThrottleNotice = mode === 'refreshing';
-        if (shouldThrottleNotice) {
-          const now = Date.now();
-          if (now - lastGroupRefreshNoticeAtRef.current >= GROUP_REFRESH_NOTICE_COOLDOWN_MS) {
-            lastGroupRefreshNoticeAtRef.current = now;
-            message.warning({ content: t('toast.chat.groupLoadFailed'), key: GROUP_REFRESH_NOTICE_KEY, duration: 3 });
-          }
-        } else {
-          message.error(t('toast.chat.groupLoadFailed'));
-        }
-        if (!shouldPreserveSnapshot) {
-          groupRef.current = null;
-          setGroup(null);
-          setTasks([]);
-          setTaskDetailsById({});
-        }
-      } finally {
-        if (groupRequestSeqRef.current !== requestSeq) return;
-        groupRequestInFlightRef.current = false;
-      }
-    },
-    [message, t]
-  );
-
-  // Poll preview status so the UI can drive iframe visibility and toggle state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const refreshPreviewStatus = useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (!taskGroupId) {
-        setPreviewState(null);
-        return;
-      }
-      const silent = options?.silent ?? false;
-      if (!silent) setPreviewLoading(true);
-      try {
-        const data = await fetchTaskGroupPreviewStatus(taskGroupId);
-        setPreviewState(data);
-      } catch (err: any) {
-        const status = err?.response?.status as number | undefined;
-        const code = err?.response?.data?.code as PreviewStatusResponse['reason'] | undefined;
-        if (status === 404 || status === 409) {
-          setPreviewState({ available: false, instances: [], reason: code ?? 'config_missing' });
-        } else {
-          console.error(err);
-          if (!silent) message.error(t('preview.statusFailed'));
-          setPreviewState({ available: false, instances: [] });
-        }
-      } finally {
-        if (!silent) setPreviewLoading(false);
-      }
-    },
-    [message, t, taskGroupId]
-  );
-
-  // Start/stop previews from the TaskGroup page toggle button. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const handlePreviewToggle = useCallback(async () => {
-    if (!taskGroupId) return;
-    const isActive = previewAggregateStatus === 'running' || previewAggregateStatus === 'starting';
-    if (!isActive) {
-      setPreviewStartModalOpen(true);
-      return;
-    }
-    setPreviewActionLoading(true);
-    try {
-      await stopTaskGroupPreview(taskGroupId);
-      await refreshPreviewStatus({ silent: true });
-    } catch (err) {
-      console.error(err);
-      message.error(t('preview.toggleFailed'));
-    } finally {
-      setPreviewActionLoading(false);
-    }
-  }, [message, previewAggregateStatus, refreshPreviewStatus, taskGroupId, t]);
-
-  // Centralize preview start behavior so composer actions can reuse it. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
-  const startPreview = useCallback(
-    async ({ closeModal }: { closeModal?: boolean } = {}) => {
-      if (!taskGroupId) return false;
-      setPreviewActionLoading(true);
-      try {
-        await startTaskGroupPreview(taskGroupId);
-        await refreshPreviewStatus({ silent: true });
-        if (closeModal) setPreviewStartModalOpen(false);
-        return true;
-      } catch (err) {
-        console.error(err);
-        message.error(t('preview.toggleFailed'));
-        return false;
-      } finally {
-        setPreviewActionLoading(false);
-      }
-    },
-    [message, refreshPreviewStatus, taskGroupId, t]
-  );
-
-  // Confirm preview start via modal so manual dependency reinstall is available. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
-  const handlePreviewStart = useCallback(async () => {
-    await startPreview({ closeModal: true });
-  }, [startPreview]);
-
-  // Allow users to manually reinstall preview dependencies from the start dialog. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
-  const handlePreviewReinstall = useCallback(async () => {
-    if (!taskGroupId) return;
-    setPreviewInstallLoading(true);
-    try {
-      const result = await installTaskGroupPreviewDependencies(taskGroupId);
-      if (result.result.status === 'skipped') {
-        message.warning(t('preview.deps.reinstallSkipped'));
-      } else {
-        message.success(t('preview.deps.reinstallSuccess'));
-      }
-      // Refresh preview availability after dependency installs so retries don't require a reload. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
-      await refreshPreviewStatus({ silent: true });
-      // Auto-start preview after dependencies finish installing. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
-      await startPreview({ closeModal: true });
-    } catch (err) {
-      console.error(err);
-      message.error(t('preview.deps.reinstallFailed'));
-    } finally {
-      setPreviewInstallLoading(false);
-    }
-  }, [message, refreshPreviewStatus, startPreview, taskGroupId, t]);
-
-  // Provide share/open controls for preview URLs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const handleOpenPreviewWindow = useCallback(() => {
-    // Use the current iframe URL for preview share actions. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-    if (!currentPreviewIframeSrc) return;
-    window.open(currentPreviewIframeSrc, '_blank', 'noopener,noreferrer');
-  }, [currentPreviewIframeSrc]);
-
-  const handleCopyPreviewLink = useCallback(async () => {
-    // Copy the current iframe URL (including manual navigation). docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej
-    if (!currentPreviewIframeSrc) return;
-    try {
-      await navigator.clipboard.writeText(currentPreviewIframeSrc);
-      message.success(t('preview.copyLinkSuccess'));
-    } catch (err) {
-      console.error(err);
-      message.error(t('preview.copyLinkFailed'));
-    }
-  }, [currentPreviewIframeSrc, message, t]);
-
-  useEffect(() => {
-    // Sync preview visibility to the backend so hidden previews can be auto-stopped. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
-    if (!taskGroupId || !previewPanelOpen) return;
-    let disposed = false;
-
-    const report = (visible: boolean) => {
-      if (disposed) return;
-      void setTaskGroupPreviewVisibility(taskGroupId, visible);
-    };
-
-    const handleVisibility = () => {
-      report(document.visibilityState === 'visible');
-    };
-
-    const handleHidden = () => {
-      report(false);
-    };
-
-    handleVisibility();
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', handleVisibility);
-    window.addEventListener('pageshow', handleVisibility);
-    window.addEventListener('blur', handleHidden);
-    window.addEventListener('pagehide', handleHidden);
-    return () => {
-      disposed = true;
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', handleVisibility);
-      window.removeEventListener('pageshow', handleVisibility);
-      window.removeEventListener('blur', handleHidden);
-      window.removeEventListener('pagehide', handleHidden);
-      report(false);
-    };
-  }, [previewPanelOpen, taskGroupId]);
-
-  const handleComposerPreviewStart = useCallback(() => {
-    // Route composer preview actions through the same start modal. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
-    if (!taskGroupId) return;
-    setComposerActionsOpen(false);
-    setPreviewStartModalOpen(true);
-  }, [taskGroupId]);
-
-  useEffect(() => {
-    // Reuse the preview log SSE stream for both the logs modal and terminal-mode inline preview rendering. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-    if (!shouldStreamPreviewLogs) {
-      previewLogStreamRef.current?.close();
-      previewLogStreamRef.current = null;
-      setPreviewLogs([]);
-      setPreviewLogsLoading(false);
-      return;
-    }
-    if (!taskGroupId || !activePreviewInstance?.name) return;
-
-    const base = API_BASE_URL.replace(/\/$/, '');
-    const token = getToken();
-    const params = new URLSearchParams();
-    params.set('tail', String(PREVIEW_LOG_TAIL));
-    if (token) params.set('token', token);
-    const url = `${base}/task-groups/${taskGroupId}/preview/${activePreviewInstance.name}/logs?${params.toString()}`;
-
-    setPreviewLogsLoading(true);
-    setPreviewLogs([]);
-    const source = new EventSource(url);
-    previewLogStreamRef.current = source;
-
-    const handleInit = (event: MessageEvent) => {
-      try {
-        const payload = JSON.parse(event.data || '{}');
-        const nextLogs = Array.isArray(payload.logs) ? (payload.logs as PreviewLogEntry[]) : [];
-        setPreviewLogs(nextLogs.slice(-PREVIEW_LOG_MAX));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setPreviewLogsLoading(false);
-      }
-    };
-
-    const handleLog = (event: MessageEvent) => {
-      try {
-        const payload = JSON.parse(event.data || '{}') as PreviewLogEntry;
-        if (!payload?.message) return;
-        setPreviewLogs((prev) => {
-          const next = [...prev, payload];
-          return next.length > PREVIEW_LOG_MAX ? next.slice(-PREVIEW_LOG_MAX) : next;
-        });
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    source.addEventListener('init', handleInit);
-    source.addEventListener('log', handleLog);
-    source.onerror = () => {
-      setPreviewLogsLoading(false);
-    };
-
-    return () => {
-      source.removeEventListener('init', handleInit);
-      source.removeEventListener('log', handleLog);
-      source.close();
-      previewLogStreamRef.current = null;
-    };
-  }, [activePreviewInstance?.name, shouldStreamPreviewLogs, taskGroupId, PREVIEW_LOG_TAIL, PREVIEW_LOG_MAX]);
-
-  useEffect(() => {
-    // Limit highlight bridge subscriptions to webview instances because terminal mode has no iframe bridge target. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303
-    if (!taskGroupId || !previewPanelOpen || activePreviewIsTerminal) {
-      previewHighlightStreamRef.current?.close();
-      previewHighlightStreamRef.current = null;
-      return;
-    }
-    const topic = `preview-highlight:${taskGroupId}`;
-    const source = createAuthedEventSource('/events/stream', { topics: topic });
-    previewHighlightStreamRef.current = source;
-
-    const handleHighlight = (event: MessageEvent) => {
-      try {
-        const payload = JSON.parse(event.data || '{}') as PreviewHighlightEvent;
-        if (!payload?.command || !payload.instanceName) return;
-        if (activePreviewInstance?.name && payload.instanceName !== activePreviewInstance.name) return;
-        // Auto-navigate to the target URL before highlighting when allowed. docs/en/developer/plans/previewhighlightselector20260204/task_plan.md previewhighlightselector20260204
-        const navigation = maybeAutoNavigatePreviewRef.current(payload.command.targetUrl); // Keep SSE handler stable while using latest navigation logic. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-        if (navigation.didNavigate) {
-          pendingPreviewHighlightRef.current = payload.command;
-          return;
-        }
-        if (!previewBridgeReadyRef.current) {
-          pendingPreviewHighlightRef.current = payload.command;
-          postPreviewBridgeMessage({ type: 'hookcode:preview:ping' });
-          return;
-        }
-        postPreviewBridgeMessage({ type: 'hookcode:preview:highlight', ...payload.command });
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    source.addEventListener('preview.highlight', handleHighlight);
-    source.onerror = () => {
-      // Keep the latest iframe bridge state even if SSE reconnects. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    };
-
-    return () => {
-      source.removeEventListener('preview.highlight', handleHighlight);
-      source.close();
-      previewHighlightStreamRef.current = null;
-    };
-  }, [activePreviewInstance?.name, activePreviewIsTerminal, postPreviewBridgeMessage, previewPanelOpen, taskGroupId]);
-
-  useEffect(() => {
-    // Stream task-group updates so chat timelines refresh without manual reloads. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
-    if (!taskGroupId) {
-      taskGroupStreamRef.current?.close();
-      taskGroupStreamRef.current = null;
-      setTaskGroupStreamConnected(false);
-      return;
-    }
-
-    const topic = `task-group:${taskGroupId}`;
-    const source = createAuthedEventSource('/events/stream', { topics: topic });
-    taskGroupStreamRef.current = source;
-
-    const handleReady = () => {
-      setTaskGroupStreamConnected(true);
-    };
-
-    const handleRefresh = (event: MessageEvent) => {
-      try {
-        const payload = JSON.parse(event.data || '{}') as { groupId?: string };
-        if (payload.groupId && payload.groupId !== taskGroupId) return;
-        void refreshGroupDetail(taskGroupId, { mode: 'refreshing' });
-      } catch {
-        // Ignore malformed events to keep the stream stable. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
-      }
-    };
-
-    source.addEventListener('ready', handleReady);
-    source.addEventListener('task-group.refresh', handleRefresh);
-    source.onerror = () => {
-      setTaskGroupStreamConnected(false);
-    };
-
-    return () => {
-      source.removeEventListener('ready', handleReady);
-      source.removeEventListener('task-group.refresh', handleRefresh);
-      source.close();
-      taskGroupStreamRef.current = null;
-      setTaskGroupStreamConnected(false);
-    };
-  }, [refreshGroupDetail, taskGroupId]);
-
-  useEffect(() => {
-    void refreshRepos();
-  }, [refreshRepos]);
-
-  useEffect(() => {
-    if (!repoId) return;
-    void refreshRobots(repoId, group?.robotId ?? undefined);
-  }, [group?.robotId, refreshRobots, repoId]);
-
-  useEffect(() => {
-    if (!taskGroupId) {
-      void refreshGroupDetail('');
-      return;
-    }
-    // Keep initial navigation to a freshly-created group non-blocking so the chat item stays visible. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-    const isOptimisticGroup = optimisticGroupIdRef.current === taskGroupId;
-    const refreshPromise = refreshGroupDetail(taskGroupId, { mode: isOptimisticGroup ? 'refreshing' : 'blocking' });
-    if (isOptimisticGroup) {
-      void refreshPromise.finally(() => {
-        if (optimisticGroupIdRef.current === taskGroupId) optimisticGroupIdRef.current = null;
+      const taskId = targetKey.replace(/^task-log:/u, '');
+      setOpenTaskLogIds((prev) => prev.filter((currentId) => currentId !== taskId));
+      setActiveWorkspaceTabKey((prev) => {
+        if (prev !== targetKey) return prev;
+        if (previewPanelOpen) return 'preview';
+        const remaining = openTaskLogIds.filter((currentId) => currentId !== taskId);
+        if (previewLogTabOpen) return 'preview-log';
+        return remaining[0] ? `task-log:${remaining[0]}` : null;
       });
-    } else {
-      void refreshPromise;
-    }
-
-    // Poll for task status changes when SSE is unavailable. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
-    if (pollTimerRef.current) {
-      window.clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-    if (!taskGroupStreamConnected) {
-      pollTimerRef.current = window.setInterval(() => refreshGroupDetail(taskGroupId, { mode: 'refreshing' }), 5000);
-    }
-    return () => {
-      if (pollTimerRef.current) window.clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    };
-  }, [refreshGroupDetail, taskGroupId, taskGroupStreamConnected]);
-
-  useEffect(() => {
-    // Clear preview state on group changes so panel visibility does not leak between groups. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    setPreviewState(null);
-    if (!taskGroupId) return;
-    void refreshPreviewStatus({ silent: true });
-  }, [refreshPreviewStatus, taskGroupId]);
-
-  const previewNeedsPolling = previewState?.instances?.some((instance) => instance.status === 'starting') ?? false;
-
-  useEffect(() => {
-    if (!taskGroupId || !previewNeedsPolling) return;
-    const timer = window.setInterval(() => refreshPreviewStatus({ silent: true }), 2000);
-    return () => window.clearInterval(timer);
-  }, [previewNeedsPolling, refreshPreviewStatus, taskGroupId]);
-
-  useEffect(() => {
-    // Fetch task details (including outputText) for completed tasks to render the final assistant output in chat.
-    const candidates = tasks.filter((task) => isTerminalStatus(task.status) && !taskDetailsById[task.id]);
-    if (!candidates.length) return;
-
-    let canceled = false;
-    Promise.all(
-      candidates.map((task) =>
-        fetchTask(task.id)
-          .then((detail) => detail)
-          .catch(() => null)
-      )
-    ).then((details) => {
-      if (canceled) return;
-      setTaskDetailsById((prev) => {
-        const next = { ...prev };
-        for (const d of details) {
-          if (!d) continue;
-          next[d.id] = d;
-        }
-        return next;
-      });
-    });
-
-    return () => {
-      canceled = true;
-    };
-  }, [taskDetailsById, tasks]);
-
-  const handleSend = useCallback(
-    async (text: string) => {
-      const trimmed = String(text ?? '').trim();
-      if (!repoId) {
-        message.warning(t('chat.validation.repoRequired'));
-        return;
-      }
-      if (!robotId) {
-        message.warning(t('chat.validation.robotRequired'));
-        return;
-      }
-      if (!trimmed) {
-        message.warning(t('chat.validation.textRequired'));
-        return;
-      }
-      if (sending) return;
-
-      setSending(true);
-      try {
-        const res = await executeChat({
-          repoId,
-          robotId,
-          text: trimmed,
-          taskGroupId: taskGroupId || undefined,
-          // Pass chat-level time windows when configured. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
-          timeWindow: chatTimeWindow
-        });
-        message.success(t('toast.chat.executeSuccess'));
-        setDraft('');
-
-      const nextGroupId = res.taskGroup?.id ?? '';
-      if (nextGroupId && !taskGroupId) {
-        // Mark the new group as optimistic so we avoid a blocking skeleton during route transition. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-        optimisticGroupIdRef.current = nextGroupId;
-        // Navigation note: when creating a new group, jump to the group route so sidebar selection stays in sync.
-        window.location.hash = buildTaskGroupHash(nextGroupId);
-      }
-        setGroup(res.taskGroup ?? null);
-        // UX: update the ref immediately so a follow-up refresh does not temporarily show a blocking loading state.
-        groupRef.current = res.taskGroup ?? null;
-        if (res.task?.id) {
-          // Flag the most recent task so it animates into place instead of showing a skeleton. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-          setRecentTaskId(res.task.id);
-          setTasks((prev) => [res.task, ...prev.filter((task) => task.id !== res.task.id)]);
-        }
-        if (nextGroupId) void refreshGroupDetail(nextGroupId, { mode: 'refreshing' });
-      } catch (err) {
-        console.error(err);
-        message.error(t('toast.chat.executeFailed'));
-      } finally {
-        setSending(false);
-      }
     },
-    [chatTimeWindow, message, refreshGroupDetail, repoId, robotId, sending, t, taskGroupId]
+    [closePreviewLogTab, openTaskLogIds, previewLogTabOpen, previewPanelOpen]
   );
 
-  // Pause/resume active task-group executions from the composer control. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const handleControlTask = useCallback(async () => {
-    if (!controlTask || !controlMode) return;
-    if (!canControlTask) {
-      message.warning(t('tasks.empty.noPermission'));
-      return;
-    }
-    if (controlLoading) return;
-    setControlLoading(true);
-    try {
-      if (controlMode === 'pause') {
-        await pauseTask(controlTask.id);
-        message.success(t('toast.task.pauseSuccess'));
-      } else {
-        await resumeTask(controlTask.id);
-        message.success(t('toast.task.resumeSuccess'));
-      }
-      if (taskGroupId) {
-        await refreshGroupDetail(taskGroupId, { mode: 'refreshing' });
-      }
-    } catch (err) {
-      console.error(err);
-      message.error(controlMode === 'pause' ? t('toast.task.pauseFailed') : t('toast.task.resumeFailed'));
-    } finally {
-      setControlLoading(false);
-    }
-  }, [canControlTask, controlLoading, controlMode, controlTask, message, refreshGroupDetail, t, taskGroupId]);
-
-  const canRunChatInGroup = Boolean(
-    !taskGroupId || group?.kind === 'chat' || group?.kind === 'issue' || group?.kind === 'merge_request' || group?.kind === 'commit'
-  );
-  // Disable send while pause/resume controls are active. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const canSend = Boolean(repoId && robotId && draft.trim()) && canRunChatInGroup && !controlMode;
-
-  const openTask = useCallback((task: Task) => {
-    window.location.hash = buildTaskHash(task.id);
-  }, []);
+  // Delegate queue-card task mutations to a focused hook so this page can stay centered on workspace orchestration. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  const {
+    taskActionLoadingKey,
+    handleStopTask,
+    handleRetryTask,
+    handleDeleteQueuedTask,
+    handleSaveQueuedTask,
+    handleReorderQueuedTask
+  } = useTaskGroupTaskActions({
+    taskGroupId,
+    message,
+    t,
+    refreshGroupDetail,
+    setTaskDetailsById,
+    setOpenTaskLogIds
+  });
 
   const openTaskGroupList = useCallback(() => {
     // Provide a quick hop from chat view to the taskgroup card list. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
     window.location.hash = buildTaskGroupsHash();
   }, []);
 
-  const loadOlderTasks = useCallback(() => {
-    const container = chatBodyRef.current;
-    if (!container) return;
-    // Keep the default view bounded (latest 3 tasks) until users explicitly scroll up to load older tasks. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
-    const currentHidden = taskPagingPinnedToLatest ? pinnedHiddenCount : taskHiddenCount;
-    if (currentHidden <= 0) return;
-    if (chatPrependInFlightRef.current) return;
-
-    chatPrependInFlightRef.current = true;
-    chatPrependScrollRestoreRef.current = { scrollTop: container.scrollTop, scrollHeight: container.scrollHeight };
-    setTaskPagingPinnedToLatest(false);
-    setTaskHiddenCount(Math.max(0, currentHidden - TASK_PAGE_SIZE));
-  }, [pinnedHiddenCount, taskHiddenCount, taskPagingPinnedToLatest]);
-
-  // Use group-id readiness to gate blocking UI states so stale loading flags cannot mask loaded content. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
-  // Treat missing groups as ready to show empty-state messaging. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const isGroupReady = !taskGroupId || group?.id === taskGroupId || groupMissing;
-  const isGroupBlocking = Boolean(taskGroupId) && !isGroupReady;
-
-  const handleChatScroll = useCallback(() => {
-    const container = chatBodyRef.current;
-    if (!container) return;
-
-    const remainingBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-    chatAutoScrollEnabledRef.current = remainingBottom < 24;
-
-    if (container.scrollTop < 48) {
-      loadOlderTasks();
-    }
-  }, [loadOlderTasks]);
-
-  useLayoutEffect(() => {
-    // Preserve scroll position when older tasks are prepended (reverse paging). docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
-    const container = chatBodyRef.current;
-    const pending = chatPrependScrollRestoreRef.current;
-    if (!container || !pending) return;
-
-    const delta = container.scrollHeight - pending.scrollHeight;
-    container.scrollTop = pending.scrollTop + Math.max(0, delta);
-    chatPrependScrollRestoreRef.current = null;
-    chatPrependInFlightRef.current = false;
-  }, [taskHiddenCount, orderedTasks.length]);
-
-  useLayoutEffect(() => {
-    // Default the TaskGroup chat view to the bottom (latest tasks) and keep it pinned when the user is already at the bottom. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121
-    const container = chatBodyRef.current;
-    if (!container) return;
-    if (!taskGroupId) return;
-    // Skip auto-scroll while the active group is still blocking to prevent stale loaders from freezing layout. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
-    if (isGroupBlocking) return;
-    if (!visibleTasks.length) return;
-    if (chatPrependScrollRestoreRef.current) return;
-
-    if (!chatDidInitScrollRef.current) {
-      container.scrollTop = container.scrollHeight;
-      chatDidInitScrollRef.current = true;
-      chatAutoScrollEnabledRef.current = true;
-      return;
-    }
-
-    if (chatAutoScrollEnabledRef.current) {
-      container.scrollTop = container.scrollHeight;
-    }
-  }, [isGroupBlocking, taskGroupId, visibleTasks.length, orderedTasks.length, taskHiddenCount]);
+  useEffect(() => {
+    // Reset task-log tabs when navigating between task groups so stale task ids never leak across routes. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    setOpenTaskLogIds([]);
+    setActiveWorkspaceTabKey(null);
+    setTaskDetailsById({});
+  }, [setTaskDetailsById, taskGroupId]);
 
   useEffect(() => {
-    // Keep the chat pinned to the bottom when async log rendering changes height and the user hasn't scrolled away. docs/en/developer/plans/taskgroupscrollbottom20260123/task_plan.md taskgroupscrollbottom20260123
+    // Prune workspace log tabs when queue edits or live refreshes remove tasks from the current snapshot. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    setOpenTaskLogIds((previousTaskIds) => previousTaskIds.filter((taskId) => taskById.has(taskId)));
+  }, [taskById]);
+
+  useEffect(() => {
+    // Keep the active workspace tab aligned with whichever preview and log tabs are currently available. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const availableKeys = [
+      previewPanelOpen ? 'preview' : null,
+      previewLogTabOpen ? 'preview-log' : null,
+      ...openTaskLogIds.map((taskId) => `task-log:${taskId}`)
+    ].filter(Boolean) as string[];
+    setActiveWorkspaceTabKey((prev) => {
+      if (prev && availableKeys.includes(prev)) return prev;
+      if (previewPanelOpen) return 'preview';
+      return availableKeys[0] ?? null;
+    });
+  }, [openTaskLogIds, previewLogTabOpen, previewPanelOpen]);
+
+  useLayoutEffect(() => {
+    // Keep the workspace list pinned to the newest cards after task submissions and queue updates. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     const container = chatBodyRef.current;
     if (!container) return;
-
-    let rafId: number | null = null;
-    let lastHeight = container.scrollHeight;
-
-    const shouldPinToBottom = () => {
-      // Track content-driven height changes so slow log loads still land at the bottom. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t
-      if (!taskGroupId) return false;
-      // Avoid pinning while the group is in a blocking load to keep skeleton state consistent. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
-      if (isGroupBlocking) return false;
-      if (chatPrependScrollRestoreRef.current) return false;
-      if (!chatAutoScrollEnabledRef.current) return false;
-      return true;
-    };
-
-    const schedulePin = () => {
-      const nextHeight = container.scrollHeight;
-      if (nextHeight === lastHeight) return;
-      lastHeight = nextHeight;
-      if (!shouldPinToBottom()) return;
-
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        const target = chatBodyRef.current;
-        if (!target) return;
-        target.scrollTop = target.scrollHeight;
-      });
-    };
-
-    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedulePin) : null;
-    resizeObserver?.observe(container);
-
-    const mutationObserver =
-      typeof MutationObserver !== 'undefined' ? new MutationObserver(schedulePin) : null;
-    mutationObserver?.observe(container, { childList: true, subtree: true, characterData: true });
-
-    return () => {
-      resizeObserver?.disconnect();
-      mutationObserver?.disconnect();
-      if (rafId !== null) cancelAnimationFrame(rafId);
-    };
-  }, [isGroupBlocking, taskGroupId]);
-
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  // Separate new-group vs empty-group states so existing groups show a proper empty timeline. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203
-  const isNewGroup = !taskGroupId;
-  // Consider missing groups as empty to avoid dialog-only views. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const isEmptyGroup = Boolean(taskGroupId) && !isGroupBlocking && (groupMissing || orderedTasks.length === 0);
-  const isCentered = isNewGroup;
-  const composerMode: 'centered' | 'inline' = isCentered ? 'centered' : 'inline';
-  const composerTextAreaAutoSize = useMemo(
-    () =>
-      composerMode === 'centered'
-        ? // UX (Chat / New group): start with a comfortable multi-line input so first-time users can write detailed prompts.
-          { minRows: 3, maxRows: 12 }
-        : // UX (Chat / Task group): default to a single-line input like modern messengers; expand only when users add new lines.
-          { minRows: 1, maxRows: 8 },
-    [composerMode]
-  );
-
-  // Derive pause/resume vs send button behavior based on active task status. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const composerActionLabel = controlMode === 'pause' ? t('chat.form.pause') : controlMode === 'resume' ? t('chat.form.resume') : t('chat.form.send');
-  const composerActionIcon =
-    controlMode === 'pause' ? <PauseCircleOutlined /> : controlMode === 'resume' ? <PlayCircleOutlined /> : <SendOutlined />;
-  const composerActionLoading = controlMode ? controlLoading : sending;
-  const composerActionDisabled = controlMode ? !canControlTask : !canSend;
-  const skillModeLabel = useMemo(() => {
-    // Map task-group skill mode labels for the composer actions menu. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
-    if (!skillSelection) return t('common.loading');
-    if (skillSelection.mode === 'custom') return t('skills.selection.mode.custom');
-    if (skillSelection.mode === 'repo_default') return t('skills.selection.mode.repoDefault');
-    return t('skills.selection.mode.all');
-  }, [skillSelection, t]);
-  const handleComposerAction = () => {
-    if (controlMode) {
-      void handleControlTask();
-      return;
-    }
-    void handleSend(draft);
-  };
-
-  // Build the composer actions popover content with timer + preview actions. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
-  const composerActionsContent = (
-    <div className="hc-composer-actions">
-      {/* Group time-window configuration in the composer actions popover. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt */}
-      <div className="hc-composer-action-block">
-        <Typography.Text type="secondary" className="hc-composer-action-title">
-          {t('chat.form.timeWindow')}
-        </Typography.Text>
-        <TimeWindowPicker
-          value={chatTimeWindow}
-          onChange={setChatTimeWindow}
-          disabled={!canRunChatInGroup}
-          size="small"
-          showTimezoneHint={false}
-        />
-      </div>
-      <div className="hc-composer-action-divider" aria-hidden="true" />
-      <Button
-        size="small"
-        icon={<PlayCircleOutlined />}
-        disabled={previewStartDisabled}
-        onClick={handleComposerPreviewStart}
-      >
-        {t('preview.action.start')}
-      </Button>
-      <div className="hc-composer-action-divider" aria-hidden="true" />
-      <div className="hc-composer-action-block">
-        <Typography.Text type="secondary" className="hc-composer-action-title">
-          {t('skills.selection.taskGroup.title')}
-        </Typography.Text>
-        <Button
-          size="small"
-          icon={<ToolOutlined />}
-          disabled={!taskGroupId}
-          onClick={() => setSkillSelectionOpen(true)}
-        >
-          {t('skills.selection.action.configure')}
-        </Button>
-        <Typography.Text type="secondary" className="hc-composer-action-hint">
-          {skillModeLabel}
-        </Typography.Text>
-      </div>
-    </div>
-  );
+    if (!taskGroupId || isGroupBlocking) return;
+    container.scrollTop = container.scrollHeight;
+  }, [chatBodyRef, isGroupBlocking, orderedTasks.length, taskGroupId]);
 
   const composerNode = (
-    <div className="hc-composer-container">
-      <div className={`hc-composer-box hc-composer-box--${composerMode} ${isInputFocused ? 'hc-composer-box--focused' : ''}`}>
-        <div className="hc-composer-input-wrapper">
-          <Input.TextArea
-            // UX (Chat / Composer): keep the TextArea borderless and let the outer `.hc-composer-box`
-            // own the focus ring to avoid "double borders" when the input is focused.
-            variant="borderless"
-            className="hc-composer-input"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder={t('chat.form.textPlaceholder')}
-            autoSize={composerTextAreaAutoSize}
-            disabled={!canRunChatInGroup}
-            onFocus={() => setIsInputFocused(true)}
-            onBlur={() => setIsInputFocused(false)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                // Prevent sending while pause/resume controls are active. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-                if (controlMode) return;
-                void handleSend(draft);
-              }
-            }}
-          />
-        </div>
-
-        <div className="hc-composer-footer">
-          {/* Replace the time-window icon with an actions popover for composer utilities. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt */}
-          <div className="hc-composer-footer-left">
-            <Popover
-              trigger="click"
-              placement="bottomLeft"
-              open={composerActionsOpen}
-              onOpenChange={setComposerActionsOpen}
-              content={composerActionsContent}
-            >
-              <Button
-                size="small"
-                type="text"
-                aria-label={t('chat.form.actions')}
-                title={t('chat.form.actions')}
-                disabled={!canRunChatInGroup}
-                icon={<ClockCircleOutlined />}
-                className={chatTimeWindowLabel ? 'hc-timewindow-toggle is-active' : 'hc-timewindow-toggle'}
-              />
-            </Popover>
-            {chatTimeWindowLabel ? (
-              <Typography.Text type="secondary" className="hc-timewindow-label">
-                {chatTimeWindowLabel}
-              </Typography.Text>
-            ) : null}
-          </div>
-
-          <div className="hc-composer-footer-right">
-            <Space size={0} wrap style={{ gap: 4 }}>
-              <Select
-                variant="borderless"
-                showSearch
-                optionFilterProp="label"
-                style={{ width: 'auto', minWidth: 100 }}
-                placeholder={t('chat.repoPlaceholder')}
-                loading={reposLoading}
-                value={repoId || undefined}
-                disabled={repoLocked}
-                aria-label={t('chat.repo')}
-                onChange={(value) => setRepoId(String(value))}
-                options={repoOptions}
-                popupMatchSelectWidth={false}
-                size="small"
-                className="hc-select-subtle"
-              />
-              <span style={{ color: 'var(--border)', userSelect: 'none', margin: '0 4px' }}>|</span>
-              <Select
-                variant="borderless"
-                showSearch
-                optionFilterProp="label"
-                style={{ width: 'auto', minWidth: 100 }}
-                placeholder={t('chat.form.robotPlaceholder')}
-                loading={robotsLoading}
-                value={robotId || undefined}
-                aria-label={t('chat.form.robot')}
-                onChange={(value) => setRobotId(String(value))}
-                options={robotOptions}
-                disabled={!canRunChatInGroup}
-                popupMatchSelectWidth={false}
-                size="small"
-                className="hc-select-subtle"
-              />
-            </Space>
-            <Button
-              type="primary"
-              shape="round"
-              icon={composerActionIcon}
-              loading={composerActionLoading}
-              disabled={composerActionDisabled}
-              onClick={handleComposerAction}
-            >
-              {composerActionLabel}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {!canRunChatInGroup && (
-        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8, textAlign: 'center', fontSize: 12 }}>
-          {t('chat.form.unsupportedGroupTip')}
-        </Typography.Text>
-      )}
-    </div>
+    <TaskGroupComposer
+      draft={draft}
+      onDraftChange={setDraft}
+      onSubmit={(text) => {
+        void handleSend(text);
+      }}
+      sending={sending}
+      canSend={canSend}
+      canRun={canRunChatInGroup}
+      centered={isCentered}
+      repoId={repoId}
+      onRepoChange={setRepoId}
+      repoLocked={repoLocked}
+      reposLoading={reposLoading}
+      repoOptions={repoOptions}
+      robotId={robotId}
+      onRobotChange={setRobotId}
+      robotsLoading={robotsLoading}
+      robotOptions={robotOptions}
+      workersLoading={workersLoading}
+      workerId={workerId}
+      onWorkerChange={setWorkerId}
+      workerOptions={workerOptions}
+      workerLocked={workerLocked}
+      showWorkerSelector={showWorkerSelector}
+      chatTimeWindow={chatTimeWindow}
+      onChatTimeWindowChange={setChatTimeWindow}
+      previewStartDisabled={previewStartDisabled}
+      onStartPreview={handleComposerPreviewStart}
+      skillsButtonDisabled={!taskGroupId}
+      onOpenSkills={() => setSkillSelectionOpen(true)}
+      skillModeLabel={skillModeLabel}
+    />
   );
+
+  const workspaceTabItems = [
+    ...(previewTabItem ? [previewTabItem] : []),
+    ...(previewLogTabItem ? [previewLogTabItem] : []),
+    ...openTaskLogIds
+      .map((taskId) => taskById.get(taskId))
+      .filter((task): task is Task => Boolean(task))
+      .map((task) => ({
+        key: `task-log:${task.id}`,
+        label: (
+          <span className="hc-task-workspace-tab-label">
+            <FileTextOutlined />
+            <span>
+              {(task.sequence?.order ?? task.groupOrder) ? `#${task.sequence?.order ?? task.groupOrder} ` : ''}
+              {getTaskTitle(task)}
+            </span>
+          </span>
+        ),
+        children: <TaskGroupLogPanel task={task} taskDetail={taskDetailsById[task.id] ?? null} />
+      }))
+  ];
 
   return (
     <div className="hc-page">
@@ -1822,9 +290,22 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       <PageNav
         title={taskGroupId ? groupTitle || t('chat.page.groupTitleFallback') : t('chat.page.newGroupTitle')}
         meta={
-          <Typography.Text type="secondary">
-            {taskGroupId ? `${t('chat.page.updatedAt')}: ${groupUpdatedAtText || '-'}` : t('chat.page.newGroupHint')}
-          </Typography.Text>
+          <>
+            <Typography.Text type="secondary">
+              {taskGroupId ? `${t('chat.page.updatedAt')}: ${groupUpdatedAtText || '-'}` : t('chat.page.newGroupHint')}
+            </Typography.Text>
+            {taskGroupId && group?.workerSummary ? (
+              <>
+                {/* Surface the bound worker in the chat header so task-group routing stays visible. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+                <span style={{ marginLeft: 12 }}><WorkerSummaryTag worker={group.workerSummary} workerId={group.workerId} /></span>
+              </>
+            ) : null}
+            {taskGroupId && (
+              <Typography.Text type="secondary" style={{ marginLeft: 12, fontSize: 12, opacity: 0.8 }}>
+                • {t('taskGroup.workspace.taskCount', { count: orderedTasks.length })}
+              </Typography.Text>
+            )}
+          </>
         }
         actions={
           <Space>
@@ -1846,9 +327,6 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                 </Button>
               </Popover>
             )}
-            {/* <Button icon={<UnorderedListOutlined />} onClick={() => openTaskGroupList()}>
-              {t('taskGroups.page.viewAll')}
-            </Button> */}
           </Space>
         }
         // Provide the mobile nav toggle so chat can open the sidebar drawer. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546
@@ -1862,7 +340,7 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
         ref={layoutRef}
       >
         <div className="hc-chat-panel">
-          <div className="hc-chat-body" ref={chatBodyRef} onScroll={handleChatScroll}>
+          <div className="hc-chat-body" ref={chatBodyRef}>
             {isGroupBlocking ? (
               // Render skeleton chat items while the active task group is blocking on data. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
               <ChatTimelineSkeleton testId="hc-chat-group-skeleton" ariaLabel={t('common.loading')} />
@@ -1879,12 +357,13 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                 {composerNode}
               </div>
             ) : (
-              <div className="hc-chat-timeline">
+              <div className="hc-chat-timeline hc-task-workspace-list">
                 {isEmptyGroup ? (
                   // Render a friendly empty state when a task group has no tasks. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203
                   <div className="hc-chat-empty">
                     {/* Expand empty/missing task-group messaging to avoid dialog-only views. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
-                    <Space direction="vertical" size={8} align="center">
+                    {/* Use the current Ant Design Space orientation API so empty-state stacks stay warning-free. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
+                    <Space orientation="vertical" size={8} align="center">
                       <Typography.Text type="secondary">
                         {groupMissing ? t('chat.page.missingGroup') : t('chat.page.emptyGroup')}
                       </Typography.Text>
@@ -1897,18 +376,21 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                     </Space>
                   </div>
                 ) : (
-                  // Animate the most recent message to create a smooth transition into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-                  visibleTasks.map((task) => (
-                    <TaskConversationItem
-                      key={task.id}
-                      task={task}
-                      entering={task.id === recentTaskId}
-                      taskDetail={taskDetailsById[task.id] ?? null}
-                      onOpenTask={openTask}
-                      taskLogsEnabled={effectiveTaskLogsEnabled}
-                      onSuggestionClick={handleSuggestionClick}
-                    />
-                  ))
+                  <div className="hc-task-workspace-list__content">
+                    {orderedTasks.map((task) => (
+                      <TaskGroupTaskCard
+                        key={task.id}
+                        task={task}
+                        onOpenLogs={handleOpenTaskLogs}
+                        onRetry={handleRetryTask}
+                        onStop={handleStopTask}
+                        onDelete={handleDeleteQueuedTask}
+                        onReorder={handleReorderQueuedTask}
+                        onSaveEdit={handleSaveQueuedTask}
+                        actionLoading={taskActionLoadingKey}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -1920,243 +402,32 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
           )}
         </div>
 
-        {/* Render the preview panel whenever previews are active or starting. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
-        {taskGroupId && previewPanelOpen && (
-          <>
-            {/* Add draggable divider between chat and preview panels. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
-            <div
-              className={`hc-preview-divider${previewDragActive ? ' hc-preview-divider--active' : ''}`}
-              role="separator"
-              aria-orientation="vertical"
-              aria-valuemin={PREVIEW_PANEL_MIN_WIDTH}
-              aria-valuemax={previewPanelMaxWidth || undefined}
-              aria-valuenow={previewPanelWidth ?? undefined}
-              onPointerDown={handlePreviewDividerPointerDown}
-            >
-              <span className="hc-preview-divider-handle" aria-hidden="true" />
-            </div>
-            <aside className="hc-preview-panel" style={previewPanelStyle}>
-              {/* Refactor preview header to a more modern, browser-like compact layout. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
-              <div className="hc-preview-header">
-                {/* Row 1: Instance tabs and status. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
-                <div className="hc-preview-header-top">
-                  <div className="hc-preview-tabs">
-                    {previewInstances.length > 0 ? (
-                      previewInstances.map((instance) => (
-                        <button
-                          key={instance.name}
-                          type="button"
-                          className={`hc-preview-tab${instance.name === activePreviewName ? ' hc-preview-tab--active' : ''}`}
-                          onClick={() => setActivePreviewName(instance.name)}
-                        >
-                          <span
-                            className={`hc-preview-status-dot hc-preview-status-dot--${instance.status}`}
-                            aria-hidden="true"
-                          />
-                          <span className="hc-preview-tab-name">{instance.name}</span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="hc-preview-tab hc-preview-tab--active">
-                        <span
-                          className={`hc-preview-status-dot hc-preview-status-dot--${previewAggregateStatus}`}
-                          aria-hidden="true"
-                        />
-                        <span className="hc-preview-tab-name">{t('preview.panel.title')}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="hc-preview-header-actions">
-                    <Tooltip title={t('preview.logs.open')}>
-                      <Button
-                        size="small"
-                        type="text"
-                        icon={<FileTextOutlined />}
-                        disabled={!activePreviewInstance}
-                        onClick={() => setPreviewLogsOpen(true)}
-                      />
-                    </Tooltip>
-                    {!activePreviewIsTerminal && (
-                      <>
-                        <Tooltip title={t('preview.action.openWindow')}>
-                          <Button
-                            size="small"
-                            type="text"
-                            icon={<ExportOutlined />}
-                            disabled={!currentPreviewIframeSrc}
-                            onClick={handleOpenPreviewWindow}
-                          />
-                        </Tooltip>
-                        <Tooltip title={t('preview.action.copyLink')}>
-                          <Button
-                            size="small"
-                            type="text"
-                            icon={<CopyOutlined />}
-                            disabled={!currentPreviewIframeSrc}
-                            onClick={handleCopyPreviewLink}
-                          />
-                        </Tooltip>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Row 2: Navigation and Address Bar. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */}
-                {activePreviewIsTerminal ? null : (
-                  <div className="hc-preview-header-toolbar">
-                    <div className="hc-preview-header-nav">
-                      <Button
-                        size="small"
-                        type="text"
-                        icon={<ArrowLeftOutlined />}
-                        aria-label={t('preview.browser.back')}
-                        disabled={!currentPreviewIframeSrc}
-                        onClick={handlePreviewBack}
-                      />
-                      <Button
-                        size="small"
-                        type="text"
-                        icon={<ArrowRightOutlined />}
-                        aria-label={t('preview.browser.forward')}
-                        disabled={!currentPreviewIframeSrc}
-                        onClick={handlePreviewForward}
-                      />
-                      <Button
-                        size="small"
-                        type="text"
-                        icon={<ReloadOutlined />}
-                        aria-label={t('preview.browser.refresh')}
-                        disabled={!currentPreviewIframeSrc}
-                        onClick={handlePreviewReload}
-                      />
-                    </div>
-
-                    <Input
-                      size="small"
-                      className="hc-preview-header-browser-input"
-                      value={previewAddressInput}
-                      placeholder={t('preview.browser.placeholder')}
-                      aria-label={t('preview.browser.placeholder')}
-                      prefix={
-                        <span
-                          className={`hc-preview-header-browser-prefix${
-                            previewAddressMeta.isSecure ? ' hc-preview-header-browser-prefix--secure' : ''
-                          }`}
-                          aria-hidden="true"
-                        >
-                          {previewAddressMeta.isSecure ? <LockOutlined /> : <GlobalOutlined />}
-                        </span>
-                      }
-                      suffix={
-                        /* Toggle preview auto-navigation lock inside the address bar as a suffix action. docs/en/developer/plans/refactor-preview-ui-20260205/task_plan.md refactor-preview-ui-20260205 */
-                        <Tooltip title={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}>
-                          <Button
-                            size="small"
-                            type="text"
-                            className="hc-preview-header-browser-lock"
-                            icon={previewAutoNavigateLocked ? <LockOutlined /> : <UnlockOutlined />}
-                            aria-label={previewAutoNavigateLocked ? t('preview.browser.unlockAutoNav') : t('preview.browser.lockAutoNav')}
-                            onClick={() => setPreviewAutoNavigateLocked((prev) => !prev)}
-                          />
-                        </Tooltip>
-                      }
-                      title={previewAddressInput || previewAddress}
-                      disabled={!currentPreviewIframeSrc}
-                      onChange={(event) => setPreviewAddressInput(event.target.value)}
-                      onFocus={() => setPreviewAddressEditing(true)}
-                      onBlur={() => {
-                        setPreviewAddressEditing(false);
-                        setPreviewAddressInput(previewAddress || currentPreviewIframeSrc);
-                      }}
-                      onPressEnter={() => handlePreviewNavigate()}
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="hc-preview-body">
-                {showInlineTerminalLogs ? (
-                  <div className="hc-preview-terminal" ref={previewTerminalBodyRef} onScroll={handlePreviewTerminalScroll}>
-                    {previewLogsLoading ? (
-                      <pre className="hc-preview-terminal-output">{t('preview.logs.loading')}</pre>
-                    ) : previewLogs.length === 0 ? (
-                      <pre className="hc-preview-terminal-output">{t('preview.logs.empty')}</pre>
-                    ) : (
-                      <pre className="hc-preview-terminal-output">{previewTerminalOutput}</pre>
-                    )}
-                  </div>
-                ) : activePreviewStatus === 'running' && previewIframeSrc ? (
-                  <>
-                    {/* Sandbox the iframe so navigation stays inside the preview panel. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
-                    {/* Wrap the iframe in a browser-style frame for depth and rounded corners. docs/en/developer/plans/2se7kgnqyp427d5nvoej/task_plan.md 2se7kgnqyp427d5nvoej */}
-                    <div className="hc-preview-iframe-shell">
-                      <iframe
-                        className="hc-preview-iframe"
-                        title={activePreviewInstance?.name ?? 'preview'}
-                        src={currentPreviewIframeSrc}
-                        sandbox="allow-scripts allow-same-origin allow-forms"
-                        loading="lazy"
-                        ref={previewIframeRef}
-                        onLoad={handlePreviewIframeLoad}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="hc-preview-placeholder">
-                    <Typography.Text type="secondary">{previewPlaceholderText}</Typography.Text>
-                    {activePreviewInstance?.message && activePreviewStatus !== 'running' && (
-                      <Typography.Text type="secondary" className="hc-preview-message">
-                        {activePreviewInstance.message}
-                      </Typography.Text>
-                    )}
-                    {/* Render diagnostics when preview startup fails or times out. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
-                    {previewDiagnostics && (activePreviewStatus === 'failed' || activePreviewStatus === 'timeout') && (
-                      <div className="hc-preview-diagnostics">
-                        <Typography.Text type="secondary" className="hc-preview-diagnostics-title">
-                          {t('preview.diagnostics.title')}
-                        </Typography.Text>
-                        <div className="hc-preview-diagnostics-meta">
-                          <span>
-                            {t('preview.diagnostics.exitCode')}: {previewDiagnostics.exitCode ?? '-'}
-                          </span>
-                          <span>
-                            {t('preview.diagnostics.signal')}: {previewDiagnostics.signal ?? '-'}
-                          </span>
-                        </div>
-                        {previewDiagnosticsLogs.length > 0 && (
-                          <div className="hc-preview-diagnostics-logs">
-                            <span className="hc-preview-diagnostics-logs-label">
-                              {t('preview.diagnostics.logs')}
-                            </span>
-                            <div className="hc-preview-diagnostics-logs-list">
-                              {previewDiagnosticsLogs.map((entry, idx) => (
-                                <div key={`${entry.timestamp}-${idx}`} className="hc-preview-diagnostics-log-line">
-                                  <span className="hc-preview-diagnostics-log-level">{entry.level.toUpperCase()}</span>
-                                  <span className="hc-preview-diagnostics-log-message">{entry.message}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </aside>
-          </>
-        )}
+        {/* Render the shared workspace panel when preview or task log tabs are open. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
+        <TaskGroupWorkspacePanel
+          open={workspacePanelOpen}
+          dividerActive={previewDragActive}
+          previewPanelMinWidth={previewPanelMinWidth}
+          previewPanelMaxWidth={previewPanelMaxWidth}
+          previewPanelWidth={previewPanelWidth}
+          previewPanelStyle={previewPanelStyle}
+          onDividerPointerDown={handlePreviewDividerPointerDown}
+          activeKey={activeWorkspaceTabKey}
+          items={workspaceTabItems}
+          onChange={setActiveWorkspaceTabKey}
+          onCloseTab={handleCloseWorkspaceTab}
+        />
       </div>
 
       {/* Render the preview start modal with a manual reinstall action. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
       <Modal
         open={previewStartModalOpen}
         title={t('preview.start.title')}
-        onCancel={() => setPreviewStartModalOpen(false)}
+        onCancel={closePreviewStartModal}
         maskClosable={!previewActionLoading && !previewInstallLoading}
         footer={
           <Space>
             <Button
-              onClick={() => setPreviewStartModalOpen(false)}
+              onClick={closePreviewStartModal}
               disabled={previewActionLoading || previewInstallLoading}
             >
               {t('common.cancel')}
@@ -2205,43 +476,6 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
           }}
           onChange={saveSkillSelection}
         />
-      </Modal>
-
-      {/* Preview log modal is driven by SSE when open. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
-      <Modal
-        open={previewLogsOpen}
-        title={
-          activePreviewInstance
-            ? `${t('preview.logs.title')} · ${activePreviewInstance.name}`
-            : t('preview.logs.title')
-        }
-        footer={null}
-        onCancel={() => setPreviewLogsOpen(false)}
-        width={760}
-      >
-        <div className="hc-preview-log-meta">
-          <Typography.Text type="secondary">{activePreviewStatusLabel}</Typography.Text>
-          <Typography.Text type="secondary">
-            {t('preview.logs.count', { count: previewLogs.length })}
-          </Typography.Text>
-        </div>
-        <div className="hc-preview-log-body">
-          {previewLogsLoading ? (
-            <Typography.Text type="secondary">{t('preview.logs.loading')}</Typography.Text>
-          ) : previewLogs.length === 0 ? (
-            <Typography.Text type="secondary">{t('preview.logs.empty')}</Typography.Text>
-          ) : (
-            <div className="hc-preview-log-list">
-              {previewLogs.map((entry, idx) => (
-                <div key={`${entry.timestamp}-${idx}`} className={`hc-preview-log-line hc-preview-log-line--${entry.level}`}>
-                  <span className="hc-preview-log-time">{formatPreviewLogTime(entry.timestamp)}</span>
-                  <span className="hc-preview-log-level">{entry.level.toUpperCase()}</span>
-                  <span className="hc-preview-log-message">{entry.message}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </Modal>
     </div>
   );

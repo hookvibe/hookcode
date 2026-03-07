@@ -83,6 +83,36 @@ write_kv DB_USER "${DB_USER:-${HOOKCODE_DB_USER:-hookcode}}"
 write_kv DB_PASSWORD "${DB_PASSWORD:-${HOOKCODE_DB_PASSWORD:-hookcode}}"
 write_kv DB_NAME "${DB_NAME:-${HOOKCODE_DB_NAME:-hookcode}}"
 
+# Keep Docker runtime storage on an explicit absolute container path so Compose volume targets match HOOKCODE_WORK_DIR for backend and worker state. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+work_dir_root="${HOOKCODE_WORK_DIR:-/var/lib/hookcode}"
+if [[ "${work_dir_root}" != /* ]]; then
+  echo "[ci] ERROR: HOOKCODE_WORK_DIR must be an absolute container path (example: /var/lib/hookcode)" >&2
+  exit 1
+fi
+write_kv HOOKCODE_WORK_DIR "${work_dir_root}"
+
+# Default CI/server Docker deployments to backend-managed external workers so the compose stack can either start a bundled worker or wait for a separately deployed remote worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+include_worker_raw="${HOOKCODE_DOCKER_INCLUDE_WORKER:-false}"
+write_kv HOOKCODE_DOCKER_INCLUDE_WORKER "${include_worker_raw}"
+system_worker_mode="${HOOKCODE_SYSTEM_WORKER_MODE:-external}"
+write_kv HOOKCODE_SYSTEM_WORKER_MODE "${system_worker_mode}"
+system_worker_id="${HOOKCODE_SYSTEM_WORKER_ID:-11111111-1111-4111-8111-111111111111}"
+if [[ "${system_worker_mode}" == "external" ]]; then
+  if [[ ! "${system_worker_id}" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+    echo "[ci] ERROR: HOOKCODE_SYSTEM_WORKER_ID must look like a UUID when HOOKCODE_SYSTEM_WORKER_MODE=external" >&2
+    exit 1
+  fi
+  if [[ -z "${HOOKCODE_SYSTEM_WORKER_TOKEN:-}" ]]; then
+    echo "[ci] ERROR: HOOKCODE_SYSTEM_WORKER_TOKEN is required when HOOKCODE_SYSTEM_WORKER_MODE=external" >&2
+    exit 1
+  fi
+fi
+write_kv HOOKCODE_SYSTEM_WORKER_ID "${system_worker_id}"
+write_kv HOOKCODE_SYSTEM_WORKER_TOKEN "${HOOKCODE_SYSTEM_WORKER_TOKEN:-}"
+write_kv HOOKCODE_SYSTEM_WORKER_NAME "${HOOKCODE_SYSTEM_WORKER_NAME:-GitHub Actions Default Worker}"
+write_kv HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY "${HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY:-1}"
+write_kv HOOKCODE_DOCKER_WORKER_BACKEND_URL "${HOOKCODE_DOCKER_WORKER_BACKEND_URL:-http://backend:4000/api}"
+
 # ------------------------------------------------------------------------------
 # Backend - Auth (CI defaults should NOT be used in production)
 # ------------------------------------------------------------------------------

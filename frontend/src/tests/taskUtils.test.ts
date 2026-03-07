@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { extractTaskResultSuggestions, extractTaskResultText, extractTaskUserText, isTerminalStatus } from '../utils/task';
+import { render, screen } from '@testing-library/react';
+import { extractTaskResultSuggestions, extractTaskResultText, extractTaskUserText, isTerminalStatus, statusTag } from '../utils/task';
 
 describe('task utils', () => {
   test('isTerminalStatus covers terminal task states', () => {
@@ -8,6 +9,20 @@ describe('task utils', () => {
     expect(isTerminalStatus('succeeded' as any)).toBe(true);
     expect(isTerminalStatus('failed' as any)).toBe(true);
     expect(isTerminalStatus('commented' as any)).toBe(true);
+  });
+
+
+  test('statusTag falls back gracefully for missing or legacy statuses', () => {
+    // Guard task status badges against partial runtime payloads so task cards never crash during early schema changes. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const t = ((key: string) => ({
+      'task.status.paused': 'Paused'
+    }[key] ?? key)) as any;
+
+    const { rerender } = render(statusTag(t, 'paused'));
+    expect(screen.getByText('Paused')).toBeInTheDocument();
+
+    rerender(statusTag(t, undefined));
+    expect(screen.getByText('unknown')).toBeInTheDocument();
   });
 
   test('extractTaskUserText prefers chat payload over provider comments', () => {

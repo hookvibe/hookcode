@@ -1,5 +1,6 @@
 import type { RobotDependencyConfig } from './dependency';
 import type { TimeWindow } from './timeWindow';
+import type { WorkerSummary } from './worker';
 
 export type RobotPermission = 'read' | 'write';
 
@@ -54,6 +55,8 @@ export interface RepoRobot {
    * Stored in `repo_robots.repo_credential_profile_id`.
    */
   repoCredentialProfileId?: string;
+  // Persist an optional default worker for this robot so webhook/chat tasks can target remote executors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  defaultWorkerId?: string;
   cloneUsername?: string;
   /**
    * Provider user id derived from the robot's effective repo token during activation test.
@@ -150,4 +153,6 @@ export interface RepoRobot {
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
+  // Return compact worker metadata with robot payloads so repo settings can show the current executor target. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  defaultWorker?: WorkerSummary;
 }

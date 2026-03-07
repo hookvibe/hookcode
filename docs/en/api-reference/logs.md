@@ -1,10 +1,10 @@
 ---
 title: System Logs
 ---
-<!-- Document admin system log APIs for the settings log tab. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+{/* Document admin system log APIs for the settings log tab. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
 
 This page documents the admin-only system log APIs.
-<!-- Add business event log examples and retention notes. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+{/* Add business event log examples and retention notes. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
 
 ## Log entry schema
 
@@ -21,7 +21,7 @@ Each log entry contains:
 - `meta` (object, optional; sensitive fields are redacted)
 - `createdAt` (ISO timestamp)
 
-<!-- Document retention override env var for log cleanup. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+{/* Document retention override env var for log cleanup. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
 Retention: logs are kept for 30 days and cleaned up automatically. You can override the retention window with `LOG_RETENTION_DAYS` (number of days) in the backend environment.
 
 ## List logs

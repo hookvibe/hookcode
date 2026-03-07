@@ -16,6 +16,14 @@ services:
     env_file:
       # Single Docker deployment env file shared by frontend(build) + backend/worker(runtime).
       - ./.env
+    environment:
+      # Keep backend runtime storage on an explicit container path so named volumes persist HOOKCODE_WORK_DIR across rebuilds. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      HOOKCODE_WORK_DIR: ${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
+      # Default Docker deployments to the external system-worker mode so backend and compose/remote workers share the same executor protocol. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      HOOKCODE_SYSTEM_WORKER_MODE: ${HOOKCODE_SYSTEM_WORKER_MODE:-external}
+    volumes:
+      # Persist backend task groups and its supervised local-worker caches beneath HOOKCODE_WORK_DIR. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      - backend_work_dir:${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -27,18 +35,35 @@ services:
       - db
 
   worker:
+    # Run the standalone worker image separately from backend so deployments can place executors on arbitrary machines. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     build:
       context: ..
-      dockerfile: backend/Dockerfile
+      dockerfile: worker/Dockerfile
       args:
         PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR}
     env_file:
       - ./.env
+    environment:
+      # Keep standalone worker runtime storage on the configured container path so runtime installs and sticky workspaces survive restarts. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      HOOKCODE_WORK_DIR: ${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
+      # Point the bundled Docker worker at backend using the same bootstrap credentials that backend registers as the default external system worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      HOOKCODE_BACKEND_URL: ${HOOKCODE_DOCKER_WORKER_BACKEND_URL:-http://backend:4000/api}
+      HOOKCODE_WORKER_ID: ${HOOKCODE_SYSTEM_WORKER_ID}
+      HOOKCODE_WORKER_TOKEN: ${HOOKCODE_SYSTEM_WORKER_TOKEN}
+      HOOKCODE_WORKER_NAME: ${HOOKCODE_SYSTEM_WORKER_NAME:-Docker Default Worker}
+      HOOKCODE_WORKER_KIND: remote
+      HOOKCODE_WORKER_PREVIEW: ${HOOKCODE_WORKER_PREVIEW:-0}
+      HOOKCODE_WORKER_MAX_CONCURRENCY: ${HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY:-1}
+    volumes:
+      # Persist standalone worker runtime installs and sticky workspaces beneath HOOKCODE_WORK_DIR. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      - worker_work_dir:${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["node", "/repo/backend/dist/worker.js"]
+    # Run the built worker image entrypoint from /app so Docker deployments start the packaged standalone executor correctly. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    command: ["node", "/app/dist/main.js"]
     depends_on:
       - db
+      - backend
 
   frontend:
     build:
@@ -71,3 +96,5 @@ services:
 
 volumes:
   db_data: {}
+  backend_work_dir: {}
+  worker_work_dir: {}

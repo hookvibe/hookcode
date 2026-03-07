@@ -214,6 +214,7 @@ export const zhCNCore = {
   'taskGroups.page.searchPlaceholder': '搜索任务组（标题/仓库/ID）',
   'taskGroups.page.empty': '暂无任务组',
   'taskGroups.page.viewAll': '查看全部任务组',
+  'taskGroups.status.workerOffline': '执行器离线',
   'taskGroups.kind.task': '任务',
   'taskGroups.kind.unknown': '未知',
 
@@ -230,6 +231,8 @@ export const zhCNCore = {
   'tasks.detailTitle': '任务详情',
   'tasks.empty.noPermission': '无权限访问该页面',
   'tasks.retry': '重试',
+  // Add explicit stop copy after removing pause/resume task controls. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  'tasks.stop': '停止',
   // Pause/resume controls for task execution. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   'tasks.pause': '暂停',
   'tasks.resume': '继续',
@@ -238,7 +241,7 @@ export const zhCNCore = {
   'tasks.queue.hintTitle': '队列等待中',
   'tasks.queue.hint.backlog': '队列前面 {{ahead}} 个 · 执行中 {{processing}} 个',
   'tasks.queue.hint.noActiveWorker': '暂无执行中的任务，可能 worker 未启动或未触发',
-  'tasks.queue.hint.inlineWorkerDisabled': '未启用内联 worker，请启动独立 worker 消费队列',
+  'tasks.queue.hint.inlineWorkerDisabled': '当前没有执行器在消费队列，请启动或重新连接 worker',
   'tasks.queue.hint.timeWindow': '等待执行时间段 {{window}}（{{source}}，服务器时间）',
   'tasks.queue.hint.unknown': '已入队，等待执行',
   'tasks.queue.timeWindow.source.robot': '机器人',
@@ -256,6 +259,8 @@ export const zhCNCore = {
   'tasks.field.title': '标题/摘要',
   'tasks.field.repo': '仓库',
   'tasks.field.robot': '机器人',
+  // Add worker attribution copy for task badges and detail summaries. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  'tasks.field.worker': '执行器',
   // Surface direct-vs-fork workflow to reduce PR/MR targeting mistakes. 24yz61mdik7tqdgaa152
   'tasks.field.repoWorkflow': '仓库工作流',
   'tasks.repoWorkflow.direct': '直推',
@@ -272,6 +277,7 @@ export const zhCNCore = {
   'tasks.field.id': '任务 ID',
   'tasks.field.providerComment': '平台评论',
   'tasks.openProviderComment': '打开平台评论',
+  'tasks.workerLost': '分配的执行器已在 {{time}} 离线。请先恢复执行器，再重试该任务。',
   'tasks.tokens.format': '输入 {{input}} · 输出 {{output}} · 总计 {{total}}',
   'tasks.repoMissing': '该任务未绑定仓库，无法跳转仓库详情。',
   // Surface dependency install results in task detail for diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
@@ -349,6 +355,10 @@ export const zhCNCore = {
   'tasks.gitStatus.divergence.value': '领先 {{ahead}} · 落后 {{behind}}',
   'tasks.gitStatus.files': '变更文件',
   'tasks.gitStatus.files.none': '无本地文件变更',
+  // Add compact-summary copy for collapsed git status cards in task-group timelines. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303
+  'tasks.gitStatus.files.summary': '已暂存 {{staged}} · 未暂存 {{unstaged}} · 未跟踪 {{untracked}}',
+  'tasks.gitStatus.expand': '展开详情',
+  'tasks.gitStatus.collapse': '收起详情',
   'tasks.gitStatus.files.staged': '已暂存（{{count}}）',
   'tasks.gitStatus.files.unstaged': '未暂存（{{count}}）',
   'tasks.gitStatus.files.untracked': '未跟踪（{{count}}）',

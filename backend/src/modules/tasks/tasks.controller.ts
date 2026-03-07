@@ -1,4 +1,5 @@
 import {
+  Body,
   BadRequestException,
   ConflictException,
   Controller,
@@ -8,6 +9,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -29,6 +31,7 @@ import {
 import type { Request, Response } from 'express';
 import type { TaskLogStreamEvent } from './task-log-stream.service';
 import { TaskLogStream } from './task-log-stream.service';
+import { TaskLogsService } from './task-logs.service';
 import { TaskGitPushService } from './task-git-push.service';
 import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
@@ -36,9 +39,7 @@ import type { TaskStatus } from '../../types/task';
 import { isTaskLogsEnabled } from '../../config/features';
 import { db } from '../../db';
 import { sanitizeTaskForViewer } from '../../services/taskResultVisibility';
-import { computeTaskLogsDelta, extractTaskLogsSnapshot, sliceLogsTail } from '../../services/taskLogs';
-import { isTruthy } from '../../utils/env';
-import { isProcessingStale, resolveProcessingStaleMs } from '../../utils/processingStale';
+import { isTruthy, parseOptionalDurationMs } from '../../utils/env';
 import { normalizeString, parseOptionalBoolean, parsePositiveInt } from '../../utils/parse';
 import { decodeUpdatedAtCursor, encodeUpdatedAtCursor } from '../../utils/pagination'; // Share cursor parsing/encoding for task pagination. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 import { extractTaskSchedule } from '../../utils/timeWindow';
@@ -46,6 +47,9 @@ import { AllowQueryToken, AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
 import { RepoAccessService, type RepoRole } from '../repositories/repo-access.service';
+import { LogWriterService } from '../logs/log-writer.service';
+import { WorkersConnectionService } from '../workers/workers-connection.service';
+import { TASK_REORDER_ACTIONS, type TaskReorderAction } from './task-control.constants';
 import {
   GetTaskResponseDto,
   ListTasksResponseDto,
@@ -64,20 +68,21 @@ export class TasksController {
   constructor(
     private readonly taskService: TaskService,
     private readonly taskLogStream: TaskLogStream,
+    private readonly taskLogsService: TaskLogsService, // Serve paged task log reads from the log table. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     private readonly taskRunner: TaskRunner,
     private readonly taskGitPushService: TaskGitPushService,
-    private readonly repoAccessService: RepoAccessService
+    private readonly repoAccessService: RepoAccessService,
+    private readonly logWriter: LogWriterService, // Emit audit events for log-clearing actions. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    private readonly workersConnections: WorkersConnectionService
   ) {}
 
   private normalizeTaskStatusFilter(value: unknown): TaskStatus | 'success' | undefined {
     const raw = normalizeString(value);
     if (!raw) return undefined;
     if (raw === 'success') return 'success';
-    // Accept paused status filters for pause/resume workflows. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     if (
       raw === 'queued' ||
       raw === 'processing' ||
-      raw === 'paused' ||
       raw === 'succeeded' ||
       raw === 'failed' ||
       raw === 'commented'
@@ -341,25 +346,42 @@ export class TasksController {
     description: 'Fetch task logs (requires task logs feature enabled).',
     operationId: 'tasks_logs_get'
   })
+  // Document task log paging params for log table reads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  @ApiQuery({ name: 'limit', required: false, description: 'Max log lines to return (default 200, max 1000).' })
+  @ApiQuery({ name: 'before', required: false, description: 'Return log lines before this sequence number.' })
+  @ApiQuery({ name: 'tail', required: false, description: 'Legacy alias for limit when requesting latest log lines.' }) // Preserve tail alias docs for paged log reads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   @ApiOkResponse({ description: 'OK', type: TaskLogsResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async logs(@Req() req: Request, @Param('id') id: string, @Query('tail') tailRaw: string | undefined) {
+  async logs(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Query('limit') limitRaw: string | undefined,
+    @Query('before') beforeRaw: string | undefined,
+    @Query('tail') tailRaw: string | undefined
+  ) {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       if (!isTaskLogsEnabled()) {
         throw new NotFoundException({ error: 'Task logs are disabled' });
       }
-      const task = await this.taskService.getTask(id);
+      // Use minimal task fields to avoid pulling large result_json on log reads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      const task = await this.taskService.getTaskAccessSummary(id);
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
       await this.requireTaskManage(req.user, task);
 
-      const tail = parsePositiveInt(tailRaw, 0);
-      const { logs } = extractTaskLogsSnapshot(task);
-      const sliced = sliceLogsTail(logs, tail);
-      return { logs: sliced };
+      // Resolve log paging params with backwards-compatible tail alias. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      const limit = parsePositiveInt(limitRaw ?? tailRaw, 200);
+      const before = parsePositiveInt(beforeRaw, 0);
+      if (beforeRaw && before <= 0) {
+        throw new BadRequestException({ error: 'Invalid before cursor' });
+      }
+      if (before > 0) {
+        return await this.taskLogsService.getBefore(id, before, limit);
+      }
+      return await this.taskLogsService.getTail(id, limit);
     } catch (err) {
       if (err instanceof HttpException) throw err;
       console.error('[tasks] logs failed', err);
@@ -382,13 +404,25 @@ export class TasksController {
       if (!isTaskLogsEnabled()) {
         throw new NotFoundException({ error: 'Task logs are disabled' });
       }
-      const task = await this.taskService.getTask(id);
+      // Use minimal task fields to avoid pulling large result_json on log clears. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      const task = await this.taskService.getTaskAccessSummary(id);
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
       await this.requireTaskManage(req.user, task);
 
-      await this.taskService.patchResult(id, { logs: [], logsSeq: 0 });
+      // Delete persisted log rows so UI reopens with a clean log history. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      const cleared = await this.taskLogsService.clearLogs(id);
+      await this.taskService.stripTaskResultLogs(id);
+      void this.logWriter.logExecution({
+        level: 'info',
+        message: 'Task logs cleared',
+        code: 'TASK_LOGS_CLEARED',
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { cleared }
+      });
       return { success: true };
     } catch (err) {
       if (err instanceof HttpException) throw err;
@@ -413,16 +447,16 @@ export class TasksController {
         return res.status(404).json({ error: 'Task logs are disabled' });
       }
       const taskId = id;
-      const task = await this.taskService.getTask(taskId);
+      // Use minimal task fields to avoid pulling large result_json during log streams. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      const task = await this.taskService.getTaskAccessSummary(taskId);
       if (!task) {
         return res.status(404).json({ error: 'Task not found' });
       }
       await this.requireTaskManage(req.user, task);
 
       const tail = parsePositiveInt(tailRaw, 200);
-      const snapshot = extractTaskLogsSnapshot(task);
-      const sliced = sliceLogsTail(snapshot.logs, tail);
-      let seenSeq = snapshot.seq;
+      const snapshot = await this.taskLogsService.getTail(taskId, tail);
+      let seenSeq = snapshot.endSeq;
 
       res.status(200);
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -438,29 +472,40 @@ export class TasksController {
         }
       };
 
-      // Send an initial snapshot so the frontend can render existing logs immediately.
-      writeEvent('init', { logs: sliced });
+      // Send an initial snapshot so the frontend can render existing logs immediately. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      writeEvent('init', {
+        logs: snapshot.logs,
+        startSeq: snapshot.startSeq,
+        endSeq: snapshot.endSeq,
+        nextBefore: snapshot.nextBefore
+      });
 
       // Cross-process/container: push incremental logs by polling the DB (instead of pure in-memory publish).
-      // Keep the in-memory subscription as well for better real-time behavior in single-process (inline worker) mode.
+      // Keep the in-memory subscription so colocated worker dispatch still feels immediate while DB polling covers remote executors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
       let polling = false;
       const pollTimer = setInterval(async () => {
         if (polling) return;
         polling = true;
         try {
-          const latest = await this.taskService.getTask(taskId);
-          if (!latest) return;
-          const nextSnapshot = extractTaskLogsSnapshot(latest);
-          const delta = computeTaskLogsDelta({ seenSeq, snapshot: nextSnapshot });
-
-          if (delta.type === 'append') {
-            for (const line of delta.lines) {
-              writeEvent('log', { line });
+          // Poll task_logs for new lines and reset streams after clears. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+          const maxSeq = await this.taskLogsService.getMaxSeq(taskId);
+          if (maxSeq < seenSeq) {
+            const reset = await this.taskLogsService.getTail(taskId, tail);
+            writeEvent('init', {
+              logs: reset.logs,
+              startSeq: reset.startSeq,
+              endSeq: reset.endSeq,
+              nextBefore: reset.nextBefore
+            });
+            seenSeq = reset.endSeq;
+            return;
+          }
+          const delta = await this.taskLogsService.getAfter(taskId, seenSeq, tail);
+          if (delta.entries.length) {
+            for (const entry of delta.entries) {
+              writeEvent('log', entry);
+              if (entry.seq > seenSeq) seenSeq = entry.seq;
             }
-            seenSeq = delta.nextSeenSeq;
-          } else if (delta.type === 'resync') {
-            writeEvent('init', { logs: sliceLogsTail(delta.logs, tail) });
-            seenSeq = delta.nextSeenSeq;
           }
         } catch (err) {
           console.error('[tasks] sse poll failed', err);
@@ -479,7 +524,7 @@ export class TasksController {
 
       const unsubscribe = this.taskLogStream.subscribe(taskId, (ev: TaskLogStreamEvent) => {
         writeEvent('log', ev);
-        seenSeq += 1;
+        if (ev.seq > seenSeq) seenSeq = ev.seq;
       });
 
       req.on('close', () => {
@@ -550,10 +595,11 @@ export class TasksController {
       }
 
       if (existing.status === 'processing' && !force) {
-        const staleMs = resolveProcessingStaleMs();
+        // Respect blank/zero PROCESSING_STALE_MS so retry gating does not treat tasks as stale. docs/en/developer/plans/stale-disable-20260305/task_plan.md stale-disable-20260305
+        const staleMs = parseOptionalDurationMs(process.env.PROCESSING_STALE_MS, 30 * 60 * 1000);
         const updatedAt = new Date(existing.updatedAt).getTime();
-        // Respect opt-in stale timeout policy; when unset, processing retry requires force=true. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
-        const isStale = isProcessingStale({ updatedAtMs: updatedAt, staleMs });
+        const now = Date.now();
+        const isStale = staleMs !== null && Number.isFinite(updatedAt) && now - updatedAt > staleMs;
         if (!isStale) {
           const errorMessage =
             staleMs === null
@@ -569,9 +615,8 @@ export class TasksController {
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
-      if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
-        this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
-      }
+      // Kick the dispatcher after queue mutations so connected workers receive tasks without polling delays. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
       const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
@@ -581,17 +626,17 @@ export class TasksController {
     }
   }
 
-  @Post(':id/pause')
+  @Post(':id/stop')
   @ApiOperation({
-    summary: 'Pause task',
-    description: 'Pause a queued or processing task without deleting it.',
-    operationId: 'tasks_pause'
+    summary: 'Stop task',
+    description: 'Stop a queued or processing task. Processing tasks finish as failed with a manual-stop reason.',
+    operationId: 'tasks_stop'
   })
   @ApiOkResponse({ description: 'OK', type: TaskControlResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async pause(@Req() req: Request, @Param('id') id: string) {
+  async stop(@Req() req: Request, @Param('id') id: string) {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const existing = await this.taskService.getTask(id);
@@ -600,41 +645,52 @@ export class TasksController {
       }
       await this.requireTaskManage(req.user, existing);
       if (existing.archivedAt) {
-        throw new ConflictException({ error: 'Task is archived; pause is blocked' });
+        throw new ConflictException({ error: 'Task is archived; stop is blocked' });
       }
-      if (existing.status === 'paused') {
+      if (existing.status !== 'processing' && existing.status !== 'queued') {
         const [decorated] = await this.attachTaskPermissions([existing] as any[], req.user);
         return { task: decorated };
       }
-      if (existing.status !== 'processing' && existing.status !== 'queued') {
-        throw new ConflictException({ error: 'Task cannot be paused unless queued or processing' });
-      }
 
-      // Pause task execution while keeping task history intact. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-      const task = await this.taskService.pauseTask(id);
+      // Stop queued or processing tasks without leaving a resumable paused state behind. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+      const task = await this.taskService.stopTask(id);
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
+      if (task.status === 'processing' && task.workerId) {
+        // Push explicit cancel messages to connected workers so manual stops do not wait solely on control-state polling. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+        this.workersConnections.sendCancelTask(task.workerId, task.id);
+      }
+      void this.logWriter.logOperation({
+        level: 'warn',
+        message: 'Task stop requested',
+        code: 'TASK_STOP_REQUESTED',
+        actorUserId: req.user.id,
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { status: task.status }
+      });
       const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
-      console.error('[tasks] pause failed', err);
-      throw new InternalServerErrorException({ error: 'Failed to pause task' });
+      console.error('[tasks] stop failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to stop task' });
     }
   }
 
-  @Post(':id/resume')
+  @Patch(':id/content')
   @ApiOperation({
-    summary: 'Resume task',
-    description: 'Resume a paused task by re-queueing it.',
-    operationId: 'tasks_resume'
+    summary: 'Edit queued task content',
+    description: 'Edit the text content of a queued manual task before it starts running.',
+    operationId: 'tasks_content_patch'
   })
   @ApiOkResponse({ description: 'OK', type: TaskControlResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async resume(@Req() req: Request, @Param('id') id: string) {
+  async patchQueuedContent(@Req() req: Request, @Param('id') id: string, @Body() body: { text?: string }) {
     try {
       if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
       const existing = await this.taskService.getTask(id);
@@ -643,26 +699,91 @@ export class TasksController {
       }
       await this.requireTaskManage(req.user, existing);
       if (existing.archivedAt) {
-        throw new ConflictException({ error: 'Task is archived; resume is blocked' });
+        throw new ConflictException({ error: 'Task is archived; edit is blocked' });
       }
-      if (existing.status !== 'paused') {
-        throw new ConflictException({ error: 'Task is not paused' });
+      if (existing.status !== 'queued') {
+        throw new ConflictException({ error: 'Only queued tasks can be edited' });
       }
 
-      // Resume paused tasks by returning them to the queue. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-      const task = await this.taskService.resumeTask(id);
+      const text = typeof body?.text === 'string' ? body.text.trim() : '';
+      if (!text) {
+        throw new BadRequestException({ error: 'text is required' });
+      }
+
+      // Allow queued manual tasks to be edited before execution begins. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+      const task = await this.taskService.updateQueuedTaskText(id, text);
       if (!task) {
-        throw new NotFoundException({ error: 'Task not found' });
+        throw new ConflictException({ error: 'Task cannot be edited' });
       }
-      if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
-        this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
-      }
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Queued task content updated',
+        code: 'TASK_CONTENT_UPDATED',
+        actorUserId: req.user.id,
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { textLength: text.length }
+      });
       const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
       if (err instanceof HttpException) throw err;
-      console.error('[tasks] resume failed', err);
-      throw new InternalServerErrorException({ error: 'Failed to resume task' });
+      console.error('[tasks] content patch failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to update task content' });
+    }
+  }
+
+  @Post(':id/reorder')
+  @ApiOperation({
+    summary: 'Reorder queued task',
+    description: 'Move a queued task earlier, later, or to the next execution slot within its task group.',
+    operationId: 'tasks_reorder'
+  })
+  @ApiOkResponse({ description: 'OK', type: TaskControlResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  async reorder(@Req() req: Request, @Param('id') id: string, @Body() body: { action?: TaskReorderAction }) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      const existing = await this.taskService.getTask(id);
+      if (!existing) {
+        throw new NotFoundException({ error: 'Task not found' });
+      }
+      await this.requireTaskManage(req.user, existing);
+      if (existing.archivedAt) {
+        throw new ConflictException({ error: 'Task is archived; reorder is blocked' });
+      }
+      if (existing.status !== 'queued') {
+        throw new ConflictException({ error: 'Only queued tasks can be reordered' });
+      }
+      const action = typeof body?.action === 'string' ? body.action : '';
+      if (!TASK_REORDER_ACTIONS.includes(action as TaskReorderAction)) {
+        throw new BadRequestException({ error: 'Invalid reorder action' });
+      }
+
+      // Reorder queued tasks within the explicit task-group sequence instead of relying on timestamps. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+      const task = await this.taskService.reorderQueuedTask(id, action as TaskReorderAction);
+      if (!task) {
+        throw new ConflictException({ error: 'Task cannot be reordered' });
+      }
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: 'Queued task reordered',
+        code: 'TASK_REORDERED',
+        actorUserId: req.user.id,
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { action }
+      });
+      const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
+      return { task: decorated };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[tasks] reorder failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to reorder task' });
     }
   }
 
@@ -700,9 +821,8 @@ export class TasksController {
       if (!task) {
         throw new ConflictException({ error: 'Task schedule override failed' });
       }
-      if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
-        this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
-      }
+      // Kick the dispatcher after queue mutations so connected workers receive tasks without polling delays. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
       const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {

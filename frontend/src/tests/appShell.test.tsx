@@ -18,8 +18,7 @@ vi.mock('../api', () => {
     payload?: any;
     repo?: any;
   }) => {
-    // Test helper:
-    // - Use "recent" timestamps by default so the sidebar auto-expands the status sections.
+    // Use recent timestamps by default so sidebar snapshots are consistent while sections stay collapsed until toggled. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
     const when = params.when ?? new Date(Date.now() - 60 * 60 * 1000).toISOString();
     return {
       id: params.id,
@@ -248,6 +247,7 @@ describe('AppShell (frontend-chat migration)', () => {
   });
 
   test('renders home page and sidebar sections', async () => {
+    const ui = userEvent.setup();
     renderApp();
 
     expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
@@ -259,6 +259,12 @@ describe('AppShell (frontend-chat migration)', () => {
     // Match the queued header label with count in the modern sidebar. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
     expect(queuedHeader.querySelector('.ant-btn-icon')).toBeNull();
+    // Expand status sections explicitly because they now default to collapsed on refresh. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
+    const processingHeader = await screen.findByRole('button', { name: /Processing/ });
+    await ui.click(processingHeader);
+    const successHeader = await screen.findByRole('button', { name: /Completed/ });
+    await ui.click(successHeader);
 
     expect(screen.getByText('Tasks')).toBeInTheDocument();
     expect(await screen.findByText('Issue #1')).toBeInTheDocument();
@@ -290,8 +296,8 @@ describe('AppShell (frontend-chat migration)', () => {
     expect(groupItem?.querySelector('.hc-nav-icon')).toBeTruthy();
   });
 
-  test('renders preview dots for running task groups in the modern sidebar', async () => {
-    // Show preview-active dots on task-group rows in the modern sidebar. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
+  test('renders activity dots for running task groups in the modern sidebar', async () => {
+    // Show running-task dots on task-group rows in the modern sidebar. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
     const fetchDashboardSidebarMock = vi.mocked(api.fetchDashboardSidebar);
     fetchDashboardSidebarMock.mockResolvedValue({
       // Include paused counts to keep stats shape aligned. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
@@ -303,7 +309,7 @@ describe('AppShell (frontend-chat migration)', () => {
           kind: 'chat',
           bindingKey: 'b1',
           title: 'Group 1',
-          previewActive: true,
+          hasRunningTasks: true,
           createdAt: '',
           updatedAt: '2026-01-11T00:00:00.000Z'
         }
@@ -380,7 +386,8 @@ describe('AppShell (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     renderApp();
 
-    expect(await screen.findByText('Commit abcdef1')).toBeInTheDocument();
+    // Wait for the processing header so sidebar data is loaded before collapsing. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await screen.findByRole('button', { name: /Processing/ });
 
     // Locate the sidebar toggle via its title attribute in the refreshed layout. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     const collapseButton = await screen.findByTitle('Collapse sidebar');
@@ -440,6 +447,10 @@ describe('AppShell (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     renderApp();
 
+    const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
+    // Expand the queued section so the View all entry is visible. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
+
     // Clicking the per-section "View all" item should route to a filtered Tasks list. kwq0evw438cxawea0lcj
     const viewAllLabel = await screen.findByText('View all');
     const viewAllButton = viewAllLabel.closest('button');
@@ -452,8 +463,9 @@ describe('AppShell (frontend-chat migration)', () => {
     // Confirm queued header exists within the sidebar while view-all stays neutral. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     const sidebar = document.querySelector('.hc-modern-sidebar');
     expect(sidebar).toBeTruthy();
-    const queuedHeader = within(sidebar as HTMLElement).getByRole('button', { name: /Queued/ });
-    expect(queuedHeader).toBeInTheDocument();
+    // Use a distinct queued header reference inside the sidebar container. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    const queuedHeaderInSidebar = within(sidebar as HTMLElement).getByRole('button', { name: /Queued/ });
+    expect(queuedHeaderInSidebar).toBeInTheDocument();
     expect(viewAllButton).toHaveClass('hc-nav-view-all');
     expect(viewAllButton).not.toHaveClass('hc-nav-item--active');
   });
@@ -463,9 +475,12 @@ describe('AppShell (frontend-chat migration)', () => {
     renderApp();
 
     const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
-    expect(await screen.findByText('Issue #1')).toBeInTheDocument();
+    expect(screen.queryByText('Issue #1')).not.toBeInTheDocument();
     const originalHash = window.location.hash;
     // Clicking the header should toggle the list without navigating away. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
+    // Toggle to reveal and hide tasks because sections now start collapsed. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
+    expect(await screen.findByText('Issue #1')).toBeInTheDocument();
     await ui.click(queuedHeader);
     expect(window.location.hash).toBe(originalHash);
     expect(screen.queryByText('Issue #1')).not.toBeInTheDocument();
@@ -474,7 +489,12 @@ describe('AppShell (frontend-chat migration)', () => {
   });
 
   test('uses title attributes for sidebar task labels', async () => {
+    const ui = userEvent.setup();
     renderApp();
+
+    const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
+    // Expand queued tasks so task labels are rendered for title assertions. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
 
     // Sidebar task buttons now use event+marker titles instead of tooltip content. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     const taskButton = await screen.findByRole('button', { name: /Issue #1/ });
@@ -484,6 +504,10 @@ describe('AppShell (frontend-chat migration)', () => {
   test('navigates to task detail when clicking a task item', async () => {
     const ui = userEvent.setup();
     renderApp();
+
+    const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
+    // Expand queued section so task items are clickable. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
 
     const taskButton = await screen.findByRole('button', { name: /Issue #1/ });
     await ui.click(taskButton);
@@ -512,11 +536,14 @@ describe('AppShell (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     renderApp();
 
-    expect(await screen.findByText('Issue #1')).toBeInTheDocument();
-    expect(await screen.findByText('Commit abcdef1')).toBeInTheDocument();
-
     // Match the queued header label with count in the modern sidebar. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
+    const processingHeader = await screen.findByRole('button', { name: /Processing/ });
+    // Expand sections first because status groups default to collapsed. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
+    await ui.click(processingHeader);
+    expect(await screen.findByText('Issue #1')).toBeInTheDocument();
+    expect(await screen.findByText('Commit abcdef1')).toBeInTheDocument();
     await ui.click(queuedHeader);
 
     expect(screen.queryByText('Issue #1')).not.toBeInTheDocument();
@@ -558,6 +585,9 @@ describe('AppShell (frontend-chat migration)', () => {
 
     renderApp();
 
+    const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
+    // Expand queued tasks so the recent item is visible before testing older sections. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
     expect(await screen.findByText('Issue #1')).toBeInTheDocument();
 
     // Toggle the processing section to reveal older tasks in the modern sidebar. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
@@ -566,8 +596,9 @@ describe('AppShell (frontend-chat migration)', () => {
     expect(await screen.findByText('Issue #2')).toBeInTheDocument();
   });
 
-  test('auto-expands when recent tasks appear after the initial old snapshot', async () => {
-    // Regression guard: do not lock the auto-expand initializer when the first refresh has no recent tasks. mks8pr4r3m1fo9oqx9av
+  test('keeps status sections collapsed across refresh even when recent tasks appear', async () => {
+    // Ensure refresh does not auto-expand status sections; users must toggle manually. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    const ui = userEvent.setup();
     const fetchDashboardSidebarMock = vi.mocked(api.fetchDashboardSidebar);
     const now = Date.now();
     const old = new Date(now - 25 * 60 * 60 * 1000).toISOString();
@@ -629,13 +660,17 @@ describe('AppShell (frontend-chat migration)', () => {
     view.unmount();
     renderApp();
     await screen.findByRole('button', { name: /Queued/ });
+    expect(screen.queryByText('Issue #2')).not.toBeInTheDocument();
+    const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
+    await ui.click(queuedHeader);
     expect(await screen.findByText('Issue #2')).toBeInTheDocument();
   });
 
   test('refreshes sidebar data after re-mount', async () => {
     const fetchDashboardSidebarMock = vi.mocked(api.fetchDashboardSidebar);
     const view = renderApp();
-    expect(await screen.findByText('Issue #1')).toBeInTheDocument();
+    // Wait for the queued header to confirm sidebar data loaded while sections stay collapsed. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await screen.findByRole('button', { name: /Queued/ });
 
     const now = new Date().toISOString();
     // Re-mount to load the updated snapshot without relying on polling timers. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
@@ -748,6 +783,9 @@ describe('AppShell (frontend-chat migration)', () => {
     window.dispatchEvent(new Event('hashchange'));
     expect(await screen.findByPlaceholderText('Search repositories (name/id/platform)')).toBeInTheDocument();
 
+    const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
+    // Expand queued tasks so the sidebar task item is available for navigation. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
     const taskButton = await screen.findByRole('button', { name: /Issue #1/ });
     await ui.click(taskButton);
 
@@ -784,6 +822,9 @@ describe('AppShell (frontend-chat migration)', () => {
     // Align task detail title selector with PageNav markup. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     expect(await screen.findByText('Task t_q1', { selector: '.hc-modern-nav__title' })).toBeInTheDocument();
 
+    const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
+    // Expand queued tasks so the active sidebar item can be clicked. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
     const sidebarTask = await screen.findByRole('button', { name: /Issue #1/ });
     await ui.click(sidebarTask);
 
@@ -800,6 +841,9 @@ describe('AppShell (frontend-chat migration)', () => {
     const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {});
     renderApp();
 
+    const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
+    // Expand queued tasks so the View all row is visible for navigation. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
     // Test note: click the sidebar "View all" entry by its visible label so icon text doesn't affect the query. kwq0evw438cxawea0lcj
     const viewAllLabel = await screen.findByText('View all');
     const viewAllButton = viewAllLabel.closest('button');
@@ -831,6 +875,9 @@ describe('AppShell (frontend-chat migration)', () => {
     const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => {});
     renderApp();
 
+    const queuedHeader = await screen.findByRole('button', { name: /Queued/ });
+    // Expand queued tasks so the task item can be selected for navigation. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+    await ui.click(queuedHeader);
     const taskButton = await screen.findByRole('button', { name: /Issue #1/ });
     await ui.click(taskButton);
     expect(window.location.hash).toBe('#/tasks/t_q1');

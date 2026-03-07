@@ -9,6 +9,7 @@ export const zhCNRepos = {
   'repos.page.empty': '暂无仓库',
   'repos.page.meta.robots': '机器人 {{enabled}}/{{total}}',
   'repos.page.meta.triggers': '触发器 {{enabled}}/{{total}}',
+  'repos.page.meta.creator': '创建人 {{name}}', // Show repo creator on list cards. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
   'repos.form.providerRequired': '请选择平台',
   'repos.form.repoUrl': '仓库地址',
   'repos.form.repoUrlRequired': '请输入仓库地址',
@@ -123,6 +124,11 @@ export const zhCNRepos = {
   'repos.dashboard.activity.tasks.status.paused': '已暂停',
   'repos.dashboard.activity.tasks.status.success': '成功',
   'repos.dashboard.activity.tasks.status.failed': '失败',
+
+  // Repo task-group overview list card. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+  'repos.dashboard.activity.taskGroups.title': '任务组',
+  'repos.dashboard.activity.taskGroups.empty': '暂无任务组记录',
+  'repos.dashboard.activity.taskGroups.loadFailed': '加载任务组失败',
 
   // --- Repo detail (tabs) ---
   'repos.detail.tabs.basic': '基础',
@@ -305,6 +311,7 @@ export const zhCNRepos = {
   'repos.robots.title': '机器人',
   'repos.robots.createRobot': '新建 Robot',
   'repos.robots.permission': '权限',
+  'repos.robots.worker': '执行器',
   'repos.robots.default': '默认',
   'repos.robots.status.pending': '待激活',
   'repos.robots.lastTest': '最近测试',
@@ -339,6 +346,9 @@ export const zhCNRepos = {
   'repos.robotForm.workflowMode.checkFailed': '拉取方式检查失败：{message}',
   'repos.robotForm.workflowMode.saveRequired': '请先保存机器人后再检查拉取方式',
   'repos.robotForm.timeWindow': '执行时间段',
+  // Add robot-level worker selection copy for the external executor flow. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  'repos.robotForm.defaultWorker': '默认执行器',
+  'repos.robotForm.defaultWorkerPlaceholder': '跟随本地执行器或对话覆盖',
   'repos.robotForm.language': '回复语言',
   'repos.robotForm.modelProvider': '模型服务商',
   'repos.robotForm.modelProviderRequired': '请选择模型服务商',
@@ -391,7 +401,10 @@ export const zhCNRepos = {
   'repos.robotForm.languagePlaceholder': '请选择语言',
   'repos.robotForm.defaultBranchPlaceholder': '不设置则按仓库默认分支',
   'repos.robotForm.isDefault': '设为默认',
-  'repos.robotForm.section.prompt': '默认提示词模板',
+  // Avoid duplicated zh-CN copy: Card title should be shorter than the field label. docs/en/developer/plans/robotform-i18n-fix-20260302/task_plan.md robotform-i18n-fix-20260302
+  'repos.robotForm.section.prompt': '默认提示词',
+  // Add missing Credentials section i18n key for the robot editor. docs/en/developer/plans/robotform-i18n-fix-20260302/task_plan.md robotform-i18n-fix-20260302
+  'repos.robotForm.section.credentials': '凭据',
   'repos.robotForm.promptRequired': '请输入默认提示词模板',
   'repos.robotForm.promptPlaceholder': '可使用 {{repo.name}}、{{robot.name}}、{{issue.number}} 等变量',
   'repos.robotForm.section.model': '模型设置',
@@ -427,8 +440,13 @@ export const zhCNRepos = {
   'repos.robotForm.sandbox': '沙箱（sandbox）',
   'repos.robotForm.sandbox.readOnly': 'read-only',
   'repos.robotForm.sandbox.workspaceWrite': 'workspace-write',
+  // Claude/Gemini 沙箱标签使用更直观的语义化术语。 <SESSION_HASH>
+  'repos.robotForm.sandboxClaude.readOnly': '只读模式',
+  'repos.robotForm.sandboxClaude.workspaceWrite': '编辑模式',
   'repos.robotForm.reasoningEffort': '推理力度（model_reasoning_effort）',
   'repos.robotForm.networkAccess': '网络访问（仅 workspace-write）',
+  // Claude/Gemini 网络访问标签简化显示。 <SESSION_HASH>
+  'repos.robotForm.networkAccessClaude': '网络访问',
   'repos.robotForm.activationTip': '提示：测试会校验 Token 权限并记录身份信息（不会回显 Token）。',
   'repos.robotForm.activation.lastTestAt': '最近测试时间',
   'repos.robotForm.activation.lastTestMessage': '最近测试信息',

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { TasksController } from '../../modules/tasks/tasks.controller';
+import { WorkersConnectionService } from '../../modules/workers/workers-connection.service';
 
 // Unit tests for the tasks volume-by-day endpoint used by the repo dashboard chart. dashtrendline20260119m9v2
 
@@ -13,9 +14,19 @@ describe('TasksController.volumeByDay', () => {
       getTaskVolumeByDay: jest.fn().mockResolvedValue([{ day: '2026-01-19', count: 1 }])
     };
 
-    // Provide a TaskGitPushService stub to satisfy the controller constructor. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+    // Provide controller constructor stubs for DI coverage. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     const repoAccessService = { requireRepoRead: jest.fn().mockResolvedValue(undefined) }; // Stub repo access checks for volume-by-day tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-    const controller = new TasksController(taskService, {} as any, {} as any, {} as any, repoAccessService as any);
+    const workersConnections = {} as WorkersConnectionService; // Keep controller unit tests aligned with the new worker dispatch dependency. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    const controller = new TasksController(
+      taskService,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      repoAccessService as any,
+      {} as any,
+      workersConnections as any
+    );
     // Keep API parity with the new `archived` query param added to volumeByDay. qnp1mtxhzikhbi0xspbc
     const res = await controller.volumeByDay(req, repoId, '2026-01-01', '2026-01-02', undefined, undefined, undefined);
 
@@ -29,9 +40,19 @@ describe('TasksController.volumeByDay', () => {
 
   test('rejects invalid date inputs', async () => {
     const taskService: any = { getTaskVolumeByDay: jest.fn() };
-    // Provide a TaskGitPushService stub to satisfy the controller constructor. docs/en/developer/plans/cierrtasklogs20260124/task_plan.md cierrtasklogs20260124
+    // Provide controller constructor stubs for DI coverage. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     const repoAccessService = { requireRepoRead: jest.fn().mockResolvedValue(undefined) }; // Stub repo access checks for volume-by-day tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
-    const controller = new TasksController(taskService, {} as any, {} as any, {} as any, repoAccessService as any);
+    const workersConnections = {} as WorkersConnectionService; // Keep controller unit tests aligned with the new worker dispatch dependency. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    const controller = new TasksController(
+      taskService,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      repoAccessService as any,
+      {} as any,
+      workersConnections as any
+    );
 
     await expect(
       controller.volumeByDay(req, repoId, '2026-99-01', '2026-01-02', undefined, undefined, undefined)

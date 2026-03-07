@@ -3,6 +3,7 @@
 import type { DependencyResult, TaskEventType, TaskQueueDiagnosis, TaskStatus } from './common';
 import type { ModelProvider } from './models';
 import type { RepoProvider, RobotPermission } from './repos';
+import type { WorkerSummary } from './workers';
 
 export interface TaskRepoSummary {
   id: string;
@@ -35,20 +36,26 @@ export interface Task {
   repoProvider?: RepoProvider;
   repoId?: string;
   robotId?: string;
+  // Surface execution worker metadata in task payloads for attribution and routing. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId?: string;
   // Track the triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   actorUserId?: string;
   ref?: string;
   mrId?: number;
   issueId?: number;
   retries: number;
+  groupOrder?: number;
+  sequence?: TaskSequenceLink;
   queue?: TaskQueueDiagnosis;
   result?: TaskResult;
   // Capture dependency install results for display/diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   dependencyResult?: DependencyResult;
+  workerLostAt?: string;
   createdAt: string;
   updatedAt: string;
   repo?: TaskRepoSummary;
   robot?: TaskRobotSummary;
+  workerSummary?: WorkerSummary;
   permissions?: { canManage: boolean };
 }
 
@@ -97,9 +104,19 @@ export interface TaskGitStatus {
   errors?: string[];
 }
 
+export interface TaskSequenceLink {
+  // Mirror backend-derived queue links so the workspace can render explicit execution connectors. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  order: number;
+  previousTaskId?: string;
+  nextTaskId?: string;
+}
+
 export interface TaskResult {
   summary?: string;
   message?: string;
+  stopReason?: 'manual_stop';
+  stopRequestedAt?: string;
+  // Legacy: logs were embedded in task results before log-table paging. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   logs?: string[];
   outputText?: string;
   providerCommentUrl?: string;
@@ -107,6 +124,14 @@ export interface TaskResult {
   // Surface backend git status in task result payloads for UI reuse. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   gitStatus?: TaskGitStatus;
   [key: string]: unknown;
+}
+
+// Represent paged task log payloads returned by the backend. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+export interface TaskLogsPage {
+  logs: string[];
+  startSeq: number;
+  endSeq: number;
+  nextBefore?: number;
 }
 
 // Change record: add `chat` to support console manual-trigger task groups.
@@ -121,25 +146,30 @@ export interface TaskGroup {
   repoProvider?: RepoProvider;
   repoId?: string;
   robotId?: string;
+  // Keep task groups pinned to a worker once assigned so the workspace remains stable. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId?: string;
   issueId?: number;
   mrId?: number;
   commitSha?: string;
   skillSelections?: string[] | null; // Track task-group skill overrides for the chat UI. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   // Indicate whether a preview is currently running for the group. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
   previewActive?: boolean;
+  // Flag task groups with processing tasks for sidebar running indicators. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+  hasRunningTasks?: boolean;
+  blockedByWorkerOffline?: boolean;
   // Archived groups are excluded from default sidebar/chat lists. qnp1mtxhzikhbi0xspbc
   archivedAt?: string;
   createdAt: string;
   updatedAt: string;
   repo?: TaskRepoSummary;
   robot?: TaskRobotSummary;
+  workerSummary?: WorkerSummary;
 }
 
 export interface TaskStatusStats {
   total: number;
   queued: number;
   processing: number;
-  paused: number; // Surface paused task counts in UI summaries. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   success: number;
   failed: number;
 }

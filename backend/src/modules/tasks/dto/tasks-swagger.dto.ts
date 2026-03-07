@@ -120,12 +120,17 @@ export class TaskResultDto {
   @ApiPropertyOptional()
   message?: string;
 
-  @ApiPropertyOptional({ type: String, isArray: true })
-  logs?: string[];
+  @ApiPropertyOptional()
+  // Expose worker-loss flags so the UI can explain external executor disconnect failures. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerLost?: boolean;
 
   @ApiPropertyOptional()
-  logsSeq?: number;
+  workerLostReason?: string;
 
+  @ApiPropertyOptional()
+  code?: string;
+
+  // Task logs are served via `/tasks/:id/logs` and omitted from task result payloads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   @ApiPropertyOptional({ type: TaskTokenUsageDto })
   tokenUsage?: TaskTokenUsageDto;
 
@@ -206,12 +211,44 @@ export class TaskRobotSummaryDto {
   enabled!: boolean;
 }
 
+export class TaskWorkerSummaryDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ enum: ['local', 'remote'] })
+  kind!: 'local' | 'remote';
+
+  @ApiProperty({ enum: ['online', 'offline', 'disabled'] })
+  status!: 'online' | 'offline' | 'disabled';
+
+  @ApiPropertyOptional()
+  preview?: boolean;
+}
+
 export class TaskPermissionsDto {
   @ApiProperty()
   canManage!: boolean;
 }
 
+export class WorkerSummaryDto {
+  @ApiProperty()
+  id!: string;
 
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ enum: ['local', 'remote'] })
+  kind!: 'local' | 'remote';
+
+  @ApiProperty({ enum: ['online', 'offline', 'disabled'] })
+  status!: 'online' | 'offline' | 'disabled';
+
+  @ApiPropertyOptional()
+  preview?: boolean;
+}
 
 export class TaskQueueTimeWindowDto {
   // Surface resolved time window metadata for queue explanations. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
@@ -262,9 +299,9 @@ export class TaskWithMetaDto {
   @ApiProperty()
   eventType!: string;
 
-  // Expose paused in task status enums for pause/resume controls. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  @ApiProperty({ enum: ['queued', 'processing', 'paused', 'succeeded', 'failed', 'commented'] })
-  status!: 'queued' | 'processing' | 'paused' | 'succeeded' | 'failed' | 'commented';
+  // Keep task status enums aligned with the stop-only execution model. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  @ApiProperty({ enum: ['queued', 'processing', 'succeeded', 'failed', 'commented'] })
+  status!: 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
 
   @ApiPropertyOptional({ nullable: true, format: 'date-time' })
   archivedAt?: string | null;
@@ -288,6 +325,10 @@ export class TaskWithMetaDto {
   @ApiPropertyOptional({ nullable: true })
   robotId?: string | null;
 
+  @ApiPropertyOptional({ nullable: true })
+  // Surface the assigned executor id for task attribution and worker-aware actions. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId?: string | null;
+
   // Expose triggering user for notifications and audit contexts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   @ApiPropertyOptional({ nullable: true })
   actorUserId?: string | null;
@@ -310,6 +351,9 @@ export class TaskWithMetaDto {
   @ApiPropertyOptional({ type: TaskResultDto })
   result?: TaskResultDto;
 
+  @ApiPropertyOptional({ nullable: true, format: 'date-time' })
+  workerLostAt?: string | null;
+
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
 
@@ -321,6 +365,9 @@ export class TaskWithMetaDto {
 
   @ApiPropertyOptional({ type: TaskRobotSummaryDto })
   robot?: TaskRobotSummaryDto;
+
+  @ApiPropertyOptional({ type: WorkerSummaryDto })
+  workerSummary?: WorkerSummaryDto;
 
   @ApiPropertyOptional({ type: TaskPermissionsDto })
   permissions?: TaskPermissionsDto;
@@ -345,10 +392,6 @@ export class TaskStatusStatsDto {
   @ApiProperty()
   processing!: number;
 
-  // Track paused counts for dashboard/task summary displays. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  @ApiProperty()
-  paused!: number;
-
   @ApiProperty()
   success!: number;
 
@@ -371,15 +414,25 @@ export class RetryTaskResponseDto {
   task!: TaskWithMetaDto;
 }
 
-// Shared task response payload for pause/resume controls. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+// Shared task response payload for stop/edit/reorder controls. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 export class TaskControlResponseDto {
   @ApiProperty({ type: TaskWithMetaDto })
   task!: TaskWithMetaDto;
 }
 
 export class TaskLogsResponseDto {
+  // Expose pagination metadata for task log pages. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   @ApiProperty({ type: String, isArray: true })
   logs!: string[];
+
+  @ApiProperty({ example: 1, description: 'Sequence number of the first log line in this page.' })
+  startSeq!: number;
+
+  @ApiProperty({ example: 200, description: 'Sequence number of the last log line in this page.' })
+  endSeq!: number;
+
+  @ApiProperty({ required: false, description: 'Cursor for fetching earlier log lines.' })
+  nextBefore?: number;
 }
 
 export class TaskVolumePointDto {

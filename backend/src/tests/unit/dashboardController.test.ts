@@ -4,8 +4,8 @@ import { DashboardController } from '../../modules/tasks/dashboard.controller';
 
 describe('DashboardController.sidebar', () => {
   test('returns a sanitized sidebar snapshot with permissions', async () => {
-    // Include paused in sidebar stats for pause/resume coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-    const stats = { total: 3, queued: 1, processing: 1, paused: 0, success: 1, failed: 0 };
+    // Keep sidebar stats aligned with the stop-only task lifecycle shape. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const stats = { total: 3, queued: 1, processing: 1, success: 1, failed: 0 };
     // Provide a request user for RBAC-protected endpoints in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
     const req = { user: { id: 'u1', username: 'u1', roles: ['admin'] } } as any;
     const makeTask = (id: string, status: any) => ({
@@ -27,7 +27,9 @@ describe('DashboardController.sidebar', () => {
         if (options?.status === 'failed') return [];
         return [];
       }),
-      listTaskGroups: jest.fn().mockResolvedValue([{ id: 'g1', kind: 'chat', bindingKey: 'b1', createdAt: '', updatedAt: '' }])
+      listTaskGroups: jest.fn().mockResolvedValue([{ id: 'g1', kind: 'chat', bindingKey: 'b1', createdAt: '', updatedAt: '' }]),
+      // Provide running-task group IDs to validate sidebar indicators. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+      listRunningTaskGroupIds: jest.fn().mockResolvedValue(new Set(['g1']))
     };
 
     // Stub preview activity lookups so sidebar decoration can be validated. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
@@ -48,6 +50,10 @@ describe('DashboardController.sidebar', () => {
     expect(taskService.listTasks).toHaveBeenCalledWith(expect.objectContaining({ status: 'success', limit: 3, includeMeta: true }));
     expect(taskService.listTasks).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed', limit: 3, includeMeta: true }));
     expect(taskService.listTaskGroups).toHaveBeenCalledWith(expect.objectContaining({ limit: 50, includeMeta: true }));
+    // Ensure running-task group lookup is requested for sidebar decoration. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+    expect(taskService.listRunningTaskGroupIds).toHaveBeenCalledWith(
+      expect.objectContaining({ groupIds: ['g1'], statuses: ['processing'] })
+    );
 
     expect(res.stats).toEqual(stats);
     expect(res.tasksByStatus.queued[0].permissions).toEqual({ canManage: true });
@@ -56,16 +62,20 @@ describe('DashboardController.sidebar', () => {
     expect(res.taskGroups).toHaveLength(1);
     expect(previewService.getActiveTaskGroupIds).toHaveBeenCalledTimes(1);
     expect(res.taskGroups[0]?.previewActive).toBe(false);
+    // Validate running-task indicator flag in dashboard sidebar response. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+    expect(res.taskGroups[0]?.hasRunningTasks).toBe(true);
   });
 
   test('passes through query filters and custom limits', async () => {
     // Provide a request user for RBAC-protected endpoints in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
     const req = { user: { id: 'u1', username: 'u1', roles: ['admin'] } } as any;
     const taskService: any = {
-      // Mirror paused counts in sidebar stats mocks for pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-      getTaskStats: jest.fn().mockResolvedValue({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 }),
+      // Keep sidebar stats mocks aligned with the stop-only task lifecycle shape. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+      getTaskStats: jest.fn().mockResolvedValue({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 }),
       listTasks: jest.fn().mockResolvedValue([]),
-      listTaskGroups: jest.fn().mockResolvedValue([])
+      listTaskGroups: jest.fn().mockResolvedValue([]),
+      // Stub running-task group lookup for filter tests. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
+      listRunningTaskGroupIds: jest.fn().mockResolvedValue(new Set())
     };
 
     // Provide preview activity dependency for dashboard sidebar coverage. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8

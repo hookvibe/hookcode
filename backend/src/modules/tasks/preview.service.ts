@@ -115,8 +115,21 @@ export class PreviewService implements OnModuleDestroy {
   }
 
   async getStatus(taskGroupId: string): Promise<PreviewStatusSnapshot> {
-    // Surface preview availability and runtime state for the TaskGroup UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-    const configInfo = await this.resolvePreviewConfig(taskGroupId);
+    // Surface missing workspaces as an unavailable preview snapshot so the task-group page stays free of expected 409 noise. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    let configInfo:
+      | { available: true; workspaceDir: string; config: HookcodeConfig; snapshot: PreviewStatusSnapshot }
+      | { available: false; workspaceDir?: string; config?: HookcodeConfig; snapshot: PreviewStatusSnapshot };
+    try {
+      configInfo = await this.resolvePreviewConfig(taskGroupId);
+    } catch (err) {
+      if (err instanceof PreviewServiceError && err.code === 'workspace_missing') {
+        return { available: false, instances: [], reason: 'workspace_missing' };
+      }
+      if (err instanceof PreviewServiceError && err.code === 'missing_task') {
+        return { available: false, instances: [], reason: 'missing_task' };
+      }
+      throw err;
+    }
     if (!configInfo.available) return configInfo.snapshot;
 
     const runtime = this.groups.get(taskGroupId);

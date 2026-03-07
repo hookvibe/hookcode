@@ -75,6 +75,8 @@ vi.mock('../api', () => {
       mode: 'repo_default'
     })),
     fetchTaskGroupTasks: vi.fn(async () => []),
+    // Keep task-log pagination mocked so TaskGroup timeline tests can drive chained scroll behavior. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    fetchTaskLogsPage: vi.fn(async () => ({ logs: [], startSeq: 0, endSeq: 0, nextBefore: null })),
     // Mock preview endpoints so TaskGroupChatPage can render preview UI state. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     fetchTaskGroupPreviewStatus: vi.fn(async () => ({ available: false, instances: [] })),
     // Mock preview visibility updates for hidden auto-stop logic. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
@@ -86,10 +88,14 @@ vi.mock('../api', () => {
     })),
     // Provide full repo list mocks for chat repo selection after pagination changes. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
     fetchAllRepos: vi.fn(async () => [repo]),
+    fetchWorkers: vi.fn(async () => [{ id: 'w1', name: 'Worker 1', kind: 'remote', status: 'online', systemManaged: false, maxConcurrency: 1, currentConcurrency: 0, createdAt: mockNow, updatedAt: mockNow }]),
     listRepoRobots: vi.fn(async () => [robot]),
-    // Mock pause/resume APIs for task-group controls. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-    pauseTask: vi.fn(async (id: string) => makeTask(id)),
-    resumeTask: vi.fn(async (id: string) => makeTask(id)),
+    // Mock stop/edit/reorder APIs for the task-group workspace controls. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    stopTask: vi.fn(async (id: string) => ({ ...makeTask(id), status: 'failed', result: { stopReason: 'manual_stop' } })),
+    retryTask: vi.fn(async (id: string) => makeTask(id)),
+    deleteTask: vi.fn(async () => undefined),
+    updateQueuedTaskContent: vi.fn(async (id: string, text: string) => ({ ...makeTask(id), payload: { __chat: { text } } })),
+    reorderQueuedTask: vi.fn(async (id: string) => makeTask(id)),
     startTaskGroupPreview: vi.fn(async () => ({ success: true, instances: [] })),
     stopTaskGroupPreview: vi.fn(async () => ({ success: true })),
     updateTaskGroupSkillSelection: vi.fn(async () => ({
@@ -101,24 +107,28 @@ vi.mock('../api', () => {
   };
 });
 
-export const buildTaskGroupChatPageElement = (props?: { taskGroupId?: string; taskLogsEnabled?: boolean | null }) => (
+export const buildTaskGroupChatPageElement = (props?: { taskGroupId?: string }) => (
   <AntdApp>
-    <TaskGroupChatPage taskGroupId={props?.taskGroupId} taskLogsEnabled={props?.taskLogsEnabled} />
+    <TaskGroupChatPage taskGroupId={props?.taskGroupId} />
   </AntdApp>
-); // Share a reusable element factory so rerenders keep the mocked api wiring. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+); // Share a reusable task-group page factory after removing the retired log-flag prop from workspace tests. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 
-export const renderTaskGroupChatPage = (props?: { taskGroupId?: string; taskLogsEnabled?: boolean | null }) =>
+export const renderTaskGroupChatPage = (props?: { taskGroupId?: string }) =>
   render(buildTaskGroupChatPageElement(props));
 
 export const setupTaskGroupChatMocks = () => {
   vi.clearAllMocks();
   setLocale('en-US');
   window.location.hash = '#/';
+  window.localStorage.removeItem('hookcode-user');
 
   // Ensure each test starts from a known mock baseline (avoid cross-test mock leakage).
   // Reset repo list mocks to match fetchAllRepos usage. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
   vi.mocked(api.fetchAllRepos).mockResolvedValue([
     { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true, createdAt: NOW, updatedAt: NOW } as any
+  ]);
+  vi.mocked(api.fetchWorkers).mockResolvedValue([
+    { id: 'w1', name: 'Worker 1', kind: 'remote', status: 'online', systemManaged: false, maxConcurrency: 1, currentConcurrency: 0, createdAt: NOW, updatedAt: NOW } as any
   ]);
   vi.mocked(api.listRepoRobots).mockResolvedValue([
     {
@@ -135,6 +145,8 @@ export const setupTaskGroupChatMocks = () => {
     } as any
   ]);
   vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([]);
+  // Reset log-page mocks so each timeline test starts from a known chain-pagination baseline. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  vi.mocked(api.fetchTaskLogsPage).mockResolvedValue({ logs: [], startSeq: 0, endSeq: 0, nextBefore: null } as any);
   vi.mocked(api.fetchTaskGroupPreviewStatus).mockResolvedValue({ available: false, instances: [] });
   // Reset preview visibility mock per test run. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8
   vi.mocked(api.setTaskGroupPreviewVisibility).mockResolvedValue({ success: true });
@@ -172,23 +184,42 @@ export const setupTaskGroupChatMocks = () => {
     createdAt: NOW,
     updatedAt: NOW
   }));
-  // Keep pause/resume mocks in a stable default state for tests. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  vi.mocked(api.pauseTask).mockResolvedValue({
-    id: 't_pause',
+  // Keep stop/edit/retry/reorder mocks in a stable default state for workspace tests. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  vi.mocked(api.stopTask).mockResolvedValue({
+    id: 't_stop',
     eventType: 'chat',
-    status: 'paused',
+    status: 'failed',
     retries: 0,
+    createdAt: NOW,
+    updatedAt: NOW,
+    result: { stopReason: 'manual_stop' }
+  } as any);
+  vi.mocked(api.retryTask).mockResolvedValue({
+    id: 't_retry',
+    eventType: 'chat',
+    status: 'queued',
+    retries: 1,
     createdAt: NOW,
     updatedAt: NOW
   } as any);
-  vi.mocked(api.resumeTask).mockResolvedValue({
-    id: 't_resume',
+  vi.mocked(api.deleteTask).mockResolvedValue(undefined);
+  vi.mocked(api.updateQueuedTaskContent).mockImplementation(async (id: string, text: string) => ({
+    id,
+    eventType: 'chat',
+    status: 'queued',
+    retries: 0,
+    createdAt: NOW,
+    updatedAt: NOW,
+    payload: { __chat: { text } }
+  }) as any);
+  vi.mocked(api.reorderQueuedTask).mockImplementation(async (id: string) => ({
+    id,
     eventType: 'chat',
     status: 'queued',
     retries: 0,
     createdAt: NOW,
     updatedAt: NOW
-  } as any);
+  }) as any);
   vi.mocked(api.executeChat).mockImplementation(async () => ({
     taskGroup: {
       id: 'g_new',

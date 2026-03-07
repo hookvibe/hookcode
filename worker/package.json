@@ -1,0 +1,33 @@
+{
+  "//": "Package the standalone worker runtime without backend source coupling. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307",
+  "name": "hookcode-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone HookCode worker runtime",
+  "main": "dist/main.js",
+  "bin": {
+    "hookcode-worker": "dist/main.js"
+  },
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "test": "jest -c jest.config.cjs --runInBand"
+  },
+  "dependencies": {
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.11.30",
+    "@types/ws": "^8.18.1",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

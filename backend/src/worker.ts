@@ -15,7 +15,8 @@ import { TaskService } from './modules/tasks/task.service';
 import { WorkerModule } from './modules/worker/worker.module';
 import { isPreferredWorkerPresent, tryAcquirePreferredWorkerLock, type PreferredWorkerLockHandle } from './services/workerPriority';
 import { RuntimeService } from './services/runtimeService';
-import { formatProcessingStaleMs, resolveProcessingStaleMs } from './utils/processingStale';
+import { LogWriterService } from './modules/logs/log-writer.service';
+import { parseOptionalDurationMs } from './utils/env';
 
 dotenv.config();
 
@@ -48,7 +49,8 @@ const toBoolean = (value: string | undefined, fallback: boolean): boolean => {
 
 const main = async () => {
   const pollIntervalMs = toNumber(process.env.WORKER_POLL_INTERVAL_MS, 2000);
-  const staleMs = resolveProcessingStaleMs();
+  // Respect blank/zero PROCESSING_STALE_MS to disable stale recovery in the worker. docs/en/developer/plans/stale-disable-20260305/task_plan.md stale-disable-20260305
+  const staleMs = parseOptionalDurationMs(process.env.PROCESSING_STALE_MS, 30 * 60 * 1000);
   const preferWorker = toBoolean(process.env.WORKER_PREFERRED, false);
   const backoffOnPreferred = toBoolean(process.env.WORKER_BACKOFF_ON_PREFERRED, false);
   const preferredLockRetryIntervalMs = 30_000;
@@ -59,6 +61,13 @@ const main = async () => {
   const taskRunner = app.get(TaskRunner);
   const taskService = app.get(TaskService);
   const runtimeService = app.get(RuntimeService);
+  // Resolve LogWriterService so disablement is recorded in system logs. docs/en/developer/plans/stale-disable-20260305/task_plan.md stale-disable-20260305
+  let logWriter: LogWriterService | null = null;
+  try {
+    logWriter = app.get(LogWriterService);
+  } catch {
+    logWriter = null;
+  }
 
   // Detect runtimes in the worker so dependency installs can validate availability. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   try {
@@ -67,7 +76,16 @@ const main = async () => {
     console.warn('[worker] runtime detection failed (continuing)', err);
   }
 
-  if (staleMs !== null) {
+  if (staleMs === null) {
+    console.warn('[worker] stale processing recovery disabled (PROCESSING_STALE_MS is blank or 0)');
+    // Emit system logs when stale recovery is intentionally disabled. docs/en/developer/plans/stale-disable-20260305/task_plan.md stale-disable-20260305
+    void logWriter?.logSystem({
+      level: 'info',
+      message: 'Stale processing recovery disabled via PROCESSING_STALE_MS',
+      code: 'TASK_STALE_RECOVERY_DISABLED',
+      meta: { source: 'worker', staleMs: null }
+    });
+  } else {
     try {
       const recovered = await taskService.recoverStaleProcessing(staleMs);
       if (recovered > 0) {
@@ -76,9 +94,6 @@ const main = async () => {
     } catch (err) {
       console.error('[worker] recoverStaleProcessing failed', err);
     }
-  } else {
-    // Skip startup stale recovery when PROCESSING_STALE_MS is unset so default task runtime is unlimited. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
-    console.log('[worker] stale-processing recovery disabled (PROCESSING_STALE_MS is not set)');
   }
 
   let stopping = false;
@@ -104,9 +119,8 @@ const main = async () => {
     }
   }
 
-  console.log(
-    `[worker] started (poll=${pollIntervalMs}ms, stale=${formatProcessingStaleMs(staleMs)}, backoffOnPreferred=${backoffOnPreferred})`
-  );
+  const staleLabel = staleMs === null ? 'disabled' : `${staleMs}ms`;
+  console.log(`[worker] started (poll=${pollIntervalMs}ms, stale=${staleLabel}, backoffOnPreferred=${backoffOnPreferred})`);
 
   let lastBackoffLogAt = 0;
   let lastPreferredLockRetryAt = 0;

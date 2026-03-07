@@ -67,9 +67,9 @@ export const SKILLS_TABS: SkillsTab[] = ['overview', 'built-in', 'extra'];
 
 // Define the available sub-tabs for the user settings page sidebar navigation. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 // Add an admin preview tab for global preview runtime/port management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
-export type SettingsTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings' | 'logs' | 'notifications' | 'preview'; // Add notifications tab for user alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+export type SettingsTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings' | 'logs' | 'notifications' | 'preview' | 'workers'; // Add worker registry routing to the settings page for executor management. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
 
-export const SETTINGS_TABS: SettingsTab[] = ['account', 'credentials', 'tools', 'environment', 'settings', 'logs', 'notifications', 'preview'];
+export const SETTINGS_TABS: SettingsTab[] = ['account', 'credentials', 'tools', 'environment', 'settings', 'logs', 'notifications', 'preview', 'workers'];
 
 export interface RouteState {
   page: RoutePage;
@@ -82,6 +82,7 @@ export interface RouteState {
   settingsTab?: SettingsTab;
   tasksStatus?: string;
   tasksRepoId?: string;
+  taskGroupsRepoId?: string; // Support repo-scoped task-group lists via hash query. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
   // Track the active sub-tab within archive page sidebar navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
   archiveTab?: ArchiveTab;
   // Track the active sub-tab within skills page sidebar navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301
@@ -140,7 +141,9 @@ export const parseRoute = (hash: string): RouteState => {
   if (parts[0] === 'task-groups') {
     if (parts.length === 2 && parts[1]) return { page: 'taskGroup', taskGroupId: parts[1] };
     // Route the task group index to the card list view. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
-    return { page: 'taskGroups' };
+    const state: RouteState = { page: 'taskGroups' };
+    if (query.repoId) state.taskGroupsRepoId = query.repoId;
+    return state;
   }
 
   if (parts[0] === 'repos') {
@@ -226,7 +229,13 @@ export const buildTaskHash = (taskId: string): string => `#/tasks/${encodeURICom
 export const buildTaskGroupHash = (taskGroupId: string): string =>
   `#/task-groups/${encodeURIComponent(taskGroupId)}`;
 
-export const buildTaskGroupsHash = (): string => '#/task-groups'; // Provide a stable list route for the taskgroup cards page. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
+export const buildTaskGroupsHash = (options?: { repoId?: string }): string => {
+  // Add optional repo scoping so repo dashboards can deep-link to filtered task groups. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+  const repoId = String(options?.repoId ?? '').trim();
+  const query: string[] = [];
+  if (repoId) query.push(`repoId=${encodeURIComponent(repoId)}`);
+  return query.length ? `#/task-groups?${query.join('&')}` : '#/task-groups';
+};
 
 export const buildReposHash = (): string => '#/repos';
 

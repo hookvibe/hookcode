@@ -1,0 +1,239 @@
+/* Style the task-group workspace cards and shared right-side tabs. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
+
+.hc-task-workspace-list {
+  padding: 24px 20px 32px;
+}
+
+.hc-task-workspace-list__content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hc-task-workspace-item {
+  position: relative;
+  padding-left: 28px;
+}
+
+.hc-task-workspace-item::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.hc-task-workspace-item::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 28px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--hc-surface-elevated);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px var(--hc-accent-soft);
+}
+
+.hc-task-workspace-item--connected-top::before,
+.hc-task-workspace-item--connected-bottom::before {
+  background: linear-gradient(180deg, transparent 0%, var(--hc-accent-border) 12%, var(--hc-accent-border) 88%, transparent 100%);
+}
+
+.hc-task-workspace-card {
+  border: 1px solid var(--hc-border) !important;
+  border-radius: 20px !important;
+  background: var(--hc-surface) !important;
+  box-shadow: var(--hc-shadow-sm) !important;
+  overflow: hidden;
+}
+
+.hc-task-workspace-card--interactive {
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.hc-task-workspace-card--interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--hc-shadow-md) !important;
+  border-color: var(--hc-accent-border) !important;
+}
+
+.hc-task-workspace-card__title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.hc-task-workspace-card__title-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Let long task titles truncate inside the available header space so the order pill and status tags keep their layout. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
+.hc-task-workspace-card__title-tags {
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+.hc-task-workspace-card__order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--hc-accent-soft);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hc-task-workspace-card__headline {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hc-task-workspace-card__meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.hc-task-workspace-card__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 12px;
+  flex: 1 1 auto;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.hc-task-workspace-card__target {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hc-task-workspace-card__content,
+.hc-task-workspace-card__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Keep Markdown task bodies and summaries stretched to the card width so their original formatting stays readable. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
+.hc-task-workspace-card__markdown {
+  width: 100%;
+}
+
+.hc-task-workspace-log-panel__output-text {
+  margin-bottom: 0 !important;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hc-task-workspace-card__actions {
+  padding-top: 4px;
+}
+
+.hc-task-workspace-panel {
+  background: var(--hc-surface);
+  border-left: 1px solid var(--hc-border);
+}
+
+.hc-task-workspace-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.hc-task-workspace-tabs > .ant-tabs-nav {
+  margin: 0;
+  padding: 10px 12px 0;
+  background: color-mix(in srgb, var(--hc-surface-elevated) 88%, transparent);
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-task-workspace-tabs > .ant-tabs-content-holder,
+.hc-task-workspace-tabs .ant-tabs-content,
+.hc-task-workspace-tabs .ant-tabs-tabpane {
+  height: 100%;
+}
+
+.hc-task-workspace-tabs .ant-tabs-tabpane {
+  overflow: auto;
+}
+
+.hc-task-workspace-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+}
+
+.hc-task-workspace-tab-label > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-task-workspace-log-panel {
+  padding: 16px;
+}
+
+.hc-task-workspace-log-panel__output {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Keep Markdown task output aligned to the full workspace log width so lists and code blocks remain readable. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
+.hc-task-workspace-log-panel__output-markdown {
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .hc-task-workspace-list {
+    padding: 20px 16px 24px;
+  }
+
+  .hc-task-workspace-item {
+    padding-left: 22px;
+  }
+
+  .hc-task-workspace-card__title,
+  .hc-task-workspace-card__meta-row {
+    flex-direction: column;
+  }
+
+  /* Relax title truncation on stacked mobile headers because the status tags no longer compete for the same row. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
+  .hc-task-workspace-card__headline {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .hc-task-workspace-tabs > .ant-tabs-nav {
+    padding-inline: 8px;
+  }
+}

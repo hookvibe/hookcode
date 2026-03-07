@@ -15,6 +15,7 @@ import { WebhookHttpModule } from './modules/webhook/webhook-http.module';
 import { SkillsHttpModule } from './modules/skills/skills-http.module';
 import { LogsHttpModule } from './modules/logs/logs-http.module';
 import { NotificationsHttpModule } from './modules/notifications/notifications-http.module';
+import { WorkersHttpModule } from './modules/workers/workers-http.module';
 
 @Module({
   imports: [
@@ -39,7 +40,9 @@ import { NotificationsHttpModule } from './modules/notifications/notifications-h
     // Expose admin system log APIs for the settings log tab. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
     LogsHttpModule,
     // Expose user notification APIs for the header panel and settings tab. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
-    NotificationsHttpModule
+    NotificationsHttpModule,
+    // Expose worker management APIs and internal worker runtime endpoints. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    WorkersHttpModule
   ]
 })
 export class AppModule {}

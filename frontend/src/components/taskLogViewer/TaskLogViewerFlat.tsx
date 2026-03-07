@@ -10,6 +10,9 @@ export type TaskLogViewerFlatProps = {
   logs: string[];
   lines: string;
   showReasoning: boolean;
+  showLoadEarlier: boolean;
+  loadingEarlier: boolean;
+  onLoadEarlier: () => void;
   emptyMessage: string;
   emptyHint?: string;
   rootRef: RefObject<HTMLDivElement>;
@@ -24,6 +27,9 @@ export const TaskLogViewerFlat = ({
   logs,
   lines,
   showReasoning,
+  showLoadEarlier,
+  loadingEarlier,
+  onLoadEarlier,
   emptyMessage,
   emptyHint,
   rootRef,
@@ -32,6 +38,14 @@ export const TaskLogViewerFlat = ({
 }: TaskLogViewerFlatProps) => (
   <div ref={rootRef}>
     {messageContextHolder}
+    {/* Offer paged log access in the flat log view. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306 */}
+    {showLoadEarlier ? (
+      <div className="log-flat-actions">
+        <button className="log-btn" onClick={onLoadEarlier} disabled={loadingEarlier} title={t('logViewer.actions.loadEarlier')}>
+          {t('logViewer.actions.loadEarlier')}
+        </button>
+      </div>
+    ) : null}
     {error ? (
         <div className="log-error" style={{ marginBottom: 8 }}>
            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>

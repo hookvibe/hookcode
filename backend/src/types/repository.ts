@@ -1,5 +1,11 @@
 export type RepoProvider = 'gitlab' | 'github';
 
+export interface RepoCreatorSummary {
+  userId: string;
+  username: string;
+  displayName?: string;
+} // Expose repo creator metadata for repo cards and dashboards. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+
 export interface RepositoryBranch {
   /**
    * Branch name (e.g. main/dev/release/v1).
@@ -43,4 +49,5 @@ export interface Repository {
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
+  creator?: RepoCreatorSummary | null;
 }

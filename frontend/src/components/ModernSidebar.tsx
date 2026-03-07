@@ -142,7 +142,6 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
     total: 0,
     queued: 0,
     processing: 0,
-    paused: 0,
     success: 0,
     failed: 0
   });
@@ -243,7 +242,7 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
     refreshSidebarPromiseRef.current = (async () => {
       const canQuery = authEnabled === false || Boolean(authToken);
       if (!canQuery) {
-        setTaskStats({ total: 0, queued: 0, processing: 0, paused: 0, success: 0, failed: 0 });
+        setTaskStats({ total: 0, queued: 0, processing: 0, success: 0, failed: 0 });
         setTasksByStatus(defaultTasksByStatus);
         // Reset sidebar status pagination state when auth is unavailable. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
         setTasksByStatusNextCursor(defaultTasksByStatusCursor);
@@ -291,27 +290,11 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
           return next;
         });
         setTaskSectionExpanded((prev) => {
-          if (taskSectionAutoInitRef.current) return prev;
-          const now = Date.now();
-          const recentWindowMs = 24 * 60 * 60 * 1000;
-          const isRecent = (task: Task): boolean => {
-            const updatedMs = new Date(task.updatedAt).getTime();
-            const createdMs = new Date(task.createdAt).getTime();
-            const ts = Number.isFinite(updatedMs) ? updatedMs : createdMs;
-            if (!Number.isFinite(ts)) return true;
-            return Math.abs(now - ts) <= recentWindowMs;
-          };
-          const hasRecentTasks = (list: Task[]): boolean => list.some(isRecent);
-          const next = {
-            queued: hasRecentTasks(queued),
-            processing: hasRecentTasks(processing),
-            success: hasRecentTasks(success),
-            failed: hasRecentTasks(failed)
-          };
-          const shouldAutoExpand = Object.values(next).some(Boolean);
-          if (!shouldAutoExpand) return prev;
-          taskSectionAutoInitRef.current = true;
-          return next;
+          // Keep task status sections collapsed on refresh unless the user expands them. docs/en/developer/plans/taskmenu-collapse-20260305/task_plan.md taskmenu-collapse-20260305
+          if (!taskSectionAutoInitRef.current) {
+            taskSectionAutoInitRef.current = true;
+          }
+          return prev;
         });
 
         const sorted = [...groups].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -325,8 +308,8 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
           setTaskGroupsNextCursor(snapshot.taskGroupsNextCursor ?? null);
         }
         return stats;
-      } catch (err) {
-        console.error(err);
+      } catch {
+        // Keep sidebar polling failures non-fatal because the last successful snapshot remains usable during task-group workspace debugging. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
         return null;
       } finally {
         setSidebarLoading(false);
@@ -354,9 +337,10 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
              timer = window.setTimeout(loop, SIDEBAR_POLL_IDLE_MS);
              return;
          }
-         await refreshSidebar();
+         const stats = await refreshSidebar();
          if (disposed) return;
-         timer = window.setTimeout(loop, SIDEBAR_POLL_ACTIVE_MS);
+         // Back off to the idle interval after failed sidebar refreshes so transient backend issues do not spam the console/network panel. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+         timer = window.setTimeout(loop, stats ? SIDEBAR_POLL_ACTIVE_MS : SIDEBAR_POLL_IDLE_MS);
      }
      void loop();
      return () => {
@@ -609,7 +593,9 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
                    </button>
                )}
                
-                {!siderCollapsed && taskGroups.map(g => (
+                {!siderCollapsed && taskGroups.map(g => {
+                  const showActivityDot = Boolean(g.previewActive || g.hasRunningTasks);
+                  return (
                     <button
                      key={g.id}
                      className={`hc-nav-item ${activeGroupKey === g.id ? 'hc-nav-item--active' : ''}`}
@@ -624,11 +610,12 @@ export const ModernSidebar: FC<ModernSidebarProps> = ({
                         </span>
                         <span className="hc-nav-group-label">
                           <span className="hc-nav-group-text">{clampText(g.title || g.id, 28)}</span>
-                          {/* Show a preview-active dot on task group rows in the modern sidebar. docs/en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan.md 1vm5eh8mg4zuc2m3wiy8 */}
-                          {g.previewActive ? <span className="hc-nav-preview-dot" aria-hidden="true" /> : null}
+                          {/* Show activity dots when previews or running tasks exist. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305 */}
+                          {showActivityDot ? <span className="hc-nav-preview-dot" aria-hidden="true" /> : null}
                         </span>
                     </button>
-                ))}
+                  );
+                })}
                 {/* Add a sidebar load-more sentinel for task groups. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227 */}
                 {!siderCollapsed ? <div ref={taskGroupsLoadMoreRef} data-testid="hc-sidebar-taskgroups-load-more" /> : null}
                 {taskGroupsLoadingMore ? (

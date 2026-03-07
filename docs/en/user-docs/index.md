@@ -18,6 +18,13 @@ User-facing documentation for HookCode (deployment, configuration, and day-to-da
   <Card title="TaskGroup Preview" href="/en/user-docs/preview">
     Run previews and debug dev servers from tasks.
   </Card>
+  <Card title="Workers" href="/en/user-docs/workers">
+    Connect remote executors and choose where tasks run.
+  </Card>
+  {/* Add a landing-card entry for the split-host deployment guide so operators can discover the backend+remote-worker runbook from the user-docs homepage. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+  <Card title="Split-Host Deployment" href="/en/user-docs/split-host-deployment">
+    Run backend and dedicated remote workers on separate machines.
+  </Card>
 </CardGroup>
 
 ## Getting started
@@ -30,6 +37,9 @@ User-facing documentation for HookCode (deployment, configuration, and day-to-da
 - [.hookcode.yml configuration](./config/hookcode-yml)
 {/* Add TaskGroup preview guide link for user docs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as */}
 - [TaskGroup preview](./preview)
+- [Workers](./workers)
+{/* Link the split-host deployment guide from the getting-started list so Docker operators can jump directly into the multi-host setup steps. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+- [Split-host deployment](./split-host-deployment)
 
 ## Reference
 

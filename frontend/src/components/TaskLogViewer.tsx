@@ -1,5 +1,6 @@
 import { FC, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { clearTaskLogs } from '../api';
+import { List } from 'react-window'; // Add virtual scrolling for long log lists. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+import { clearTaskLogs, fetchTaskLogsPage } from '../api';
 import { useT } from '../i18n';
 import { createAuthedEventSource } from '../utils/sse';
 import { ExecutionTimeline } from './execution/ExecutionTimeline';
@@ -9,6 +10,7 @@ import { TaskLogViewerHeader } from './taskLogViewer/TaskLogViewerHeader';
 import { MAX_LOG_LINES } from './taskLogViewer/constants';
 import { timelineReducer, type ViewerMode } from './taskLogViewer/timeline';
 import type { StreamInitPayload, StreamLogPayload } from './taskLogViewer/types';
+import { LogViewerSkeleton } from './skeletons/LogViewerSkeleton'; // Show skeleton during initial log load. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
 
 interface Props {
   taskId: string;
@@ -16,16 +18,17 @@ interface Props {
   canManage?: boolean;
   variant?: 'panel' | 'flat';
   controls?: {
-    pause?: boolean;
     reconnect?: boolean;
   };
   emptyMessage?: string;
   emptyHint?: string;
-  paused?: boolean;
-  onPausedChange?: (paused: boolean) => void;
   reconnectKey?: number;
   focusText?: string;
   focusKey?: number;
+  // Expose chain-loading hooks so TaskGroup scroll can drive log paging safely. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  loadEarlierSignal?: number;
+  onHistoryExhaustedChange?: (exhausted: boolean) => void;
+  onLoadingEarlierChange?: (loading: boolean) => void;
 }
 
 export const TaskLogViewer: FC<Props> = ({
@@ -36,53 +39,125 @@ export const TaskLogViewer: FC<Props> = ({
   controls,
   emptyMessage,
   emptyHint,
-  paused: pausedProp,
-  onPausedChange,
   reconnectKey,
   focusText,
-  focusKey
+  focusKey,
+  loadEarlierSignal,
+  onHistoryExhaustedChange,
+  onLoadingEarlierChange
 }) => {
   const t = useT();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const scrollTargetRef = useRef<HTMLElement | Window | null>(null);
-  const pausedRef = useRef(false);
   const focusedKeyRef = useRef<number | null>(null);
   const autoScrollRef = useRef(true);
 
-  const showPauseButton = controls?.pause !== false;
   const showReconnectButton = controls?.reconnect !== false;
 
   const [logs, setLogs] = useState<string[]>([]);
+  const [seqRange, setSeqRange] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
+  const [nextBefore, setNextBefore] = useState<number | null>(null);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [mode, setMode] = useState<ViewerMode>('timeline');
   const [connecting, setConnecting] = useState(true);
-  const [pausedInternal, setPausedInternal] = useState(false);
-  const paused = pausedProp ?? pausedInternal;
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState(0);
   const [clearing, setClearing] = useState(false);
+  const [historyInitialized, setHistoryInitialized] = useState(false);
   const [showReasoning, setShowReasoning] = useState(true);
   const [wrapDiffLines, setWrapDiffLines] = useState(true);
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [timeline, dispatchTimeline] = useReducer(timelineReducer, undefined, () => createEmptyTimeline());
+  const logsRef = useRef<string[]>([]);
+  const seqRangeRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+  const nextBeforeRef = useRef<number | null>(null);
+  const loadEarlierSignalRef = useRef<number | null>(null);
+  const historyInitializedRef = useRef(false);
+  const historyBootstrapInFlightRef = useRef(false);
 
   useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
-
-  const setPaused = useCallback(
-    (next: boolean) => {
-      if (pausedProp !== undefined) {
-        onPausedChange?.(next);
-        return;
-      }
-      setPausedInternal(next);
-    },
-    [onPausedChange, pausedProp]
-  );
+    // Keep log paging refs in sync for SSE handlers. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    logsRef.current = logs;
+    seqRangeRef.current = seqRange;
+    nextBeforeRef.current = nextBefore;
+  }, [logs, nextBefore, seqRange]);
 
   const lines = useMemo(() => logs.join('\n'), [logs]);
   const buildLineId = useCallback((idx: number) => `task-log-${taskId}-${idx}`, [taskId]);
+  const pageSize = Math.min(Math.max(tail, 1), MAX_LOG_LINES);
+  const historyExhausted = historyInitialized && !nextBefore;
+
+  useEffect(() => {
+    // Emit loading state to the task-group chain loader so scroll triggers do not overlap. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    onLoadingEarlierChange?.(loadingEarlier);
+  }, [loadingEarlier, onLoadingEarlierChange]);
+
+  useEffect(() => {
+    // Report whether this task still has older log pages before unlocking previous tasks. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    onHistoryExhaustedChange?.(historyExhausted);
+  }, [historyExhausted, onHistoryExhaustedChange]);
+
+  useEffect(() => {
+    // Keep history initialization state in a ref so stream error handlers can avoid stale closure reads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    historyInitializedRef.current = historyInitialized;
+  }, [historyInitialized]);
+
+  useEffect(() => {
+    // Re-baseline external load signals per task id so chained scroll triggers start from current props. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    loadEarlierSignalRef.current = null;
+  }, [taskId]);
+
+  // Normalize log pages to keep in-memory window bounded during paging. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  const normalizeLogWindow = useCallback(
+    (input: string[], startSeq: number, endSeq: number) => {
+      if (!input.length) return { logs: [], startSeq: 0, endSeq: 0, dropped: 0 };
+      if (input.length <= MAX_LOG_LINES) return { logs: input, startSeq, endSeq, dropped: 0 };
+      const drop = input.length - MAX_LOG_LINES;
+      return { logs: input.slice(drop), startSeq: startSeq + drop, endSeq, dropped: drop };
+    },
+    []
+  );
+
+  // Commit log paging state and keep timeline rendering consistent. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+  const commitLogWindow = useCallback(
+    (nextLogs: string[], startSeq: number, endSeq: number, nextBeforeValue: number | null, opts: { reset: boolean; appendLine?: string }) => {
+      logsRef.current = nextLogs;
+      seqRangeRef.current = { start: startSeq, end: endSeq };
+      nextBeforeRef.current = nextBeforeValue;
+      setLogs(nextLogs);
+      setSeqRange({ start: startSeq, end: endSeq });
+      setNextBefore(nextBeforeValue);
+      if (opts.reset) {
+        dispatchTimeline({ type: 'reset', lines: nextLogs });
+      } else if (opts.appendLine) {
+        dispatchTimeline({ type: 'append', line: opts.appendLine });
+      }
+    },
+    []
+  );
+
+  const bootstrapHistoryFromHttp = useCallback(async () => {
+    if (!taskId) return;
+    if (historyBootstrapInFlightRef.current) return;
+    historyBootstrapInFlightRef.current = true;
+    try {
+      // Fallback to HTTP log page bootstrap when SSE init never arrives to avoid chain-pagination deadlocks. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      const page = await fetchTaskLogsPage(taskId, { limit: pageSize });
+      const incoming = Array.isArray(page.logs) ? page.logs.filter((line) => typeof line === 'string') : [];
+      const startSeq = Number.isFinite(page.startSeq) ? page.startSeq : incoming.length ? 1 : 0;
+      const endSeq = Number.isFinite(page.endSeq) ? page.endSeq : startSeq ? startSeq + incoming.length - 1 : 0;
+      const normalized = normalizeLogWindow(incoming, startSeq, endSeq);
+      commitLogWindow(normalized.logs, normalized.startSeq, normalized.endSeq, page.nextBefore ?? null, {
+        reset: true
+      });
+    } catch {
+      // Ignore bootstrap fallback failures and let normal reconnect logic continue. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    } finally {
+      historyInitializedRef.current = true;
+      setHistoryInitialized(true);
+    }
+  }, [commitLogWindow, normalizeLogWindow, pageSize, taskId]);
 
   const copyAll = useCallback(async () => {
     try {
@@ -104,8 +179,8 @@ export const TaskLogViewer: FC<Props> = ({
     setClearing(true);
     try {
       await clearTaskLogs(taskId);
-      setLogs([]);
-      dispatchTimeline({ type: 'clear' });
+      // Reset paging state after clearing logs on the backend. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      commitLogWindow([], 0, 0, null, { reset: true });
       setSession((v) => v + 1);
       // messageApi.success(t('logViewer.clearSuccess'));
     } catch {
@@ -114,7 +189,45 @@ export const TaskLogViewer: FC<Props> = ({
     } finally {
       setClearing(false);
     }
-  }, [canManage, clearing, t, taskId]);
+  }, [canManage, clearing, commitLogWindow, t, taskId]);
+
+  const loadEarlier = useCallback(async () => {
+    if (!taskId || loadingEarlier) return;
+    const before = nextBeforeRef.current;
+    if (!before) return;
+    setLoadingEarlier(true);
+    try {
+      // Page earlier logs from the backend for long log streams. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      const page = await fetchTaskLogsPage(taskId, { limit: pageSize, before });
+      const incoming = Array.isArray(page.logs) ? page.logs.filter((line) => typeof line === 'string') : [];
+      if (!incoming.length) {
+        setNextBefore(page.nextBefore ?? null);
+        return;
+      }
+      const currentLogs = logsRef.current;
+      const startSeq = Number.isFinite(page.startSeq) ? page.startSeq : Math.max(1, before - incoming.length);
+      const endSeq = Math.max(seqRangeRef.current.end, page.endSeq ?? 0);
+      const merged = [...incoming, ...currentLogs];
+      const normalized = normalizeLogWindow(merged, startSeq, endSeq);
+      commitLogWindow(normalized.logs, normalized.startSeq, normalized.endSeq, page.nextBefore ?? null, { reset: true });
+    } catch {
+      setError(t('logViewer.error.autoReconnect'));
+    } finally {
+      setLoadingEarlier(false);
+    }
+  }, [commitLogWindow, loadingEarlier, normalizeLogWindow, pageSize, t, taskId]);
+
+  useEffect(() => {
+    // Allow parent timeline scroll handlers to request "load earlier" without direct refs. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    if (loadEarlierSignal === undefined) return;
+    if (loadEarlierSignalRef.current === null) {
+      loadEarlierSignalRef.current = loadEarlierSignal;
+      return;
+    }
+    if (loadEarlierSignal === loadEarlierSignalRef.current) return;
+    loadEarlierSignalRef.current = loadEarlierSignal;
+    void loadEarlier();
+  }, [loadEarlier, loadEarlierSignal]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -238,6 +351,12 @@ export const TaskLogViewer: FC<Props> = ({
     let eventSource: EventSource | null = null;
 
     setLogs([]);
+    setSeqRange({ start: 0, end: 0 });
+    setNextBefore(null);
+    setLoadingEarlier(false);
+    setHistoryInitialized(false);
+    historyInitializedRef.current = false;
+    historyBootstrapInFlightRef.current = false;
     dispatchTimeline({ type: 'clear' });
     setConnecting(true);
     setError(null);
@@ -255,6 +374,9 @@ export const TaskLogViewer: FC<Props> = ({
         if (!alive) return;
         setConnecting(false);
         setError(t('logViewer.error.autoReconnect'));
+        if (!historyInitializedRef.current) {
+          void bootstrapHistoryFromHttp();
+        }
       });
 
       eventSource.addEventListener('init', (ev) => {
@@ -262,9 +384,18 @@ export const TaskLogViewer: FC<Props> = ({
         try {
           const payload = JSON.parse((ev as MessageEvent).data) as StreamInitPayload;
           const next = Array.isArray(payload.logs) ? payload.logs.filter((v) => typeof v === 'string') : [];
-          const sliced = next.slice(-MAX_LOG_LINES);
-          setLogs(sliced);
-          dispatchTimeline({ type: 'reset', lines: sliced });
+          const startSeq = Number.isFinite(payload.startSeq) ? payload.startSeq : next.length ? 1 : 0;
+          const endSeq = Number.isFinite(payload.endSeq) ? payload.endSeq : startSeq ? startSeq + next.length - 1 : 0;
+          const normalized = normalizeLogWindow(next, startSeq, endSeq);
+          commitLogWindow(
+            normalized.logs,
+            normalized.startSeq,
+            normalized.endSeq,
+            Number.isFinite(payload.nextBefore) ? payload.nextBefore : null,
+            { reset: true }
+          );
+          historyInitializedRef.current = true;
+          setHistoryInitialized(true);
         } catch (err) {
           console.warn('[log] init parse failed', err);
         }
@@ -272,12 +403,20 @@ export const TaskLogViewer: FC<Props> = ({
 
       eventSource.addEventListener('log', (ev) => {
         if (!alive) return;
-        if (pausedRef.current) return;
         try {
           const payload = JSON.parse((ev as MessageEvent).data) as StreamLogPayload;
-          if (!payload?.line) return;
-          setLogs((prev) => [...prev, payload.line].slice(-MAX_LOG_LINES));
-          dispatchTimeline({ type: 'append', line: payload.line });
+          if (!payload?.line || !Number.isFinite(payload.seq)) return;
+          const currentLogs = logsRef.current;
+          const range = seqRangeRef.current;
+          const startSeq = range.start || payload.seq;
+          const endSeq = payload.seq;
+          const merged = [...currentLogs, payload.line];
+          const normalized = normalizeLogWindow(merged, startSeq, endSeq);
+          const nextBeforeValue = normalized.dropped > 0 ? normalized.startSeq : nextBeforeRef.current;
+          commitLogWindow(normalized.logs, normalized.startSeq, normalized.endSeq, nextBeforeValue ?? null, {
+            reset: normalized.dropped > 0,
+            appendLine: normalized.dropped > 0 ? undefined : payload.line
+          });
         } catch (err) {
           console.warn('[log] parse failed', err);
         }
@@ -291,9 +430,45 @@ export const TaskLogViewer: FC<Props> = ({
       eventSource?.close();
       eventSource = null;
     };
-  }, [taskId, tail, session, reconnectKey, t]);
+  }, [bootstrapHistoryFromHttp, commitLogWindow, normalizeLogWindow, reconnectKey, session, t, taskId, tail]);
 
   const resolvedEmptyMessage = emptyMessage ?? t('logViewer.empty');
+  const canLoadEarlier = Boolean(nextBefore);
+
+  // Show skeleton loader during initial connection to prevent layout shift. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+  if (connecting && !logs.length && !error) {
+    return (
+      <div className="log-viewer" ref={rootRef}>
+        {variant === 'panel' && (
+          <TaskLogViewerHeader
+            t={t}
+            connecting={connecting}
+            error={null}
+            logsCount={0}
+            showLoadEarlier={false}
+            loadingEarlier={false}
+            onLoadEarlier={() => {}}
+            showReconnectButton={showReconnectButton}
+            onReconnect={() => setSession((v) => v + 1)}
+            mode={mode}
+            onToggleMode={() => setMode((v) => (v === 'timeline' ? 'raw' : 'timeline'))}
+            showReasoning={showReasoning}
+            onToggleShowReasoning={setShowReasoning}
+            wrapDiffLines={wrapDiffLines}
+            onToggleWrapDiffLines={setWrapDiffLines}
+            showLineNumbers={showLineNumbers}
+            onToggleShowLineNumbers={setShowLineNumbers}
+            onCopy={() => void copyAll()}
+            onClear={() => void clear()}
+            clearing={clearing}
+          />
+        )}
+        <div className="log-viewer__body">
+          <LogViewerSkeleton lines={8} ariaLabel={t('logViewer.loading')} />
+        </div>
+      </div>
+    );
+  }
 
   if (variant === 'flat') {
     return (
@@ -304,6 +479,9 @@ export const TaskLogViewer: FC<Props> = ({
         logs={logs}
         lines={lines}
         showReasoning={showReasoning}
+        showLoadEarlier={canLoadEarlier} // Share pagination affordances with flat log view. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+        loadingEarlier={loadingEarlier}
+        onLoadEarlier={() => void loadEarlier()}
         emptyMessage={resolvedEmptyMessage}
         emptyHint={emptyHint}
         rootRef={rootRef}
@@ -320,10 +498,10 @@ export const TaskLogViewer: FC<Props> = ({
         connecting={connecting}
         error={error}
         logsCount={logs.length}
-        showPauseButton={showPauseButton}
+        showLoadEarlier={canLoadEarlier}
+        loadingEarlier={loadingEarlier}
+        onLoadEarlier={() => void loadEarlier()}
         showReconnectButton={showReconnectButton}
-        paused={paused}
-        onTogglePaused={() => setPaused(!paused)}
         onReconnect={() => setSession((v) => v + 1)}
         mode={mode}
         onToggleMode={() => setMode((v) => (v === 'timeline' ? 'raw' : 'timeline'))}
@@ -342,19 +520,38 @@ export const TaskLogViewer: FC<Props> = ({
         <div className="log-error">
            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
            <span>{error}</span>
+           {/* Add retry button for failed log connections. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */}
+           <button className="log-btn log-btn--small" onClick={() => setSession((v) => v + 1)} style={{ marginLeft: 'auto' }}>
+             {t('logViewer.actions.reconnect')}
+           </button>
         </div>
       ) : null}
 
       <div className="log-viewer__body">
         {mode === 'raw' ? (
           logs.length ? (
-            <pre className="log-viewer__pre">
-              {logs.map((line, idx) => (
-                <div key={idx} id={buildLineId(idx)}>
-                  {line}
-                </div>
-              ))}
-            </pre>
+            // Use virtual scrolling for long log lists to prevent render lag. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+            logs.length > 100 ? (
+              <List
+                height={600}
+                rowCount={logs.length}
+                rowHeight={20}
+                rowComponent={({ index, style }) => (
+                  <div style={style} id={buildLineId(index)} className="log-viewer__virtual-line">
+                    {logs[index]}
+                  </div>
+                )}
+                rowProps={{}}
+              />
+            ) : (
+              <pre className="log-viewer__pre">
+                {logs.map((line, idx) => (
+                  <div key={idx} id={buildLineId(idx)}>
+                    {line}
+                  </div>
+                ))}
+              </pre>
+            )
           ) : (
             <div className="log-viewer__empty">
               <span className="text-secondary">{resolvedEmptyMessage}</span>

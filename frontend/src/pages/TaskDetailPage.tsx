@@ -8,20 +8,22 @@ import {
   InfoCircleOutlined,
   LeftOutlined,
   LinkOutlined,
-  PauseCircleOutlined,
+  StopOutlined,
   PlayCircleOutlined,
   RightOutlined,
   RobotOutlined,
+  DeploymentUnitOutlined,
   UserOutlined
 } from '@ant-design/icons';
 import type { RepoRobot, Task, TaskRepoSummary, TaskRobotSummary } from '../api';
-import { deleteTask, executeTaskNow, fetchTask, listRepoRobots, pauseTask, resumeTask, retryTask } from '../api';
+import { deleteTask, executeTaskNow, fetchTask, listRepoRobots, retryTask, stopTask } from '../api';
 import { useLocale, useT } from '../i18n';
 import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../router';
 import { JsonViewer } from '../components/JsonViewer';
 import { MarkdownViewer } from '../components/MarkdownViewer';
 import { TaskLogViewer } from '../components/TaskLogViewer';
 import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
+import { WorkerSummaryTag } from '../components/workers/WorkerSummaryTag';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { getPrevHashForBack, isInAppHash } from '../navHistory';
 import {
@@ -29,6 +31,7 @@ import {
   extractTargetLink,
   extractUser,
   extractTaskResultText,
+  extractTaskTokenUsage,
   formatRef,
   getTaskTitle,
   isTerminalStatus,
@@ -73,9 +76,8 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   const [loading, setLoading] = useState(false);
   const [task, setTask] = useState<Task | null>(null);
   const [retrying, setRetrying] = useState(false);
-  // Track pause/resume button states for task control. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const [pausing, setPausing] = useState(false);
-  const [resuming, setResuming] = useState(false);
+  // Track stop button state for task control without a resumable paused mode. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  const [stopping, setStopping] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [repoRobots, setRepoRobots] = useState<RepoRobot[]>([]);
   // Allow collapsing the task detail sidebar to focus on workflow panels. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
@@ -219,15 +221,8 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     return trimmed ? trimmed : '';
   }, [task?.result?.providerCommentUrl]);
 
-  const tokenUsage = useMemo(() => {
-    const raw = task?.result?.tokenUsage as any;
-    if (!raw) return null;
-    const inputTokens = typeof raw.inputTokens === 'number' && Number.isFinite(raw.inputTokens) ? raw.inputTokens : 0;
-    const outputTokens = typeof raw.outputTokens === 'number' && Number.isFinite(raw.outputTokens) ? raw.outputTokens : 0;
-    const totalTokens = typeof raw.totalTokens === 'number' && Number.isFinite(raw.totalTokens) ? raw.totalTokens : inputTokens + outputTokens;
-    if (inputTokens <= 0 && outputTokens <= 0 && totalTokens <= 0) return null;
-    return { inputTokens, outputTokens, totalTokens };
-  }, [task?.result?.tokenUsage]);
+  // Reuse shared token-usage normalization so Task Detail and Task Group cards stay aligned. docs/en/developer/plans/task-group-card-modernize-20260306/task_plan.md task-group-card-modernize-20260306
+  const tokenUsage = useMemo(() => extractTaskTokenUsage(task), [task]);
 
   const repoWorkflow = useMemo(() => {
     // Display direct-vs-fork repo workflow metadata from the agent for debugging and clarity. 24yz61mdik7tqdgaa152
@@ -443,13 +438,11 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
   const emptyLogMessage = useMemo(() => {
     if (task?.status === 'queued') return t('logViewer.empty.queued.title');
     if (task?.status === 'processing') return t('logViewer.empty.processing.title');
-    if (task?.status === 'paused') return t('logViewer.empty.paused.title');
     return undefined;
   }, [t, task?.status]);
   const emptyLogHint = useMemo(() => {
     if (task?.status === 'queued') return t('logViewer.empty.queued.hint');
     if (task?.status === 'processing') return t('logViewer.empty.processing.hint');
-    if (task?.status === 'paused') return t('logViewer.empty.paused.hint');
     return undefined;
   }, [t, task?.status]);
 
@@ -529,14 +522,18 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                   <LogViewerSkeleton lines={10} ariaLabel={t('common.loading')} />
                 </>
               ) : task ? (
-                <TaskLogViewer
-                  taskId={task.id}
-                  canManage={Boolean(task.permissions?.canManage)}
-                  tail={800}
-                  variant="flat"
-                  emptyMessage={emptyLogMessage}
-                  emptyHint={emptyLogHint}
-                />
+                <>
+                  {/* Hide pause controls in the shared log viewer because task control now uses stop-only semantics. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
+                  <TaskLogViewer
+                    taskId={task.id}
+                    canManage={Boolean(task.permissions?.canManage)}
+                    tail={800}
+                    variant="flat"
+                    controls={{ reconnect: true }}
+                    emptyMessage={emptyLogMessage}
+                    emptyHint={emptyLogHint}
+                  />
+                </>
               ) : null}
             </>
           )
@@ -545,7 +542,8 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
           key: 'result' as const,
           title: t('task.page.resultTitle'),
           content: (
-            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+              {/* Use the current Ant Design Space orientation API so task detail stacks stay warning-free. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
               <Card size="small" className="hc-card">
                 {showResult ? (
                   resultText ? (
@@ -623,42 +621,23 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     }
   }, [message, refresh, t, task]);
 
-  // Wire pause/resume actions to task control APIs. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  const handlePause = useCallback(async () => {
+  // Stop in-flight tasks without exposing a resumable paused state in the detail view. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  const handleStop = useCallback(async () => {
     if (!task) return;
     if (!task.permissions?.canManage) {
       message.warning(t('tasks.empty.noPermission'));
       return;
     }
-    setPausing(true);
+    setStopping(true);
     try {
-      await pauseTask(task.id);
-      message.success(t('toast.task.pauseSuccess'));
+      await stopTask(task.id);
+      message.success(t('toast.task.stopSuccess'));
       await refresh();
     } catch (err) {
       console.error(err);
-      message.error(t('toast.task.pauseFailed'));
+      message.error(t('toast.task.stopFailed'));
     } finally {
-      setPausing(false);
-    }
-  }, [message, refresh, t, task]);
-
-  const handleResume = useCallback(async () => {
-    if (!task) return;
-    if (!task.permissions?.canManage) {
-      message.warning(t('tasks.empty.noPermission'));
-      return;
-    }
-    setResuming(true);
-    try {
-      await resumeTask(task.id);
-      message.success(t('toast.task.resumeSuccess'));
-      await refresh();
-    } catch (err) {
-      console.error(err);
-      message.error(t('toast.task.resumeFailed'));
-    } finally {
-      setResuming(false);
+      setStopping(false);
     }
   }, [message, refresh, t, task]);
 
@@ -712,16 +691,10 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
         </Button>
       ) : null}
 
-      {/* Add pause/resume controls for in-flight tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203 */}
+      {/* Surface only stop for active executions; queued items are cancelled via delete. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
       {task.status === 'processing' && canManageTask ? (
-        <Button icon={<PauseCircleOutlined />} onClick={() => void handlePause()} loading={pausing}>
-          {t('tasks.pause')}
-        </Button>
-      ) : null}
-
-      {task.status === 'paused' && canManageTask ? (
-        <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => void handleResume()} loading={resuming}>
-          {t('tasks.resume')}
+        <Button icon={<StopOutlined />} onClick={() => void handleStop()} loading={stopping}>
+          {t('tasks.stop')}
         </Button>
       ) : null}
 
@@ -864,6 +837,23 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
             <div className="hc-task-meta__card hc-task-summary-strip__card">
               <Space size={12} align="start">
                 <div className="hc-task-meta__icon" aria-hidden>
+                  <DeploymentUnitOutlined style={{ fontSize: 16 }} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <Typography.Text type="secondary" className="hc-task-meta__label">
+                    {t('tasks.field.worker')}
+                  </Typography.Text>
+                  <div className="hc-task-meta__value">
+                    {/* Keep task detail worker attribution visible in both summary and metadata views. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+                    <WorkerSummaryTag worker={task.workerSummary} workerId={task.workerId} />
+                  </div>
+                </div>
+              </Space>
+            </div>
+
+            <div className="hc-task-meta__card hc-task-summary-strip__card">
+              <Space size={12} align="start">
+                <div className="hc-task-meta__icon" aria-hidden>
                   {user?.avatar ? (
                     <Avatar src={user.avatar} size={24} style={{ borderRadius: 6 }}>
                       {String(user.name || user.username || '?').slice(0, 1)}
@@ -959,6 +949,10 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
         {task?.status === 'queued' && queueHint ? (
           /* Display queue diagnosis so the detail page is not silent while waiting. f3a9c2d8e1b7f4a0c6d1 */
           <Alert type="info" showIcon title={t('tasks.queue.hintTitle')} description={queueHint} style={{ marginBottom: 12 }} />
+        ) : null}
+        {task?.workerLostAt ? (
+          // Explain worker disconnect failures in task detail so users know the executor must be brought back before retrying. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+          <Alert type="warning" showIcon message={t('tasks.workerLost', { time: formatDateTime(task.workerLostAt) })} style={{ marginBottom: 12 }} />
         ) : null}
         {task ? (
           <div className="hc-task-detail-layout">
@@ -1072,6 +1066,10 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                     </Descriptions.Item>
                   ) : null}
 
+                  <Descriptions.Item label={t('tasks.field.worker')}>
+                    <WorkerSummaryTag worker={task.workerSummary} workerId={task.workerId} />
+                  </Descriptions.Item>
+
                   <Descriptions.Item label={t('tasks.field.author')}>
                     {user ? (
                       <Space size={6} wrap>
@@ -1156,7 +1154,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                   <div style={{ marginTop: 12 }}>
                     {/* Show dependency install outcomes to help debug missing runtimes or install failures. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
                     <Card size="small" title={t('tasks.dependency.title')} className="hc-card">
-                      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                      <Space orientation="vertical" size={12} style={{ width: '100%' }}>
                       <Space size={8} wrap>
                         {renderDependencyStatusTag(dependencyResult.status)}
                         <Typography.Text type="secondary">
@@ -1260,7 +1258,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                           </Space>
 
                           {sortedDependencyEntries.length ? (
-                            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                            <Space orientation="vertical" size={8} style={{ width: '100%' }}>
                               {groupedDependencyEntries.map((group) => {
                                 const groupLabel =
                                   group.groupKey === '.'
@@ -1276,7 +1274,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                                   { success: 0, failed: 0, skipped: 0 }
                                 );
                                 return (
-                                  <Space key={group.groupKey} direction="vertical" size={8} style={{ width: '100%' }}>
+                                  <Space key={group.groupKey} orientation="vertical" size={8} style={{ width: '100%' }}>
                                     {dependencyGroupByWorkdir ? (
                                       <Space size={8} wrap>
                                         <Tag>{t('tasks.dependency.group.workdir', { workdir: groupLabel })}</Tag>
@@ -1333,7 +1331,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                                           }
                                         >
                                           {isExpanded ? (
-                                            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                                            <Space orientation="vertical" size={4} style={{ width: '100%' }}>
                                               {step.command ? (
                                                 <Typography.Text>{t('tasks.dependency.command', { command: step.command })}</Typography.Text>
                                               ) : null}

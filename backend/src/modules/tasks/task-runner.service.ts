@@ -3,9 +3,13 @@ import { AgentExecutionError } from '../../agent/agent';
 import { Task, type TaskResult, type TaskStatus } from '../../types/task';
 import { AgentService } from './agent.service';
 import { TaskService } from './task.service';
+import { TaskLogsService } from './task-logs.service';
 import { LogWriterService } from '../logs/log-writer.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
+import { TASK_MANUAL_STOP_MESSAGE } from './task-control.constants';
+import { WorkersConnectionService } from '../workers/workers-connection.service';
+import { WorkersService } from '../workers/workers.service';
 
 export interface TaskRunnerFinishInfo {
   status: TaskStatus;
@@ -21,15 +25,15 @@ export interface TaskRunnerHooks {
 
 /**
  * Queue runner (consumes tasks in parallel across task groups). docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
- * - Triggered periodically by `backend/src/worker.ts`, or triggered in INLINE_WORKER mode by `backend/src/routes/webhook.ts` / `backend/src/routes/tasks.ts`.
+ * - Triggered by backend queue mutations so connected external workers receive assignments without polling the database. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
  * - Pulls one queued task via `TaskService.takeNextQueued()` and marks it processing; updates status to succeeded/failed when done.
  * - The actual "execute task" logic lives in `backend/src/agent/agent.ts` (callAgent: clone repo, build prompt, run codex, post back to GitLab).
  */
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-type TaskAbortReason = 'paused' | 'deleted';
+type TaskAbortReason = 'manual_stop' | 'deleted';
 
-// Poll task control state so workers can pause/stop running tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+// Poll task control state so workers can stop running tasks without a resumable paused state. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 const TASK_CONTROL_POLL_INTERVAL_MS = 2000;
 
 const resolveWorkerConcurrency = (): number => {
@@ -59,10 +63,13 @@ export class TaskRunner {
 
   constructor(
     private readonly taskService: TaskService,
+    private readonly taskLogsService: TaskLogsService, // Clear task log rows before each run to reset history. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     private readonly agentService: AgentService,
     private readonly logWriter: LogWriterService,
     private readonly notificationsService: NotificationsService,
-    private readonly notificationRecipients: NotificationRecipientService
+    private readonly notificationRecipients: NotificationRecipientService,
+    private readonly workersConnections: WorkersConnectionService,
+    private readonly workersService: WorkersService
   ) {}
 
   setHooks(hooks: TaskRunnerHooks | null): void {
@@ -94,8 +101,8 @@ export class TaskRunner {
     const running = new Set<Promise<void>>();
 
     const startTask = (task: Task) => {
-      const work = this.processTask(task).catch((err) => {
-        console.error('[taskRunner] processTask failed', task.id, err);
+      const work = this.dispatchTask(task).catch((err) => {
+        console.error('[taskRunner] dispatchTask failed', task.id, err);
       });
       running.add(work);
       work.finally(() => running.delete(work));
@@ -114,7 +121,7 @@ export class TaskRunner {
   }
 
   private startControlPolling(taskId: string, onAbort: (reason: TaskAbortReason) => void): () => void {
-    // Poll DB status so pause/delete requests can stop active executions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    // Poll DB control flags so stop/delete requests can abort active executions quickly. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     let stopped = false;
     const poll = async () => {
       if (stopped) return;
@@ -124,8 +131,8 @@ export class TaskRunner {
           onAbort('deleted');
           return;
         }
-        if (state.status === 'paused') {
-          onAbort('paused');
+        if (state.stopRequested) {
+          onAbort('manual_stop');
         }
       } catch (err) {
         console.warn('[taskRunner] control poll failed (ignored)', taskId, err);
@@ -160,6 +167,195 @@ export class TaskRunner {
     }
   }
 
+  private async dispatchTask(task: Task): Promise<void> {
+    const startedAt = Date.now();
+    await this.runHookStart(task);
+    // Emit dispatch-start logs before handing the task to a connected worker so admin timelines stay complete. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    void this.logWriter.logExecution({
+      level: 'info',
+      message: 'Task dispatched',
+      code: 'TASK_DISPATCHED',
+      repoId: task.repoId,
+      taskId: task.id,
+      taskGroupId: task.groupId,
+      meta: { eventType: task.eventType, robotId: task.robotId, retries: task.retries, workerId: task.workerId }
+    });
+
+    try {
+      await this.taskLogsService.clearLogs(task.id);
+      await this.taskService.patchResult(task.id, {
+        outputText: '',
+        tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+      });
+      const workerId = task.workerId ?? '';
+      if (!workerId) throw new Error('Task is missing worker assignment');
+      await this.workersService.reserveWorkerSlot(workerId);
+      const dispatched = this.workersConnections.sendAssignTask(workerId, task.id);
+      if (!dispatched) {
+        await this.workersService.releaseWorkerSlot(workerId);
+        throw new Error('Assigned worker is not connected');
+      }
+    } catch (err) {
+      await this.reportWorkerFailure(task, {
+        message: getErrorMessage(err),
+        durationMs: Date.now() - startedAt
+      });
+    }
+  }
+
+  async reportWorkerSuccess(
+    task: Task,
+    params: { providerCommentUrl?: string; outputText?: string; gitStatus?: TaskResult['gitStatus']; durationMs?: number }
+  ): Promise<void> {
+    try {
+      await this.finalizeWithRetry(task.id, 'succeeded', {
+        providerCommentUrl: params.providerCommentUrl,
+        outputText: params.outputText,
+        gitStatus: params.gitStatus
+      });
+      // Record successful worker completions with the same audit and notification semantics as local execution. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      void this.logWriter.logExecution({
+        level: 'info',
+        message: 'Task succeeded',
+        code: 'TASK_SUCCEEDED',
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+      });
+      void this.emitTaskNotification(task, {
+        type: 'TASK_SUCCEEDED',
+        level: 'info',
+        message: `Task succeeded: ${buildTaskLabel(task)}`,
+        code: 'TASK_SUCCEEDED',
+        meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+      });
+      await this.runHookFinish(task, {
+        status: 'succeeded',
+        providerCommentUrl: params.providerCommentUrl,
+        durationMs: params.durationMs
+      });
+    } finally {
+      if (task.workerId) await this.workersService.releaseWorkerSlot(task.workerId);
+    }
+  }
+
+  async reportWorkerFailure(
+    task: Task,
+    params: {
+      message: string;
+      providerCommentUrl?: string;
+      gitStatus?: TaskResult['gitStatus'];
+      durationMs?: number;
+      stopReason?: TaskAbortReason;
+    }
+  ): Promise<void> {
+    try {
+      if (params.stopReason === 'manual_stop') {
+        await this.finalizeWithRetry(task.id, 'failed', {
+          message: TASK_MANUAL_STOP_MESSAGE,
+          providerCommentUrl: params.providerCommentUrl,
+          gitStatus: params.gitStatus
+        });
+        void this.logWriter.logExecution({
+          level: 'warn',
+          message: TASK_MANUAL_STOP_MESSAGE,
+          code: 'TASK_STOPPED',
+          repoId: task.repoId,
+          taskId: task.id,
+          taskGroupId: task.groupId,
+          meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+        });
+        void this.emitTaskNotification(task, {
+          type: 'TASK_STOPPED',
+          level: 'warn',
+          message: `Task stopped: ${buildTaskLabel(task)}`,
+          code: 'TASK_STOPPED',
+          meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+        });
+        await this.runHookFinish(task, {
+          status: 'failed',
+          message: TASK_MANUAL_STOP_MESSAGE,
+          providerCommentUrl: params.providerCommentUrl,
+          durationMs: params.durationMs
+        });
+        return;
+      }
+
+      if (params.stopReason === 'deleted') {
+        void this.logWriter.logExecution({
+          level: 'error',
+          message: 'Task deleted during execution.',
+          code: 'TASK_DELETED',
+          repoId: task.repoId,
+          taskId: task.id,
+          taskGroupId: task.groupId,
+          meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+        });
+        void this.emitTaskNotification(task, {
+          type: 'TASK_DELETED',
+          level: 'error',
+          message: `Task deleted: ${buildTaskLabel(task)}`,
+          code: 'TASK_DELETED',
+          meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+        });
+        await this.runHookFinish(task, {
+          status: 'failed',
+          message: 'Task deleted during execution.',
+          providerCommentUrl: params.providerCommentUrl,
+          durationMs: params.durationMs
+        });
+        return;
+      }
+
+      await this.finalizeWithRetry(task.id, 'failed', {
+        message: params.message,
+        providerCommentUrl: params.providerCommentUrl,
+        gitStatus: params.gitStatus
+      });
+      void this.logWriter.logExecution({
+        level: 'error',
+        message: params.message,
+        code: 'TASK_FAILED',
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { durationMs: params.durationMs ?? 0, retries: task.retries, error: params.message, workerId: task.workerId }
+      });
+      void this.emitTaskNotification(task, {
+        type: 'TASK_FAILED',
+        level: 'error',
+        message: `Task failed: ${buildTaskLabel(task)}`,
+        code: 'TASK_FAILED',
+        meta: { durationMs: params.durationMs ?? 0, retries: task.retries, error: params.message, workerId: task.workerId }
+      });
+      await this.runHookFinish(task, {
+        status: 'failed',
+        message: params.message,
+        providerCommentUrl: params.providerCommentUrl,
+        durationMs: params.durationMs
+      });
+    } finally {
+      if (task.workerId) await this.workersService.releaseWorkerSlot(task.workerId);
+    }
+  }
+
+  async executeAssignedTaskInline(task: Task): Promise<void> {
+    // Let the system-managed local worker fall back to backend-inline execution until every task ships a remote-safe command envelope. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    void this.logWriter.logSystem({
+      level: 'info',
+      message: 'Local worker delegated task back to backend inline executor',
+      code: 'WORKER_LOCAL_INLINE_FALLBACK',
+      meta: { taskId: task.id, taskGroupId: task.groupId, workerId: task.workerId }
+    });
+
+    try {
+      await this.processTask(task);
+    } finally {
+      if (task.workerId) await this.workersService.releaseWorkerSlot(task.workerId);
+    }
+  }
+
   private async processTask(task: Task): Promise<void> {
     const startedAt = Date.now();
     await this.runHookStart(task);
@@ -186,10 +382,10 @@ export class TaskRunner {
 
     try {
       try {
+        // Reset task_logs rows so retries start with a clean log stream. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+        await this.taskLogsService.clearLogs(task.id);
         await this.taskService.patchResult(task.id, {
           outputText: '',
-          logs: [],
-          logsSeq: 0,
           tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
         });
       } catch (err) {
@@ -197,10 +393,11 @@ export class TaskRunner {
       }
 
       // Persist git status alongside logs/output so the UI can display change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-      const { logs, logsSeq, providerCommentUrl, outputText, gitStatus } = await this.agentService.callAgent(task, {
+      const { providerCommentUrl, outputText, gitStatus } = await this.agentService.callAgent(task, {
         signal: abortController.signal
       });
-      await this.finalizeWithRetry(task.id, 'succeeded', { logs, logsSeq, providerCommentUrl, outputText, gitStatus });
+      // Finalize without embedding log arrays because logs are stored in task_logs. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      await this.finalizeWithRetry(task.id, 'succeeded', { providerCommentUrl, outputText, gitStatus });
       // Record successful task completion in the audit log. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       void this.logWriter.logExecution({
         level: 'info',
@@ -225,48 +422,44 @@ export class TaskRunner {
         durationMs: Date.now() - startedAt
       });
     } catch (err) {
-      const logs = err instanceof AgentExecutionError ? err.logs : [];
-      const logsSeq = err instanceof AgentExecutionError ? err.logsSeq : undefined;
       const providerCommentUrl = err instanceof AgentExecutionError ? err.providerCommentUrl : undefined;
       // Preserve git status on failed runs so the UI can show unpushed changes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
       const gitStatus = err instanceof AgentExecutionError ? err.gitStatus : undefined;
       const message = getErrorMessage(err);
 
       if (!abortReason && err instanceof AgentExecutionError && err.aborted) {
-        // Treat provider aborts as pause requests when no explicit reason is tracked. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-        abortReason = 'paused';
+        // Treat provider aborts as manual-stop requests when no explicit reason is tracked. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+        abortReason = 'manual_stop';
       }
 
-      if (abortReason === 'paused') {
-        const pauseMessage = 'Task paused by user.';
-        await this.finalizeWithRetry(task.id, 'paused', {
-          logs,
-          logsSeq,
-          message: pauseMessage,
+      if (abortReason === 'manual_stop') {
+        // Finalize manual stops as failures so the queue has no resumable paused branch. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+        await this.finalizeWithRetry(task.id, 'failed', {
+          message: TASK_MANUAL_STOP_MESSAGE,
           providerCommentUrl,
           gitStatus
         });
-        // Persist pause events for audit visibility. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+        // Persist manual-stop events for audit visibility. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
         void this.logWriter.logExecution({
           level: 'warn',
-          message: pauseMessage,
-          code: 'TASK_PAUSED',
+          message: TASK_MANUAL_STOP_MESSAGE,
+          code: 'TASK_STOPPED',
           repoId: task.repoId,
           taskId: task.id,
           taskGroupId: task.groupId,
           meta: { durationMs: Date.now() - startedAt, retries: task.retries }
         });
-        // Notify the triggering user (or repo owner) about paused execution. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        // Notify the triggering user (or repo owner) about manually stopped execution. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
         void this.emitTaskNotification(task, {
-          type: 'TASK_PAUSED',
+          type: 'TASK_STOPPED',
           level: 'warn',
-          message: `Task paused: ${buildTaskLabel(task)}`,
-          code: 'TASK_PAUSED',
+          message: `Task stopped: ${buildTaskLabel(task)}`,
+          code: 'TASK_STOPPED',
           meta: { durationMs: Date.now() - startedAt, retries: task.retries }
         });
         await this.runHookFinish(task, {
-          status: 'paused',
-          message: pauseMessage,
+          status: 'failed',
+          message: TASK_MANUAL_STOP_MESSAGE,
           providerCommentUrl,
           durationMs: Date.now() - startedAt
         });
@@ -303,7 +496,8 @@ export class TaskRunner {
       }
 
       console.error('[taskRunner] task failed', task.id, err);
-      await this.finalizeWithRetry(task.id, 'failed', { logs, logsSeq, message, providerCommentUrl, gitStatus });
+      // Persist failure metadata without duplicating log payloads in result_json. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      await this.finalizeWithRetry(task.id, 'failed', { message, providerCommentUrl, gitStatus });
       // Capture failures in the execution log stream for debugging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       void this.logWriter.logExecution({
         level: 'error',
@@ -335,7 +529,7 @@ export class TaskRunner {
 
   private async emitTaskNotification(
     task: Task,
-    params: { type: 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_PAUSED' | 'TASK_DELETED'; level: 'info' | 'warn' | 'error'; message: string; code: string; meta?: Record<string, unknown> }
+    params: { type: 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_STOPPED' | 'TASK_DELETED'; level: 'info' | 'warn' | 'error'; message: string; code: string; meta?: Record<string, unknown> }
   ): Promise<void> {
     // Best-effort: emit user notifications without blocking task completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
     try {

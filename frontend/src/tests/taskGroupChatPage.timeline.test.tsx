@@ -1,353 +1,242 @@
-// Split TaskGroupChatPage timeline tests into a dedicated spec file. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+// Keep TaskGroupChatPage workspace tests focused on the queue card list and shared log tabs. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 
-import { act, screen, waitFor } from '@testing-library/react';
-import { App as AntdApp } from 'antd';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { setLocale } from '../i18n';
-import { buildTaskGroupChatPageElement, renderTaskGroupChatPage, setupTaskGroupChatMocks } from './taskGroupChatPageTestUtils'; // Use the shared element factory so rerenders keep mocked api wiring. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { renderTaskGroupChatPage, setupTaskGroupChatMocks } from './taskGroupChatPageTestUtils';
 import * as api from '../api';
 
-describe('TaskGroupChatPage timeline', () => {
+describe('TaskGroupChatPage workspace', () => {
   beforeEach(() => {
     setupTaskGroupChatMocks();
   });
 
-  // Validate optimistic in-place rendering on new group creation without a skeleton. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-  test('renders the sent question in the timeline after creating a new group', async () => {
+  test('renders queue cards by persisted order and lazy-loads task logs on click', async () => {
+    // Render log-tab output as Markdown so task results preserve headings and lists after lazy loading. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     const ui = userEvent.setup();
     const now = '2026-01-11T00:00:00.000Z';
 
-    // Reuse a single task payload so the chat bubble text is deterministic in tests. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-    const createdTask = {
-      id: 't_new',
-      eventType: 'chat',
-      status: 'queued',
-      payload: { __chat: { text: 'Hello from test' } },
-      retries: 0,
-      createdAt: now,
-      updatedAt: now
-    };
-
-    vi.mocked(api.executeChat).mockResolvedValueOnce({
-      taskGroup: {
-        id: 'g_new',
-        kind: 'chat',
-        bindingKey: 'b1',
-        title: 'Group new',
-        repoId: 'r1',
-        robotId: 'bot1',
-        createdAt: now,
-        updatedAt: now
-      },
-      task: createdTask as any
-    });
-    // Ensure refresh calls always return the newly sent task so the timeline stays populated. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([createdTask as any]);
-
-    const view = renderTaskGroupChatPage();
-
-    // Expect chat page repo fetch to use paginated helper. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
-    await waitFor(() => expect(api.fetchAllRepos).toHaveBeenCalled());
-    await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
-
-    const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
-    await ui.type(textarea, 'Hello from test');
-
-    const sendButton = screen.getByRole('button', { name: /Send/i });
-    await ui.click(sendButton);
-
-    await waitFor(() => expect(api.executeChat).toHaveBeenCalled());
-
-    // Simulate the route change so the chat timeline is active for the new group. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
-    view.rerender(buildTaskGroupChatPageElement({ taskGroupId: 'g_new' }));
-
-    expect(await screen.findByText('Hello from test')).toBeInTheDocument();
-    expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
-    expect(document.querySelector('.hc-chat-item--enter')).toBeTruthy();
-  });
-
-  // Validate empty-state messaging for task groups that have no tasks. docs/en/developer/plans/taskgroup-empty-display-20260203/task_plan.md taskgroup-empty-display-20260203
-  test('shows an empty-state message for existing task groups with no tasks', async () => {
-    renderTaskGroupChatPage({ taskGroupId: 'g_empty' });
-
-    expect(await screen.findByText('No tasks in this group')).toBeInTheDocument();
-    // Validate the expanded empty-group hint text for dialog-only fixes. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-    expect(screen.getByText('Start a new task below or return to the task group list.')).toBeInTheDocument();
-    expect(screen.queryByText('What can I do for you?')).not.toBeInTheDocument();
-  });
-
-  // Refresh chat timeline when SSE pushes a task-group update. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
-  test('refreshes task group on SSE update events', async () => {
-    renderTaskGroupChatPage({ taskGroupId: 'g1' });
-
-    await waitFor(() => expect(api.fetchTaskGroup).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(api.fetchTaskGroupTasks).toHaveBeenCalledTimes(1));
-
-    const sources = ((globalThis as any).__eventSourceInstances ?? []) as Array<{
-      url?: string;
-      emit: (type: string, ev?: any) => void;
-    }>;
-    const stream = sources.find((source) => source.url?.includes('/events/stream'));
-    expect(stream).toBeTruthy();
-
-    act(() => {
-      stream!.emit('task-group.refresh', { data: JSON.stringify({ groupId: 'g1' }) });
-    });
-
-    await waitFor(() => expect(api.fetchTaskGroup).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(api.fetchTaskGroupTasks).toHaveBeenCalledTimes(2));
-  });
-
-  test('clears loading when navigating away (no stuck loading after switching)', async () => {
-    const now = '2026-01-11T00:00:00.000Z';
-
-    const task = {
-      id: 't_done',
-      eventType: 'chat',
-      title: 'Task 1',
-      status: 'succeeded',
-      retries: 0,
-      createdAt: now,
-      updatedAt: now
-    } as any;
-
-    const group = {
-      id: 'g1',
-      kind: 'chat',
-      bindingKey: 'b1',
-      title: 'Group g1',
-      repoId: 'r1',
-      robotId: 'bot1',
-      createdAt: now,
-      updatedAt: now
-    } as any;
-
-    // Keep the initial group request pending to simulate a slow backend response.
-    let resolveGroup!: (value: any) => void;
-    let resolveTasks!: (value: any) => void;
-    const groupPromise = new Promise((res) => {
-      resolveGroup = res as any;
-    });
-    const tasksPromise = new Promise((res) => {
-      resolveTasks = res as any;
-    });
-
-    vi.mocked(api.fetchTaskGroup).mockImplementationOnce(async () => (await groupPromise) as any);
-    vi.mocked(api.fetchTaskGroupTasks).mockImplementationOnce(async () => (await tasksPromise) as any);
-
-    const view = renderTaskGroupChatPage({ taskGroupId: 'g1' });
-
-    // Assert on skeleton presence instead of a plain loading text placeholder. ro3ln7zex8d0wyynfj0m
-    expect(await screen.findByTestId('hc-chat-group-skeleton')).toBeInTheDocument();
-
-    // Simulate route switch to Home (no group selected).
-    view.rerender(buildTaskGroupChatPageElement());
-
-    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
-    expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
-
-    // Even if the previous request resolves late, it must not overwrite the current Home view.
-    resolveGroup(group);
-    resolveTasks([task]);
-
-    await waitFor(() => {
-      expect(screen.getByText('What can I do for you?')).toBeInTheDocument();
-      expect(screen.queryByText('Group g1')).not.toBeInTheDocument();
-      expect(screen.queryByText('Task 1')).not.toBeInTheDocument();
-    });
-  });
-
-  // Keep loaded chat content visible when a locale change triggers a blocking refresh. docs/en/developer/plans/taskgroup_skeleton_20260126/task_plan.md taskgroup_skeleton_20260126
-  test('keeps loaded timeline visible during locale-triggered refresh', async () => {
-    const now = '2026-01-11T00:00:00.000Z';
-
-    const task = {
-      id: 't_keep',
-      eventType: 'chat',
-      payload: { __chat: { text: 'Keep this message' } },
-      status: 'queued',
-      retries: 0,
-      createdAt: now,
-      updatedAt: now
-    } as any;
-
-    const group = {
-      id: 'g1',
-      kind: 'chat',
-      bindingKey: 'b1',
-      title: 'Group g1',
-      repoId: 'r1',
-      robotId: 'bot1',
-      createdAt: now,
-      updatedAt: now
-    } as any;
-
-    setLocale('zh-CN');
-    vi.mocked(api.fetchTaskGroup).mockResolvedValueOnce(group);
-    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValueOnce([task]);
-
-    renderTaskGroupChatPage({ taskGroupId: 'g1' });
-
-    expect(await screen.findByText('Keep this message')).toBeInTheDocument();
-    expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
-
-    let resolveGroup!: (value: any) => void;
-    let resolveTasks!: (value: any) => void;
-    const groupPromise = new Promise((res) => {
-      resolveGroup = res as any;
-    });
-    const tasksPromise = new Promise((res) => {
-      resolveTasks = res as any;
-    });
-
-    vi.mocked(api.fetchTaskGroup).mockImplementationOnce(async () => (await groupPromise) as any);
-    vi.mocked(api.fetchTaskGroupTasks).mockImplementationOnce(async () => (await tasksPromise) as any);
-
-    act(() => {
-      setLocale('en-US');
-    });
-
-    await waitFor(() => expect(api.fetchTaskGroup).toHaveBeenCalledTimes(2));
-    expect(screen.getByText('Keep this message')).toBeInTheDocument();
-    expect(screen.queryByTestId('hc-chat-group-skeleton')).not.toBeInTheDocument();
-
-    resolveGroup(group);
-    resolveTasks([task]);
-
-    await waitFor(() => expect(api.fetchTaskGroupTasks).toHaveBeenCalledTimes(2));
-  });
-
-  // Preserve timeline content during refresh failures to avoid UX resets. docs/en/developer/plans/netflapui20260126/task_plan.md netflapui20260126
-  test('keeps timeline content when refresh polling hits a network failure', async () => {
-    const now = '2026-01-11T00:00:00.000Z';
-    const tasks = [
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([
       {
-        id: 't_keep',
+        id: 't_second',
         eventType: 'chat',
-        payload: { __chat: { text: 'Keep this message' } },
+        title: 'Second task',
         status: 'queued',
         retries: 0,
+        groupOrder: 2,
+        sequence: { order: 2, previousTaskId: 't_first' },
+        payload: { __chat: { text: 'Second prompt' } },
+        permissions: { canManage: true },
         createdAt: now,
         updatedAt: now
-      }
-    ];
-
-    const group = {
-      id: 'g1',
-      kind: 'chat',
-      bindingKey: 'b1',
-      title: 'Group g1',
-      repoId: 'r1',
-      robotId: 'bot1',
+      } as any,
+      {
+        id: 't_first',
+        eventType: 'chat',
+        title: 'First task',
+        status: 'succeeded',
+        retries: 0,
+        groupOrder: 1,
+        sequence: { order: 1, nextTaskId: 't_second' },
+        payload: { __chat: { text: 'First prompt' } },
+        permissions: { canManage: true },
+        createdAt: now,
+        updatedAt: now
+      } as any
+    ]);
+    vi.mocked(api.fetchTask).mockResolvedValue({
+      id: 't_first',
+      eventType: 'chat',
+      title: 'First task',
+      status: 'succeeded',
+      retries: 0,
+      groupOrder: 1,
+      sequence: { order: 1, nextTaskId: 't_second' },
+      permissions: { canManage: true },
       createdAt: now,
-      updatedAt: now
-    } as any;
-
-    const networkError = Object.assign(new Error('Network Error'), { response: undefined });
-    const originalSetInterval = window.setInterval;
-    const originalClearInterval = window.clearInterval;
-
-    let tick!: () => void;
-    const intervalPromise = new Promise<void>((res) => {
-      tick = res;
-    });
-
-    window.setInterval = ((cb: () => void) => {
-      intervalPromise.then(cb);
-      return 101;
-    }) as any;
-    window.clearInterval = vi.fn();
-
-    vi.mocked(api.fetchTaskGroup).mockResolvedValueOnce(group);
-    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValueOnce(tasks as any);
+      updatedAt: now,
+      result: { outputText: '## Detailed output\n\n- First rendered item' }
+    } as any);
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
 
-    expect(await screen.findByText('Keep this message')).toBeInTheDocument();
+    const headlines = await screen.findAllByText(/task$/i, { selector: '.hc-task-workspace-card__headline' });
+    expect(headlines.map((node) => node.textContent)).toEqual(['First task', 'Second task']);
+    expect(api.fetchTask).not.toHaveBeenCalled();
 
-    vi.mocked(api.fetchTaskGroupTasks).mockRejectedValueOnce(networkError);
-    tick();
+    await ui.click(screen.getByText('First task', { selector: '.hc-task-workspace-card__headline' }));
 
-    await waitFor(() => expect(api.fetchTaskGroupTasks).toHaveBeenCalledTimes(2));
-    expect(screen.getByText('Keep this message')).toBeInTheDocument();
-
-    window.setInterval = originalSetInterval;
-    window.clearInterval = originalClearInterval;
+    await waitFor(() => expect(api.fetchTask).toHaveBeenCalledWith('t_first'));
+    expect(await screen.findByText('Output')).toBeInTheDocument();
+    expect(screen.getByText('Detailed output', { selector: 'h2' })).toBeInTheDocument();
+    expect(screen.getByText('First rendered item')).toBeInTheDocument();
   });
 
-  test('renders only the latest 3 tasks by default and loads older tasks when scrolling up', async () => {
-    const now = '2026-01-11T00:00:00.000Z';
-    const tasks = Array.from({ length: 5 }).map((_, idx) => ({
-      id: `t_${idx}`,
-      eventType: 'chat',
-      payload: { __chat: { text: `Message ${idx}` } },
-      status: 'queued',
-      retries: 0,
-      createdAt: now,
-      updatedAt: now
-    }));
+  test('keeps polling active tasks after SSE ready so queued cards refresh into processing', async () => {
+    // Keep a polling fallback while active tasks exist so a fresh task-group route still updates if the first SSE status event is missed. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const now = '2026-03-06T00:00:00.000Z';
 
-    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValueOnce(tasks as any);
+    let fetchCount = 0;
+    vi.mocked(api.fetchTaskGroupTasks).mockImplementation(async () => {
+      fetchCount += 1;
+      const status = fetchCount >= 3 ? 'processing' : 'queued';
+      return [
+        {
+          id: 't_poll',
+          eventType: 'chat',
+          title: 'Queued then processing',
+          status,
+          retries: 0,
+          groupOrder: 1,
+          sequence: { order: 1 },
+          payload: { __chat: { text: 'Wait for processing' } },
+          permissions: { canManage: true },
+          createdAt: now,
+          updatedAt: now
+        } as any
+      ];
+    });
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
+    await screen.findByText('Queued');
 
-    expect(await screen.findByText('Message 4')).toBeInTheDocument();
-    expect(screen.queryByText('Message 0')).not.toBeInTheDocument();
-    expect(screen.getAllByText(/Message/)).toHaveLength(3);
+    const sources = ((globalThis as any).__eventSourceInstances ?? []) as Array<{ url: string; emit: (type: string, ev?: any) => void }>;
+    const groupSource = sources.find((source) => String(source.url).includes('topics=task-group%3Ag1'));
+    expect(groupSource).toBeTruthy();
+    groupSource?.emit('ready');
 
-    const chatBody = document.querySelector('.hc-chat-body') as HTMLElement;
-    expect(chatBody).toBeTruthy();
-    // Trigger scroll-up paging via the chat body container to reveal older tasks. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
-    chatBody.scrollTop = 0;
-    chatBody.dispatchEvent(new Event('scroll'));
-
-    expect(await screen.findByText('Message 0')).toBeInTheDocument();
-    expect(screen.getAllByText(/Message/)).toHaveLength(5);
+    await waitFor(() => expect(screen.getByText('Processing')).toBeInTheDocument(), { timeout: 7000 });
+    expect(api.fetchTaskGroupTasks.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
 
-  test('keeps chat pinned to bottom when async log rendering expands height', async () => {
+  test('expands compact git details without bubbling into the log tab click', async () => {
+    // Keep compact git toggles local to the task card so users do not accidentally open the right-side log tab. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const ui = userEvent.setup();
     const now = '2026-01-11T00:00:00.000Z';
-    const tasks = Array.from({ length: 3 }).map((_, idx) => ({
-      id: `t_${idx}`,
-      eventType: 'chat',
-      payload: { __chat: { text: `Message ${idx}` } },
-      status: 'queued',
-      retries: 0,
-      createdAt: now,
-      updatedAt: now
-    }));
 
-    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValueOnce(tasks as any);
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([
+      {
+        id: 't_git',
+        eventType: 'chat',
+        title: 'Git task',
+        status: 'succeeded',
+        retries: 0,
+        groupOrder: 1,
+        sequence: { order: 1 },
+        payload: { __chat: { text: 'Show git changes' } },
+        permissions: { canManage: true },
+        createdAt: now,
+        updatedAt: now,
+        result: {
+          repoWorkflow: {
+            mode: 'fork',
+            upstream: { webUrl: 'https://example.com/upstream.git' },
+            fork: { webUrl: 'https://example.com/fork.git' }
+          },
+          gitStatus: {
+            enabled: true,
+            final: { branch: 'feature/git-panel', headSha: '1234567890abcdef1234567890abcdef12345678', ahead: 2, behind: 1 },
+            baseline: { branch: 'main', headSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+            delta: { headChanged: true, branchChanged: true },
+            push: { status: 'unpushed' },
+            workingTree: { staged: ['src/a.ts'], unstaged: ['src/b.ts'], untracked: ['src/c.ts'] }
+          }
+        }
+      } as any
+    ]);
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
 
-    await screen.findByText('Message 2');
+    const expandButton = await screen.findByRole('button', { name: /show details/i });
+    await ui.click(expandButton);
 
-    const chatBody = document.querySelector('.hc-chat-body') as HTMLElement;
-    expect(chatBody).toBeTruthy();
+    expect(screen.getByText('Staged (1)')).toBeInTheDocument();
+    expect(api.fetchTask).not.toHaveBeenCalled();
+  });
 
-    let scrollHeight = 200;
-    Object.defineProperty(chatBody, 'scrollHeight', {
-      get: () => scrollHeight,
-      configurable: true
-    });
-    Object.defineProperty(chatBody, 'clientHeight', {
-      get: () => 100,
-      configurable: true
-    });
-    chatBody.scrollTop = 100;
+  test('renders task request and summary as Markdown inside the card', async () => {
+    // Render task prompts and summaries as Markdown in queue cards so original formatting survives the workspace refactor. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const now = '2026-01-11T00:00:00.000Z';
 
-    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
-      cb(0);
-      return 1;
-    });
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([
+      {
+        id: 't_md',
+        eventType: 'chat',
+        title: 'Markdown task',
+        status: 'succeeded',
+        retries: 0,
+        groupOrder: 1,
+        sequence: { order: 1 },
+        payload: { __chat: { text: '## Request heading\n\n- request item' } },
+        permissions: { canManage: true },
+        createdAt: now,
+        updatedAt: now,
+        result: { summary: '### Summary heading\n\n1. summary item' }
+      } as any
+    ]);
 
-    // Simulate async log growth via DOM mutations so the observer-driven pin logic runs. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
-    scrollHeight = 260;
-    chatBody.appendChild(document.createElement('div'));
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
 
-    await waitFor(() => expect(chatBody.scrollTop).toBe(260));
-    rafSpy.mockRestore();
+    expect(await screen.findByRole('heading', { name: 'Request heading', level: 2 })).toBeInTheDocument();
+    expect(screen.getByText('request item')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Summary heading', level: 3 })).toBeInTheDocument();
+    expect(screen.getByText('summary item')).toBeInTheDocument();
+  });
+
+  test('stops a processing task from the card actions', async () => {
+    const ui = userEvent.setup();
+    const now = '2026-01-11T00:00:00.000Z';
+
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([
+      {
+        id: 't_run',
+        eventType: 'chat',
+        title: 'Running task',
+        status: 'processing',
+        retries: 0,
+        groupOrder: 1,
+        sequence: { order: 1 },
+        payload: { __chat: { text: 'Run it' } },
+        permissions: { canManage: true },
+        createdAt: now,
+        updatedAt: now
+      } as any
+    ]);
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    await ui.click(await screen.findByRole('button', { name: /Stop/i }));
+    await waitFor(() => expect(api.stopTask).toHaveBeenCalledWith('t_run'));
+  });
+
+  test('edits a queued task from the card actions', async () => {
+    const ui = userEvent.setup();
+    const now = '2026-01-11T00:00:00.000Z';
+
+    vi.mocked(api.fetchTaskGroupTasks).mockResolvedValue([
+      {
+        id: 't_edit',
+        eventType: 'chat',
+        title: 'Queued task',
+        status: 'queued',
+        retries: 0,
+        groupOrder: 1,
+        sequence: { order: 1 },
+        payload: { __chat: { text: 'Original prompt' } },
+        permissions: { canManage: true },
+        createdAt: now,
+        updatedAt: now
+      } as any
+    ]);
+
+    renderTaskGroupChatPage({ taskGroupId: 'g1' });
+
+    await ui.click(await screen.findByRole('button', { name: /Edit/i }));
+    const textarea = await screen.findByPlaceholderText('Edit the queued task before it starts');
+    await ui.clear(textarea);
+    await ui.type(textarea, 'Updated prompt');
+    await ui.click(screen.getByRole('button', { name: /Save queue task/i }));
+
+    await waitFor(() => expect(api.updateQueuedTaskContent).toHaveBeenCalledWith('t_edit', 'Updated prompt'));
   });
 });

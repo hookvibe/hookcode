@@ -1,0 +1,33 @@
+# Compose project name:
+# - Keep dedicated remote workers isolated from the main HookCode stack so operators can place them on separate hosts. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+name: ${HOOKCODE_REMOTE_WORKER_PROJECT_NAME:-hookcode-remote-worker}
+
+services:
+  worker:
+    # Deploy a standalone worker host that only needs backend reachability plus persistent HOOKCODE_WORK_DIR storage. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    build:
+      context: ..
+      dockerfile: worker/Dockerfile
+      args:
+        PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR:-}
+    environment:
+      # Keep remote worker runtime state under one explicit container path so runtime installs and sticky workspaces survive restarts. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      HOOKCODE_WORK_DIR: ${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
+      HOOKCODE_BACKEND_URL: ${HOOKCODE_BACKEND_URL}
+      HOOKCODE_WORKER_ID: ${HOOKCODE_WORKER_ID}
+      HOOKCODE_WORKER_TOKEN: ${HOOKCODE_WORKER_TOKEN}
+      HOOKCODE_WORKER_NAME: ${HOOKCODE_WORKER_NAME:-Dedicated Remote Worker}
+      HOOKCODE_WORKER_KIND: ${HOOKCODE_WORKER_KIND:-remote}
+      HOOKCODE_WORKER_PREVIEW: ${HOOKCODE_WORKER_PREVIEW:-0}
+      HOOKCODE_WORKER_MAX_CONCURRENCY: ${HOOKCODE_WORKER_MAX_CONCURRENCY:-1}
+    volumes:
+      # Persist worker runtime installs and sticky workspaces beneath HOOKCODE_WORK_DIR for dedicated remote hosts. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      - worker_work_dir:${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    # Run the packaged worker entrypoint so remote machines can connect without the backend container. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    command: ["node", "/app/dist/main.js"]
+
+volumes:
+  worker_work_dir: {}

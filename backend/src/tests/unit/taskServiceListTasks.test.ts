@@ -154,7 +154,8 @@ describe('taskService.listTasks', () => {
     expect(db.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
-  test('INLINE_WORKER_ENABLED=false 且 processing=0 时 queued diagnosis 的 reasonCode=inline_worker_disabled', async () => {
+  test('processing=0 still reports no_active_worker after inline-worker removal', async () => {
+    // Keep queue diagnostics aligned with the external worker model after removing inline-worker-specific reason codes. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     const prevInlineWorkerEnabled = process.env.INLINE_WORKER_ENABLED;
     process.env.INLINE_WORKER_ENABLED = 'false';
 
@@ -187,7 +188,7 @@ describe('taskService.listTasks', () => {
     const tasks = await taskService.listTasks({ status: 'queued', includeMeta: true, limit: 10 });
 
     expect(tasks).toHaveLength(1);
-    expect(tasks[0].queue?.reasonCode).toBe('inline_worker_disabled');
+    expect(tasks[0].queue?.reasonCode).toBe('no_active_worker');
 
     if (prevInlineWorkerEnabled === undefined) delete process.env.INLINE_WORKER_ENABLED;
     else process.env.INLINE_WORKER_ENABLED = prevInlineWorkerEnabled;
@@ -197,7 +198,7 @@ describe('taskService.listTasks', () => {
     (db.task.groupBy as any).mockResolvedValue([
       { status: 'queued', _count: { _all: 2 } },
       { status: 'processing', _count: { _all: 3 } },
-      // Include paused in status aggregation coverage for pause/resume support. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+      // Keep unknown historical statuses in aggregation input to verify the stop-only stats shape ignores them. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
       { status: 'paused', _count: { _all: 4 } },
       { status: 'succeeded', _count: { _all: 10 } },
       { status: 'commented', _count: { _all: 5 } },
@@ -213,12 +214,11 @@ describe('taskService.listTasks', () => {
         where: { archivedAt: null }
       })
     );
-    // Validate paused counts appear in aggregated stats for pause/resume UI. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
+    // Validate task stats only expose the active stop-only lifecycle fields on the dashboard. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     expect(stats).toEqual({
       total: 25,
       queued: 2,
       processing: 3,
-      paused: 4,
       success: 15,
       failed: 1
     });

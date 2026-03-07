@@ -14,6 +14,58 @@ describe('taskService.takeNextQueued', () => {
     jest.clearAllMocks();
   });
 
+  test('publishes a task-group refresh when a queued task is claimed as processing', async () => {
+    // Push the queued->processing transition so freshly-created task-group pages do not wait for a manual refresh. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    const now = new Date('2026-03-06T00:00:00.000Z');
+    const queuedRow = {
+      id: 't1',
+      group_id: 'g1',
+      event_type: 'chat',
+      status: 'queued',
+      archived_at: null,
+      payload_json: {},
+      prompt_custom: null,
+      title: null,
+      project_id: null,
+      repo_provider: null,
+      repo_id: 'r1',
+      robot_id: null,
+      actor_user_id: 'u1',
+      ref: null,
+      mr_id: null,
+      issue_id: null,
+      retries: 0,
+      result_json: null,
+      dependency_result: null,
+      created_at: now,
+      updated_at: now
+    };
+    const processingRow = { ...queuedRow, status: 'processing' };
+
+    (db.$queryRaw as jest.Mock)
+      .mockResolvedValueOnce([queuedRow])
+      .mockResolvedValueOnce([processingRow]);
+
+    const eventStream = { publish: jest.fn() };
+    const logWriter = { logSystem: jest.fn().mockResolvedValue(undefined) };
+    const notificationRecipients = {
+      resolveRecipientsForTask: jest.fn().mockResolvedValue(['u1'])
+    };
+
+    const taskService = new TaskService(eventStream as any, logWriter as any, notificationRecipients as any);
+    const claimed = await taskService.takeNextQueued();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(claimed?.status).toBe('processing');
+    expect(eventStream.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: 'task-group:g1',
+        event: 'task-group.refresh',
+        data: expect.objectContaining({ taskId: 't1', status: 'processing', reason: 'status' })
+      })
+    );
+  });
+
   test('skips candidates that conflict with active task-group processing and claims the next available task', async () => {
     const now = new Date('2026-02-27T00:00:00.000Z');
     const task1 = {

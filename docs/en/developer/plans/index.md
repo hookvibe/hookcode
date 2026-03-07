@@ -12,6 +12,7 @@ Planning sessions capture decisions, research, and progress for complex tasks. E
 
 | Session | Title | Task Plan | Findings | Progress |
 | --- | --- | --- | --- | --- |
+| `jmdhqw70p9m32onz45v5` | Task Plan: Repo list creator + pull method UX + repo detail tasks | [task_plan](./jmdhqw70p9m32onz45v5/task_plan) | [findings](./jmdhqw70p9m32onz45v5/findings) | [progress](./jmdhqw70p9m32onz45v5/progress) |
 | `0lldjnbw5qxdhw4wwftz` | Task Plan: Enforce planning-with-files in AGENTS.md | [task_plan](./0lldjnbw5qxdhw4wwftz/task_plan) | [findings](./0lldjnbw5qxdhw4wwftz/findings) | [progress](./0lldjnbw5qxdhw4wwftz/progress) |
 | `0nazpc53wnvljv5yh7c6` | Task Plan: Fix Live logs 404 in CI | [task_plan](./0nazpc53wnvljv5yh7c6/task_plan) | [findings](./0nazpc53wnvljv5yh7c6/findings) | [progress](./0nazpc53wnvljv5yh7c6/progress) |
 | `1vm5eh8mg4zuc2m3wiy8` | Task Plan: Preview layout + composer actions + preview indicator + auto-stop | [task_plan](./1vm5eh8mg4zuc2m3wiy8/task_plan) | [findings](./1vm5eh8mg4zuc2m3wiy8/findings) | [progress](./1vm5eh8mg4zuc2m3wiy8/progress) |
@@ -34,6 +35,7 @@ Planning sessions capture decisions, research, and progress for complex tasks. E
 | `b7x1k3m9p2r5t8n0q6s4` | Task Plan: Remove branches filter for issue triggers | [task_plan](./b7x1k3m9p2r5t8n0q6s4/task_plan) | [findings](./b7x1k3m9p2r5t8n0q6s4/findings) | [progress](./b7x1k3m9p2r5t8n0q6s4/progress) |
 | `b8fucnmey62u0muyn7i0` | Task Plan: Dynamic models by credential | [task_plan](./b8fucnmey62u0muyn7i0/task_plan) | [findings](./b8fucnmey62u0muyn7i0/findings) | [progress](./b8fucnmey62u0muyn7i0/progress) |
 | `c3ytvybx46880dhfqk7t` | Task Plan: Optimize task-group structured log UI | [task_plan](./c3ytvybx46880dhfqk7t/task_plan) | [findings](./c3ytvybx46880dhfqk7t/findings) | [progress](./c3ytvybx46880dhfqk7t/progress) |
+| `chat-message-status-20260305` | Task Plan: Hide non-error message status label | [task_plan](./chat-message-status-20260305/task_plan) | [findings](./chat-message-status-20260305/findings) | [progress](./chat-message-status-20260305/progress) |
 | `cierrtasklogs20260124` | Task Plan: Diagnose CI failures: node-pty build + TasksController DI | [task_plan](./cierrtasklogs20260124/task_plan) | [findings](./cierrtasklogs20260124/findings) | [progress](./cierrtasklogs20260124/progress) |
 | `claude-skills-audit-20260227` | Task Plan: Claude skills compatibility audit and fixes | [task_plan](./claude-skills-audit-20260227/task_plan) | [findings](./claude-skills-audit-20260227/findings) | [progress](./claude-skills-audit-20260227/progress) |
 | `claudecode-log-display20260123` | Task Plan: Adapt Claude Code log display page to structured log format | [task_plan](./claudecode-log-display20260123/task_plan) | [findings](./claudecode-log-display20260123/findings) | [progress](./claudecode-log-display20260123/progress) |
@@ -140,6 +142,7 @@ Planning sessions capture decisions, research, and progress for complex tasks. E
 | `u55e45ffi8jng44erdzp` | Task Plan: repo-details-dashboard | [task_plan](./u55e45ffi8jng44erdzp/task_plan) | [findings](./u55e45ffi8jng44erdzp/findings) | [progress](./u55e45ffi8jng44erdzp/progress) |
 | `ue5f7ky5wnpsopa2ak8w` | Task Plan: preview highlight logic review | [task_plan](./ue5f7ky5wnpsopa2ak8w/task_plan) | [findings](./ue5f7ky5wnpsopa2ak8w/findings) | [progress](./ue5f7ky5wnpsopa2ak8w/progress) |
 | `ui-modernize-20260301` | Task Plan: Modernize Frontend Visual Design System | [task_plan](./ui-modernize-20260301/task_plan) | [findings](./ui-modernize-20260301/findings) | [progress](./ui-modernize-20260301/progress) |
+| `robotform-i18n-fix-20260302` | Task Plan: Fix robot form i18n keys and prompt section copy | [task_plan](./robotform-i18n-fix-20260302/task_plan) | [findings](./robotform-i18n-fix-20260302/findings) | [progress](./robotform-i18n-fix-20260302/progress) |
 | `uiuxflat20260203` | Task Plan: Refactor UI to flat neutral palette | [task_plan](./uiuxflat20260203/task_plan) | [findings](./uiuxflat20260203/findings) | [progress](./uiuxflat20260203/progress) |
 | `ujmczqa7zhw9pjaitfdj` | Task Plan: robot write permission change tracking mechanism design | [task_plan](./ujmczqa7zhw9pjaitfdj/task_plan) | [findings](./ujmczqa7zhw9pjaitfdj/findings) | [progress](./ujmczqa7zhw9pjaitfdj/progress) |
 | `user-panel-page-20260301` | Task Plan: Convert user panel popover to standalone page | [task_plan](./user-panel-page-20260301/task_plan) | [findings](./user-panel-page-20260301/findings) | [progress](./user-panel-page-20260301/progress) |

@@ -283,6 +283,8 @@ const ExecutionTimelineItem: FC<{
   const role = buildRoleLabel(item);
   const kind = buildKindLabel(item);
   const bubbleClass = `chat-bubble chat-bubble--${item.kind === 'agent_message' ? 'message' : 'action'} kind-${item.kind} is-${status.tone}`;
+  // Only surface status badges when the item has failed; successful/neutral outcomes add noise in the chat stream. docs/en/developer/plans/chat-message-status-20260305/task_plan.md chat-message-status-20260305
+  const showStatusBadge = status.tone === 'failed';
 
   // Determine if we should show the summary line in the body.
   // Reasoning and File Changes have their content fully in the WorkArea/Details, so we hide the summary to avoid duplication.
@@ -303,7 +305,7 @@ const ExecutionTimelineItem: FC<{
          <div className="chat-bubble__header">
             <span className="chat-bubble__role">{role}</span>
             <span className="chat-bubble__kind">{kind}</span>
-            <span className={`chat-bubble__status is-${status.tone}`}>{status.label}</span>
+            {showStatusBadge ? <span className={`chat-bubble__status is-${status.tone}`}>{status.label}</span> : null}
          </div>
          
          {/* Main Content Line */}

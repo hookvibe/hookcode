@@ -19,7 +19,7 @@
   padding: 18px 0 24px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 0;
   /* Align timeline width with composer for visual consistency. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
   max-width: 800px;
   margin: 0 auto;
@@ -47,6 +47,14 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Add visual separation between task items for better readability. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.hc-chat-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 /* Animate newly sent chat items as they settle into the timeline. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123 */
@@ -83,6 +91,7 @@
 
 .hc-chat-item__assistant_margin {
   margin-top: 10px;
+  flex-direction: column;
 }
 
 .hc-chat-bubble {
@@ -107,19 +116,183 @@
 }
 
 .hc-chat-task-card {
-  /* Improve task card visual hierarchy and prominence in chat timeline. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
-  width: min(720px, 100%);
-  background: var(--hc-surface);
-  border: 2px solid var(--hc-border);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.2s ease;
+  /* Modernize task cards with layered surfaces and richer information density for task-group triage. docs/en/developer/plans/task-group-card-modernize-20260306/task_plan.md task-group-card-modernize-20260306 */
+  width: min(760px, 100%);
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  background: linear-gradient(145deg, var(--hc-surface) 0%, color-mix(in srgb, var(--hc-surface) 75%, #ffffff) 100%);
+  box-shadow: var(--hc-shadow-sm);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 0.2s ease, box-shadow 0.25s ease, transform 0.2s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.hc-chat-task-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--hc-accent-soft) 90%, transparent) 0%, transparent 52%),
+    radial-gradient(circle at bottom left, color-mix(in srgb, var(--hc-accent-soft) 65%, transparent) 0%, transparent 48%);
+  pointer-events: none;
+}
+
+.hc-chat-task-card .ant-card-body {
+  position: relative;
+  z-index: 1;
 }
 
 .hc-chat-task-card:hover {
-  border-color: rgba(24, 144, 255, 0.4);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
+  border-color: var(--hc-accent-border);
+  box-shadow: var(--hc-shadow-md);
+  transform: translateY(-1px);
+}
+
+.hc-chat-task-card__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hc-chat-task-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hc-chat-task-card__title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hc-chat-task-card__title {
+  display: block;
+  font-size: 15px;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+
+.hc-chat-task-card__chips .ant-tag {
+  margin-inline-end: 0;
+}
+
+.hc-chat-task-card__open-btn {
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding-inline: 8px;
+}
+
+.hc-chat-task-card__open-btn:hover {
+  background: var(--hc-accent-soft);
+  color: var(--text);
+}
+
+.hc-chat-task-card__identity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-surface) 65%, transparent);
+}
+
+.hc-chat-task-card__identity-label {
+  font-size: 12px;
+}
+
+.hc-chat-task-card__identity-value {
+  font-size: 12px;
+  max-width: 100%;
+  word-break: break-all;
+}
+
+.hc-chat-task-card__identity-marker {
+  font-size: 12px;
+}
+
+.hc-chat-task-card__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hc-chat-task-card__meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-surface) 85%, transparent);
+}
+
+.hc-chat-task-card__meta-label {
+  font-size: 11px;
+}
+
+.hc-chat-task-card__meta-value {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hc-chat-task-card__queue-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-accent-soft);
+}
+
+.hc-chat-task-card__queue-hint .anticon {
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
+
+.hc-chat-task-card__token-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-surface) 80%, transparent);
+}
+
+.hc-chat-task-card__token-value {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .hc-chat-task-card {
+    width: 100%;
+  }
+
+  .hc-chat-task-card__header {
+    flex-direction: column;
+  }
+
+  .hc-chat-task-card__open-btn {
+    align-self: flex-start;
+    padding-inline: 0;
+  }
+
+  .hc-chat-task-card__meta-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .hc-chat-logs-card {
@@ -151,11 +324,82 @@
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
-/* Enhance git status card design in chat timeline for better visual hierarchy. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
+/* Center expanded git status cards inside task cards so compact details stay visually balanced in the workspace. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
 .hc-chat-git-status {
   width: min(960px, 100%);
+  margin-inline: auto;
   border: 2px solid var(--hc-border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+/* Provide a compact summary row so chat git status cards stay small until users expand details. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303 */
+.hc-chat-git-status-summary {
+  width: 100%;
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+  background: var(--hc-surface);
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px 12px;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hc-chat-git-status-summary:hover {
+  border-color: rgba(24, 144, 255, 0.35);
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.12);
+}
+
+.hc-chat-git-status-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hc-chat-git-status-summary__label {
+  font-size: 11px;
+  color: var(--hc-text-secondary);
+}
+
+.hc-chat-git-status-summary__value {
+  font-size: 13px;
+  color: var(--hc-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hc-chat-git-status-summary__action {
+  justify-self: end;
+  font-size: 12px;
+  color: var(--hc-text-secondary);
+}
+
+/* Style the log expand/collapse toggle button for better visibility. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */
+.hc-chat-logs-toggle {
+  width: 100%;
+  text-align: left;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.hc-chat-logs-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Add visual container around expanded logs for better visual separation. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */
+.hc-chat-logs-container {
+  margin-top: 6px;
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
 }
 /* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */
 
@@ -163,7 +407,11 @@
 @media (max-width: 768px) {
   .hc-chat-timeline {
     padding: 12px 0 16px;
-    gap: 14px;
+    gap: 0;
+  }
+
+  .hc-chat-item {
+    padding-bottom: 14px;
   }
 
   .hc-chat-composer {

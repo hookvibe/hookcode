@@ -7,6 +7,7 @@ jest.mock('../../db', () => ({
       findMany: jest.fn(),
       findUnique: jest.fn(),
       groupBy: jest.fn(),
+      aggregate: jest.fn(),
       deleteMany: jest.fn()
     },
     taskGroup: {
@@ -32,6 +33,8 @@ const taskService = new TaskService();
 describe('task group binding', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Provide a default max group order so queue-order allocation can run inside binding tests. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+    (db.task.aggregate as any).mockResolvedValue({ _max: { groupOrder: null } });
   });
 
   test('createTask: issue binds to a stable TaskGroup via bindingKey', async () => {

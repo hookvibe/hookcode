@@ -54,6 +54,8 @@ HookCode 是一个通过对话和 Webhook 优雅触发 CLI 编码助手的智能
 
 使用 Docker Compose 一次启动 **数据库 + backend + worker + frontend**。
 
+<!-- Document Docker work-root and named-volume behavior so deployment docs stay aligned with HOOKCODE_WORK_DIR. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
+
 ### 1）准备环境变量文件
 
 ```bash
@@ -64,11 +66,24 @@ cp docker/.env.example docker/.env
 - `AUTH_TOKEN_SECRET`
 - `AUTH_ADMIN_USERNAME`
 - `AUTH_ADMIN_PASSWORD`
+- 如需修改容器内工作根目录，再调整 `HOOKCODE_WORK_DIR`（必须保持绝对路径，例如 `/var/lib/hookcode`）
+- 如不想继续使用示例 bundled worker token，请修改 `HOOKCODE_SYSTEM_WORKER_TOKEN`
 
 ### 2）构建并启动全部服务
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d --build
+```
+
+如果希望 backend 仅等待独立部署的远程 worker，请只启动 `db backend frontend`，不要带上同 Compose 的 `worker` 服务。
+
+<!-- Add the dedicated remote-worker Docker entrypoint so operators can split backend and executor hosts with repo-provided files. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
+
+如果要在另一台机器单独部署 worker：
+
+```bash
+cp docker/.env.remote-worker.example docker/.env.remote-worker
+docker compose --env-file docker/.env.remote-worker -f docker/docker-compose.remote-worker.yml up -d --build
 ```
 
 ### 3）查看运行状态和日志
@@ -107,7 +122,7 @@ docker compose -f docker/docker-compose.yml up -d --build frontend
 docker compose -f docker/docker-compose.yml down
 ```
 
-停止并删除容器 + 数据库卷：
+停止并删除容器 + 数据库/工作目录卷：
 
 ```bash
 docker compose -f docker/docker-compose.yml down -v
@@ -128,11 +143,15 @@ docker compose -f docker/docker-compose.yml down -v
 ### Docker 配置说明
 
 - Docker 相关资源在 `docker/` 目录：
-  - Compose 文件：`docker/docker-compose.yml`
+  - 主栈 Compose 文件：`docker/docker-compose.yml`
+  - 独立远程 worker Compose 文件：`docker/docker-compose.remote-worker.yml`
   - Nginx 反向代理配置：`docker/nginx/frontend.conf`
-  - 共享环境变量文件：`docker/.env`
+  - 主栈环境变量文件：`docker/.env`
+  - 独立远程 worker 环境变量文件：`docker/.env.remote-worker`
 - 端口覆盖：`HOOKCODE_FRONTEND_PORT`、`HOOKCODE_BACKEND_PORT`、`HOOKCODE_DB_PORT`
 - 数据库凭据：`DB_USER`、`DB_PASSWORD`、`DB_NAME`
+- 运行时存储：`HOOKCODE_WORK_DIR`（Docker Compose 会把 backend/worker 各自的命名卷挂到这个容器内绝对路径）
+- 默认 Docker worker 模式：backend 以 `HOOKCODE_SYSTEM_WORKER_MODE=external` 启动，同 Compose 的 `worker` 服务默认复用同一组 `HOOKCODE_SYSTEM_WORKER_*` 凭据
 - Cloudflare 单端口路由：
   - 保持 `VITE_API_BASE_URL=/api`
   - 通过 `https://<你的域名>/api/...` 访问 API（不要用 `:8000`）

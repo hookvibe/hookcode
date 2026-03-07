@@ -2,6 +2,13 @@ import { describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { App as AntdApp } from 'antd';
 import { TaskLogViewer } from '../components/TaskLogViewer';
+import { fetchTaskLogsPage } from '../api';
+
+// Mock the log pagination API to verify "load earlier" behavior. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+vi.mock('../api', async () => {
+  const actual = await vi.importActual<any>('../api');
+  return { ...actual, fetchTaskLogsPage: vi.fn() };
+});
 
 describe('TaskLogViewer auto-scroll', () => {
   test('keeps the nearest scroll container pinned to bottom on new logs', async () => {
@@ -33,7 +40,8 @@ describe('TaskLogViewer auto-scroll', () => {
       scroller.dispatchEvent(new Event('scroll'));
 
       const es = (globalThis as any).__eventSourceInstances[0];
-      es.emit('init', { data: JSON.stringify({ logs: ['line 1', 'line 2', 'line 3'] }) });
+      // Emit init payload with sequence metadata for paged task logs. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+      es.emit('init', { data: JSON.stringify({ logs: ['line 1', 'line 2', 'line 3'], startSeq: 1, endSeq: 3 }) });
 
       await waitFor(() => expect(scroller.scrollTop).toBe(400));
     } finally {
@@ -57,6 +65,7 @@ describe('TaskLogViewer reasoning visibility', () => {
     await waitFor(() => expect((globalThis as any).__eventSourceInstances?.length ?? 0).toBe(1));
 
     const es = (globalThis as any).__eventSourceInstances[0];
+    // Provide seq metadata so log viewer can track paging state. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     es.emit('init', {
       data: JSON.stringify({
         logs: [
@@ -64,11 +73,45 @@ describe('TaskLogViewer reasoning visibility', () => {
             type: 'item.completed',
             item: { id: 'r1', type: 'reasoning', text: 'why this matters' }
           })
-        ]
+        ],
+        startSeq: 1,
+        endSeq: 1
       })
     });
 
     const matches = await screen.findAllByText('why this matters');
     expect(matches.length).toBeGreaterThan(0);
+  });
+});
+
+describe('TaskLogViewer pagination', () => {
+  test('requests earlier log pages when available', async () => {
+    // Stub paged log response for the "load earlier" action. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    vi.mocked(fetchTaskLogsPage).mockResolvedValue({
+      logs: ['older line'],
+      startSeq: 1,
+      endSeq: 1,
+      nextBefore: null
+    });
+
+    render(
+      <AntdApp>
+        <TaskLogViewer taskId="t_paged" tail={2} />
+      </AntdApp>
+    );
+
+    await waitFor(() => expect((globalThis as any).__eventSourceInstances?.length ?? 0).toBe(1));
+
+    const es = (globalThis as any).__eventSourceInstances[0];
+    es.emit('init', {
+      data: JSON.stringify({ logs: ['newer line'], startSeq: 2, endSeq: 2, nextBefore: 2 })
+    });
+
+    const button = await screen.findByRole('button', { name: /加载更早|Load earlier/i }); // Match i18n label for load-earlier control. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    button.click();
+
+    await waitFor(() =>
+      expect(fetchTaskLogsPage).toHaveBeenCalledWith('t_paged', { before: 2, limit: 2 })
+    );
   });
 });

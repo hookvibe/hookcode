@@ -2,50 +2,9 @@ export {};
 
 jest.useFakeTimers();
 
-jest.mock('../../agent/agent', () => {
-  class AgentExecutionError extends Error {
-    logs: string[];
-    logsSeq: number;
-    providerCommentUrl?: string;
-    // Expose abort markers for pause/resume TaskRunner coverage. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-    aborted?: boolean;
-    // Mirror AgentExecutionError shape to include git status payloads. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-    gitStatus?: unknown;
-    constructor(
-      message: string,
-      params: {
-        logs: string[];
-        logsSeq: number;
-        providerCommentUrl?: string;
-        gitStatus?: unknown;
-        cause?: unknown;
-        aborted?: boolean;
-      }
-    ) {
-      super(message);
-      this.name = 'AgentExecutionError';
-      this.logs = params.logs;
-      this.logsSeq = params.logsSeq;
-      this.providerCommentUrl = params.providerCommentUrl;
-      // Keep abort flag aligned with pause/resume error handling. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-      this.aborted = params.aborted;
-      this.gitStatus = params.gitStatus;
-      if (params.cause !== undefined) {
-        (this as any).cause = params.cause;
-      }
-    }
-  }
-
-  return {
-    __esModule: true,
-    AgentExecutionError
-  };
-});
-
-import { AgentExecutionError } from '../../agent/agent';
 import { TaskRunner } from '../../modules/tasks/task-runner.service';
 
-describe('TaskRunner (finalization + DB write retry)', () => {
+describe('TaskRunner (worker dispatch + finalization)', () => {
   const createLogWriter = () => ({
     logExecution: jest.fn().mockResolvedValue(undefined),
     logOperation: jest.fn().mockResolvedValue(undefined),
@@ -60,119 +19,177 @@ describe('TaskRunner (finalization + DB write retry)', () => {
     resolveRecipientsForTask: jest.fn().mockResolvedValue([])
   }); // Provide recipient stubs for TaskRunner tests. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
 
+  const createTaskLogsService = () => ({
+    // Stub task log storage for pre-run log resets. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    clearLogs: jest.fn().mockResolvedValue(0)
+  });
+
+  const createWorkersConnectionService = () => ({
+    // Keep TaskRunner tests focused on the external executor contract by stubbing worker socket dispatches. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    hasConnection: jest.fn().mockReturnValue(true),
+    sendAssignTask: jest.fn().mockReturnValue(true),
+    sendCancelTask: jest.fn().mockReturnValue(true)
+  });
+
+  const createWorkersService = () => ({
+    // Provide worker-slot bookkeeping stubs so TaskRunner tests stay isolated from registry persistence. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    reserveWorkerSlot: jest.fn().mockResolvedValue(undefined),
+    releaseWorkerSlot: jest.fn().mockResolvedValue(undefined)
+  });
+
+  const createTask = (id: string, overrides: Record<string, unknown> = {}) => ({
+    // Keep task fixtures aligned with the worker-bound execution model by assigning a worker id in every test. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    id,
+    title: `Task ${id}`,
+    workerId: 'worker-local',
+    eventType: 'commit',
+    status: 'processing',
+    payload: {},
+    retries: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides
+  }) as any;
+
+  const createRunner = (params?: {
+    taskService?: any;
+    taskLogsService?: any;
+    logWriter?: any;
+    notificationsService?: any;
+    notificationRecipients?: any;
+    workersConnections?: any;
+    workersService?: any;
+  }) => {
+    const taskService = params?.taskService ?? {};
+    const taskLogsService = params?.taskLogsService ?? createTaskLogsService();
+    const logWriter = params?.logWriter ?? createLogWriter();
+    const notificationsService = params?.notificationsService ?? createNotificationsService();
+    const notificationRecipients = params?.notificationRecipients ?? createNotificationRecipients();
+    const workersConnections = params?.workersConnections ?? createWorkersConnectionService();
+    const workersService = params?.workersService ?? createWorkersService();
+    const runner = new TaskRunner(
+      taskService as any,
+      taskLogsService as any,
+      {} as any,
+      logWriter as any,
+      notificationsService as any,
+      notificationRecipients as any,
+      workersConnections as any,
+      workersService as any
+    );
+    return {
+      runner,
+      taskService,
+      taskLogsService,
+      logWriter,
+      notificationsService,
+      notificationRecipients,
+      workersConnections,
+      workersService
+    };
+  };
+
   beforeEach(() => {
     jest.restoreAllMocks();
     jest.spyOn(console, 'error').mockImplementation(() => {});
     jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
-  test('retries patchResult with backoff when the first DB write fails (failed task)', async () => {
-    const task = {
-      id: 't1',
-      eventType: 'commit',
-      status: 'processing',
-      payload: {},
-      retries: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    } as any;
-
-    const agentService = {
-      callAgent: jest.fn().mockRejectedValueOnce(new AgentExecutionError('boom', { logs: ['l1'], logsSeq: 0, cause: new Error('boom') }))
+  test('dispatches a queued task to its assigned worker and reserves the worker slot', async () => {
+    const task = createTask('t1', { status: 'queued' });
+    const taskService = {
+      takeNextQueued: jest.fn().mockResolvedValueOnce(task).mockResolvedValueOnce(undefined),
+      patchResult: jest.fn().mockResolvedValue({ ...task, status: 'processing' } as any)
     };
+    const taskLogsService = createTaskLogsService();
+    const workersConnections = createWorkersConnectionService();
+    const workersService = createWorkersService();
+    const { runner } = createRunner({ taskService, taskLogsService, workersConnections, workersService });
 
+    await runner.trigger();
+
+    expect(taskLogsService.clearLogs).toHaveBeenCalledWith('t1');
+    expect(taskService.patchResult).toHaveBeenCalledWith(
+      't1',
+      expect.objectContaining({ outputText: '' })
+    );
+    expect(workersService.reserveWorkerSlot).toHaveBeenCalledWith('worker-local');
+    expect(workersConnections.sendAssignTask).toHaveBeenCalledWith('worker-local', 't1');
+    expect(workersService.releaseWorkerSlot).not.toHaveBeenCalled();
+  });
+
+  test('marks the task failed when its assigned worker is disconnected', async () => {
+    const task = createTask('t-disconnected', { status: 'queued' });
     const taskService = {
       takeNextQueued: jest.fn().mockResolvedValueOnce(task).mockResolvedValueOnce(undefined),
       patchResult: jest
         .fn()
-        .mockResolvedValueOnce({ ...task, status: 'processing' } as any) // pre-run outputText reset
-        .mockRejectedValueOnce(new Error('db down'))
+        .mockResolvedValueOnce({ ...task, status: 'processing' } as any)
         .mockResolvedValueOnce({ ...task, status: 'failed' } as any)
     };
+    const workersConnections = { ...createWorkersConnectionService(), sendAssignTask: jest.fn().mockReturnValue(false) };
+    const workersService = createWorkersService();
+    const { runner } = createRunner({ taskService, workersConnections, workersService });
 
-    const taskRunner = new TaskRunner(
-      taskService as any,
-      agentService as any,
-      createLogWriter() as any,
-      createNotificationsService() as any,
-      createNotificationRecipients() as any
-    );
+    await runner.trigger();
 
-    const promise = taskRunner.trigger();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    await jest.advanceTimersByTimeAsync(1000);
-    await promise;
-
-    expect(taskService.takeNextQueued).toHaveBeenCalled();
-    expect(taskService.patchResult).toHaveBeenCalledTimes(3);
+    expect(workersService.reserveWorkerSlot).toHaveBeenCalledWith('worker-local');
+    expect(workersService.releaseWorkerSlot).toHaveBeenCalledWith('worker-local');
     expect(taskService.patchResult).toHaveBeenLastCalledWith(
-      't1',
-      expect.objectContaining({ logs: ['l1'], message: 'boom' }),
+      't-disconnected',
+      expect.objectContaining({ message: 'Assigned worker is not connected' }),
       'failed'
     );
   });
 
-  test('writes logs once and marks succeeded (successful task)', async () => {
-    const task = {
-      id: 't2',
-      eventType: 'commit',
-      status: 'processing',
-      payload: {},
-      retries: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    } as any;
-
-    const agentService = {
-      callAgent: jest.fn().mockResolvedValueOnce({ logs: ['ok'], outputText: 'OUT' })
-    };
-
+  test('retries patchResult with backoff when reportWorkerFailure cannot persist on the first attempt', async () => {
+    const task = createTask('t-fail');
     const taskService = {
-      takeNextQueued: jest.fn().mockResolvedValueOnce(task).mockResolvedValueOnce(undefined),
       patchResult: jest
         .fn()
-        .mockResolvedValueOnce({ ...task, status: 'processing' } as any) // pre-run outputText reset
-        .mockResolvedValueOnce({ ...task, status: 'succeeded' } as any)
+        .mockRejectedValueOnce(new Error('db down'))
+        .mockResolvedValueOnce({ ...task, status: 'failed' } as any)
     };
+    const workersService = createWorkersService();
+    const { runner } = createRunner({ taskService, workersService });
 
-    const taskRunner = new TaskRunner(
-      taskService as any,
-      agentService as any,
-      createLogWriter() as any,
-      createNotificationsService() as any,
-      createNotificationRecipients() as any
-    );
-
-    await taskRunner.trigger();
+    const promise = runner.reportWorkerFailure(task, { message: 'boom' });
+    await Promise.resolve();
+    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(1000);
+    await promise;
 
     expect(taskService.patchResult).toHaveBeenCalledTimes(2);
-    // Allow extra result fields (e.g., gitStatus) without breaking this regression test. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
     expect(taskService.patchResult).toHaveBeenLastCalledWith(
-      't2',
-      expect.objectContaining({ logs: ['ok'], outputText: 'OUT' }),
-      'succeeded'
+      't-fail',
+      expect.objectContaining({ message: 'boom' }),
+      'failed'
     );
+    expect(workersService.releaseWorkerSlot).toHaveBeenCalledWith('worker-local');
   });
 
-  test('calls hooks on start and finish (success)', async () => {
-    const events: string[] = [];
-
-    const task = {
-      id: 't3',
-      eventType: 'commit',
-      status: 'processing',
-      payload: {},
-      retries: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    } as any;
-
-    const agentService = {
-      callAgent: jest.fn().mockResolvedValueOnce({ logs: ['ok'], outputText: 'OUT' })
+  test('writes outputText once and marks succeeded when the worker reports success', async () => {
+    const task = createTask('t-success');
+    const taskService = {
+      patchResult: jest.fn().mockResolvedValueOnce({ ...task, status: 'succeeded' } as any)
     };
+    const workersService = createWorkersService();
+    const { runner } = createRunner({ taskService, workersService });
 
+    await runner.reportWorkerSuccess(task, { outputText: 'OUT' });
+
+    expect(taskService.patchResult).toHaveBeenCalledTimes(1);
+    expect(taskService.patchResult).toHaveBeenLastCalledWith(
+      't-success',
+      expect.objectContaining({ outputText: 'OUT' }),
+      'succeeded'
+    );
+    expect(workersService.releaseWorkerSlot).toHaveBeenCalledWith('worker-local');
+  });
+
+  test('calls hooks on dispatch start and worker success finish', async () => {
+    const events: string[] = [];
+    const task = createTask('t-hooks', { status: 'queued' });
     const taskService = {
       takeNextQueued: jest.fn().mockResolvedValueOnce(task).mockResolvedValueOnce(undefined),
       patchResult: jest
@@ -180,199 +197,109 @@ describe('TaskRunner (finalization + DB write retry)', () => {
         .mockResolvedValueOnce({ ...task, status: 'processing' } as any)
         .mockResolvedValueOnce({ ...task, status: 'succeeded' } as any)
     };
-
-    const taskRunner = new TaskRunner(
-      taskService as any,
-      agentService as any,
-      createLogWriter() as any,
-      createNotificationsService() as any,
-      createNotificationRecipients() as any
-    );
-    taskRunner.setHooks({
-      onTaskStart: (t) => {
-        events.push(`start:${t.id}`);
+    const { runner } = createRunner({ taskService });
+    runner.setHooks({
+      onTaskStart: (nextTask) => {
+        events.push(`start:${nextTask.id}`);
       },
-      onTaskFinish: (t, info) => {
-        events.push(`finish:${t.id}:${info.status}`);
+      onTaskFinish: (nextTask, info) => {
+        events.push(`finish:${nextTask.id}:${info.status}`);
       }
     });
 
-    await taskRunner.trigger();
+    await runner.trigger();
+    await runner.reportWorkerSuccess(task, { durationMs: 12 });
 
-    expect(events).toEqual(['start:t3', 'finish:t3:succeeded']);
+    expect(events).toEqual(['start:t-hooks', 'finish:t-hooks:succeeded']);
   });
 
-  test('starts multiple tasks concurrently when WORKER_CONCURRENCY > 1', async () => {
-    // Validate parallel task execution across groups in TaskRunner. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
-    jest.useRealTimers();
+  test('starts multiple dispatches concurrently when WORKER_CONCURRENCY > 1', async () => {
     const prevConcurrency = process.env.WORKER_CONCURRENCY;
     process.env.WORKER_CONCURRENCY = '2';
+    jest.useRealTimers();
+
+    let resolveFirstPatch: ((value: unknown) => void) | undefined;
+    let resolveSecondPatch: ((value: unknown) => void) | undefined;
 
     try {
-      const task1 = {
-        id: 't-par-1',
-        eventType: 'commit',
-        status: 'processing',
-        payload: {},
-        retries: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      } as any;
-      const task2 = { ...task1, id: 't-par-2' } as any;
-
-      let resolveFirst: ((value: any) => void) | undefined;
-      let resolveSecond: ((value: any) => void) | undefined;
-
-      const agentService = {
-        callAgent: jest
-          .fn()
-          .mockImplementationOnce(
-            () =>
-              new Promise((resolve) => {
-                resolveFirst = resolve;
-              })
-          )
-          .mockImplementationOnce(
-            () =>
-              new Promise((resolve) => {
-                resolveSecond = resolve;
-              })
-          )
-      };
-
+      const task1 = createTask('t-concurrency-1', { status: 'queued' });
+      const task2 = createTask('t-concurrency-2', { status: 'queued' });
       const taskService = {
         takeNextQueued: jest
           .fn()
           .mockResolvedValueOnce(task1)
           .mockResolvedValueOnce(task2)
           .mockResolvedValueOnce(undefined),
-        patchResult: jest.fn().mockResolvedValue({ ...task1, status: 'processing' } as any)
+        patchResult: jest
+          .fn()
+          .mockImplementationOnce(
+            () =>
+              new Promise((resolve) => {
+                resolveFirstPatch = resolve;
+              })
+          )
+          .mockImplementationOnce(
+            () =>
+              new Promise((resolve) => {
+                resolveSecondPatch = resolve;
+              })
+          )
       };
-
-      const taskRunner = new TaskRunner(
-        taskService as any,
-        agentService as any,
-        createLogWriter() as any,
-        createNotificationsService() as any,
-        createNotificationRecipients() as any
-      );
-      const triggerPromise = taskRunner.trigger();
+      const { runner, workersConnections } = createRunner({ taskService, workersConnections: createWorkersConnectionService() });
+      const triggerPromise = runner.trigger();
 
       await new Promise((resolve) => setImmediate(resolve));
       await new Promise((resolve) => setImmediate(resolve));
 
-      expect(agentService.callAgent).toHaveBeenCalledTimes(2);
+      // Assert both dispatches reach the pre-send patch stage before either one resolves, which proves queue concurrency. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      expect(taskService.patchResult).toHaveBeenCalledTimes(2);
+      expect(workersConnections.sendAssignTask).toHaveBeenCalledTimes(0);
 
-      resolveFirst?.({ logs: [], outputText: '' });
-      resolveSecond?.({ logs: [], outputText: '' });
-
+      resolveFirstPatch?.({ ...task1, status: 'processing' });
+      resolveSecondPatch?.({ ...task2, status: 'processing' });
       await triggerPromise;
+
+      expect(workersConnections.sendAssignTask).toHaveBeenCalledTimes(2);
     } finally {
-      if (prevConcurrency === undefined) {
-        delete process.env.WORKER_CONCURRENCY;
-      } else {
-        process.env.WORKER_CONCURRENCY = prevConcurrency;
-      }
+      if (prevConcurrency === undefined) delete process.env.WORKER_CONCURRENCY;
+      else process.env.WORKER_CONCURRENCY = prevConcurrency;
       jest.useFakeTimers();
     }
   });
 
-  test('calls hooks on start and finish (failure)', async () => {
-    const events: string[] = [];
+  test('releases the reserved worker slot after local inline fallback execution', async () => {
+    const task = createTask('t-inline-fallback');
+    const logWriter = createLogWriter();
+    const workersService = createWorkersService();
+    const { runner } = createRunner({ logWriter, workersService });
+    // Keep the inline-fallback test focused on slot release by spying on the shared execution path instead of rerunning agent logic. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    const processTaskSpy = jest.spyOn(runner as any, 'processTask').mockResolvedValue(undefined);
 
-    const task = {
-      id: 't4',
-      eventType: 'commit',
-      status: 'processing',
-      payload: {},
-      retries: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    } as any;
+    await runner.executeAssignedTaskInline(task);
 
-    const agentService = {
-      callAgent: jest.fn().mockRejectedValueOnce(new Error('boom'))
-    };
-
-    const taskService = {
-      takeNextQueued: jest.fn().mockResolvedValueOnce(task).mockResolvedValueOnce(undefined),
-      patchResult: jest
-        .fn()
-        .mockResolvedValueOnce({ ...task, status: 'processing' } as any)
-        .mockResolvedValueOnce({ ...task, status: 'failed' } as any)
-    };
-
-    const taskRunner = new TaskRunner(
-      taskService as any,
-      agentService as any,
-      createLogWriter() as any,
-      createNotificationsService() as any,
-      createNotificationRecipients() as any
+    expect(processTaskSpy).toHaveBeenCalledWith(task);
+    expect(workersService.releaseWorkerSlot).toHaveBeenCalledWith('worker-local');
+    expect(logWriter.logSystem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'WORKER_LOCAL_INLINE_FALLBACK',
+        meta: expect.objectContaining({ taskId: 't-inline-fallback', workerId: 'worker-local' })
+      })
     );
-    taskRunner.setHooks({
-      onTaskStart: (t) => {
-        events.push(`start:${t.id}`);
-      },
-      onTaskFinish: (t, info) => {
-        events.push(`finish:${t.id}:${info.status}:${info.message ?? ''}`);
-      }
-    });
-
-    await taskRunner.trigger();
-
-    expect(events).toEqual(['start:t4', 'finish:t4:failed:boom']);
   });
 
-  // Simulate pause polling to ensure TaskRunner finalizes with paused status. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  test('marks task paused when control polling requests abort', async () => {
-    const task = {
-      id: 't_pause',
-      eventType: 'commit',
-      status: 'processing',
-      payload: {},
-      retries: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    } as any;
-
-    const agentService = {
-      callAgent: jest.fn((_: any, options: { signal?: AbortSignal }) => {
-        // Reject on AbortSignal so the TaskRunner can finalize paused tasks. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-        return new Promise((_, reject) => {
-          const err = new AgentExecutionError('aborted', { logs: [], logsSeq: 0, aborted: true });
-          if (options?.signal?.aborted) {
-            reject(err);
-            return;
-          }
-          options?.signal?.addEventListener('abort', () => reject(err));
-        });
-      })
-    };
-
+  test('marks manual-stop worker reports as failed with the stop message', async () => {
+    const task = createTask('t-stop');
     const taskService = {
-      takeNextQueued: jest.fn().mockResolvedValueOnce(task).mockResolvedValueOnce(undefined),
-      getTaskControlState: jest.fn().mockResolvedValue({ status: 'paused', archivedAt: null }),
-      patchResult: jest.fn().mockResolvedValue({ ...task, status: 'processing' } as any)
+      patchResult: jest.fn().mockResolvedValueOnce({ ...task, status: 'failed' } as any)
     };
+    const { runner } = createRunner({ taskService });
 
-    const taskRunner = new TaskRunner(
-      taskService as any,
-      agentService as any,
-      createLogWriter() as any,
-      createNotificationsService() as any,
-      createNotificationRecipients() as any
-    );
-    const promise = taskRunner.trigger();
+    await runner.reportWorkerFailure(task, { message: 'ignored', stopReason: 'manual_stop' });
 
-    await Promise.resolve();
-    await Promise.resolve();
-    await promise;
-
-    expect(taskService.getTaskControlState).toHaveBeenCalled();
     expect(taskService.patchResult).toHaveBeenLastCalledWith(
-      't_pause',
-      expect.objectContaining({ message: 'Task paused by user.' }),
-      'paused'
+      't-stop',
+      expect.objectContaining({ message: 'Task stopped manually.' }),
+      'failed'
     );
   });
 });

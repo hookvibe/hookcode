@@ -41,6 +41,15 @@ export class ChatExecuteRequestDto {
   taskGroupId?: string;
 
   @IsOptional()
+  @IsString()
+  @ApiPropertyOptional({
+    required: false,
+    description: 'Optional worker id to use when creating a new chat task group.'
+  })
+  // Accept explicit worker overrides for new chat threads while existing groups stay pinned to their original worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId?: string;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => TimeWindowDto)
   @ApiPropertyOptional({

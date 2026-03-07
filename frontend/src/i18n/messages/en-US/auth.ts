@@ -74,13 +74,11 @@ export const enUSAuth = {
   'toast.task.fetchFailed': 'Failed to fetch task',
   'toast.task.deleted': 'Task deleted',
   'toast.task.deleteFailed': 'Failed to delete task',
-  // Pause/resume toasts for task execution control. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
-  'toast.task.pauseSuccess': 'Task paused',
-  'toast.task.pauseFailed': 'Failed to pause task',
-  'toast.task.resumeSuccess': 'Task resumed',
-  'toast.task.resumeFailed': 'Failed to resume task',
   'toast.task.forceRetrySuccess': 'Force retried: task re-queued',
   'toast.task.retrySuccess': 'Task retried',
+  // Add stop-only task control feedback for the task workspace and detail page. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  'toast.task.stopSuccess': 'Task stopped',
+  'toast.task.stopFailed': 'Failed to stop task',
   'toast.task.retryBlockedProcessing': 'Task is still processing; use "Force retry" if you believe it is stuck',
   'toast.task.retryFailedTasksFailed': 'Retry failed. Please try again later.',
   'toast.task.executeNowSuccess': 'Task scheduled to run now',

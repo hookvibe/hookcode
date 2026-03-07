@@ -274,6 +274,8 @@ export const createRepoRobot = async (
     repoWorkflowMode?: 'auto' | 'direct' | 'fork' | null;
     // Optional execution window for robot-level scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
     timeWindow?: TimeWindow | null;
+    // Persist robot-level worker defaults so repo automation can route new tasks explicitly. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    defaultWorkerId?: string | null;
     enabled?: boolean;
     isDefault?: boolean;
   }
@@ -306,6 +308,7 @@ export const updateRepoRobot = async (
     repoWorkflowMode: 'auto' | 'direct' | 'fork' | null;
     // Optional execution window for robot-level scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
     timeWindow: TimeWindow | null;
+    defaultWorkerId: string | null;
     enabled: boolean;
     isDefault: boolean;
   }>
@@ -338,6 +341,24 @@ export const testRepoRobotWorkflow = async (
 ): Promise<{ ok: boolean; mode: 'auto' | 'direct' | 'fork'; robot?: RepoRobot; message?: string }> => {
   const { data } = await api.post<{ ok: boolean; mode: 'auto' | 'direct' | 'fork'; robot?: RepoRobot; message?: string }>(
     `/repos/${repoId}/robots/${robotId}/workflow/test`,
+    params
+  );
+  return data;
+};
+
+// Trigger a workflow check without saving a robot by using the currently selected credentials. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
+export const testRepoWorkflow = async (
+  repoId: string,
+  params?: {
+    mode?: 'auto' | 'direct' | 'fork' | null;
+    repoCredentialSource?: 'robot' | 'user' | 'repo' | null;
+    repoCredentialProfileId?: string | null;
+    token?: string | null;
+    permission?: 'read' | 'write' | null;
+  }
+): Promise<{ ok: boolean; mode: 'auto' | 'direct' | 'fork'; message?: string }> => {
+  const { data } = await api.post<{ ok: boolean; mode: 'auto' | 'direct' | 'fork'; message?: string }>(
+    `/repos/${repoId}/workflow/test`,
     params
   );
   return data;

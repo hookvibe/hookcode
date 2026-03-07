@@ -1,0 +1,8 @@
+{
+  // Keep the worker test compiler aligned with the standalone tsconfig while adding Jest globals. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*.ts"]
+}

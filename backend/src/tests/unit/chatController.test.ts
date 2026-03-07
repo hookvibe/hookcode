@@ -26,20 +26,24 @@ describe('ChatController.execute', () => {
     const repoRobotService: any = {
       getById: jest.fn().mockResolvedValue({ id: 'rb1', repoId: 'r1', name: 'robot', enabled: true, promptDefault: 'PROMPT' })
     };
-    const taskRunner: any = { trigger: jest.fn() };
+    const taskRunner: any = {
+      // Return a promise because ChatController now fire-and-forgets the dispatcher with `.catch(...)`. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      trigger: jest.fn().mockResolvedValue(undefined)
+    };
 
     const controller = new ChatController(taskService, repositoryService, repoRobotService, taskRunner);
 
     const req = { user: { id: 'u1' } } as any; // Provide request user for actor attribution. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
-    const res = await controller.execute(req, { repoId: 'r1', robotId: 'rb1', text: 'hello' } as any);
+    const res = await controller.execute(req, { repoId: 'r1', robotId: 'rb1', text: 'hello', workerId: 'w-local' } as any);
     expect(taskService.createManualTaskGroup).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'chat', repoId: 'r1', robotId: 'rb1' })
+      expect.objectContaining({ kind: 'chat', repoId: 'r1', robotId: 'rb1', workerId: 'w-local' })
     );
     expect(taskService.createTaskInGroup).toHaveBeenCalledWith(
       'g1',
       'chat',
       expect.any(Object),
-      expect.objectContaining({ repoId: 'r1', robotId: 'rb1', title: expect.stringContaining('Chat'), actorUserId: 'u1' }),
+      // Assert chat worker overrides propagate into the created task options for the external worker dispatcher. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      expect.objectContaining({ repoId: 'r1', robotId: 'rb1', workerId: 'w-local', title: expect.stringContaining('Chat'), actorUserId: 'u1' }),
       expect.objectContaining({ updateGroupRobotId: true })
     );
     expect(res).toEqual({ task: { id: 't1' }, taskGroup: { id: 'g1', kind: 'chat', repoId: 'r1' } });
@@ -68,7 +72,10 @@ describe('ChatController.execute', () => {
     const repoRobotService: any = {
       getById: jest.fn().mockResolvedValue({ id: 'rb1', repoId: 'r1', name: 'robot', enabled: true, promptDefault: 'PROMPT' })
     };
-    const taskRunner: any = { trigger: jest.fn() };
+    const taskRunner: any = {
+      // Return a promise because ChatController now fire-and-forgets the dispatcher with `.catch(...)`. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      trigger: jest.fn().mockResolvedValue(undefined)
+    };
 
     const controller = new ChatController(taskService, repositoryService, repoRobotService, taskRunner);
 
