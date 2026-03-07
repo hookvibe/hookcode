@@ -145,6 +145,8 @@
 | Worker create localhost error UX fix | `pnpm --filter hookcode-frontend exec vitest run src/tests/settingsWorkers.test.tsx && pnpm --filter hookcode-frontend build` | Worker creation surfaces backend validation details and blocks whitespace-only names before the POST request | Passed | ✓ |
 | Worker request DTO whitelist fix | `pnpm --filter hookcode-backend test -- --runInBand src/tests/unit/workersRequestDto.test.ts && pnpm --filter hookcode-backend build` | Worker create/update/prepare request bodies survive ValidationPipe whitelist stripping | Passed | ✓ |
 | CI frozen-lockfile repair | `pnpm install --lockfile-only && pnpm install --frozen-lockfile --ignore-scripts` | Workspace install succeeds after syncing `worker/package.json` specs into `pnpm-lock.yaml` | Passed | ✓ |
+<!-- Record the CI timeout validation for the worker executor refactor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
+| CI slow-test stability follow-up | `pnpm --filter hookcode-backend test -- --runInBand src/tests/unit/agentCommandAbort.test.ts src/tests/unit/buildRootResolution.test.ts && pnpm --filter hookcode-backend build` | The two GitHub Actions timeout failures now have explicit per-file Jest headroom while backend compilation still succeeds | Passed | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -159,6 +161,8 @@
 | 2026-03-07 16:48 | The worker-create modal still returned `name is required` after users typed a visible name because the Modal OK handler could submit before the latest input/IME composition state had flushed into the Ant Design form. | 1 | Switched the modal to the repo-standard `createForm.submit()` plus `Form onFinish` flow and kept backend error details visible so typed names now submit reliably. |
 | 2026-03-07 16:56 | `POST /api/workers` still returned `name is required` even with a valid request payload because the backend DTO only had Swagger decorators and Nest whitelist validation stripped all body fields. | 1 | Added `class-validator`/`class-transformer` decorators to the worker request DTOs and locked the behavior with a ValidationPipe unit test. |
 | 2026-03-07 17:10 | GitHub Actions failed at `pnpm install --frozen-lockfile` because `worker/package.json` declared `ts-node` while `pnpm-lock.yaml` still reflected the older worker specifier set. | 1 | Regenerated `pnpm-lock.yaml` from the workspace and rechecked frozen install locally so CI can install before running tests. |
+<!-- Record the CI timeout remediation details for the worker executor refactor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
+| 2026-03-07 20:15 | GitHub Actions backend tests still failed after the lockfile repair because `agentCommandAbort.test.ts` and `buildRootResolution.test.ts` occasionally exceeded Jest's default 5s timeout under CI parallel load. | 1 | Raised only those files' Jest timeouts to 15s, reran the targeted backend tests in-band, and rebuilt the backend to confirm the fix without changing runtime logic. |
 
 ## 5-Question Reboot Check
 | Question | Answer |

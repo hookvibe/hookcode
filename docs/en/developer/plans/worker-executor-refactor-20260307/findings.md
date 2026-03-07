@@ -14,6 +14,8 @@
 - Keep provider CLIs (`codex`, `claude`, `gemini`) out of the worker package and install them on demand.
 
 ## Research Findings
+<!-- Capture the CI timeout root cause so later worker follow-ups keep the fix scoped to test stability. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
+- GitHub Actions can push the `agentCommandAbort` and `buildRootResolution` unit files past Jest's default 5s timeout under parallel load even when the targeted logic passes locally, so the safest fix is to raise only those files' timeouts instead of weakening production abort/build-root behavior.
 - Docker and GitHub Actions configs still relied on implicit defaults for `HOOKCODE_WORK_DIR`, so backend/worker runtime data could fall back to ephemeral container layers unless operators added their own mounts.
 - The Docker Compose worker service still overrode the worker image command with a stale `/repo/...` path even though the packaged worker image now builds under `/app`.
 - The backend Docker image does not ship the `worker/` workspace, so Docker deployments cannot rely on the source-mode local supervisor path and must default to the external worker protocol instead.

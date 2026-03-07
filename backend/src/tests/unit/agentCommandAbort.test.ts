@@ -1,5 +1,8 @@
 import { runCommandCapture, runCommandWithLogs } from '../../agent/agent';
 
+// Extend the per-file Jest timeout so CI CPU contention does not hide abort-regression signals behind the default 5s ceiling. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+jest.setTimeout(15000);
+
 // Verify task stop requests can interrupt long-running shell commands before queued work appears stuck in processing. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 describe('agent shell command aborts', () => {
   test('aborts streaming commands quickly', async () => {

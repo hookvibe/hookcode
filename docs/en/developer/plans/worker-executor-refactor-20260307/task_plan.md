@@ -71,3 +71,5 @@ Phase 5
 - Add configurable system-worker modes so source deployments can keep the local supervisor while Docker/production deployments bootstrap a default external worker from env-backed credentials.
 - Add dedicated `docker/docker-compose.remote-worker.yml` and `docker/.env.remote-worker.example` assets so split-host backend/worker deployments stay reproducible.
 - Add a dedicated user-facing split-host deployment guide for operators running backend and worker machines separately.
+<!-- Record the CI slow-test stabilization note for the worker executor refactor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
+- Raise the per-file Jest timeout for the abort/build-root regression tests so GitHub Actions CPU contention does not report false negatives.

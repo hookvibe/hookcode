@@ -5,6 +5,9 @@ import { mkdtemp, rm } from 'fs/promises';
 import { homedir, tmpdir } from 'os';
 import path from 'path';
 
+// Extend the per-file Jest timeout so repeated agent module reloads remain stable under CI parallel load. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+jest.setTimeout(15000);
+
 describe('BUILD_ROOT resolution', () => {
   test('uses HOOKCODE_BUILD_ROOT when it exists', async () => {
     // Honor explicit build roots to align preview workspaces across runtime modes. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
