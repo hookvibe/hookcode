@@ -144,6 +144,7 @@
 | Split-host deployment docs wiring check | `docker compose --env-file docker/.env.remote-worker.example -f docker/docker-compose.remote-worker.yml config && rg -n "split-host-deployment" docs/docs.json docs/en/user-docs/index.md docs/en/user-docs/workers.md docs/en/user-docs/quickstart.md` | The new deployment guide is navigable and stays aligned with the remote-worker Docker assets | Passed | ✓ |
 | Worker create localhost error UX fix | `pnpm --filter hookcode-frontend exec vitest run src/tests/settingsWorkers.test.tsx && pnpm --filter hookcode-frontend build` | Worker creation surfaces backend validation details and blocks whitespace-only names before the POST request | Passed | ✓ |
 | Worker request DTO whitelist fix | `pnpm --filter hookcode-backend test -- --runInBand src/tests/unit/workersRequestDto.test.ts && pnpm --filter hookcode-backend build` | Worker create/update/prepare request bodies survive ValidationPipe whitelist stripping | Passed | ✓ |
+| CI frozen-lockfile repair | `pnpm install --lockfile-only && pnpm install --frozen-lockfile --ignore-scripts` | Workspace install succeeds after syncing `worker/package.json` specs into `pnpm-lock.yaml` | Passed | ✓ |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -157,6 +158,7 @@
 | 2026-03-07 16:40 | Creating a remote worker on localhost returned `400 Bad Request`, but the settings panel only showed a generic failure toast, making the actual validation problem invisible. | 1 | Surfaced backend `error/message` payloads in the worker panel and trimmed the name field during client-side validation so whitespace-only names are blocked before the request. |
 | 2026-03-07 16:48 | The worker-create modal still returned `name is required` after users typed a visible name because the Modal OK handler could submit before the latest input/IME composition state had flushed into the Ant Design form. | 1 | Switched the modal to the repo-standard `createForm.submit()` plus `Form onFinish` flow and kept backend error details visible so typed names now submit reliably. |
 | 2026-03-07 16:56 | `POST /api/workers` still returned `name is required` even with a valid request payload because the backend DTO only had Swagger decorators and Nest whitelist validation stripped all body fields. | 1 | Added `class-validator`/`class-transformer` decorators to the worker request DTOs and locked the behavior with a ValidationPipe unit test. |
+| 2026-03-07 17:10 | GitHub Actions failed at `pnpm install --frozen-lockfile` because `worker/package.json` declared `ts-node` while `pnpm-lock.yaml` still reflected the older worker specifier set. | 1 | Regenerated `pnpm-lock.yaml` from the workspace and rechecked frozen install locally so CI can install before running tests. |
 
 ## 5-Question Reboot Check
 | Question | Answer |

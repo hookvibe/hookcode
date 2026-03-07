@@ -38,6 +38,7 @@
 - The worker-create modal previously collapsed all backend `400` responses into one generic toast, and whitespace-only names passed the Ant Design `required` rule because the field was not trimmed before validation.
 - The worker-create modal was using `validateFields()` directly from the Modal OK handler instead of the repo-standard `form.submit() -> onFinish` flow, which can race with the latest input/IME composition state and produce empty names even when the textbox looks filled.
 - The backend `workers` request DTOs only had Swagger decorators, so Nest `ValidationPipe({ whitelist: true })` stripped `name`, `status`, `maxConcurrency`, and `providers` from incoming bodies before the controller saw them.
+- The workspace lockfile had not been regenerated after `worker/package.json` added `ts-node`, so CI `pnpm install --frozen-lockfile` failed before any tests ran.
 
 ## Technical Decisions
 | Decision | Rationale |
