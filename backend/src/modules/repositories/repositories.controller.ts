@@ -56,7 +56,7 @@ import { CreateRepoRobotDto } from './dto/create-repo-robot.dto';
 import { UpdateRepoRobotDto } from './dto/update-repo-robot.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { AcceptRepoInviteDto, CreateRepoInviteDto, UpdateRepoMemberDto } from './dto/repo-members.dto';
-import { parsePositiveInt } from '../../utils/parse';
+import { normalizeString, parsePositiveInt } from '../../utils/parse';
 import { decodeUpdatedAtCursor, encodeUpdatedAtCursor } from '../../utils/pagination'; // Share cursor helpers for repo list pagination. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
 import { TtlCache } from '../../utils/ttlCache';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
@@ -1470,6 +1470,7 @@ export class RepositoriesController {
         repoCredentialProfileId,
         repoCredentialRemark,
         defaultBranch,
+        defaultWorkerId: normalizeString((body as any)?.defaultWorkerId) || null,
         defaultBranchRole,
         promptDefault,
         language,
@@ -1498,7 +1499,8 @@ export class RepositoriesController {
           enabled: robot.enabled,
           isDefault: robot.isDefault,
           repoCredentialSource: robot.repoCredentialSource ?? null,
-          modelProvider: robot.modelProvider ?? null
+          modelProvider: robot.modelProvider ?? null,
+          defaultWorkerId: robot.defaultWorkerId ?? null
         }
       });
 
@@ -1765,6 +1767,7 @@ export class RepositoriesController {
         repoCredentialProfileId,
         repoCredentialRemark,
         defaultBranch,
+        defaultWorkerId: normalizeString((body as any)?.defaultWorkerId) || null,
         defaultBranchRole,
         promptDefault,
         language,
@@ -1796,7 +1799,8 @@ export class RepositoriesController {
           enabled: robot.enabled,
           isDefault: robot.isDefault,
           repoCredentialSource: robot.repoCredentialSource ?? null,
-          modelProvider: robot.modelProvider ?? null
+          modelProvider: robot.modelProvider ?? null,
+          defaultWorkerId: robot.defaultWorkerId ?? null
         }
       });
 

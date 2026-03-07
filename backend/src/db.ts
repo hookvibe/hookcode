@@ -68,10 +68,9 @@ pool.on('connect', (client) => {
 const adapter = new PrismaPg(pool);
 export const db = new PrismaClient({ adapter });
 
-const resolveDirFromEnv = (value: unknown): string | null => {
-  const raw = String(value ?? '').trim();
-  if (!raw) return null;
-  return path.isAbsolute(raw) ? raw : path.join(process.cwd(), raw);
+const resolveMigrationsDir = (): string => {
+  // Keep schema migrations on the packaged backend path so HOOKCODE_WORK_DIR stays reserved for runtime data only. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  return path.join(__dirname, '../prisma/migrations');
 };
 
 type LockRow = { locked: boolean };
@@ -121,8 +120,7 @@ const withSchemaMigrationLock = async <T>(fn: (client: PoolClient) => Promise<T>
 export const ensureSchema = async (): Promise<void> => {
   // Business context: HookCode runs in user-owned environments; a git upgrade should not require data loss.
   // This function ensures the DB schema is upgraded (or blocks safely) before any business query runs.
-  const migrationsDir =
-    resolveDirFromEnv(process.env.HOOKCODE_MIGRATIONS_DIR) ?? path.join(__dirname, '../prisma/migrations');
+  const migrationsDir = resolveMigrationsDir();
   const migrations = loadSqlMigrationsFromDir(migrationsDir);
   if (migrations.length === 0) return;
 

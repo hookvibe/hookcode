@@ -100,6 +100,8 @@ export const executeChat = async (params: {
   text: string;
   taskGroupId?: string;
   timeWindow?: TimeWindow | null;
+  // Allow chat submits to target a specific worker when admins choose an executor override. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId?: string;
 }): Promise<{ taskGroup: TaskGroup; task: Task }> => {
   // Business context:
   // - Manual trigger without Webhooks (frontend Chat page + chat embeds under task/taskGroup pages).

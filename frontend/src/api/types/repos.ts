@@ -2,6 +2,7 @@
 
 import type { UserModelProviderCredentialsPublic, UserRepoProviderCredentialsPublic } from './auth';
 import type { TimeWindow } from './common';
+import type { WorkerSummary } from './workers';
 import type {
   ClaudeCodeRobotProviderConfigPublic,
   CodexRobotProviderConfigPublic,
@@ -136,6 +137,8 @@ export interface RepoRobot {
   repoWorkflowMode?: 'auto' | 'direct' | 'fork';
   // Optional hour-level execution window for this robot. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
   timeWindow?: TimeWindow;
+  // Mirror the backend worker binding fields so robot settings can target a default executor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  defaultWorkerId?: string | null;
   activatedAt?: string;
   lastTestAt?: string;
   lastTestOk?: boolean;
@@ -144,6 +147,7 @@ export interface RepoRobot {
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
+  defaultWorker?: WorkerSummary;
 }
 
 export type RepoProviderVisibility = 'public' | 'private' | 'internal' | 'unknown';

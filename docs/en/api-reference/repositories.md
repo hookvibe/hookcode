@@ -38,7 +38,7 @@ Repository APIs manage:
 - `POST /api/repos/:id/model-credentials/models` — List available models for a provider.
 - `GET /api/repos/:id/robots` — List robots under a repository.
 - `POST /api/repos/:id/robots` — Create a robot.
-- `PATCH /api/repos/:id/robots/:robotId` — Update a robot.
+- `PATCH /api/repos/:id/robots/:robotId` — Update a robot (including optional `defaultWorkerId`).
 - `POST /api/repos/:id/robots/:robotId/test` — Test a robot's credentials.
 - `DELETE /api/repos/:id/robots/:robotId` — Delete a robot.
 {/* Document repo member + invite operations. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}

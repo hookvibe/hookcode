@@ -48,6 +48,7 @@ import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
 import { RepoAccessService, type RepoRole } from '../repositories/repo-access.service';
 import { LogWriterService } from '../logs/log-writer.service';
+import { WorkersConnectionService } from '../workers/workers-connection.service';
 import { TASK_REORDER_ACTIONS, type TaskReorderAction } from './task-control.constants';
 import {
   GetTaskResponseDto,
@@ -71,7 +72,8 @@ export class TasksController {
     private readonly taskRunner: TaskRunner,
     private readonly taskGitPushService: TaskGitPushService,
     private readonly repoAccessService: RepoAccessService,
-    private readonly logWriter: LogWriterService // Emit audit events for log-clearing actions. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    private readonly logWriter: LogWriterService, // Emit audit events for log-clearing actions. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    private readonly workersConnections: WorkersConnectionService
   ) {}
 
   private normalizeTaskStatusFilter(value: unknown): TaskStatus | 'success' | undefined {
@@ -479,7 +481,7 @@ export class TasksController {
       });
 
       // Cross-process/container: push incremental logs by polling the DB (instead of pure in-memory publish).
-      // Keep the in-memory subscription as well for better real-time behavior in single-process (inline worker) mode.
+      // Keep the in-memory subscription so colocated worker dispatch still feels immediate while DB polling covers remote executors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
       let polling = false;
       const pollTimer = setInterval(async () => {
         if (polling) return;
@@ -613,9 +615,8 @@ export class TasksController {
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
-      if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
-        this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
-      }
+      // Kick the dispatcher after queue mutations so connected workers receive tasks without polling delays. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
       const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
@@ -655,6 +656,10 @@ export class TasksController {
       const task = await this.taskService.stopTask(id);
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
+      }
+      if (task.status === 'processing' && task.workerId) {
+        // Push explicit cancel messages to connected workers so manual stops do not wait solely on control-state polling. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+        this.workersConnections.sendCancelTask(task.workerId, task.id);
       }
       void this.logWriter.logOperation({
         level: 'warn',
@@ -816,9 +821,8 @@ export class TasksController {
       if (!task) {
         throw new ConflictException({ error: 'Task schedule override failed' });
       }
-      if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
-        this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
-      }
+      // Kick the dispatcher after queue mutations so connected workers receive tasks without polling delays. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
       const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {

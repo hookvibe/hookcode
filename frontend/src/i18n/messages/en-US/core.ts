@@ -214,6 +214,7 @@ export const enUSCore = {
   'taskGroups.page.searchPlaceholder': 'Search task groups (title/repo/id)',
   'taskGroups.page.empty': 'No task groups',
   'taskGroups.page.viewAll': 'View all task groups',
+  'taskGroups.status.workerOffline': 'Worker offline',
   'taskGroups.kind.task': 'Task',
   'taskGroups.kind.unknown': 'Unknown',
 
@@ -240,7 +241,7 @@ export const enUSCore = {
   'tasks.queue.hintTitle': 'Queued',
   'tasks.queue.hint.backlog': '{{ahead}} ahead · {{processing}} processing',
   'tasks.queue.hint.noActiveWorker': 'No running tasks detected; worker may be offline or not triggered',
-  'tasks.queue.hint.inlineWorkerDisabled': 'Inline worker is disabled; start the standalone worker to consume the queue',
+  'tasks.queue.hint.inlineWorkerDisabled': 'No executor is consuming the queue; start or reconnect a worker',
   'tasks.queue.hint.timeWindow': 'Waiting for time window {{window}} ({{source}}, server time)',
   'tasks.queue.hint.unknown': 'Task is queued and waiting to be picked up',
   'tasks.queue.timeWindow.source.robot': 'Robot',
@@ -258,6 +259,8 @@ export const enUSCore = {
   'tasks.field.title': 'Title',
   'tasks.field.repo': 'Repository',
   'tasks.field.robot': 'Robot',
+  // Add worker attribution copy for task badges and detail summaries. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  'tasks.field.worker': 'Worker',
   // Surface direct-vs-fork workflow to reduce PR/MR targeting mistakes. 24yz61mdik7tqdgaa152
   'tasks.field.repoWorkflow': 'Repo workflow',
   'tasks.repoWorkflow.direct': 'Direct',
@@ -274,6 +277,7 @@ export const enUSCore = {
   'tasks.field.id': 'Task ID',
   'tasks.field.providerComment': 'Provider comment',
   'tasks.openProviderComment': 'Open provider comment',
+  'tasks.workerLost': 'Assigned worker went offline at {{time}}. Bring the worker back before retrying this task.',
   'tasks.tokens.format': 'Input {{input}} · Output {{output}} · Total {{total}}',
   'tasks.repoMissing': 'This task is not bound to a repository; cannot open repo detail.',
   // Surface dependency install results in task detail for diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124

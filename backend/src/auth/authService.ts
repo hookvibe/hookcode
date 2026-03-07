@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { isTruthy } from '../utils/env';
+import { buildWorkDirSubpath, resolveBackendWorkDirRoot, resolveBuildRoot, resolveWorkDirOverridePath } from '../utils/workDir';
 
 /**
  * Lightweight auth (no third-party dependencies):
@@ -58,13 +59,11 @@ const getTokenTtlSeconds = (): number => {
 };
 
 let cachedSecret: string | null = null;
+const BACKEND_WORK_DIR = resolveBackendWorkDirRoot(resolveBuildRoot());
 
 const resolveAuthTokenSecretFilePath = (): string => {
-  const raw = String(process.env.HOOKCODE_AUTH_TOKEN_SECRET_FILE ?? '').trim();
-  if (raw) {
-    return path.isAbsolute(raw) ? raw : path.join(process.cwd(), raw);
-  }
-  return path.join(process.cwd(), '.cache', 'hookcode', 'auth-token-secret');
+  // Persist dev auth secrets under HOOKCODE_WORK_DIR so backend runtime state uses the same storage root as task groups and worker caches. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  return resolveWorkDirOverridePath(BACKEND_WORK_DIR, process.env.HOOKCODE_AUTH_TOKEN_SECRET_FILE) ?? buildWorkDirSubpath(BACKEND_WORK_DIR, 'auth', 'auth-token-secret');
 };
 
 const readSecretFromFile = (filePath: string): string => {

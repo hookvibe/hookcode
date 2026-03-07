@@ -43,7 +43,8 @@ import type {
   UserApiTokenPublic,
   UserModelCredentialsPublic,
   UserModelProviderCredentialProfilePublic,
-  UserRepoProviderCredentialProfilePublic
+  UserRepoProviderCredentialProfilePublic,
+  WorkerRecord
 } from '../api';
 import {
   archiveRepo,
@@ -56,6 +57,7 @@ import {
   fetchRepo,
   fetchRepoSkillSelection,
   fetchRepoPreviewConfig,
+  fetchWorkers,
   fetchTaskGroups,
   listMyModelProviderModels,
   listRepoInvites,
@@ -94,6 +96,7 @@ import { extractTaskGroupIdFromTokenName } from '../utils/apiTokens';
 import { RepoDetailSidebar } from '../components/repos/RepoDetailSidebar';
 import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
 import { RepoDetailDashboardSummaryStrip } from '../components/repos/RepoDetailDashboardSummaryStrip';
+import { WorkerSummaryTag } from '../components/workers/WorkerSummaryTag';
 import { RepoWebhookActivityCard } from '../components/repos/RepoWebhookActivityCard';
 import { RepoTaskActivityCard } from '../components/repos/RepoTaskActivityCard';
 import { RepoTaskGroupsCard } from '../components/repos/RepoTaskGroupsCard'; // Surface repo task groups alongside task activity in overview. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
@@ -101,6 +104,7 @@ import { ModelProviderModelsButton } from '../components/ModelProviderModelsButt
 import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailProviderActivityRow';
 import { RepoEnvConfigPanel } from '../components/repos/RepoEnvConfigPanel'; // Render repo preview env editor panel. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
+import { formatWorkerOptionLabel } from '../utils/workers';
 import { uuid as generateUuid } from '../components/repoAutomation/utils';
 import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
 import { SkillSelectionPanel } from '../components/skills/SkillSelectionPanel';
@@ -153,6 +157,8 @@ type RobotFormValues = {
   repoWorkflowMode?: 'auto' | 'direct' | 'fork';
   // Track robot-level scheduling windows in the editor. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
   timeWindow?: TimeWindow | null;
+  // Allow admins to bind a robot to a default worker from the shared executor registry. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  defaultWorkerId?: string | null;
   isDefault: boolean;
   // Expose dependency overrides in the robot editor to control install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   dependencyOverride: boolean;
@@ -320,7 +326,9 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
   const [inviteForm] = Form.useForm<{ email: string; role: RepoRole }>();
 
   const repoArchived = Boolean(repo?.archivedAt); // Disable edits when repo is archived (archive area is read-only). qnp1mtxhzikhbi0xspbc
-  const currentUserId = getStoredUser()?.id ?? '';
+  const currentUser = getStoredUser();
+  const currentUserId = currentUser?.id ?? '';
+  const isAdmin = Boolean(currentUser?.roles?.includes('admin'));
   // Derive repo permission flags for UI gating. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
   const canManageRepo = Boolean(repo?.permissions?.canManage);
   const canDeleteRepo = Boolean(repo?.permissions?.canDelete);
@@ -386,6 +394,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
   const [modelProfileForm] = Form.useForm<{ remark: string; apiKey?: string; apiBaseUrl?: string }>();
 
   const [robotModalOpen, setRobotModalOpen] = useState(false);
+  const [workersLoading, setWorkersLoading] = useState(false);
+  const [workers, setWorkers] = useState<WorkerRecord[]>([]);
   const [robotSubmitting, setRobotSubmitting] = useState(false);
   const [editingRobot, setEditingRobot] = useState<RepoRobot | null>(null);
   const [robotChangingToken, setRobotChangingToken] = useState(false);
@@ -1249,6 +1259,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
         repoWorkflowMode: 'auto',
         // Default to no scheduling window until explicitly configured. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
         timeWindow: null,
+        defaultWorkerId: null,
         isDefault: false,
         // Default dependency overrides to "inherit" so robots follow `.hookcode.yml` unless explicitly changed. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
         dependencyOverride: false,
@@ -1296,6 +1307,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
         repoWorkflowMode: (robot.repoWorkflowMode ?? 'auto') as any,
         // Hydrate robot-level time windows into the editor state. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
         timeWindow: robot.timeWindow ?? null,
+        defaultWorkerId: robot.defaultWorker?.id ?? robot.defaultWorkerId ?? null,
         isDefault: Boolean(robot.isDefault),
         // Hydrate dependency overrides from the robot record to keep the editor consistent. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
         dependencyOverride,
@@ -1333,6 +1345,30 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     [locale]
   );
 
+  const loadWorkers = useCallback(async () => {
+    // Load worker options only for admins because the worker registry is a system-level surface. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    if (!isAdmin) {
+      setWorkers([]);
+      return;
+    }
+    setWorkersLoading(true);
+    try {
+      const nextWorkers = await fetchWorkers();
+      setWorkers(nextWorkers);
+    } catch (error) {
+      console.error(error);
+      message.error(t('workers.toast.fetchFailed'));
+      setWorkers([]);
+    } finally {
+      setWorkersLoading(false);
+    }
+  }, [isAdmin, message, t]);
+
+  const robotWorkerOptions = useMemo(() => workers.filter((worker) => worker.status !== 'disabled').map((worker) => ({
+    value: worker.id,
+    label: formatWorkerOptionLabel(t, worker)
+  })), [t, workers]);
+
   const openCreateRobot = useCallback(() => {
     // Block robot creation when the repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
     if (repoReadOnly) return;
@@ -1353,6 +1389,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     },
     [buildRobotInitialValues, robotForm]
   );
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (activeTab !== 'robots' && !robotModalOpen) return;
+    void loadWorkers();
+  }, [activeTab, isAdmin, loadWorkers, robotModalOpen]);
 
   const handleSubmitRobot = useCallback(
     async (values: RobotFormValues) => {
@@ -1539,6 +1581,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
           repoWorkflowMode: workflowMode,
           // Persist robot-level time windows for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
           timeWindow: values.timeWindow ?? null,
+          defaultWorkerId: values.defaultWorkerId ? String(values.defaultWorkerId) : null,
           dependencyConfig,
           isDefault: values.isDefault
         };
@@ -2150,6 +2193,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                           },
                           { title: t('common.status'), key: 'status', width: 140, render: (_: any, r: RepoRobot) => resolveRobotStatusTag(t, r) },
                           { title: t('repos.robots.permission'), dataIndex: 'permission', width: 120, render: (v: string) => <Tag color={v === 'write' ? 'volcano' : 'blue'}>{v}</Tag> },
+                          { title: t('repos.robots.worker'), key: 'worker', width: 180, render: (_: any, r: RepoRobot) => <WorkerSummaryTag worker={r.defaultWorker} workerId={r.defaultWorkerId} /> },
                           { title: t('repos.robots.default'), dataIndex: 'isDefault', width: 110, render: (v: boolean) => (v ? <Tag color="blue">{t('repos.robots.default')}</Tag> : <Typography.Text type="secondary">-</Typography.Text>) },
                           {
                             title: t('repos.robots.lastTest'), key: 'lastTest', width: 220,
@@ -2770,6 +2814,20 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
               </Form.Item>
             </Col>
           </Row>
+
+          {isAdmin ? (
+            <Form.Item label={t('repos.robotForm.defaultWorker')} name="defaultWorkerId">
+              {/* Keep robot worker selection in the robot editor so default routing stays explicit. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                loading={workersLoading}
+                placeholder={t('repos.robotForm.defaultWorkerPlaceholder')}
+                options={robotWorkerOptions}
+              />
+            </Form.Item>
+          ) : null}
 
           <Form.Item label={t('repos.robotForm.isDefault')} name="isDefault" valuePropName="checked">
             <Switch />

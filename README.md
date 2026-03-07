@@ -54,6 +54,8 @@ HookCode is an intelligent code review and automation platform that elegantly tr
 
 Use Docker Compose to run **database + backend + worker + frontend** together.
 
+<!-- Document Docker work-root and named-volume behavior so deployment docs stay aligned with HOOKCODE_WORK_DIR. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
+
 ### 1) Prepare environment file
 
 ```bash
@@ -64,11 +66,24 @@ At minimum, update these keys in `docker/.env` before production use:
 - `AUTH_TOKEN_SECRET`
 - `AUTH_ADMIN_USERNAME`
 - `AUTH_ADMIN_PASSWORD`
+- `HOOKCODE_WORK_DIR` if you want a different container work root (keep it absolute, for example `/var/lib/hookcode`)
+- `HOOKCODE_SYSTEM_WORKER_TOKEN` if you do not want to keep the sample bundled-worker token
 
 ### 2) Build and start all services
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d --build
+```
+
+To keep backend waiting for a separately deployed remote worker, start only `db backend frontend` instead of the bundled `worker` service.
+
+<!-- Add the dedicated remote-worker Docker entrypoint so operators can split backend and executor hosts with repo-provided files. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
+
+For a worker host on another machine:
+
+```bash
+cp docker/.env.remote-worker.example docker/.env.remote-worker
+docker compose --env-file docker/.env.remote-worker -f docker/docker-compose.remote-worker.yml up -d --build
 ```
 
 ### 3) Check running status and logs
@@ -107,7 +122,7 @@ Stop and remove containers:
 docker compose -f docker/docker-compose.yml down
 ```
 
-Stop and remove containers + database volume:
+Stop and remove containers + database/work-dir volumes:
 
 ```bash
 docker compose -f docker/docker-compose.yml down -v
@@ -128,11 +143,15 @@ docker compose -f docker/docker-compose.yml down -v
 ### Docker configuration notes
 
 - Docker assets are under `docker/`:
-  - Compose file: `docker/docker-compose.yml`
+  - Main stack compose file: `docker/docker-compose.yml`
+  - Dedicated remote-worker compose file: `docker/docker-compose.remote-worker.yml`
   - Nginx reverse proxy config: `docker/nginx/frontend.conf`
-  - Shared env file: `docker/.env`
+  - Main stack env file: `docker/.env`
+  - Dedicated remote-worker env file: `docker/.env.remote-worker`
 - Port overrides: `HOOKCODE_FRONTEND_PORT`, `HOOKCODE_BACKEND_PORT`, `HOOKCODE_DB_PORT`
 - DB credentials: `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- Runtime storage: `HOOKCODE_WORK_DIR` (Docker Compose mounts separate backend/worker named volumes to this absolute container path)
+- Default Docker worker mode: backend boots in `HOOKCODE_SYSTEM_WORKER_MODE=external` and the bundled `worker` service reuses the same `HOOKCODE_SYSTEM_WORKER_*` credentials by default
 - Cloudflare single-port routing:
   - Keep `VITE_API_BASE_URL=/api`
   - Access API via `https://<your-domain>/api/...` (not `:8000`)

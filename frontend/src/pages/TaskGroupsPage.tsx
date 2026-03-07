@@ -7,6 +7,7 @@ import { useLocale, useT } from '../i18n';
 import { buildTaskGroupHash } from '../router';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
+import { WorkerSummaryTag } from '../components/workers/WorkerSummaryTag';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { getTaskGroupKindColor, getTaskGroupKindLabel, getTaskGroupTitle } from '../utils/taskGroup'; // Share task-group label helpers across list and dashboards. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5
 
@@ -183,6 +184,9 @@ export const TaskGroupsPage: FC<TaskGroupsPageProps> = ({ repoId, userPanel, nav
                           <Space size={6} wrap>
                             <Tag color={getTaskGroupKindColor(group.kind)}>{getTaskGroupKindLabel(t, group.kind)}</Tag>
                             {providerLabel ? <Tag color="geekblue">{providerLabel}</Tag> : null}
+                            {/* Surface task-group worker ownership so offline routing issues are visible in list views. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+                            <WorkerSummaryTag worker={group.workerSummary} workerId={group.workerId} />
+                            {group.blockedByWorkerOffline ? <Tag color="red">{t('taskGroups.status.workerOffline')}</Tag> : null}
                           </Space>
                         </Space>
                       </div>

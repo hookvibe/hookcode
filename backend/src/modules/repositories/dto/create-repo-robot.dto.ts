@@ -42,6 +42,12 @@ export class CreateRepoRobotDto {
   @IsString()
   defaultBranch?: string | null;
 
+  @ApiPropertyOptional({ nullable: true, description: 'Default execution worker id for tasks created by this robot.' })
+  @IsOptional()
+  @IsString()
+  // Accept default worker bindings for robot-managed task routing. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  defaultWorkerId?: string | null;
+
   @ApiPropertyOptional({ nullable: true, description: 'Legacy branch role (main/dev/test).' })
   @IsOptional()
   @IsString()

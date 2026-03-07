@@ -99,6 +99,7 @@ vi.mock('../api', () => {
     listMyModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
     listRepoModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
     fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' })),
+    fetchWorkers: vi.fn(async () => [{ id: 'w1', name: 'Worker 1', kind: 'remote', status: 'online', systemManaged: false, maxConcurrency: 1, currentConcurrency: 0, createdAt: '2026-01-11T00:00:00.000Z', updatedAt: '2026-01-11T00:00:00.000Z' }]),
     fetchRepoProviderActivity: vi.fn(async () => ({
       provider: 'gitlab',
       commits: { items: [], page: 1, pageSize: 5, hasMore: false },
@@ -751,6 +752,29 @@ describe('RepoDetailPage (frontend-chat migration)', () => {
     await ui.click(addRepoCredential);
 
     expect(await screen.findByText('Add credential profile')).toBeInTheDocument();
+  });
+
+
+  test('shows default worker selector in robot editor for admins', async () => {
+    // Verify repo robot settings can bind a default worker when the current user is an admin. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-repo-onboarding:r1', 'completed');
+    window.localStorage.setItem('hookcode-user', JSON.stringify({ id: 'u_admin', username: 'admin', roles: ['admin'] }));
+
+    renderPage({ repoId: 'r1', repoTab: 'robots' });
+
+    await waitFor(() => expect(api.fetchRepo).toHaveBeenCalled());
+    await waitFor(() => expect(api.fetchWorkers).toHaveBeenCalled());
+
+    await ui.click(screen.getByRole('button', { name: /new robot/i }));
+
+    const workerLabel = await screen.findByText('Default worker');
+    const workerItem = workerLabel.closest('.ant-form-item');
+    expect(workerItem).toBeTruthy();
+    const workerSelect = workerItem?.querySelector('.ant-select') as HTMLElement | null;
+    expect(workerSelect).toBeTruthy();
+    fireEvent.mouseDown(workerSelect as HTMLElement);
+    expect(await screen.findByText('Worker 1 · Remote · Online')).toBeInTheDocument();
   });
 
   test('shows dependency override controls in robot editor', async () => {

@@ -1,7 +1,6 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { mkdir, rm, writeFile, stat, readFile, chmod, rename, copyFile, cp, readdir } from 'fs/promises';
-import { homedir } from 'os';
 import path from 'path';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import type { Task, TaskGitStatusSnapshot, TaskGitStatusWorkingTree, TaskResult } from '../types/task';
@@ -74,6 +73,7 @@ import { installDependencies, DependencyInstallerError } from './dependencyInsta
 import { RuntimeService } from '../services/runtimeService';
 import { HookcodeConfigService } from '../services/hookcodeConfigService';
 import type { DependencyResult, HookcodeConfig, RobotDependencyConfig } from '../types/dependency';
+import { resolveBuildRoot, resolveTaskGroupWorkspaceRoot } from '../utils/workDir';
 
 /**
  * Core task execution (callAgent):
@@ -85,34 +85,10 @@ import type { DependencyResult, HookcodeConfig, RobotDependencyConfig } from '..
  *   which powers console SSE (`backend/src/routes/tasks.ts`) and the frontend log viewer (`frontend/src/components/TaskLogViewer.tsx`).
  * - Security: redacts sensitive info in external logs (tokens / URL basic auth) to avoid storing secrets in DB or provider comments.
  */
-const resolveBuildRoot = (): string => {
-  // Prefer explicit or repo-root build directories to keep API/worker workspace paths aligned. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
-  const explicit = (process.env.HOOKCODE_BUILD_ROOT ?? '').trim();
-  if (explicit && existsSync(explicit)) return explicit;
-  const cwd = process.cwd();
-  const candidates = [
-    path.join(cwd, 'backend', 'src', 'agent', 'build'),
-    path.join(cwd, 'src', 'agent', 'build')
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
-  }
-  return path.join(__dirname, 'build');
-};
-
 // Resolve the build root deterministically to prevent preview workspace mismatches. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 // Export agent workspace root for shared git operations. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 export const BUILD_ROOT = resolveBuildRoot();
-const resolveTaskGroupWorkspaceRoot = (buildRoot: string): string => {
-  // Allow overriding the task-group root relative to the build root. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
-  const raw = (process.env.HOOKCODE_TASK_GROUPS_ROOT ?? '').trim();
-  if (!raw) return path.join(buildRoot, 'task-groups');
-  // Expand "~" to the current user home before absolute/relative resolution. docs/en/developer/plans/codexoutputdirfix20260205/task_plan.md codexoutputdirfix20260205
-  const expanded = raw === '~' ? homedir() : raw.startsWith('~/') || raw.startsWith('~\\') ? path.join(homedir(), raw.slice(2)) : raw;
-  if (path.isAbsolute(expanded)) return expanded;
-  return path.join(buildRoot, expanded);
-};
-// Centralize task-group workspace root so each group maps to a single checkout. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
+// Keep task-group checkouts under the unified HookCode work root so backend and worker storage share one operator setting. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
 export const TASK_GROUP_WORKSPACE_ROOT = resolveTaskGroupWorkspaceRoot(BUILD_ROOT);
 // Task logs are persisted per-line in the database, so no in-memory cap is required. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
 

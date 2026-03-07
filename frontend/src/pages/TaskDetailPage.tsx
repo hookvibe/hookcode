@@ -12,6 +12,7 @@ import {
   PlayCircleOutlined,
   RightOutlined,
   RobotOutlined,
+  DeploymentUnitOutlined,
   UserOutlined
 } from '@ant-design/icons';
 import type { RepoRobot, Task, TaskRepoSummary, TaskRobotSummary } from '../api';
@@ -22,6 +23,7 @@ import { JsonViewer } from '../components/JsonViewer';
 import { MarkdownViewer } from '../components/MarkdownViewer';
 import { TaskLogViewer } from '../components/TaskLogViewer';
 import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
+import { WorkerSummaryTag } from '../components/workers/WorkerSummaryTag';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { getPrevHashForBack, isInAppHash } from '../navHistory';
 import {
@@ -835,6 +837,23 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
             <div className="hc-task-meta__card hc-task-summary-strip__card">
               <Space size={12} align="start">
                 <div className="hc-task-meta__icon" aria-hidden>
+                  <DeploymentUnitOutlined style={{ fontSize: 16 }} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <Typography.Text type="secondary" className="hc-task-meta__label">
+                    {t('tasks.field.worker')}
+                  </Typography.Text>
+                  <div className="hc-task-meta__value">
+                    {/* Keep task detail worker attribution visible in both summary and metadata views. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+                    <WorkerSummaryTag worker={task.workerSummary} workerId={task.workerId} />
+                  </div>
+                </div>
+              </Space>
+            </div>
+
+            <div className="hc-task-meta__card hc-task-summary-strip__card">
+              <Space size={12} align="start">
+                <div className="hc-task-meta__icon" aria-hidden>
                   {user?.avatar ? (
                     <Avatar src={user.avatar} size={24} style={{ borderRadius: 6 }}>
                       {String(user.name || user.username || '?').slice(0, 1)}
@@ -930,6 +949,10 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
         {task?.status === 'queued' && queueHint ? (
           /* Display queue diagnosis so the detail page is not silent while waiting. f3a9c2d8e1b7f4a0c6d1 */
           <Alert type="info" showIcon title={t('tasks.queue.hintTitle')} description={queueHint} style={{ marginBottom: 12 }} />
+        ) : null}
+        {task?.workerLostAt ? (
+          // Explain worker disconnect failures in task detail so users know the executor must be brought back before retrying. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+          <Alert type="warning" showIcon message={t('tasks.workerLost', { time: formatDateTime(task.workerLostAt) })} style={{ marginBottom: 12 }} />
         ) : null}
         {task ? (
           <div className="hc-task-detail-layout">
@@ -1042,6 +1065,10 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                       </Space>
                     </Descriptions.Item>
                   ) : null}
+
+                  <Descriptions.Item label={t('tasks.field.worker')}>
+                    <WorkerSummaryTag worker={task.workerSummary} workerId={task.workerId} />
+                  </Descriptions.Item>
 
                   <Descriptions.Item label={t('tasks.field.author')}>
                     {user ? (

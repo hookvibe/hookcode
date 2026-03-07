@@ -154,7 +154,8 @@ describe('taskService.listTasks', () => {
     expect(db.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
-  test('INLINE_WORKER_ENABLED=false 且 processing=0 时 queued diagnosis 的 reasonCode=inline_worker_disabled', async () => {
+  test('processing=0 still reports no_active_worker after inline-worker removal', async () => {
+    // Keep queue diagnostics aligned with the external worker model after removing inline-worker-specific reason codes. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     const prevInlineWorkerEnabled = process.env.INLINE_WORKER_ENABLED;
     process.env.INLINE_WORKER_ENABLED = 'false';
 
@@ -187,7 +188,7 @@ describe('taskService.listTasks', () => {
     const tasks = await taskService.listTasks({ status: 'queued', includeMeta: true, limit: 10 });
 
     expect(tasks).toHaveLength(1);
-    expect(tasks[0].queue?.reasonCode).toBe('inline_worker_disabled');
+    expect(tasks[0].queue?.reasonCode).toBe('no_active_worker');
 
     if (prevInlineWorkerEnabled === undefined) delete process.env.INLINE_WORKER_ENABLED;
     else process.env.INLINE_WORKER_ENABLED = prevInlineWorkerEnabled;

@@ -28,6 +28,7 @@ import { formatDateTime } from '../../utils/dateUtc';
 import { formatRobotLabelWithProvider } from '../../utils/robot';
 import { TaskGitStatusPanel } from '../tasks/TaskGitStatusPanel';
 import { MarkdownViewer } from '../MarkdownViewer';
+import { WorkerSummaryTag } from '../workers/WorkerSummaryTag';
 
 interface TaskGroupTaskCardProps {
   task: Task;
@@ -123,6 +124,8 @@ export const TaskGroupTaskCard = ({
             <Space size={8} wrap className="hc-task-workspace-card__title-tags">
               {eventTag(t, task.eventType)}
               {statusTag(t, task.status)}
+              {/* Keep each task card tagged with its worker so shared workspaces remain debuggable. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+              <WorkerSummaryTag worker={task.workerSummary} workerId={task.workerId} />
             </Space>
           </div>
         }
@@ -134,6 +137,7 @@ export const TaskGroupTaskCard = ({
               <span>{t('taskGroup.workspace.eventMarker', { value: eventMarker || '-' })}</span>
               <span>{t('taskGroup.workspace.repo', { value: repoName || '-' })}</span>
               <span>{t('taskGroup.workspace.robot', { value: robotName || '-' })}</span>
+              <span>{t('taskGroup.workspace.worker', { value: task.workerSummary?.name || task.workerId || '-' })}</span>
               <span>{t('taskGroup.workspace.createdAt', { value: createdAt })}</span>
               <span>{t('taskGroup.workspace.updatedAt', { value: updatedAt })}</span>
               {tokenUsage ? (

@@ -67,9 +67,9 @@ export const SKILLS_TABS: SkillsTab[] = ['overview', 'built-in', 'extra'];
 
 // Define the available sub-tabs for the user settings page sidebar navigation. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 // Add an admin preview tab for global preview runtime/port management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
-export type SettingsTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings' | 'logs' | 'notifications' | 'preview'; // Add notifications tab for user alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+export type SettingsTab = 'account' | 'credentials' | 'tools' | 'environment' | 'settings' | 'logs' | 'notifications' | 'preview' | 'workers'; // Add worker registry routing to the settings page for executor management. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
 
-export const SETTINGS_TABS: SettingsTab[] = ['account', 'credentials', 'tools', 'environment', 'settings', 'logs', 'notifications', 'preview'];
+export const SETTINGS_TABS: SettingsTab[] = ['account', 'credentials', 'tools', 'environment', 'settings', 'logs', 'notifications', 'preview', 'workers'];
 
 export interface RouteState {
   page: RoutePage;

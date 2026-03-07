@@ -8,6 +8,7 @@ import { TaskGroupComposer } from '../components/taskGroupWorkspace/TaskGroupCom
 import { TaskGroupLogPanel } from '../components/taskGroupWorkspace/TaskGroupLogPanel';
 import { TaskGroupTaskCard } from '../components/taskGroupWorkspace/TaskGroupTaskCard';
 import { TaskGroupWorkspacePanel } from '../components/taskGroupWorkspace/TaskGroupWorkspacePanel';
+import { WorkerSummaryTag } from '../components/workers/WorkerSummaryTag';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { getTaskTitle } from '../utils/task';
 import { ChatTimelineSkeleton } from '../components/skeletons/ChatTimelineSkeleton';
@@ -60,6 +61,13 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     robotId,
     setRobotId,
     robotOptions,
+    workersLoading,
+    workerId,
+    setWorkerId,
+    workerOptions,
+    workerLocked,
+    showWorkerSelector,
+    group,
     groupMissing,
     orderedTasks,
     taskById,
@@ -239,6 +247,12 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
       onRobotChange={setRobotId}
       robotsLoading={robotsLoading}
       robotOptions={robotOptions}
+      workersLoading={workersLoading}
+      workerId={workerId}
+      onWorkerChange={setWorkerId}
+      workerOptions={workerOptions}
+      workerLocked={workerLocked}
+      showWorkerSelector={showWorkerSelector}
       chatTimeWindow={chatTimeWindow}
       onChatTimeWindowChange={setChatTimeWindow}
       previewStartDisabled={previewStartDisabled}
@@ -280,6 +294,12 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
             <Typography.Text type="secondary">
               {taskGroupId ? `${t('chat.page.updatedAt')}: ${groupUpdatedAtText || '-'}` : t('chat.page.newGroupHint')}
             </Typography.Text>
+            {taskGroupId && group?.workerSummary ? (
+              <>
+                {/* Surface the bound worker in the chat header so task-group routing stays visible. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+                <span style={{ marginLeft: 12 }}><WorkerSummaryTag worker={group.workerSummary} workerId={group.workerId} /></span>
+              </>
+            ) : null}
             {taskGroupId && (
               <Typography.Text type="secondary" style={{ marginLeft: 12, fontSize: 12, opacity: 0.8 }}>
                 • {t('taskGroup.workspace.taskCount', { count: orderedTasks.length })}

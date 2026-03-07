@@ -130,3 +130,17 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export const getApiErrorMessage = (error: unknown): string => {
+  // Normalize Axios/server payloads into one readable string so UI mutations can surface backend validation failures instead of generic toasts. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  const apiError = (error as any)?.response?.data?.error;
+  if (typeof apiError === 'string' && apiError.trim()) return apiError.trim();
+
+  const apiMessage = (error as any)?.response?.data?.message;
+  if (typeof apiMessage === 'string' && apiMessage.trim()) return apiMessage.trim();
+
+  const errorMessage = (error as any)?.message;
+  if (typeof errorMessage === 'string' && errorMessage.trim()) return errorMessage.trim();
+
+  return '';
+};

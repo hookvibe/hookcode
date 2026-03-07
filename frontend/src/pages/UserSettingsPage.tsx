@@ -77,6 +77,7 @@ import { SettingsLogsPanel } from '../components/settings/SettingsLogsPanel';
 import { SettingsNotificationsPanel } from '../components/settings/SettingsNotificationsPanel';
 import { NotificationsPopover } from '../components/notifications/NotificationsPopover';
 import { SettingsPreviewPanel } from '../components/settings/SettingsPreviewPanel';
+import { SettingsWorkersPanel } from '../components/settings/SettingsWorkersPanel';
 // Keep both notifications and preview settings components available after branch sync. docs/en/developer/plans/sync-main-dev-20260303/task_plan.md sync-main-dev-20260303
 import { buildHomeHash, type SettingsTab } from '../router';
 
@@ -206,7 +207,9 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         // Add notifications tab label mapping for settings. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
         notifications: 'panel.tabs.notifications',
         // Add preview tab title mapping for admin preview management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
-        preview: 'panel.tabs.preview'
+        preview: 'panel.tabs.preview',
+        // Add worker tab title mapping for the executor registry panel. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+        workers: 'panel.tabs.workers'
       }) as const,
     []
   );
@@ -1002,6 +1005,18 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           </div>
         );
 
+      case 'workers':
+        // Render the admin worker registry inside settings so executor bootstrap stays out of repo pages. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+        if (!isAdmin) {
+          return <Alert type="warning" showIcon message={t('workers.guard.adminRequired')} />;
+        }
+        return (
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.tabs.workers')}</div>
+            <SettingsWorkersPanel />
+          </div>
+        );
+
       case 'settings':
       default:
         return (
@@ -1051,7 +1066,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
             title={t(tabTitleKey[activeTab] as any)}
             actions={
               // Avoid showing the global refresh button on the log tab (it has its own controls). docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-              activeTab !== 'settings' && activeTab !== 'logs' && activeTab !== 'notifications' && activeTab !== 'preview' ? (
+              activeTab !== 'settings' && activeTab !== 'logs' && activeTab !== 'notifications' && activeTab !== 'preview' && activeTab !== 'workers' ? (
                 <Button
                   type="text"
                   icon={<ReloadOutlined />}

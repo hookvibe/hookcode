@@ -21,6 +21,7 @@ import type { TaskScheduleSnapshot } from '../../types/timeWindow';
 import { isUuidLike } from '../../utils/uuid'; // Share UUID validation across pagination and list filters. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 import { EventStreamService } from '../events/event-stream.service';
 import { LogWriterService } from '../logs/log-writer.service';
+import { WorkersService } from '../workers/workers.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
 import {
   TASK_MANUAL_STOP_MESSAGE,
@@ -41,6 +42,8 @@ export interface TaskCreateMeta {
   repoProvider?: RepoProvider;
   repoId?: string;
   robotId?: string;
+  // Allow callers to request a specific worker when creating chat/manual tasks. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId?: string;
   // Persist the triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   actorUserId?: string;
   ref?: string;
@@ -173,6 +176,8 @@ const taskRecordToTask = (row: any): Task => ({
   repoProvider: row.repoProvider ?? undefined,
   repoId: row.repoId ?? undefined,
   robotId: row.robotId ?? undefined,
+  // Surface worker ownership from Prisma task rows for dispatch-aware APIs. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId: row.workerId ?? row.worker_id ?? undefined,
   // Map actor user id for notification recipients. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   actorUserId: row.actorUserId ?? row.actor_user_id ?? undefined,
   ref: row.ref ?? undefined,
@@ -182,6 +187,7 @@ const taskRecordToTask = (row: any): Task => ({
   result: row.result ?? undefined,
   // Map dependency install results from task rows into API output. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   dependencyResult: row.dependencyResult ?? row.dependency_result ?? undefined,
+  workerLostAt: row.workerLostAt ?? row.worker_lost_at ? toIso(row.workerLostAt ?? row.worker_lost_at) : undefined,
   createdAt: toIso(row.createdAt),
   updatedAt: toIso(row.updatedAt)
 });
@@ -201,6 +207,8 @@ const rowToTaskFromSql = (row: any): Task => ({
   repoProvider: row.repo_provider ?? undefined,
   repoId: row.repo_id ?? undefined,
   robotId: row.robot_id ?? undefined,
+  // Preserve worker ownership from raw SQL task rows so queue consumers know where to dispatch. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId: row.worker_id ?? undefined,
   // Preserve actor user id when loading tasks via raw SQL. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   actorUserId: row.actor_user_id ?? undefined,
   ref: row.ref ?? undefined,
@@ -210,6 +218,7 @@ const rowToTaskFromSql = (row: any): Task => ({
   result: row.result_json ?? undefined,
   // Preserve dependency install results when using raw SQL task queries. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   dependencyResult: row.dependency_result ?? row.dependencyResult ?? undefined,
+  workerLostAt: row.worker_lost_at ? toIso(row.worker_lost_at) : undefined,
   createdAt: toIso(row.created_at),
   updatedAt: toIso(row.updated_at)
 });
@@ -223,6 +232,8 @@ const taskGroupRecordToTaskGroup = (row: any): TaskGroup => ({
   repoProvider: row.repoProvider ?? undefined,
   repoId: row.repoId ?? undefined,
   robotId: row.robotId ?? undefined,
+  // Surface worker ownership from Prisma task rows for dispatch-aware APIs. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId: row.workerId ?? row.worker_id ?? undefined,
   issueId: row.issueId ?? undefined,
   mrId: row.mrId ?? undefined,
   commitSha: row.commitSha ?? undefined,
@@ -339,6 +350,8 @@ const TASK_LIST_SELECT = {
   repoProvider: true,
   repoId: true,
   robotId: true,
+  workerId: true,
+  workerLostAt: true,
   ref: true,
   mrId: true,
   issueId: true,
@@ -353,7 +366,8 @@ export class TaskService {
   constructor(
     private readonly eventStream?: EventStreamService,
     private readonly logWriter?: LogWriterService,
-    private readonly notificationRecipients?: NotificationRecipientService
+    private readonly notificationRecipients?: NotificationRecipientService,
+    private readonly workersService?: WorkersService
   ) {}
 
   private runningTaskGroupLogState = { lastLogAt: 0, lastCount: -1 }; // Throttle running-task group audit logs to avoid sidebar poll spam. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
@@ -429,6 +443,8 @@ export class TaskService {
           repoProvider: params.meta?.repoProvider ?? null,
           repoId: params.meta?.repoId ?? null,
           robotId: params.meta?.robotId ?? null,
+          // Persist the initial worker binding when a task group is created so later tasks reuse the same executor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+          workerId: params.meta?.workerId ?? null,
           issueId: binding.issueId ?? null,
           mrId: binding.mrId ?? null,
           commitSha: binding.commitSha ?? null,
@@ -443,6 +459,27 @@ export class TaskService {
     }
   }
 
+  private async resolveEffectiveWorkerId(params: { requestedWorkerId?: string | null; taskGroupId?: string | null; robotId?: string | null }): Promise<string | null> {
+    if (!this.workersService) return safeTrim(params.requestedWorkerId) || null;
+    return this.workersService.findEffectiveWorkerId(params);
+  }
+
+  private async assertWorkerReadyForNewTask(workerId: string | null): Promise<void> {
+    const normalized = safeTrim(workerId);
+    if (!this.workersService) return;
+    // Fail fast when no default or explicit worker is available so disabled/bootstrap-misconfigured deployments never enqueue tasks onto a null worker id silently. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    if (!normalized) {
+      const error = new Error('No ready worker is configured for this task');
+      (error as Error & { code?: string }).code = 'WORKER_NOT_CONFIGURED';
+      throw error;
+    }
+    const readiness = await this.workersService.requireWorkerReadyForNewTask(normalized);
+    if (readiness.ok) return;
+    const error = new Error(readiness.message);
+    (error as Error & { code?: string }).code = readiness.code;
+    throw error;
+  }
+
   private async attachMeta(tasks: TaskWithMeta[]): Promise<TaskWithMeta[]> {
     type RepoMetaRow = { id: string; provider: string; name: string; enabled: boolean };
     type RobotMetaRow = { id: string; repoId: string; name: string; permission: string; enabled: boolean };
@@ -450,7 +487,7 @@ export class TaskService {
     const repoIds = Array.from(new Set(tasks.map((t) => t.repoId).filter(Boolean))) as string[];
     const robotIds = Array.from(new Set(tasks.map((t) => t.robotId).filter(Boolean))) as string[];
 
-    const [repos, robots] = await Promise.all([
+    const [repos, robots, withWorkers] = await Promise.all([
       repoIds.length
         ? db.repository.findMany({
             where: { id: { in: repoIds } },
@@ -462,7 +499,8 @@ export class TaskService {
             where: { id: { in: robotIds } },
             select: { id: true, repoId: true, name: true, permission: true, enabled: true }
           })
-        : Promise.resolve<RobotMetaRow[]>([])
+        : Promise.resolve<RobotMetaRow[]>([]),
+      this.workersService ? this.workersService.attachWorkerSummaries(tasks) : Promise.resolve(tasks)
     ] as const);
 
     const repoMap = new Map<string, TaskRepoSummary>(
@@ -489,7 +527,7 @@ export class TaskService {
       ])
     );
 
-    return tasks.map((task) => {
+    return withWorkers.map((task) => {
       const next: TaskWithMeta = { ...task };
       if (task.repoId && repoMap.has(task.repoId)) next.repo = repoMap.get(task.repoId);
       if (task.robotId && robotMap.has(task.robotId)) next.robot = robotMap.get(task.robotId);
@@ -500,10 +538,8 @@ export class TaskService {
   private resolveQueueReasonCode(params: {
     ahead: number;
     processing: number;
-    inlineWorkerEnabled: boolean;
   }): TaskQueueReasonCode {
-    // Pick a single primary reason code so the UI can render a concise queued hint. f3a9c2d8e1b7f4a0c6d1
-    if (!params.inlineWorkerEnabled && params.processing === 0) return 'inline_worker_disabled';
+    // Collapse legacy inline-worker hints into worker-availability/backlog hints for the external executor model. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     if (params.processing === 0) return 'no_active_worker';
     if (params.processing > 0 || params.ahead > 0) return 'queue_backlog';
     return 'unknown';
@@ -569,7 +605,7 @@ export class TaskService {
     const staleMs = parseOptionalDurationMs(process.env.PROCESSING_STALE_MS, 30 * 60 * 1000);
     const staleBefore = staleMs === null ? new Date(0) : new Date(Date.now() - staleMs);
 
-    const inlineWorkerEnabled = isTruthy(process.env.INLINE_WORKER_ENABLED, true);
+    const inlineWorkerEnabled = true;
     const now = new Date();
 
     const [posRows, processingRows] = await Promise.all([
@@ -626,7 +662,7 @@ export class TaskService {
       const scheduleState = resolveScheduleState(task.payload, now);
       const reasonCode = scheduleState.blocked
         ? 'outside_time_window'
-        : this.resolveQueueReasonCode({ ahead, processing, inlineWorkerEnabled });
+        : this.resolveQueueReasonCode({ ahead, processing });
       const queue: TaskQueueDiagnosis = {
         reasonCode,
         ahead,
@@ -654,8 +690,9 @@ export class TaskService {
 
     const repoIds = Array.from(new Set(groups.map((g) => g.repoId).filter(Boolean))) as string[];
     const robotIds = Array.from(new Set(groups.map((g) => g.robotId).filter(Boolean))) as string[];
+    const workerIds = Array.from(new Set(groups.map((g) => g.workerId).filter(Boolean))) as string[];
 
-    const [repos, robots] = await Promise.all([
+    const [repos, robots, workers] = await Promise.all([
       repoIds.length
         ? db.repository.findMany({
             where: { id: { in: repoIds } },
@@ -667,7 +704,8 @@ export class TaskService {
             where: { id: { in: robotIds } },
             select: { id: true, repoId: true, name: true, permission: true, enabled: true }
           })
-        : Promise.resolve<RobotMetaRow[]>([])
+        : Promise.resolve<RobotMetaRow[]>([]),
+      workerIds.length ? db.worker.findMany({ where: { id: { in: workerIds } } }) : Promise.resolve<any[]>([])
     ] as const);
 
     const repoMap = new Map<string, TaskRepoSummary>(
@@ -693,11 +731,16 @@ export class TaskService {
         }
       ])
     );
+    const workerMap = new Map(workers.map((worker) => [String(worker.id), { id: String(worker.id), name: String(worker.name), kind: String(worker.kind) as any, status: String(worker.status) as any, preview: Boolean((worker.capabilities as any)?.preview ?? false) }] as const));
 
     return groups.map((group) => {
       const next: TaskGroupWithMeta = { ...group };
       if (group.repoId && repoMap.has(group.repoId)) next.repo = repoMap.get(group.repoId);
       if (group.robotId && robotMap.has(group.robotId)) next.robot = robotMap.get(group.robotId);
+      if (group.workerId && workerMap.has(group.workerId)) {
+        next.workerSummary = workerMap.get(group.workerId);
+        next.blockedByWorkerOffline = workerMap.get(group.workerId)?.status !== 'online';
+      }
       return next;
     });
   }
@@ -736,7 +779,22 @@ export class TaskService {
   ): Promise<Task> {
     const id = randomUUID();
     const now = new Date();
-    const groupId = await this.resolveOrCreateGroupId({ taskId: id, eventType, payload, meta });
+    const preferredWorkerId = await this.resolveEffectiveWorkerId({
+      requestedWorkerId: meta?.workerId ?? null,
+      robotId: meta?.robotId ?? null
+    });
+    const groupId = await this.resolveOrCreateGroupId({
+      taskId: id,
+      eventType,
+      payload,
+      meta: { ...(meta ?? {}), workerId: preferredWorkerId ?? meta?.workerId }
+    });
+    const effectiveWorkerId = await this.resolveEffectiveWorkerId({
+      requestedWorkerId: meta?.workerId ?? null,
+      taskGroupId: groupId,
+      robotId: meta?.robotId ?? null
+    });
+    await this.assertWorkerReadyForNewTask(effectiveWorkerId);
     const groupOrder = await this.getNextGroupOrder(groupId);
     const created = await db.task.create({
       data: {
@@ -752,6 +810,7 @@ export class TaskService {
         repoProvider: meta?.repoProvider ?? null,
         repoId: meta?.repoId ?? null,
         robotId: meta?.robotId ?? null,
+        workerId: effectiveWorkerId ?? null,
         // Capture triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
         actorUserId: meta?.actorUserId ?? null,
         ref: meta?.ref ?? null,
@@ -801,14 +860,21 @@ export class TaskService {
     const groupOrder = await this.getNextGroupOrder(groupId);
 
     // Touch the group so it stays active in the UI. Optionally update the displayed robotId (chat groups only).
+    let effectiveWorkerId: string | null = null;
     try {
-      await db.taskGroup.update({
+      const group = await db.taskGroup.update({
         where: { id: groupId },
         data: {
           updatedAt: now,
           ...(options?.updateGroupRobotId ? { robotId: meta?.robotId ?? null } : {})
         }
       });
+      effectiveWorkerId = await this.resolveEffectiveWorkerId({
+        requestedWorkerId: meta?.workerId ?? null,
+        taskGroupId: String(group.id),
+        robotId: meta?.robotId ?? null
+      });
+      await this.assertWorkerReadyForNewTask(effectiveWorkerId);
     } catch (err) {
       if (isNotFoundError(err)) throw new Error('task group not found');
       throw err;
@@ -828,6 +894,7 @@ export class TaskService {
         repoProvider: meta?.repoProvider ?? null,
         repoId: meta?.repoId ?? null,
         robotId: meta?.robotId ?? null,
+        workerId: effectiveWorkerId ?? null,
         // Capture triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
         actorUserId: meta?.actorUserId ?? null,
         ref: meta?.ref ?? null,
@@ -859,9 +926,12 @@ export class TaskService {
     repoProvider?: RepoProvider;
     repoId?: string;
     robotId?: string;
+    workerId?: string;
     title?: string;
   }): Promise<TaskGroup> {
     const now = new Date();
+    const workerId = await this.resolveEffectiveWorkerId({ requestedWorkerId: params.workerId ?? null, robotId: params.robotId ?? null });
+    await this.assertWorkerReadyForNewTask(workerId);
 
     // Retry on extremely unlikely bindingKey collisions (unique constraint).
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -878,6 +948,7 @@ export class TaskService {
             repoProvider: params.repoProvider ?? null,
             repoId: params.repoId ?? null,
             robotId: params.robotId ?? null,
+            workerId: workerId ?? null,
             issueId: null,
             mrId: null,
             commitSha: null,
@@ -1776,11 +1847,15 @@ export class TaskService {
     const batchSize = 50;
     // Scan queued tasks in order and skip those blocked by time windows or busy groups; claim the first eligible row. docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
     const candidates = await db.$queryRaw<any[]>`
-      SELECT *
+      SELECT tasks.*
       FROM tasks
-      WHERE status = 'queued'
-        AND archived_at IS NULL
-      ORDER BY COALESCE(group_order, 2147483647) ASC, created_at ASC, id ASC
+      INNER JOIN workers ON workers.id = tasks.worker_id
+      WHERE tasks.status = 'queued'
+        AND tasks.archived_at IS NULL
+        AND workers.status = 'online'
+        AND workers.disabled_at IS NULL
+        AND COALESCE(workers.current_concurrency, 0) < COALESCE(workers.max_concurrency, 1)
+      ORDER BY COALESCE(tasks.group_order, 2147483647) ASC, tasks.created_at ASC, tasks.id ASC
       LIMIT ${batchSize};
     `;
 

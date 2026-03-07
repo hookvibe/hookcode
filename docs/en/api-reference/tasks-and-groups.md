@@ -37,7 +37,7 @@ These endpoints cover:
 - `GET /api/task-groups/:id` — Fetch task group details.
 - `GET /api/task-groups/:id/tasks` — List tasks for a group.
 - `GET /api/dashboard/sidebar` — Fetch sidebar aggregation data.
-- `POST /api/chat` — Execute a manual chat task.
+- `POST /api/chat` — Execute a manual chat task (supports optional `workerId` override).
 
 {/* Document paged task log access after the log-table migration. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306 */}
 ## Task Logs Pagination
@@ -52,7 +52,9 @@ These endpoints cover:
 - The console reads `/api/auth/me` feature flags to decide whether to show logs and connect SSE streams.
 - SSE endpoints support `?token=<bearer>` because `EventSource` cannot set custom headers.
 - Archived tasks/repositories may block retries to preserve archive “view-only” semantics.
-<!-- Clarify that task logs are no longer embedded in task result payloads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306 -->
+{/* Clarify that task logs are no longer embedded in task result payloads. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306 */}
 - Task result payloads no longer include logs; use the log endpoints to fetch or stream log lines.
 {/* Document the includeQueue toggle used to trim task list payloads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128 */}
 - `GET /api/tasks` accepts `includeQueue=false` to skip queue diagnosis fields for faster dashboard/task summary reads.
+{/* Document worker metadata exposure on tasks and task groups. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+- Task and task-group payloads now expose `workerId` and may include a `workerSummary` object for UI badges and routing visibility.

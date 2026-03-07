@@ -88,6 +88,7 @@ vi.mock('../api', () => {
     })),
     // Provide full repo list mocks for chat repo selection after pagination changes. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
     fetchAllRepos: vi.fn(async () => [repo]),
+    fetchWorkers: vi.fn(async () => [{ id: 'w1', name: 'Worker 1', kind: 'remote', status: 'online', systemManaged: false, maxConcurrency: 1, currentConcurrency: 0, createdAt: mockNow, updatedAt: mockNow }]),
     listRepoRobots: vi.fn(async () => [robot]),
     // Mock stop/edit/reorder APIs for the task-group workspace controls. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     stopTask: vi.fn(async (id: string) => ({ ...makeTask(id), status: 'failed', result: { stopReason: 'manual_stop' } })),
@@ -119,11 +120,15 @@ export const setupTaskGroupChatMocks = () => {
   vi.clearAllMocks();
   setLocale('en-US');
   window.location.hash = '#/';
+  window.localStorage.removeItem('hookcode-user');
 
   // Ensure each test starts from a known mock baseline (avoid cross-test mock leakage).
   // Reset repo list mocks to match fetchAllRepos usage. docs/en/developer/plans/pagination-impl-20260227-b/task_plan.md pagination-impl-20260227-b
   vi.mocked(api.fetchAllRepos).mockResolvedValue([
     { id: 'r1', provider: 'gitlab', name: 'Repo 1', enabled: true, createdAt: NOW, updatedAt: NOW } as any
+  ]);
+  vi.mocked(api.fetchWorkers).mockResolvedValue([
+    { id: 'w1', name: 'Worker 1', kind: 'remote', status: 'online', systemManaged: false, maxConcurrency: 1, currentConcurrency: 0, createdAt: NOW, updatedAt: NOW } as any
   ]);
   vi.mocked(api.listRepoRobots).mockResolvedValue([
     {

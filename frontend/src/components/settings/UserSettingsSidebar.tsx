@@ -30,9 +30,10 @@ import {
   FileTextOutlined,
   BellOutlined,
   EyeOutlined,
+  DeploymentUnitOutlined,
 } from '@ant-design/icons';
 import { useT } from '../../i18n';
-import { buildHomeHash, buildSettingsHash, type SettingsTab, SETTINGS_TABS } from '../../router';
+import { buildHomeHash, buildSettingsHash, type SettingsTab } from '../../router';
 import { navigateFromSidebar } from '../../navHistory';
 import { clearAuth, getStoredUser, getToken } from '../../auth';
 
@@ -75,6 +76,8 @@ const SETTINGS_NAV_GROUPS: NavGroup[] = [
       { key: 'notifications', icon: <BellOutlined />, labelKey: 'panel.tabs.notifications' },
       // Add preview management navigation for admin users in settings. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
       { key: 'preview', icon: <EyeOutlined />, labelKey: 'panel.tabs.preview' },
+      // Add a worker registry entry in admin settings so runtime bootstrap stays discoverable. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      { key: 'workers', icon: <DeploymentUnitOutlined />, labelKey: 'panel.tabs.workers' },
       { key: 'logs', icon: <FileTextOutlined />, labelKey: 'panel.tabs.logs' },
       { key: 'settings', icon: <SettingOutlined />, labelKey: 'panel.tabs.settings' },
     ],
@@ -165,7 +168,7 @@ export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
             )}
             {group.items.map((item) => {
               // Hide admin-only preview/log navigation for non-admin users. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
-              if ((item.key === 'logs' || item.key === 'preview') && !isAdmin) return null;
+              if ((item.key === 'logs' || item.key === 'preview' || item.key === 'workers') && !isAdmin) return null;
               return (
               <button
                 key={item.key}

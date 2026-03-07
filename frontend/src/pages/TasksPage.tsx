@@ -8,6 +8,7 @@ import { buildTaskHash, buildTasksHash } from '../router';
 import { clampText, getTaskTitle, queuedHintText, statusTag } from '../utils/task';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { CardListSkeleton } from '../components/skeletons/CardListSkeleton';
+import { WorkerSummaryTag } from '../components/workers/WorkerSummaryTag';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { getStatusSummaryKey, normalizeStatusFilter, type StatusFilter, type StatusSummaryKey } from './tasks/taskFilters';
 import { formatTaskTimestamp } from './tasks/formatters';
@@ -362,6 +363,8 @@ export const TasksPage: FC<TasksPageProps> = ({ status, repoId, userPanel, navTo
                         </Typography.Text>
                         <Space size={6} wrap>
                           {statusTag(t, task.status)}
+                          {/* Surface worker ownership directly in task cards so queue routing is visible at a glance. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+                          <WorkerSummaryTag worker={task.workerSummary} workerId={task.workerId} />
                           {task.status === 'queued' && task.permissions?.canManage ? (
                             task.queue?.reasonCode === 'outside_time_window' ? (
                               <Tooltip title={t('tasks.executeNow')}>

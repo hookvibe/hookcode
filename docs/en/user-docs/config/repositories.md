@@ -85,6 +85,19 @@ Robots can choose credentials from:
 
 See [Robot configuration](./robots) for details.
 
+{/* Document repo-level default worker routing for robot execution. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+## Default worker for robots
+
+Robots can optionally define a **default worker**.
+
+Use this when a repository should prefer a specific executor, for example:
+
+- a dedicated remote build host
+- a machine with preinstalled private tooling
+- a runner with larger CPU / RAM budgets
+
+If no default worker is configured, tasks fall back to the backend's local worker.
+
 {/* Document repo preview env injection for preview-only dev servers. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 */}
 ## Preview environment variables
 

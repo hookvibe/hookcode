@@ -4,7 +4,7 @@ import { resolveAutomationActions } from '../../services/automationEngine';
 import { attachTaskSchedule, isTimeWindowActive, resolveTaskSchedule } from '../../utils/timeWindow';
 import type { WebhookDeps } from './webhook.types';
 import { mapGithubAutomationEvent } from './webhook.automation';
-import { canCreateGithubAutomationTask, isInlineWorkerEnabled } from './webhook.guard';
+import { canCreateGithubAutomationTask } from './webhook.guard';
 import { buildGithubTaskMeta } from './webhook.meta';
 import { recordWebhookDeliveryBestEffort } from './webhook.delivery';
 import {
@@ -202,9 +202,8 @@ export const handleGithubWebhook = async (req: Request, res: Response, deps: Web
       created.push({ id: task.id, robotId: action.robotId });
     }
 
-    if (isInlineWorkerEnabled()) {
-      taskRunner.trigger().catch((err) => console.error('[webhook] trigger task runner failed', err));
-    }
+    // Trigger dispatch immediately after webhook enqueue so default/local workers behave like event-driven runners. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    taskRunner.trigger().catch((err) => console.error('[webhook] trigger task runner failed', err));
     return respond(202, { tasks: created }, { result: 'accepted', taskIds: created.map((t) => t.id), message: 'tasks created' });
   } catch (err) {
     console.error('[webhook] github repo failed to create task', err);

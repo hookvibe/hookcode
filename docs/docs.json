@@ -35,6 +35,8 @@
             "group": "Guides",
             "pages": [
               "en/user-docs/features",
+              "en/user-docs/workers",
+              "en/user-docs/split-host-deployment",
               "en/user-docs/preview",
               "en/user-docs/environment",
               "en/user-docs/custom-dockerfile",
@@ -52,6 +54,7 @@
               "en/api-reference/index",
               "en/api-reference/auth-users",
               "en/api-reference/repositories",
+              "en/api-reference/workers",
               "en/api-reference/tasks-and-groups",
               "en/api-reference/logs",
               "en/api-reference/notifications",

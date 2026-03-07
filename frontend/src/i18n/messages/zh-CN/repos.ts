@@ -311,6 +311,7 @@ export const zhCNRepos = {
   'repos.robots.title': '机器人',
   'repos.robots.createRobot': '新建 Robot',
   'repos.robots.permission': '权限',
+  'repos.robots.worker': '执行器',
   'repos.robots.default': '默认',
   'repos.robots.status.pending': '待激活',
   'repos.robots.lastTest': '最近测试',
@@ -345,6 +346,9 @@ export const zhCNRepos = {
   'repos.robotForm.workflowMode.checkFailed': '拉取方式检查失败：{message}',
   'repos.robotForm.workflowMode.saveRequired': '请先保存机器人后再检查拉取方式',
   'repos.robotForm.timeWindow': '执行时间段',
+  // Add robot-level worker selection copy for the external executor flow. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  'repos.robotForm.defaultWorker': '默认执行器',
+  'repos.robotForm.defaultWorkerPlaceholder': '跟随本地执行器或对话覆盖',
   'repos.robotForm.language': '回复语言',
   'repos.robotForm.modelProvider': '模型服务商',
   'repos.robotForm.modelProviderRequired': '请选择模型服务商',

@@ -1,7 +1,7 @@
 // Split TaskGroupChatPage composer tests into a focused spec file. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderTaskGroupChatPage, setupTaskGroupChatMocks } from './taskGroupChatPageTestUtils';
 import * as api from '../api';
@@ -47,6 +47,37 @@ describe('TaskGroupChatPage composer', () => {
       const selectRoot = robotSelect.closest('.ant-select');
       expect(selectRoot).toHaveTextContent('Robot 1 / codex');
     });
+  });
+
+
+  test('submits a chat task with an explicit worker override for admins', async () => {
+    // Verify admin chat users can route manual tasks to a selected worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    const ui = userEvent.setup();
+    window.localStorage.setItem('hookcode-user', JSON.stringify({ id: 'u_admin', username: 'admin', roles: ['admin'] }));
+    renderTaskGroupChatPage();
+
+    await waitFor(() => expect(api.fetchWorkers).toHaveBeenCalled());
+
+    const workerSelect = await screen.findByLabelText('Worker');
+    const workerRoot = workerSelect.closest('.ant-select');
+    expect(workerRoot).toBeTruthy();
+    fireEvent.mouseDown(workerRoot as HTMLElement);
+    await ui.click(await screen.findByText('Worker 1 · Remote · Online'));
+
+    const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
+    await ui.type(textarea, 'Route this to worker 1');
+    await ui.click(screen.getByRole('button', { name: /Send/i }));
+
+    await waitFor(() =>
+      expect(api.executeChat).toHaveBeenCalledWith({
+        repoId: 'r1',
+        robotId: 'bot1',
+        text: 'Route this to worker 1',
+        taskGroupId: undefined,
+        timeWindow: null,
+        workerId: 'w1'
+      })
+    );
   });
 
   test('renders composer actions popover with time window and preview start', async () => {

@@ -1,6 +1,6 @@
 import { App } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
-import type { RepoRobot, Repository, SkillSelectionKey, SkillSelectionState, Task, TaskGroup, TimeWindow } from '../../api';
+import type { RepoRobot, Repository, SkillSelectionKey, SkillSelectionState, Task, TaskGroup, TimeWindow, WorkerRecord } from '../../api';
 import {
   executeChat,
   fetchTask,
@@ -8,12 +8,15 @@ import {
   fetchTaskGroupSkillSelection,
   fetchTaskGroupTasks,
   fetchAllRepos,
+  fetchWorkers,
   listRepoRobots,
   updateTaskGroupSkillSelection
 } from '../../api';
 import type { TFunction } from '../../i18n';
 import { buildTaskGroupHash } from '../../router';
 import { formatRobotLabelWithProvider } from '../../utils/robot';
+import { formatWorkerOptionLabel } from '../../utils/workers';
+import { getStoredUser } from '../../auth';
 import { createAuthedEventSource } from '../../utils/sse';
 
 const GROUP_REFRESH_NOTICE_COOLDOWN_MS = 15000;
@@ -42,6 +45,12 @@ type UseTaskGroupWorkspaceDataResult = {
   robotId: string;
   setRobotId: Dispatch<SetStateAction<string>>;
   robotOptions: SelectOption[];
+  workersLoading: boolean;
+  workerId: string;
+  setWorkerId: Dispatch<SetStateAction<string>>;
+  workerOptions: SelectOption[];
+  workerLocked: boolean;
+  showWorkerSelector: boolean;
   group: TaskGroup | null;
   groupMissing: boolean;
   orderedTasks: Task[];
@@ -85,6 +94,9 @@ export const useTaskGroupWorkspaceData = ({
   const [robotsLoading, setRobotsLoading] = useState(false);
   const [robots, setRobots] = useState<RepoRobot[]>([]);
   const [robotId, setRobotId] = useState('');
+  const [workersLoading, setWorkersLoading] = useState(false);
+  const [workers, setWorkers] = useState<WorkerRecord[]>([]);
+  const [workerId, setWorkerId] = useState('');
   const [group, setGroup] = useState<TaskGroup | null>(null);
   const [groupMissing, setGroupMissing] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -109,6 +121,8 @@ export const useTaskGroupWorkspaceData = ({
   const lastGroupRefreshNoticeAtRef = useRef(0);
 
   const repoLocked = Boolean(taskGroupId);
+  const currentUser = getStoredUser();
+  const isAdmin = Boolean(currentUser?.roles?.includes('admin'));
 
   const refreshSkillSelection = useCallback(async () => {
     // Keep task-group skill overrides loaded with the workspace data so the composer and modal stay in sync. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
@@ -144,6 +158,13 @@ export const useTaskGroupWorkspaceData = ({
 
   const enabledRepos = useMemo(() => repos.filter((repo) => repo.enabled), [repos]);
   const enabledRobots = useMemo(() => robots.filter((robot) => Boolean(robot?.enabled)), [robots]);
+  const availableWorkers = useMemo(() => {
+    const items = workers.filter((worker) => worker.status !== 'disabled');
+    if (group?.workerSummary && !items.some((worker) => worker.id === group.workerSummary?.id)) {
+      return [group.workerSummary as WorkerRecord, ...items];
+    }
+    return items;
+  }, [group?.workerSummary, workers]);
 
   const repoOptions = useMemo<SelectOption[]>(() => enabledRepos.map((repo) => ({
     value: repo.id,
@@ -154,6 +175,17 @@ export const useTaskGroupWorkspaceData = ({
     value: robot.id,
     label: formatRobotLabelWithProvider(robot.name || robot.id, robot.modelProvider)
   })), [enabledRobots]);
+
+  const workerLocked = Boolean(taskGroupId && group?.workerId);
+  const workerOptions = useMemo<SelectOption[]>(() => {
+    const options = availableWorkers.map((worker) => ({
+      value: worker.id,
+      label: formatWorkerOptionLabel(t, worker)
+    }));
+    if (workerLocked) return options;
+    return [{ value: '__auto__', label: t('chat.form.workerAuto') }, ...options];
+  }, [availableWorkers, t, workerLocked]);
+  const showWorkerSelector = isAdmin;
 
   const orderedTasks = useMemo(() => {
     // Keep queue cards sorted from the persisted group order so visual links match backend execution order. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
@@ -240,6 +272,26 @@ export const useTaskGroupWorkspaceData = ({
     }
   }, [message, t]);
 
+
+  const refreshWorkers = useCallback(async () => {
+    // Load worker options for admin-only selectors so chat routing can target a specific executor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    if (!isAdmin) {
+      setWorkers([]);
+      return;
+    }
+    setWorkersLoading(true);
+    try {
+      const nextWorkers = await fetchWorkers();
+      setWorkers(nextWorkers);
+    } catch (error) {
+      console.error(error);
+      message.error(t('workers.toast.fetchFailed'));
+      setWorkers([]);
+    } finally {
+      setWorkersLoading(false);
+    }
+  }, [isAdmin, message, t]);
+
   const refreshGroupDetail = useCallback<RefreshGroupDetail>(async (targetGroupId, options) => {
     // Centralize group/task fetching, optimistic transitions, and refresh throttling so the page only renders workspace composition. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     if (!targetGroupId) {
@@ -250,6 +302,7 @@ export const useTaskGroupWorkspaceData = ({
       setGroupMissing(false);
       setTasks([]);
       setTaskDetailsById({});
+      setWorkerId('');
       return;
     }
 
@@ -271,6 +324,7 @@ export const useTaskGroupWorkspaceData = ({
       setGroupMissing(false);
       setTasks(taskList);
       if (nextGroup?.repoId) setRepoId(nextGroup.repoId);
+      setWorkerId(nextGroup?.workerId ?? '');
     } catch (error) {
       if (groupRequestSeqRef.current !== requestSeq) return;
       console.error(error);
@@ -283,6 +337,7 @@ export const useTaskGroupWorkspaceData = ({
         setGroupMissing(true);
         setTasks([]);
         setTaskDetailsById({});
+        setWorkerId('');
         return;
       }
       const shouldPreserveSnapshot = Boolean(groupRef.current) && (isNetworkFailure || (status !== undefined && status >= 500));
@@ -300,6 +355,7 @@ export const useTaskGroupWorkspaceData = ({
         setGroup(null);
         setTasks([]);
         setTaskDetailsById({});
+        setWorkerId('');
       }
     } finally {
       if (groupRequestSeqRef.current !== requestSeq) return;
@@ -344,7 +400,8 @@ export const useTaskGroupWorkspaceData = ({
 
   useEffect(() => {
     void refreshRepos();
-  }, [refreshRepos]);
+    void refreshWorkers();
+  }, [refreshRepos, refreshWorkers]);
 
   useEffect(() => {
     if (!repoId) return;
@@ -434,7 +491,8 @@ export const useTaskGroupWorkspaceData = ({
         robotId,
         text: trimmed,
         taskGroupId: taskGroupId || undefined,
-        timeWindow: chatTimeWindow
+        timeWindow: chatTimeWindow,
+        workerId: workerId || undefined
       });
       message.success(t('toast.chat.executeSuccess'));
       setDraft('');
@@ -446,6 +504,7 @@ export const useTaskGroupWorkspaceData = ({
       }
       setGroup(result.taskGroup ?? null);
       groupRef.current = result.taskGroup ?? null;
+      setWorkerId(result.taskGroup?.workerId ?? workerId);
       if (result.task?.id) {
         setTasks((previousTasks) => [...previousTasks.filter((task) => task.id !== result.task.id), result.task]);
       }
@@ -456,7 +515,7 @@ export const useTaskGroupWorkspaceData = ({
     } finally {
       setSending(false);
     }
-  }, [chatTimeWindow, message, refreshGroupDetail, repoId, robotId, sending, t, taskGroupId]);
+  }, [chatTimeWindow, message, refreshGroupDetail, repoId, robotId, sending, t, taskGroupId, workerId]);
 
   const canRunChatInGroup = Boolean(
     !taskGroupId || group?.kind === 'chat' || group?.kind === 'issue' || group?.kind === 'merge_request' || group?.kind === 'commit'
@@ -485,6 +544,12 @@ export const useTaskGroupWorkspaceData = ({
     robotId,
     setRobotId,
     robotOptions,
+    workersLoading,
+    workerId,
+    setWorkerId,
+    workerOptions,
+    workerLocked,
+    showWorkerSelector,
     group,
     groupMissing,
     orderedTasks,

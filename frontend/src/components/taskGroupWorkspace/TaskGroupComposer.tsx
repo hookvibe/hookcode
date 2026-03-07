@@ -28,6 +28,13 @@ type TaskGroupComposerProps = {
   onRobotChange: (value: string) => void;
   robotsLoading: boolean;
   robotOptions: TaskGroupComposerOption[];
+  // Surface admin-only worker override props beside repo/robot selection in the composer. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workersLoading: boolean;
+  workerId: string;
+  onWorkerChange: (value: string) => void;
+  workerOptions: TaskGroupComposerOption[];
+  workerLocked?: boolean;
+  showWorkerSelector?: boolean;
   chatTimeWindow: TimeWindow | null;
   onChatTimeWindowChange: (next: TimeWindow | null) => void;
   previewStartDisabled: boolean;
@@ -54,6 +61,12 @@ export const TaskGroupComposer = ({
   onRobotChange,
   robotsLoading,
   robotOptions,
+  workersLoading,
+  workerId,
+  onWorkerChange,
+  workerOptions,
+  workerLocked = false,
+  showWorkerSelector = false,
   chatTimeWindow,
   onChatTimeWindowChange,
   previewStartDisabled,
@@ -195,6 +208,28 @@ export const TaskGroupComposer = ({
                 size="small"
                 className="hc-select-subtle"
               />
+              {showWorkerSelector ? (
+                <>
+                  <span style={{ color: 'var(--border)', userSelect: 'none', margin: '0 4px' }}>|</span>
+                  {/* Keep worker override close to repo/robot selection so manual chat routing stays explicit. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+                  <Select
+                    variant="borderless"
+                    showSearch
+                    optionFilterProp="label"
+                    style={{ width: 'auto', minWidth: 120 }}
+                    placeholder={t('chat.form.workerPlaceholder')}
+                    loading={workersLoading}
+                    value={workerLocked ? (workerId || undefined) : (workerId || '__auto__')}
+                    aria-label={t('chat.form.worker')}
+                    onChange={(value) => onWorkerChange(String(value) === '__auto__' ? '' : String(value))}
+                    options={workerOptions}
+                    disabled={!canRun || workerLocked}
+                    popupMatchSelectWidth={false}
+                    size="small"
+                    className="hc-select-subtle"
+                  />
+                </>
+              ) : null}
             </Space>
             <Button
               type="primary"

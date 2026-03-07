@@ -1,7 +1,7 @@
 ---
 title: Notifications
 ---
-<!-- Document user notification APIs for task alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Document user notification APIs for task alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 
 This page documents the per-user notification APIs used by the console header panel and settings tab.
 
@@ -45,7 +45,7 @@ Response:
 
 `POST /api/notifications/read-all`
 
-<!-- Clarify clear semantics for notifications. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Clarify clear semantics for notifications. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 Note: the console “clear/read all” action marks notifications as read; it does not delete records.
 
 Response:

@@ -17,6 +17,10 @@ export const zhCNChat = {
   'chat.repo': '仓库',
   'chat.repoLockedTip': '任务组已绑定仓库',
   'chat.form.robotPlaceholder': '选择机器人',
+  // Add chat worker override copy so manual task groups can target a specific executor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  'chat.form.worker': '执行器',
+  'chat.form.workerPlaceholder': '选择执行器',
+  'chat.form.workerAuto': '自动选择执行器',
   'chat.form.robot': '机器人',
   'chat.form.robotTip': '可在不同消息中切换机器人',
   'chat.form.unsupportedGroupTip': '该任务组类型暂不支持继续对话',
@@ -43,6 +47,7 @@ export const zhCNChat = {
   'taskGroup.workspace.eventMarker': '触发来源：{{value}}',
   'taskGroup.workspace.repo': '仓库：{{value}}',
   'taskGroup.workspace.robot': '机器人：{{value}}',
+  'taskGroup.workspace.worker': '执行器：{{value}}',
   'taskGroup.workspace.createdAt': '创建时间：{{value}}',
   'taskGroup.workspace.updatedAt': '更新时间：{{value}}',
   'taskGroup.workspace.request': '任务内容',

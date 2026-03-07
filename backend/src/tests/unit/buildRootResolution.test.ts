@@ -24,38 +24,11 @@ describe('BUILD_ROOT resolution', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  test('resolves task-group root relative to build root override', async () => {
-    // Keep task-group roots configurable for shared task-group workspaces. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
-    const dir = await mkdtemp(path.join(tmpdir(), 'hookcode-build-'));
+  test('defaults task-group root to HOOKCODE_WORK_DIR/task-groups', async () => {
+    // Keep backend task-group workspaces under the shared HookCode work root when no explicit override is provided. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     const originalBuildRoot = process.env.HOOKCODE_BUILD_ROOT;
-    const originalTaskGroupsRoot = process.env.HOOKCODE_TASK_GROUPS_ROOT;
-    process.env.HOOKCODE_BUILD_ROOT = dir;
-    process.env.HOOKCODE_TASK_GROUPS_ROOT = 'custom-task-groups';
-
-    jest.resetModules();
-    const agent = await import('../../agent/agent');
-    expect(agent.TASK_GROUP_WORKSPACE_ROOT).toBe(path.join(dir, 'custom-task-groups'));
-
-    if (originalBuildRoot === undefined) {
-      delete process.env.HOOKCODE_BUILD_ROOT;
-    } else {
-      process.env.HOOKCODE_BUILD_ROOT = originalBuildRoot;
-    }
-    if (originalTaskGroupsRoot === undefined) {
-      delete process.env.HOOKCODE_TASK_GROUPS_ROOT;
-    } else {
-      process.env.HOOKCODE_TASK_GROUPS_ROOT = originalTaskGroupsRoot;
-    }
-    await rm(dir, { recursive: true, force: true });
-  });
-
-  test('expands tilde in task-group root overrides', async () => {
-    // Validate "~" expansion so task-group roots can point to the user home directory. docs/en/developer/plans/codexoutputdirfix20260205/task_plan.md codexoutputdirfix20260205
-    const dir = await mkdtemp(path.join(tmpdir(), 'hookcode-build-'));
-    const originalBuildRoot = process.env.HOOKCODE_BUILD_ROOT;
-    const originalTaskGroupsRoot = process.env.HOOKCODE_TASK_GROUPS_ROOT;
-    process.env.HOOKCODE_BUILD_ROOT = dir;
-    process.env.HOOKCODE_TASK_GROUPS_ROOT = '~/.hookcode/task-groups';
+    const originalWorkDir = process.env.HOOKCODE_WORK_DIR;
+    delete process.env.HOOKCODE_WORK_DIR;
 
     jest.resetModules();
     const agent = await import('../../agent/agent');
@@ -66,10 +39,59 @@ describe('BUILD_ROOT resolution', () => {
     } else {
       process.env.HOOKCODE_BUILD_ROOT = originalBuildRoot;
     }
-    if (originalTaskGroupsRoot === undefined) {
-      delete process.env.HOOKCODE_TASK_GROUPS_ROOT;
+    if (originalWorkDir === undefined) {
+      delete process.env.HOOKCODE_WORK_DIR;
     } else {
-      process.env.HOOKCODE_TASK_GROUPS_ROOT = originalTaskGroupsRoot;
+      process.env.HOOKCODE_WORK_DIR = originalWorkDir;
+    }
+  });
+
+  test('resolves task-group root relative to unified work dir override', async () => {
+    // Keep work-root overrides relative to BUILD_ROOT in backend mode so operators can relocate all HookCode state together. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    const dir = await mkdtemp(path.join(tmpdir(), 'hookcode-build-'));
+    const originalBuildRoot = process.env.HOOKCODE_BUILD_ROOT;
+    const originalWorkDir = process.env.HOOKCODE_WORK_DIR;
+    process.env.HOOKCODE_BUILD_ROOT = dir;
+    process.env.HOOKCODE_WORK_DIR = 'custom-work-root';
+
+    jest.resetModules();
+    const agent = await import('../../agent/agent');
+    expect(agent.TASK_GROUP_WORKSPACE_ROOT).toBe(path.join(dir, 'custom-work-root', 'task-groups'));
+
+    if (originalBuildRoot === undefined) {
+      delete process.env.HOOKCODE_BUILD_ROOT;
+    } else {
+      process.env.HOOKCODE_BUILD_ROOT = originalBuildRoot;
+    }
+    if (originalWorkDir === undefined) {
+      delete process.env.HOOKCODE_WORK_DIR;
+    } else {
+      process.env.HOOKCODE_WORK_DIR = originalWorkDir;
+    }
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test('expands tilde in unified work dir overrides', async () => {
+    // Validate "~" expansion so HOOKCODE_WORK_DIR can point at the user home while keeping task-groups under a stable subdirectory. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    const dir = await mkdtemp(path.join(tmpdir(), 'hookcode-build-'));
+    const originalBuildRoot = process.env.HOOKCODE_BUILD_ROOT;
+    const originalWorkDir = process.env.HOOKCODE_WORK_DIR;
+    process.env.HOOKCODE_BUILD_ROOT = dir;
+    process.env.HOOKCODE_WORK_DIR = '~/.custom-hookcode';
+
+    jest.resetModules();
+    const agent = await import('../../agent/agent');
+    expect(agent.TASK_GROUP_WORKSPACE_ROOT).toBe(path.join(homedir(), '.custom-hookcode', 'task-groups'));
+
+    if (originalBuildRoot === undefined) {
+      delete process.env.HOOKCODE_BUILD_ROOT;
+    } else {
+      process.env.HOOKCODE_BUILD_ROOT = originalBuildRoot;
+    }
+    if (originalWorkDir === undefined) {
+      delete process.env.HOOKCODE_WORK_DIR;
+    } else {
+      process.env.HOOKCODE_WORK_DIR = originalWorkDir;
     }
     await rm(dir, { recursive: true, force: true });
   });

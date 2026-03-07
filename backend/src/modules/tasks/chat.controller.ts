@@ -4,7 +4,6 @@ import type { Request } from 'express';
 import { RepoRobotService } from '../repositories/repo-robot.service';
 import { RepositoryService } from '../repositories/repository.service';
 import { buildChatTaskPayload } from '../../services/chatPayload';
-import { isTruthy } from '../../utils/env';
 import { normalizeString } from '../../utils/parse';
 import { attachTaskSchedule, normalizeTimeWindow, resolveTaskSchedule } from '../../utils/timeWindow';
 import { AuthScopeGroup } from '../auth/auth.decorator';
@@ -79,6 +78,7 @@ export class ChatController {
       const repoId = normalizeString((body as any)?.repoId);
       const robotId = normalizeString((body as any)?.robotId);
       const taskGroupId = normalizeString((body as any)?.taskGroupId);
+      const workerId = normalizeString((body as any)?.workerId);
       const text = typeof (body as any)?.text === 'string' ? String((body as any).text).trim() : '';
 
       if (!repoId) throw new BadRequestException({ error: 'repoId is required' });
@@ -110,6 +110,7 @@ export class ChatController {
             repoProvider: repo.provider,
             repoId,
             robotId,
+            workerId,
             title: `Chat · ${normalizeSnippet(text, 80) || repo.name || repo.id}`
           });
       if (!group) throw new NotFoundException({ error: 'Task group not found' });
@@ -140,15 +141,15 @@ export class ChatController {
           repoProvider: repo.provider,
           robotId,
           promptCustom,
+          workerId,
           // Attribute manual chat tasks to the triggering user for notifications. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
           actorUserId: req.user?.id
         },
         { updateGroupRobotId: group.kind === 'chat' }
       );
 
-      if (isTruthy(process.env.INLINE_WORKER_ENABLED, true)) {
-        this.taskRunner.trigger().catch((err: unknown) => console.error('[chat] trigger task runner failed', err));
-      }
+      // Trigger dispatcher immediately so chat-created tasks start on the selected worker without waiting for a poll loop. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      this.taskRunner.trigger().catch((err: unknown) => console.error('[chat] trigger task runner failed', err));
 
       const [taskWithMeta, groupWithMeta] = await Promise.all([
         this.taskService.getTask(created.id, { includeMeta: true }),

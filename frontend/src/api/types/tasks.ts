@@ -3,6 +3,7 @@
 import type { DependencyResult, TaskEventType, TaskQueueDiagnosis, TaskStatus } from './common';
 import type { ModelProvider } from './models';
 import type { RepoProvider, RobotPermission } from './repos';
+import type { WorkerSummary } from './workers';
 
 export interface TaskRepoSummary {
   id: string;
@@ -35,6 +36,8 @@ export interface Task {
   repoProvider?: RepoProvider;
   repoId?: string;
   robotId?: string;
+  // Surface execution worker metadata in task payloads for attribution and routing. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId?: string;
   // Track the triggering user for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   actorUserId?: string;
   ref?: string;
@@ -47,10 +50,12 @@ export interface Task {
   result?: TaskResult;
   // Capture dependency install results for display/diagnostics. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   dependencyResult?: DependencyResult;
+  workerLostAt?: string;
   createdAt: string;
   updatedAt: string;
   repo?: TaskRepoSummary;
   robot?: TaskRobotSummary;
+  workerSummary?: WorkerSummary;
   permissions?: { canManage: boolean };
 }
 
@@ -141,6 +146,8 @@ export interface TaskGroup {
   repoProvider?: RepoProvider;
   repoId?: string;
   robotId?: string;
+  // Keep task groups pinned to a worker once assigned so the workspace remains stable. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId?: string;
   issueId?: number;
   mrId?: number;
   commitSha?: string;
@@ -149,12 +156,14 @@ export interface TaskGroup {
   previewActive?: boolean;
   // Flag task groups with processing tasks for sidebar running indicators. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
   hasRunningTasks?: boolean;
+  blockedByWorkerOffline?: boolean;
   // Archived groups are excluded from default sidebar/chat lists. qnp1mtxhzikhbi0xspbc
   archivedAt?: string;
   createdAt: string;
   updatedAt: string;
   repo?: TaskRepoSummary;
   robot?: TaskRobotSummary;
+  workerSummary?: WorkerSummary;
 }
 
 export interface TaskStatusStats {

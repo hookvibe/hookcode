@@ -2,6 +2,7 @@ import type { RepoProvider } from './repository';
 import type { RobotPermission } from './repoRobot';
 import type { DependencyResult } from './dependency';
 import type { TimeWindowSource } from './timeWindow';
+import type { WorkerSummary } from './worker';
 
 // Keep a narrow task-status union while replacing pause/resume execution control with manual-stop failures. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
@@ -106,6 +107,10 @@ export interface TaskResult {
   risks?: string[];
   suggestions?: string[];
   message?: string;
+  // Persist worker-loss metadata in task results so the UI can explain disconnected executors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerLost?: boolean;
+  workerLostReason?: string;
+  code?: string;
   // Record manual stop requests and outcomes without reintroducing a resumable paused status. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   stopReason?: 'manual_stop';
   stopRequestedAt?: string;
@@ -176,6 +181,8 @@ export interface Task {
   repoProvider?: RepoProvider;
   repoId?: string;
   robotId?: string;
+  // Surface the selected execution worker on each task for attribution and routing. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerId?: string;
   // Persist task trigger ownership for notification routing. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
   actorUserId?: string;
   ref?: string;
@@ -190,6 +197,8 @@ export interface Task {
   result?: TaskResult;
   // Persist dependency install outcomes for multi-language repos. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   dependencyResult?: DependencyResult;
+  // Track worker-loss timestamps so the UI can explain worker-disconnect failures. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerLostAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -212,4 +221,6 @@ export interface TaskRobotSummary {
 export type TaskWithMeta = Task & {
   repo?: TaskRepoSummary;
   robot?: TaskRobotSummary;
+  // Return compact worker metadata with task payloads so lists/details can show execution ownership. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  workerSummary?: WorkerSummary;
 };

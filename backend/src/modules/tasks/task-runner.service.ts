@@ -8,6 +8,8 @@ import { LogWriterService } from '../logs/log-writer.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
 import { TASK_MANUAL_STOP_MESSAGE } from './task-control.constants';
+import { WorkersConnectionService } from '../workers/workers-connection.service';
+import { WorkersService } from '../workers/workers.service';
 
 export interface TaskRunnerFinishInfo {
   status: TaskStatus;
@@ -23,7 +25,7 @@ export interface TaskRunnerHooks {
 
 /**
  * Queue runner (consumes tasks in parallel across task groups). docs/en/developer/plans/taskgroup-parallel-20260227/task_plan.md taskgroup-parallel-20260227
- * - Triggered periodically by `backend/src/worker.ts`, or triggered in INLINE_WORKER mode by `backend/src/routes/webhook.ts` / `backend/src/routes/tasks.ts`.
+ * - Triggered by backend queue mutations so connected external workers receive assignments without polling the database. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
  * - Pulls one queued task via `TaskService.takeNextQueued()` and marks it processing; updates status to succeeded/failed when done.
  * - The actual "execute task" logic lives in `backend/src/agent/agent.ts` (callAgent: clone repo, build prompt, run codex, post back to GitLab).
  */
@@ -65,7 +67,9 @@ export class TaskRunner {
     private readonly agentService: AgentService,
     private readonly logWriter: LogWriterService,
     private readonly notificationsService: NotificationsService,
-    private readonly notificationRecipients: NotificationRecipientService
+    private readonly notificationRecipients: NotificationRecipientService,
+    private readonly workersConnections: WorkersConnectionService,
+    private readonly workersService: WorkersService
   ) {}
 
   setHooks(hooks: TaskRunnerHooks | null): void {
@@ -97,8 +101,8 @@ export class TaskRunner {
     const running = new Set<Promise<void>>();
 
     const startTask = (task: Task) => {
-      const work = this.processTask(task).catch((err) => {
-        console.error('[taskRunner] processTask failed', task.id, err);
+      const work = this.dispatchTask(task).catch((err) => {
+        console.error('[taskRunner] dispatchTask failed', task.id, err);
       });
       running.add(work);
       work.finally(() => running.delete(work));
@@ -160,6 +164,195 @@ export class TaskRunner {
       await fn(task, info);
     } catch (err) {
       console.warn('[taskRunner] onTaskFinish hook failed (ignored)', task.id, err);
+    }
+  }
+
+  private async dispatchTask(task: Task): Promise<void> {
+    const startedAt = Date.now();
+    await this.runHookStart(task);
+    // Emit dispatch-start logs before handing the task to a connected worker so admin timelines stay complete. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    void this.logWriter.logExecution({
+      level: 'info',
+      message: 'Task dispatched',
+      code: 'TASK_DISPATCHED',
+      repoId: task.repoId,
+      taskId: task.id,
+      taskGroupId: task.groupId,
+      meta: { eventType: task.eventType, robotId: task.robotId, retries: task.retries, workerId: task.workerId }
+    });
+
+    try {
+      await this.taskLogsService.clearLogs(task.id);
+      await this.taskService.patchResult(task.id, {
+        outputText: '',
+        tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+      });
+      const workerId = task.workerId ?? '';
+      if (!workerId) throw new Error('Task is missing worker assignment');
+      await this.workersService.reserveWorkerSlot(workerId);
+      const dispatched = this.workersConnections.sendAssignTask(workerId, task.id);
+      if (!dispatched) {
+        await this.workersService.releaseWorkerSlot(workerId);
+        throw new Error('Assigned worker is not connected');
+      }
+    } catch (err) {
+      await this.reportWorkerFailure(task, {
+        message: getErrorMessage(err),
+        durationMs: Date.now() - startedAt
+      });
+    }
+  }
+
+  async reportWorkerSuccess(
+    task: Task,
+    params: { providerCommentUrl?: string; outputText?: string; gitStatus?: TaskResult['gitStatus']; durationMs?: number }
+  ): Promise<void> {
+    try {
+      await this.finalizeWithRetry(task.id, 'succeeded', {
+        providerCommentUrl: params.providerCommentUrl,
+        outputText: params.outputText,
+        gitStatus: params.gitStatus
+      });
+      // Record successful worker completions with the same audit and notification semantics as local execution. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      void this.logWriter.logExecution({
+        level: 'info',
+        message: 'Task succeeded',
+        code: 'TASK_SUCCEEDED',
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+      });
+      void this.emitTaskNotification(task, {
+        type: 'TASK_SUCCEEDED',
+        level: 'info',
+        message: `Task succeeded: ${buildTaskLabel(task)}`,
+        code: 'TASK_SUCCEEDED',
+        meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+      });
+      await this.runHookFinish(task, {
+        status: 'succeeded',
+        providerCommentUrl: params.providerCommentUrl,
+        durationMs: params.durationMs
+      });
+    } finally {
+      if (task.workerId) await this.workersService.releaseWorkerSlot(task.workerId);
+    }
+  }
+
+  async reportWorkerFailure(
+    task: Task,
+    params: {
+      message: string;
+      providerCommentUrl?: string;
+      gitStatus?: TaskResult['gitStatus'];
+      durationMs?: number;
+      stopReason?: TaskAbortReason;
+    }
+  ): Promise<void> {
+    try {
+      if (params.stopReason === 'manual_stop') {
+        await this.finalizeWithRetry(task.id, 'failed', {
+          message: TASK_MANUAL_STOP_MESSAGE,
+          providerCommentUrl: params.providerCommentUrl,
+          gitStatus: params.gitStatus
+        });
+        void this.logWriter.logExecution({
+          level: 'warn',
+          message: TASK_MANUAL_STOP_MESSAGE,
+          code: 'TASK_STOPPED',
+          repoId: task.repoId,
+          taskId: task.id,
+          taskGroupId: task.groupId,
+          meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+        });
+        void this.emitTaskNotification(task, {
+          type: 'TASK_STOPPED',
+          level: 'warn',
+          message: `Task stopped: ${buildTaskLabel(task)}`,
+          code: 'TASK_STOPPED',
+          meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+        });
+        await this.runHookFinish(task, {
+          status: 'failed',
+          message: TASK_MANUAL_STOP_MESSAGE,
+          providerCommentUrl: params.providerCommentUrl,
+          durationMs: params.durationMs
+        });
+        return;
+      }
+
+      if (params.stopReason === 'deleted') {
+        void this.logWriter.logExecution({
+          level: 'error',
+          message: 'Task deleted during execution.',
+          code: 'TASK_DELETED',
+          repoId: task.repoId,
+          taskId: task.id,
+          taskGroupId: task.groupId,
+          meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+        });
+        void this.emitTaskNotification(task, {
+          type: 'TASK_DELETED',
+          level: 'error',
+          message: `Task deleted: ${buildTaskLabel(task)}`,
+          code: 'TASK_DELETED',
+          meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
+        });
+        await this.runHookFinish(task, {
+          status: 'failed',
+          message: 'Task deleted during execution.',
+          providerCommentUrl: params.providerCommentUrl,
+          durationMs: params.durationMs
+        });
+        return;
+      }
+
+      await this.finalizeWithRetry(task.id, 'failed', {
+        message: params.message,
+        providerCommentUrl: params.providerCommentUrl,
+        gitStatus: params.gitStatus
+      });
+      void this.logWriter.logExecution({
+        level: 'error',
+        message: params.message,
+        code: 'TASK_FAILED',
+        repoId: task.repoId,
+        taskId: task.id,
+        taskGroupId: task.groupId,
+        meta: { durationMs: params.durationMs ?? 0, retries: task.retries, error: params.message, workerId: task.workerId }
+      });
+      void this.emitTaskNotification(task, {
+        type: 'TASK_FAILED',
+        level: 'error',
+        message: `Task failed: ${buildTaskLabel(task)}`,
+        code: 'TASK_FAILED',
+        meta: { durationMs: params.durationMs ?? 0, retries: task.retries, error: params.message, workerId: task.workerId }
+      });
+      await this.runHookFinish(task, {
+        status: 'failed',
+        message: params.message,
+        providerCommentUrl: params.providerCommentUrl,
+        durationMs: params.durationMs
+      });
+    } finally {
+      if (task.workerId) await this.workersService.releaseWorkerSlot(task.workerId);
+    }
+  }
+
+  async executeAssignedTaskInline(task: Task): Promise<void> {
+    // Let the system-managed local worker fall back to backend-inline execution until every task ships a remote-safe command envelope. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    void this.logWriter.logSystem({
+      level: 'info',
+      message: 'Local worker delegated task back to backend inline executor',
+      code: 'WORKER_LOCAL_INLINE_FALLBACK',
+      meta: { taskId: task.id, taskGroupId: task.groupId, workerId: task.workerId }
+    });
+
+    try {
+      await this.processTask(task);
+    } finally {
+      if (task.workerId) await this.workersService.releaseWorkerSlot(task.workerId);
     }
   }
 

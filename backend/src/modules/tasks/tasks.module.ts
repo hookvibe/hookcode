@@ -7,6 +7,7 @@ import { EventsModule } from '../events/events.module';
 import { SkillsModule } from '../skills/skills.module';
 import { LogsModule } from '../logs/logs.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { WorkersModule } from '../workers/workers.module';
 import { AgentService } from './agent.service';
 import { TaskGitPushService } from './task-git-push.service';
 import { TaskLogStream } from './task-log-stream.service';
@@ -34,7 +35,9 @@ import { PreviewHighlightService } from './preview-highlight.service';
     SkillsModule,
     LogsModule,
     // Provide notification services for task result alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
-    NotificationsModule
+    NotificationsModule,
+    // Resolve worker registry/services while routing queued tasks to external executors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    WorkersModule
   ],
   // Register git push service for task-level push actions. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   providers: [

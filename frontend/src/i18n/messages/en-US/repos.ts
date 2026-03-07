@@ -312,6 +312,7 @@ export const enUSRepos = {
   'repos.robots.title': 'Robots',
   'repos.robots.createRobot': 'New robot',
   'repos.robots.permission': 'Permission',
+  'repos.robots.worker': 'Worker',
   'repos.robots.default': 'Default',
   'repos.robots.status.pending': 'Pending activation',
   'repos.robots.lastTest': 'Last test',
@@ -346,6 +347,9 @@ export const enUSRepos = {
   'repos.robotForm.workflowMode.checkFailed': 'Workflow check failed: {message}',
   'repos.robotForm.workflowMode.saveRequired': 'Save the robot before checking workflow',
   'repos.robotForm.timeWindow': 'Execution window',
+  // Add robot-level worker selection copy for the external executor flow. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  'repos.robotForm.defaultWorker': 'Default worker',
+  'repos.robotForm.defaultWorkerPlaceholder': 'Follow local worker or chat override',
   'repos.robotForm.language': 'Language',
   'repos.robotForm.modelProvider': 'Model provider',
   'repos.robotForm.modelProviderRequired': 'Please select a model provider',

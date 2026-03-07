@@ -17,6 +17,10 @@ export const enUSChat = {
   'chat.repo': 'Repository',
   'chat.repoLockedTip': 'Repository is locked to this group',
   'chat.form.robotPlaceholder': 'Select robot',
+  // Add chat worker override copy so manual task groups can target a specific executor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  'chat.form.worker': 'Worker',
+  'chat.form.workerPlaceholder': 'Select worker',
+  'chat.form.workerAuto': 'Auto worker',
   'chat.form.robot': 'Robot',
   'chat.form.robotTip': 'You can switch robots per message',
   'chat.form.unsupportedGroupTip': 'This task group does not support manual chat messages',
@@ -43,6 +47,7 @@ export const enUSChat = {
   'taskGroup.workspace.eventMarker': 'Trigger: {{value}}',
   'taskGroup.workspace.repo': 'Repository: {{value}}',
   'taskGroup.workspace.robot': 'Robot: {{value}}',
+  'taskGroup.workspace.worker': 'Worker: {{value}}',
   'taskGroup.workspace.createdAt': 'Created: {{value}}',
   'taskGroup.workspace.updatedAt': 'Updated: {{value}}',
   'taskGroup.workspace.request': 'Request',

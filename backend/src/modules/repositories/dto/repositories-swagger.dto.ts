@@ -340,6 +340,10 @@ export class RepoRobotSwaggerDto {
   @ApiPropertyOptional({ nullable: true })
   defaultBranch?: string | null;
 
+  @ApiPropertyOptional({ nullable: true })
+  // Document robot-level worker defaults so settings UIs can render executor routing. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  defaultWorkerId?: string | null;
+
   @ApiPropertyOptional({ nullable: true, enum: ['main', 'dev', 'test'] })
   defaultBranchRole?: 'main' | 'dev' | 'test' | null;
 

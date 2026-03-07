@@ -116,9 +116,10 @@ When the preview iframe loads, HookCode sends a handshake ping. If the bridge re
 ## Workspace layout
 
 {/* Document the task-group workspace structure for preview troubleshooting. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
-Task runs create a workspace under the build root (configurable via `HOOKCODE_BUILD_ROOT`). The default layout is:
+{/* Route preview workspace docs through HOOKCODE_WORK_DIR so operator storage guidance matches the new runtime layout. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+Task runs create a workspace under `HOOKCODE_WORK_DIR/task-groups` (default: `~/.hookcode/task-groups`). The default layout is:
 
-- `<build-root>/task-groups/<taskGroupId>/`
+- `<work-dir>/task-groups/<taskGroupId>/`
   {/* Mention that bundled skills include per-skill .env copies for API access. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131 */}
   - `.codex/skills/` (bundled skills with per-skill .env copies)
   {/* Document Claude/Gemini template folders in the task-group workspace. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205 */}

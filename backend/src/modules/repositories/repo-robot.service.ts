@@ -143,6 +143,8 @@ const recordToRobot = (row: any): RepoRobot => ({
   repoCredentialRemark: row.repoCredentialRemark ?? undefined,
   repoCredentialProfileId: row.repoCredentialProfileId ?? undefined,
   cloneUsername: row.cloneUsername ?? undefined,
+  // Surface default worker bindings so repo settings can route new tasks to a chosen executor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  defaultWorkerId: row.defaultWorkerId ?? undefined,
   repoTokenUserId: row.repoTokenUserId ?? undefined,
   repoTokenUsername: row.repoTokenUsername ?? undefined,
   repoTokenUserName: row.repoTokenUserName ?? undefined,
@@ -186,6 +188,7 @@ export interface CreateRepoRobotInput {
   name: string;
   token?: string | null;
   cloneUsername?: string | null;
+  defaultWorkerId?: string | null;
   repoCredentialSource?: 'robot' | 'user' | 'repo' | string | null;
   repoCredentialProfileId?: string | null;
   repoCredentialRemark?: string | null;
@@ -207,6 +210,7 @@ export interface UpdateRepoRobotInput {
   name?: string;
   token?: string | null;
   cloneUsername?: string | null;
+  defaultWorkerId?: string | null;
   repoCredentialSource?: 'robot' | 'user' | 'repo' | string | null;
   repoCredentialProfileId?: string | null;
   repoCredentialRemark?: string | null;
@@ -277,6 +281,13 @@ export class RepoRobotService {
     const explicitSource = normalizeRepoCredentialSource(input.repoCredentialSource);
     const repoCredentialSource = explicitSource ?? (token ? 'robot' : repoCredentialProfileId ? 'user' : 'repo');
     const repoCredentialRemark = normalizeRepoCredentialRemark(input.repoCredentialRemark);
+    const defaultWorkerId = input.defaultWorkerId === undefined ? null : input.defaultWorkerId ? String(input.defaultWorkerId).trim() : null;
+    if (defaultWorkerId) {
+      // Validate robot-level worker defaults before persisting them so routing only references real executors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      const worker = await db.worker.findUnique({ where: { id: defaultWorkerId }, select: { id: true, disabledAt: true } });
+      if (!worker) throw new Error('defaultWorkerId not found');
+      if (worker.disabledAt) throw new Error('defaultWorkerId is disabled');
+    }
 
     // Change record: enforce explicit selection semantics now that both user/repo credentials can be multi-profile.
     if (repoCredentialSource === 'robot') {
@@ -324,6 +335,7 @@ export class RepoRobotService {
         permission,
         token: repoCredentialSource === 'robot' ? token : null,
         cloneUsername,
+        defaultWorkerId,
         repoCredentialSource,
         repoCredentialRemark: repoCredentialSource === 'robot' ? (repoCredentialRemark ?? null) : null,
         repoCredentialProfileId: repoCredentialSource === 'robot' ? null : repoCredentialProfileId,
@@ -400,6 +412,19 @@ export class RepoRobotService {
       input.repoCredentialRemark === undefined
         ? (existing.repoCredentialRemark ?? null)
         : normalizeRepoCredentialRemark(input.repoCredentialRemark);
+
+    const nextDefaultWorkerId =
+      input.defaultWorkerId === undefined
+        ? existing.defaultWorkerId ?? null
+        : input.defaultWorkerId
+          ? String(input.defaultWorkerId).trim()
+          : null;
+    if (nextDefaultWorkerId) {
+      // Revalidate robot worker bindings on update so disabled or missing executors cannot be selected silently. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      const worker = await db.worker.findUnique({ where: { id: nextDefaultWorkerId }, select: { id: true, disabledAt: true } });
+      if (!worker) throw new Error('defaultWorkerId not found');
+      if (worker.disabledAt) throw new Error('defaultWorkerId is disabled');
+    }
 
     // Change record: enforce explicit source + single selected profile semantics for multi-profile credentials.
     if (nextRepoCredentialSource === 'robot') {
@@ -511,6 +536,7 @@ export class RepoRobotService {
         permission: nextPermission,
         token: nextRepoCredentialSource === 'robot' ? nextToken : null,
         cloneUsername: nextCloneUsername,
+        defaultWorkerId: nextDefaultWorkerId,
         repoCredentialSource: nextRepoCredentialSource,
         repoCredentialRemark: nextRepoCredentialSource === 'robot' ? (nextRepoCredentialRemark ?? null) : null,
         repoCredentialProfileId: nextRepoCredentialSource === 'robot' ? null : nextRepoCredentialProfileId,

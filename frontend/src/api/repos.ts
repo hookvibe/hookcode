@@ -274,6 +274,8 @@ export const createRepoRobot = async (
     repoWorkflowMode?: 'auto' | 'direct' | 'fork' | null;
     // Optional execution window for robot-level scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
     timeWindow?: TimeWindow | null;
+    // Persist robot-level worker defaults so repo automation can route new tasks explicitly. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    defaultWorkerId?: string | null;
     enabled?: boolean;
     isDefault?: boolean;
   }
@@ -306,6 +308,7 @@ export const updateRepoRobot = async (
     repoWorkflowMode: 'auto' | 'direct' | 'fork' | null;
     // Optional execution window for robot-level scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
     timeWindow: TimeWindow | null;
+    defaultWorkerId: string | null;
     enabled: boolean;
     isDefault: boolean;
   }>
