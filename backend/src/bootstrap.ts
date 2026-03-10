@@ -325,16 +325,30 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
       localWorkerSupervisor = null;
     }
   } else if (systemWorkerMode === 'external') {
-    // Bootstrap one backend-owned external worker record from env so Docker/production can default to a remote executor without starting a local supervisor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    const externalSystemWorker = readExternalSystemWorkerConfig(process.env);
-    const workersService = app.get(WorkersService);
-    await workersService.ensureExternalSystemWorker({
-      workerId: externalSystemWorker!.workerId,
-      token: externalSystemWorker!.token,
-      name: externalSystemWorker!.name,
-      maxConcurrency: externalSystemWorker!.maxConcurrency,
-      backendBaseUrl
-    });
+    // Allow backend startup even if external worker bootstrap fails; log and continue. docs/en/developer/plans/ci-backend-start-20260310/task_plan.md ci-backend-start-20260310
+    try {
+      // Bootstrap one backend-owned external worker record from env so Docker/production can default to a remote executor without starting a local supervisor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      const externalSystemWorker = readExternalSystemWorkerConfig(process.env);
+      if (externalSystemWorker) {
+        const workersService = app.get(WorkersService);
+        await workersService.ensureExternalSystemWorker({
+          workerId: externalSystemWorker.workerId,
+          token: externalSystemWorker.token,
+          name: externalSystemWorker.name,
+          maxConcurrency: externalSystemWorker.maxConcurrency,
+          backendBaseUrl
+        });
+      }
+    } catch (err) {
+      console.warn(`${logTag} external system worker bootstrap failed`, err);
+      // Emit system logs so startup failures are visible without crashing the backend. docs/en/developer/plans/ci-backend-start-20260310/task_plan.md ci-backend-start-20260310
+      void logWriter?.logSystem({
+        level: 'error',
+        message: 'External system worker bootstrap failed',
+        code: 'WORKER_SYSTEM_BOOTSTRAP_FAILED',
+        meta: { error: err instanceof Error ? err.message : String(err) }
+      });
+    }
   } else {
     // Allow advanced deployments to disable automatic system-worker bootstrapping entirely when they only want manually managed workers. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     void logWriter?.logSystem({

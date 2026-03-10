@@ -33,6 +33,19 @@ services:
       - "${HOOKCODE_BACKEND_BIND:-127.0.0.1}:${HOOKCODE_BACKEND_PORT:-4000}:4000"
     depends_on:
       - db
+    # Add backend healthcheck so CI can verify startup readiness. docs/en/developer/plans/ci-backend-start-20260310/task_plan.md ci-backend-start-20260310
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:4000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
 
   worker:
     # Run the standalone worker image separately from backend so deployments can place executors on arbitrary machines. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
