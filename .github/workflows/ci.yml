@@ -83,15 +83,15 @@ jobs:
           HOOKCODE_DB_PASSWORD: ${{ secrets.HOOKCODE_DB_PASSWORD || 'hookcode' }}
           HOOKCODE_DB_NAME: ${{ secrets.HOOKCODE_DB_NAME || 'hookcode' }}
           # Keep CI Docker deployments on an explicit absolute work root so backend and worker runtime state land on the mounted HOOKCODE_WORK_DIR volumes. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-          HOOKCODE_WORK_DIR: ${{ vars.HOOKCODE_WORK_DIR || '/var/lib/hookcode' }}
-          # Keep server deployments on the external system-worker path by default; a remote worker can reuse the same bootstrap id/token from GitHub Actions secrets/vars. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-          HOOKCODE_DOCKER_INCLUDE_WORKER: ${{ vars.HOOKCODE_DOCKER_INCLUDE_WORKER || 'false' }}
-          HOOKCODE_SYSTEM_WORKER_MODE: ${{ vars.HOOKCODE_SYSTEM_WORKER_MODE || 'external' }}
-          HOOKCODE_SYSTEM_WORKER_ID: ${{ vars.HOOKCODE_SYSTEM_WORKER_ID || '11111111-1111-4111-8111-111111111111' }}
+          HOOKCODE_WORK_DIR: ${{ secrets.HOOKCODE_WORK_DIR || '/var/lib/hookcode' }}
+          # Keep server deployments on the external system-worker path by default; a remote worker can reuse the same bootstrap id/token from GitHub Actions secrets/secrets. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+          HOOKCODE_DOCKER_INCLUDE_WORKER: ${{ secrets.HOOKCODE_DOCKER_INCLUDE_WORKER || 'false' }}
+          HOOKCODE_SYSTEM_WORKER_MODE: ${{ secrets.HOOKCODE_SYSTEM_WORKER_MODE || 'external' }}
+          HOOKCODE_SYSTEM_WORKER_ID: ${{ secrets.HOOKCODE_SYSTEM_WORKER_ID || '11111111-1111-4111-8111-111111111111' }}
           HOOKCODE_SYSTEM_WORKER_TOKEN: ${{ secrets.HOOKCODE_SYSTEM_WORKER_TOKEN || '' }}
-          HOOKCODE_SYSTEM_WORKER_NAME: ${{ vars.HOOKCODE_SYSTEM_WORKER_NAME || 'GitHub Actions Default Worker' }}
-          HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY: ${{ vars.HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY || '1' }}
-          HOOKCODE_DOCKER_WORKER_BACKEND_URL: ${{ vars.HOOKCODE_DOCKER_WORKER_BACKEND_URL || 'http://backend:4000/api' }}
+          HOOKCODE_SYSTEM_WORKER_NAME: ${{ secrets.HOOKCODE_SYSTEM_WORKER_NAME || 'GitHub Actions Default Worker' }}
+          HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY: ${{ secrets.HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY || '1' }}
+          HOOKCODE_DOCKER_WORKER_BACKEND_URL: ${{ secrets.HOOKCODE_DOCKER_WORKER_BACKEND_URL || 'http://backend:4000/api' }}
           # Auth (recommended for internet-facing deployments; written into `docker/.env`).
           AUTH_TOKEN_SECRET: ${{ secrets.AUTH_TOKEN_SECRET || '' }}
           AUTH_ADMIN_USERNAME: ${{ secrets.AUTH_ADMIN_USERNAME || '' }}
