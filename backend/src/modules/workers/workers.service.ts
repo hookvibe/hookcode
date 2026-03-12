@@ -153,52 +153,52 @@ export class WorkersService {
     return { worker: workerToRecord(created), token };
   }
 
-  async ensureExternalSystemWorker(params: {
+  async bindExternalSystemWorker(params: {
     workerId: string;
     token: string;
-    name: string;
-    maxConcurrency?: number;
     backendBaseUrl?: string;
   }): Promise<WorkerRecord> {
     const now = new Date();
+    const configuredTokenHash = hashToken(params.token);
     const existing = await db.worker.findUnique({ where: { id: params.workerId } });
-    if (existing && (!existing.systemManaged || existing.kind !== 'remote')) {
-      throw new Error(`Configured external system worker id is already owned by a non-system remote worker: ${params.workerId}`);
+    // Bind external mode to an existing remote worker row so deployments must provision the worker explicitly before backend claims it as default. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+    if (!existing) {
+      throw new Error(`Configured external system worker not found: ${params.workerId}`);
     }
 
-    const payload = {
-      name: params.name,
-      kind: 'remote' as const,
-      status: 'offline' as const,
-      systemManaged: true,
-      disabledAt: null,
-      backendBaseUrl: params.backendBaseUrl,
-      capabilities: { preview: false },
-      maxConcurrency: Number.isFinite(params.maxConcurrency) && Number(params.maxConcurrency) > 0 ? Math.floor(Number(params.maxConcurrency)) : 1,
-      currentConcurrency: 0,
-      tokenHash: hashToken(params.token),
-      updatedAt: now
-    };
+    if (existing.kind !== 'remote') {
+      throw new Error(`Configured external system worker must be remote: ${params.workerId}`);
+    }
+    if (existing.disabledAt || existing.status === 'disabled') {
+      throw new Error(`Configured external system worker is disabled: ${params.workerId}`);
+    }
+    if (!existing.tokenHash || existing.tokenHash !== configuredTokenHash) {
+      throw new Error(`Configured external system worker token mismatch: ${params.workerId}`);
+    }
 
-    // Bootstrap one backend-owned external worker record from env so Docker/production can default to a remote executor without manual panel setup. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    const row = existing
-      ? await db.worker.update({
-          where: { id: params.workerId },
-          data: payload
-        })
-      : await db.worker.create({
-          data: {
-            id: params.workerId,
-            ...payload,
-            createdAt: now
-          }
-        });
+    // Demote previously claimed remote system workers so backend routing keeps only one configured external default at a time. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+    await db.worker.updateMany({
+      where: { kind: 'remote', systemManaged: true, id: { not: params.workerId } },
+      data: { systemManaged: false, updatedAt: now }
+    });
+
+    const row = await db.worker.update({
+      where: { id: params.workerId },
+      data: {
+        systemManaged: true,
+        status: 'offline',
+        disabledAt: null,
+        backendBaseUrl: params.backendBaseUrl,
+        currentConcurrency: 0,
+        updatedAt: now
+      }
+    });
 
     void this.logWriter.logSystem({
       level: 'info',
-      message: `External system worker configured: ${row.name}`,
-      code: 'WORKER_SYSTEM_EXTERNAL_CONFIGURED',
-      meta: { workerId: row.id, kind: row.kind, systemManaged: row.systemManaged, existed: Boolean(existing) }
+      message: `External system worker bound: ${row.name}`,
+      code: 'WORKER_SYSTEM_EXTERNAL_BOUND',
+      meta: { workerId: row.id, kind: row.kind, systemManaged: row.systemManaged }
     });
     return workerToRecord(row);
   }

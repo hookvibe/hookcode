@@ -24,7 +24,7 @@ Use this layout when you want to keep the internet-facing backend separate from 
 Prepare these values first:
 
 - a public backend URL such as `https://hookcode.example.com/api`
-- one worker id/token pair from **Settings → Workers** or from backend `HOOKCODE_SYSTEM_WORKER_*`
+- one worker id/token pair from **Settings → Workers**
 - admin credentials for the HookCode console
 - persistent Docker storage on both hosts
 
@@ -42,14 +42,11 @@ Set at least these values in `docker/.env`:
 - `AUTH_ADMIN_USERNAME`
 - `AUTH_ADMIN_PASSWORD`
 - `HOOKCODE_WORK_DIR=/var/lib/hookcode`
-- `HOOKCODE_SYSTEM_WORKER_MODE=external`
-- `HOOKCODE_SYSTEM_WORKER_ID=<your-worker-uuid>`
-- `HOOKCODE_SYSTEM_WORKER_TOKEN=<your-worker-token>`
-- `HOOKCODE_SYSTEM_WORKER_NAME=<display-name>`
+- `HOOKCODE_SYSTEM_WORKER_MODE=disabled`
 - `HOOKCODE_DOCKER_INCLUDE_WORKER=false`
 
-{/* Keep the backend host in external system-worker mode so it registers one default remote executor without starting the bundled compose worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
-`HOOKCODE_DOCKER_INCLUDE_WORKER=false` tells the Docker helper flow to leave the bundled `worker` service stopped. The backend still registers the default external system worker from `HOOKCODE_SYSTEM_WORKER_*`.
+{/* Update the split-host runbook for credential-based binding so first-time deployments create the remote worker before backend claims it as default. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 */}
+`HOOKCODE_DOCKER_INCLUDE_WORKER=false` tells the Docker helper flow to leave the bundled `worker` service stopped while you prepare a separate remote worker entry.
 
 ## Step 2: Start the backend host
 
@@ -71,7 +68,12 @@ Once the backend is up:
 
 - open the HookCode console
 - sign in with the admin account
-- confirm the worker entry exists under **Settings → Workers**
+- create a remote worker under **Settings → Workers** and save its id/token
+- stop the stack, then add these values to `docker/.env`:
+  - `HOOKCODE_SYSTEM_WORKER_MODE=external`
+  - `HOOKCODE_SYSTEM_WORKER_ID=<your-worker-uuid>`
+  - `HOOKCODE_SYSTEM_WORKER_TOKEN=<your-worker-token>`
+- start the backend stack again so it binds that existing worker as the default system worker
 - expect the worker status to remain offline until the remote worker host connects
 
 ## Step 3: Prepare the worker host
@@ -95,7 +97,7 @@ Set at least these values in `docker/.env.remote-worker`:
 Important rules:
 
 - `HOOKCODE_BACKEND_URL` must be reachable from the worker host
-- `HOOKCODE_WORKER_ID` and `HOOKCODE_WORKER_TOKEN` must match the backend-side registration
+- `HOOKCODE_WORKER_ID` and `HOOKCODE_WORKER_TOKEN` must match the existing worker entry that backend binds in `external` mode
 - keep `HOOKCODE_WORKER_PREVIEW=0` for remote workers in v1
 
 ## Step 4: Start the worker host

@@ -1,4 +1,4 @@
-// Verify system-worker mode parsing keeps source-mode local workers and Docker/remote bootstrap workers on explicit env-driven paths. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+// Verify external worker config only reads the credentials backend needs to bind an existing remote worker row. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
 export {};
 
 import { readExternalSystemWorkerConfig, readSystemWorkerMode } from '../../modules/workers/system-worker-config';
@@ -9,7 +9,7 @@ describe('system worker config', () => {
     expect(readExternalSystemWorkerConfig({} as NodeJS.ProcessEnv)).toBeNull();
   });
 
-  test('parses external mode and returns the configured bootstrap worker payload', () => {
+  test('parses external mode and returns the configured worker credentials', () => {
     const env = {
       HOOKCODE_SYSTEM_WORKER_MODE: 'external',
       HOOKCODE_SYSTEM_WORKER_ID: '11111111-1111-4111-8111-111111111111',
@@ -21,9 +21,7 @@ describe('system worker config', () => {
     expect(readSystemWorkerMode(env)).toBe('external');
     expect(readExternalSystemWorkerConfig(env)).toEqual({
       workerId: '11111111-1111-4111-8111-111111111111',
-      token: 'secret-token',
-      name: 'Configured Remote Worker',
-      maxConcurrency: 3
+      token: 'secret-token'
     });
   });
 

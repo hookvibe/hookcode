@@ -54,8 +54,8 @@ Save the token immediately. The plain token is only shown at creation/rotation t
 
 Today the worker is shipped inside the HookCode monorepo/workspace.
 
-{/* Document Docker/production external-worker bootstrapping so operators can reuse the same system worker credentials for bundled and fully remote executors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
-For Docker/production deployments you can also let backend bootstrap a default external worker from env by setting `HOOKCODE_SYSTEM_WORKER_MODE=external` plus the matching `HOOKCODE_SYSTEM_WORKER_*` credentials. The bundled Docker worker container can reuse that same id/token, or you can keep `HOOKCODE_DOCKER_INCLUDE_WORKER=false` and run the worker on another machine with the same credentials.
+{/* Document Docker/production external-worker binding so operators reuse an existing remote worker entry instead of expecting backend to create one. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 */}
+For Docker/production deployments you can point backend at an already-created remote worker by setting `HOOKCODE_SYSTEM_WORKER_MODE=external` plus the matching `HOOKCODE_SYSTEM_WORKER_ID` and `HOOKCODE_SYSTEM_WORKER_TOKEN`. Backend binds that existing worker as its default system worker instead of creating a new worker row. The bundled Docker worker container can reuse the same id/token, while `HOOKCODE_SYSTEM_WORKER_NAME` and `HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY` still configure that worker process.
 If you start Docker Compose manually instead of the CI helper script, the same remote-worker-only setup is just `docker compose -f docker/docker-compose.yml up -d --build db backend frontend` while the remote worker runs elsewhere with the same `HOOKCODE_SYSTEM_WORKER_*` credentials.
 
 #### Option A: Run the worker directly from the repo

@@ -327,15 +327,13 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
   } else if (systemWorkerMode === 'external') {
     // Allow backend startup even if external worker bootstrap fails; log and continue. docs/en/developer/plans/ci-backend-start-20260310/task_plan.md ci-backend-start-20260310
     try {
-      // Bootstrap one backend-owned external worker record from env so Docker/production can default to a remote executor without starting a local supervisor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      // Bind the configured credentials to an existing remote worker row so Docker/production stops auto-registering surprise worker entries during backend startup. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
       const externalSystemWorker = readExternalSystemWorkerConfig(process.env);
       if (externalSystemWorker) {
         const workersService = app.get(WorkersService);
-        await workersService.ensureExternalSystemWorker({
+        await workersService.bindExternalSystemWorker({
           workerId: externalSystemWorker.workerId,
           token: externalSystemWorker.token,
-          name: externalSystemWorker.name,
-          maxConcurrency: externalSystemWorker.maxConcurrency,
           backendBaseUrl
         });
       }
