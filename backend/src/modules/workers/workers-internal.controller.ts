@@ -104,9 +104,9 @@ export class WorkersInternalController {
   async executeInlineTask(@Headers() headers: Record<string, string | string[] | undefined>, @Param('taskId') taskId: string) {
     const worker = await this.authenticate(headers);
     const task = await this.requireAssignedTask(taskId, worker.id);
-    if (worker.kind !== 'local' || !worker.systemManaged) {
-      // Restrict backend-inline fallback to the supervised local worker so remote hosts never tunnel execution back into backend by surprise. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      throw new ForbiddenException({ error: 'Inline execution is only available to the local system worker' });
+    if (worker.kind !== 'local') {
+      // Keep backend-inline execution limited to local workers so remote hosts cannot tunnel commands back into backend over the internal worker channel. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+      throw new ForbiddenException({ error: 'Inline execution is only available to local workers' });
     }
     await this.taskRunner.executeAssignedTaskInline(task);
     return { success: true };

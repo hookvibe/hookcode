@@ -67,7 +67,6 @@ At minimum, update these keys in `docker/.env` before production use:
 - `AUTH_ADMIN_USERNAME`
 - `AUTH_ADMIN_PASSWORD`
 - `HOOKCODE_WORK_DIR` if you want a different container work root (keep it absolute, for example `/var/lib/hookcode`)
-- `HOOKCODE_SYSTEM_WORKER_TOKEN` if you do not want to keep the sample bundled-worker token
 
 ### 2) Build and start all services
 
@@ -86,6 +85,8 @@ cp docker/.env.remote-worker.example docker/.env.remote-worker
 docker compose --env-file docker/.env.remote-worker -f docker/docker-compose.remote-worker.yml up -d --build
 ```
 
+<!-- Update Docker operations to remove automatic worker startup from the default stack. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 -->
+
 ### 3) Check running status and logs
 
 ```bash
@@ -93,7 +94,7 @@ docker compose -f docker/docker-compose.yml ps
 ```
 
 ```bash
-docker compose -f docker/docker-compose.yml logs -f backend worker frontend
+docker compose -f docker/docker-compose.yml logs -f backend frontend
 ```
 
 ### 4) Daily operations
@@ -107,7 +108,7 @@ docker compose -f docker/docker-compose.yml restart
 Rebuild and restart only backend after backend code changes:
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d --build backend worker
+docker compose -f docker/docker-compose.yml up -d --build backend
 ```
 
 Rebuild and restart only frontend after frontend code changes:
@@ -150,8 +151,9 @@ docker compose -f docker/docker-compose.yml down -v
   - Dedicated remote-worker env file: `docker/.env.remote-worker`
 - Port overrides: `HOOKCODE_FRONTEND_PORT`, `HOOKCODE_BACKEND_PORT`, `HOOKCODE_DB_PORT`
 - DB credentials: `DB_USER`, `DB_PASSWORD`, `DB_NAME`
-- Runtime storage: `HOOKCODE_WORK_DIR` (Docker Compose mounts separate backend/worker named volumes to this absolute container path)
-- Default Docker worker mode: backend boots in `HOOKCODE_SYSTEM_WORKER_MODE=external` and the bundled `worker` service reuses the same `HOOKCODE_SYSTEM_WORKER_*` credentials by default
+<!-- Clarify that the default Docker stack keeps worker startup disabled until operators provision a dedicated worker. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 -->
+- Runtime storage: `HOOKCODE_WORK_DIR` (the main Docker stack mounts a backend named volume to this absolute container path, and dedicated remote workers use their own host/volume setup)
+- Default Docker worker mode: backend uses `HOOKCODE_SYSTEM_WORKER_MODE=disabled`, so the main stack opens with no connected worker until you provision one explicitly
 - Cloudflare single-port routing:
   - Keep `VITE_API_BASE_URL=/api`
   - Access API via `https://<your-domain>/api/...` (not `:8000`)

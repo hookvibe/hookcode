@@ -21,10 +21,8 @@ class WorkerSummaryDto {
   preview?: boolean;
 }
 
+// Keep worker Swagger records aligned with the simplified API contract that only exposes routing and runtime metadata. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
 class WorkerRecordDto extends WorkerSummaryDto {
-  @ApiProperty()
-  systemManaged!: boolean;
-
   @ApiPropertyOptional()
   version?: string;
 

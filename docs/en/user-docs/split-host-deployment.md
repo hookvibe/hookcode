@@ -43,10 +43,9 @@ Set at least these values in `docker/.env`:
 - `AUTH_ADMIN_PASSWORD`
 - `HOOKCODE_WORK_DIR=/var/lib/hookcode`
 - `HOOKCODE_SYSTEM_WORKER_MODE=disabled`
-- `HOOKCODE_DOCKER_INCLUDE_WORKER=false`
 
 {/* Update the split-host runbook for credential-based binding so first-time deployments create the remote worker before backend claims it as default. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 */}
-`HOOKCODE_DOCKER_INCLUDE_WORKER=false` tells the Docker helper flow to leave the bundled `worker` service stopped while you prepare a separate remote worker entry.
+The main Docker stack now starts without any worker service, so backend comes up disconnected until you provision and start a worker separately.
 
 ## Step 2: Start the backend host
 
@@ -69,11 +68,6 @@ Once the backend is up:
 - open the HookCode console
 - sign in with the admin account
 - create a remote worker under **Settings → Workers** and save its id/token
-- stop the stack, then add these values to `docker/.env`:
-  - `HOOKCODE_SYSTEM_WORKER_MODE=external`
-  - `HOOKCODE_SYSTEM_WORKER_ID=<your-worker-uuid>`
-  - `HOOKCODE_SYSTEM_WORKER_TOKEN=<your-worker-token>`
-- start the backend stack again so it binds that existing worker as the default system worker
 - expect the worker status to remain offline until the remote worker host connects
 
 ## Step 3: Prepare the worker host
@@ -97,7 +91,7 @@ Set at least these values in `docker/.env.remote-worker`:
 Important rules:
 
 - `HOOKCODE_BACKEND_URL` must be reachable from the worker host
-- `HOOKCODE_WORKER_ID` and `HOOKCODE_WORKER_TOKEN` must match the existing worker entry that backend binds in `external` mode
+- `HOOKCODE_WORKER_ID` and `HOOKCODE_WORKER_TOKEN` must match the worker entry you created in **Settings → Workers**
 - keep `HOOKCODE_WORKER_PREVIEW=0` for remote workers in v1
 
 ## Step 4: Start the worker host
@@ -172,7 +166,7 @@ Check the worker routing order:
 - explicit task worker override
 - task-group pinned worker
 - repo robot default worker
-- backend default system worker
+- first online local worker, then first online remote worker
 
 ## Related docs
 

@@ -31,7 +31,8 @@ export class LocalWorkerSupervisorService {
   async start(params: { backendBaseUrl: string }): Promise<void> {
     if (this.child) return;
     const normalizedBackendUrl = normalizeLocalWorkerBackendUrl(params.backendBaseUrl);
-    const ensured = await this.workersService.ensureLocalSystemWorker({
+    // Reuse or create one local worker row for the colocated supervisor while keeping worker metadata limited to routing and runtime state. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+    const ensured = await this.workersService.ensureLocalWorker({
       name: 'Local Backend Worker',
       backendBaseUrl: normalizedBackendUrl,
       maxConcurrency: 2

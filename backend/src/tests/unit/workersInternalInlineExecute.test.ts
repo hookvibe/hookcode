@@ -1,9 +1,9 @@
-// Verify local inline execution fallback stays restricted to the supervised local worker and delegates into TaskRunner. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+// Verify inline execution stays limited to local workers after simplifying worker metadata and Docker defaults. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
 import { ForbiddenException } from '@nestjs/common';
 import { WorkersInternalController } from '../../modules/workers/workers-internal.controller';
 
 describe('WorkersInternalController.executeInlineTask', () => {
-  const createController = (worker: { id: string; kind: 'local' | 'remote'; systemManaged: boolean }) => {
+  const createController = (worker: { id: string; kind: 'local' | 'remote' }) => {
     const workersService = {
       verifyWorkerToken: jest.fn().mockResolvedValue(worker)
     };
@@ -29,8 +29,8 @@ describe('WorkersInternalController.executeInlineTask', () => {
     return { controller, workersService, taskService, taskRunner, task };
   };
 
-  test('allows the local system-managed worker to delegate inline execution', async () => {
-    const { controller, taskRunner, task } = createController({ id: 'worker-local', kind: 'local', systemManaged: true });
+  test('allows a local worker to delegate inline execution', async () => {
+    const { controller, taskRunner, task } = createController({ id: 'worker-local', kind: 'local' });
 
     await expect(
       controller.executeInlineTask(
@@ -46,7 +46,7 @@ describe('WorkersInternalController.executeInlineTask', () => {
   });
 
   test('rejects remote workers from using backend inline execution', async () => {
-    const { controller, taskRunner } = createController({ id: 'worker-remote', kind: 'remote', systemManaged: false });
+    const { controller, taskRunner } = createController({ id: 'worker-remote', kind: 'remote' });
 
     await expect(
       controller.executeInlineTask(

@@ -82,16 +82,10 @@ jobs:
           HOOKCODE_DB_USER: ${{ secrets.HOOKCODE_DB_USER || 'hookcode' }}
           HOOKCODE_DB_PASSWORD: ${{ secrets.HOOKCODE_DB_PASSWORD || 'hookcode' }}
           HOOKCODE_DB_NAME: ${{ secrets.HOOKCODE_DB_NAME || 'hookcode' }}
-          # Keep CI Docker deployments on an explicit absolute work root so backend and worker runtime state land on the mounted HOOKCODE_WORK_DIR volumes. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+          # Keep CI Docker deployments on an explicit absolute work root so backend runtime state lands on the mounted HOOKCODE_WORK_DIR volume. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
           HOOKCODE_WORK_DIR: ${{ secrets.HOOKCODE_WORK_DIR || '/var/lib/hookcode' }}
-          # Keep server deployments on the external system-worker path by default; a remote worker can reuse the same bootstrap id/token from GitHub Actions secrets/secrets. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-          HOOKCODE_DOCKER_INCLUDE_WORKER: ${{ secrets.HOOKCODE_DOCKER_INCLUDE_WORKER || 'false' }}
-          HOOKCODE_SYSTEM_WORKER_MODE: ${{ secrets.HOOKCODE_SYSTEM_WORKER_MODE || 'external' }}
-          HOOKCODE_SYSTEM_WORKER_ID: ${{ secrets.HOOKCODE_SYSTEM_WORKER_ID || '11111111-1111-4111-8111-111111111111' }}
-          HOOKCODE_SYSTEM_WORKER_TOKEN: ${{ secrets.HOOKCODE_SYSTEM_WORKER_TOKEN || '' }}
-          HOOKCODE_SYSTEM_WORKER_NAME: ${{ secrets.HOOKCODE_SYSTEM_WORKER_NAME || 'GitHub Actions Default Worker' }}
-          HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY: ${{ secrets.HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY || '1' }}
-          HOOKCODE_DOCKER_WORKER_BACKEND_URL: ${{ secrets.HOOKCODE_DOCKER_WORKER_BACKEND_URL || 'http://backend:4000/api' }}
+          # Keep GitHub Actions Docker deployments disconnected by default so the app opens with no auto-started worker until an operator provisions one explicitly. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+          HOOKCODE_SYSTEM_WORKER_MODE: ${{ secrets.HOOKCODE_SYSTEM_WORKER_MODE || 'disabled' }}
           # Auth (recommended for internet-facing deployments; written into `docker/.env`).
           AUTH_TOKEN_SECRET: ${{ secrets.AUTH_TOKEN_SECRET || '' }}
           AUTH_ADMIN_USERNAME: ${{ secrets.AUTH_ADMIN_USERNAME || '' }}

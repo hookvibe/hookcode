@@ -22,8 +22,7 @@ import { PreviewWsProxyService } from './modules/tasks/preview-ws-proxy.service'
 import { PreviewHostProxyService } from './modules/tasks/preview-host-proxy.service';
 import { WorkersConnectionService } from './modules/workers/workers-connection.service';
 import { LocalWorkerSupervisorService } from './modules/workers/local-worker-supervisor.service';
-import { WorkersService } from './modules/workers/workers.service';
-import { readExternalSystemWorkerConfig, readSystemWorkerMode } from './modules/workers/system-worker-config';
+import { readSystemWorkerMode } from './modules/workers/system-worker-config';
 import { HttpErrorMessageFilter } from './modules/common/filters/http-error-message.filter';
 import { AuditLogInterceptor } from './modules/logs/audit-log.interceptor';
 import { LogsService } from './modules/logs/logs.service';
@@ -324,35 +323,12 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
       console.warn(`${logTag} local worker supervisor start failed`, err);
       localWorkerSupervisor = null;
     }
-  } else if (systemWorkerMode === 'external') {
-    // Allow backend startup even if external worker bootstrap fails; log and continue. docs/en/developer/plans/ci-backend-start-20260310/task_plan.md ci-backend-start-20260310
-    try {
-      // Bind the configured credentials to an existing remote worker row so Docker/production stops auto-registering surprise worker entries during backend startup. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
-      const externalSystemWorker = readExternalSystemWorkerConfig(process.env);
-      if (externalSystemWorker) {
-        const workersService = app.get(WorkersService);
-        await workersService.bindExternalSystemWorker({
-          workerId: externalSystemWorker.workerId,
-          token: externalSystemWorker.token,
-          backendBaseUrl
-        });
-      }
-    } catch (err) {
-      console.warn(`${logTag} external system worker bootstrap failed`, err);
-      // Emit system logs so startup failures are visible without crashing the backend. docs/en/developer/plans/ci-backend-start-20260310/task_plan.md ci-backend-start-20260310
-      void logWriter?.logSystem({
-        level: 'error',
-        message: 'External system worker bootstrap failed',
-        code: 'WORKER_SYSTEM_BOOTSTRAP_FAILED',
-        meta: { error: err instanceof Error ? err.message : String(err) }
-      });
-    }
   } else {
-    // Allow advanced deployments to disable automatic system-worker bootstrapping entirely when they only want manually managed workers. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    // Keep Docker/CI deployments disconnected by default when worker auto-start is disabled through HOOKCODE_SYSTEM_WORKER_MODE. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
     void logWriter?.logSystem({
       level: 'info',
-      message: 'System worker bootstrap disabled via HOOKCODE_SYSTEM_WORKER_MODE',
-      code: 'WORKER_SYSTEM_BOOTSTRAP_DISABLED',
+      message: 'Worker auto-start disabled via HOOKCODE_SYSTEM_WORKER_MODE',
+      code: 'WORKER_AUTOSTART_DISABLED',
       meta: { mode: systemWorkerMode }
     });
   }

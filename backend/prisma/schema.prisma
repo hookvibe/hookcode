@@ -390,13 +390,12 @@ model RepoRobot {
   @@index([defaultWorkerId], map: "repo_robots_default_worker_id_idx")
 }
 
-/// Track local and remote execution workers that can receive HookCode tasks. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+/// Track local and remote execution workers with only routing and runtime metadata. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
 model Worker {
   id                 String    @id @db.Uuid
   name               String
   kind               String
   status             String
-  systemManaged      Boolean   @default(false) @map("system_managed")
   version            String?
   platform           String?
   arch               String?

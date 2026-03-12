@@ -1,4 +1,4 @@
-// Verify default worker fallback prefers reachable system workers so Docker/production can use external executors without stale local rows blocking new tasks. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+// Verify fallback worker routing only auto-picks online workers and leaves deployments unconfigured when every worker is offline. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
 export {};
 
 jest.mock('../../db', () => ({
@@ -25,8 +25,7 @@ describe('WorkersService default worker routing', () => {
     (db.repoRobot.findUnique as jest.Mock).mockResolvedValue(null);
   });
 
-  test('prefers an online external system worker when the local system worker is offline', async () => {
-    // Keep Docker/production routing on the reachable external system worker even if a stale local row still exists in the shared DB. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+  test('prefers an online remote worker when the local worker is offline', async () => {
     (db.worker.findMany as jest.Mock).mockResolvedValue([
       { id: '22222222-2222-4222-8222-222222222222', kind: 'local', status: 'offline' },
       { id: '11111111-1111-4111-8111-111111111111', kind: 'remote', status: 'online' }
@@ -36,7 +35,7 @@ describe('WorkersService default worker routing', () => {
     await expect(service.findEffectiveWorkerId({})).resolves.toBe('11111111-1111-4111-8111-111111111111');
   });
 
-  test('falls back to the local system worker when both local and remote workers are online', async () => {
+  test('prefers an online local worker when both local and remote workers are online', async () => {
     (db.worker.findMany as jest.Mock).mockResolvedValue([
       { id: '22222222-2222-4222-8222-222222222222', kind: 'local', status: 'online' },
       { id: '11111111-1111-4111-8111-111111111111', kind: 'remote', status: 'online' }
@@ -44,5 +43,15 @@ describe('WorkersService default worker routing', () => {
 
     const service = new WorkersService(logWriter as any);
     await expect(service.findEffectiveWorkerId({})).resolves.toBe('22222222-2222-4222-8222-222222222222');
+  });
+
+  test('returns null when every discovered worker is offline', async () => {
+    (db.worker.findMany as jest.Mock).mockResolvedValue([
+      { id: '22222222-2222-4222-8222-222222222222', kind: 'local', status: 'offline' },
+      { id: '11111111-1111-4111-8111-111111111111', kind: 'remote', status: 'offline' }
+    ]);
+
+    const service = new WorkersService(logWriter as any);
+    await expect(service.findEffectiveWorkerId({})).resolves.toBeNull();
   });
 });

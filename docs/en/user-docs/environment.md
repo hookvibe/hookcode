@@ -115,8 +115,7 @@ Only expose these ports on trusted networks.
 
 ### Worker mode
 
-{/* Document external mode as credential-based binding so operators provision the remote worker first instead of expecting backend auto-registration. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 */}
+{/* Document Docker/source worker auto-start modes without the removed external bootstrap path. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 */}
 - `HOOKCODE_SYSTEM_WORKER_MODE=local`: source-mode default; backend starts its local supervised worker runtime.
-- `HOOKCODE_SYSTEM_WORKER_MODE=external`: backend binds an existing remote worker using `HOOKCODE_SYSTEM_WORKER_ID` and `HOOKCODE_SYSTEM_WORKER_TOKEN`; `HOOKCODE_SYSTEM_WORKER_NAME` and `HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY` still configure the bundled Docker worker process when that container is enabled.
-- `HOOKCODE_SYSTEM_WORKER_MODE=disabled`: backend does not auto-bind a default worker.
+- `HOOKCODE_SYSTEM_WORKER_MODE=disabled`: backend does not auto-start a worker, which is the Docker/CI default.
 - `INLINE_WORKER_ENABLED` now only controls the legacy backend-inline fallback path for commandless local tasks; it is no longer the primary worker-mode switch.

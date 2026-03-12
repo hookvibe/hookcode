@@ -9,10 +9,9 @@ jest.mock('../../adminTools/startAdminTools', () => ({
   startAdminTools: jest.fn().mockResolvedValue(null)
 }));
 
-// Mock system worker config to simulate external bootstrap failures. docs/en/developer/plans/ci-backend-start-20260310/task_plan.md ci-backend-start-20260310
+// Mock worker auto-start mode parsing so bootstrap tests can cover local versus disabled behavior deterministically. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
 jest.mock('../../modules/workers/system-worker-config', () => ({
-  readSystemWorkerMode: jest.fn(),
-  readExternalSystemWorkerConfig: jest.fn()
+  readSystemWorkerMode: jest.fn()
 }));
 
 jest.mock('@nestjs/core', () => ({
@@ -23,12 +22,8 @@ import { bootstrapHttpServer } from '../../bootstrap';
 import { TaskService } from '../../modules/tasks/task.service';
 import { UserService } from '../../modules/users/user.service';
 import { LogWriterService } from '../../modules/logs/log-writer.service';
-import { WorkersService } from '../../modules/workers/workers.service';
 import { NestFactory } from '@nestjs/core';
-import {
-  readExternalSystemWorkerConfig,
-  readSystemWorkerMode
-} from '../../modules/workers/system-worker-config';
+import { readSystemWorkerMode } from '../../modules/workers/system-worker-config';
 
 describe('bootstrapHttpServer', () => {
   test('passes global prefix exclude to Nest app', async () => {
@@ -71,13 +66,10 @@ describe('bootstrapHttpServer', () => {
     await handle.stop();
   });
 
-  test('does not crash when external system worker bootstrap fails', async () => {
+  test('logs when worker auto-start is disabled', async () => {
     jest.useFakeTimers();
-    // Verify external worker bootstrap errors are logged without aborting startup. docs/en/developer/plans/ci-backend-start-20260310/task_plan.md ci-backend-start-20260310
-    (readSystemWorkerMode as jest.Mock).mockReturnValue('external');
-    (readExternalSystemWorkerConfig as jest.Mock).mockImplementation(() => {
-      throw new Error('worker bootstrap failed');
-    });
+    // Verify disabled deployments stay bootable while reporting that no worker is auto-started. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+    (readSystemWorkerMode as jest.Mock).mockReturnValue('disabled');
 
     const logWriter = { logSystem: jest.fn() };
     const userService = { ensureBootstrapUser: jest.fn().mockResolvedValue(undefined), getById: jest.fn() };
@@ -86,7 +78,6 @@ describe('bootstrapHttpServer', () => {
     const app = {
       enableCors: jest.fn(),
       useGlobalPipes: jest.fn(),
-      // Stub global filter registration for bootstrap coverage. docs/en/developer/plans/im5mpw0g5827wu95w4ki/task_plan.md im5mpw0g5827wu95w4ki
       useGlobalFilters: jest.fn(),
       use: jest.fn(),
       setGlobalPrefix: jest.fn(),
@@ -112,59 +103,7 @@ describe('bootstrapHttpServer', () => {
     });
 
     expect(logWriter.logSystem).toHaveBeenCalledWith(
-      expect.objectContaining({ code: 'WORKER_SYSTEM_BOOTSTRAP_FAILED' })
-    );
-
-    await handle.stop();
-  });
-
-  test('does not crash when external system worker binding fails after config lookup', async () => {
-    jest.useFakeTimers();
-    // Verify existing-worker binding failures still surface through startup logs without aborting backend boot. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
-    (readSystemWorkerMode as jest.Mock).mockReturnValue('external');
-    (readExternalSystemWorkerConfig as jest.Mock).mockReturnValue({
-      workerId: '11111111-1111-4111-8111-111111111111',
-      token: 'secret-token'
-    });
-
-    const logWriter = { logSystem: jest.fn() };
-    const workersService = { bindExternalSystemWorker: jest.fn().mockRejectedValue(new Error('worker bind failed')) };
-    const userService = { ensureBootstrapUser: jest.fn().mockResolvedValue(undefined), getById: jest.fn() };
-    const taskService = { recoverStaleProcessing: jest.fn().mockResolvedValue(0) };
-
-    const app = {
-      enableCors: jest.fn(),
-      useGlobalPipes: jest.fn(),
-      useGlobalFilters: jest.fn(),
-      use: jest.fn(),
-      setGlobalPrefix: jest.fn(),
-      init: jest.fn().mockResolvedValue(undefined),
-      listen: jest.fn().mockResolvedValue(undefined),
-      close: jest.fn().mockResolvedValue(undefined),
-      get: jest.fn((token: any) => {
-        if (token === UserService) return userService;
-        if (token === TaskService) return taskService;
-        if (token === WorkersService) return workersService;
-        if (token === LogWriterService) return logWriter;
-        return null;
-      })
-    };
-
-    (NestFactory.create as unknown as jest.Mock).mockResolvedValue(app);
-
-    const handle = await bootstrapHttpServer({
-      rootModule: class TestModule {},
-      logTag: '[test]',
-      globalPrefix: 'api',
-      host: '127.0.0.1',
-      port: 0
-    });
-
-    expect(workersService.bindExternalSystemWorker).toHaveBeenCalledWith(
-      expect.objectContaining({ workerId: '11111111-1111-4111-8111-111111111111', token: 'secret-token' })
-    );
-    expect(logWriter.logSystem).toHaveBeenCalledWith(
-      expect.objectContaining({ code: 'WORKER_SYSTEM_BOOTSTRAP_FAILED' })
+      expect.objectContaining({ code: 'WORKER_AUTOSTART_DISABLED' })
     );
 
     await handle.stop();

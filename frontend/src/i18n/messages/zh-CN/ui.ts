@@ -60,7 +60,6 @@ export const zhCNUi = {
   'workers.runtime.ready': '已就绪',
   'workers.runtime.error': '运行时异常',
   'workers.runtime.unknown': '未知',
-  'workers.common.systemManaged': '系统托管',
   'workers.common.preview': '预览',
   'workers.common.unknown': '未知执行器',
   'workers.action.create': '创建执行器',

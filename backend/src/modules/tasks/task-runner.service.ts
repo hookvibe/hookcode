@@ -341,7 +341,7 @@ export class TaskRunner {
   }
 
   async executeAssignedTaskInline(task: Task): Promise<void> {
-    // Let the system-managed local worker fall back to backend-inline execution until every task ships a remote-safe command envelope. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    // Keep backend-inline execution limited to local workers until every task ships a remote-safe command envelope. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
     void this.logWriter.logSystem({
       level: 'info',
       message: 'Local worker delegated task back to backend inline executor',

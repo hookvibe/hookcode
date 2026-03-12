@@ -67,7 +67,6 @@ cp docker/.env.example docker/.env
 - `AUTH_ADMIN_USERNAME`
 - `AUTH_ADMIN_PASSWORD`
 - 如需修改容器内工作根目录，再调整 `HOOKCODE_WORK_DIR`（必须保持绝对路径，例如 `/var/lib/hookcode`）
-- 如不想继续使用示例 bundled worker token，请修改 `HOOKCODE_SYSTEM_WORKER_TOKEN`
 
 ### 2）构建并启动全部服务
 
@@ -93,7 +92,7 @@ docker compose -f docker/docker-compose.yml ps
 ```
 
 ```bash
-docker compose -f docker/docker-compose.yml logs -f backend worker frontend
+docker compose -f docker/docker-compose.yml logs -f backend frontend
 ```
 
 ### 4）日常运维命令
@@ -107,7 +106,7 @@ docker compose -f docker/docker-compose.yml restart
 后端代码变更后，只重建并重启 backend/worker：
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d --build backend worker
+docker compose -f docker/docker-compose.yml up -d --build backend
 ```
 
 前端代码变更后，只重建并重启 frontend：
@@ -150,8 +149,9 @@ docker compose -f docker/docker-compose.yml down -v
   - 独立远程 worker 环境变量文件：`docker/.env.remote-worker`
 - 端口覆盖：`HOOKCODE_FRONTEND_PORT`、`HOOKCODE_BACKEND_PORT`、`HOOKCODE_DB_PORT`
 - 数据库凭据：`DB_USER`、`DB_PASSWORD`、`DB_NAME`
-- 运行时存储：`HOOKCODE_WORK_DIR`（Docker Compose 会把 backend/worker 各自的命名卷挂到这个容器内绝对路径）
-- 默认 Docker worker 模式：backend 以 `HOOKCODE_SYSTEM_WORKER_MODE=external` 启动，同 Compose 的 `worker` 服务默认复用同一组 `HOOKCODE_SYSTEM_WORKER_*` 凭据
+<!-- Clarify that the default Docker stack starts without any connected worker and only dedicated remote-worker hosts use separate worker storage. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 -->
+- 运行时存储：`HOOKCODE_WORK_DIR`（主 Docker 栈会把 backend 的命名卷挂到这个容器内绝对路径；独立远程 worker 则使用各自主机/卷配置）
+- 默认 Docker worker 模式：backend 使用 `HOOKCODE_SYSTEM_WORKER_MODE=disabled` 启动，因此主栈首次打开时不会连接任何 worker，需手动创建并启动
 - Cloudflare 单端口路由：
   - 保持 `VITE_API_BASE_URL=/api`
   - 通过 `https://<你的域名>/api/...` 访问 API（不要用 `:8000`）

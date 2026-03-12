@@ -90,7 +90,6 @@ export const SettingsWorkersPanel: FC = () => {
           <Space direction="vertical" size={2}>
             <Space size={8} wrap>
               <WorkerSummaryTag worker={record} />
-              {record.systemManaged ? <Tag>{t('workers.common.systemManaged')}</Tag> : null}
               {record.preview ? <Tag color="geekblue">{t('workers.common.preview')}</Tag> : null}
             </Space>
             <Typography.Text type="secondary">{formatWorkerOptionLabel(t, record)}</Typography.Text>
@@ -138,6 +137,8 @@ export const SettingsWorkersPanel: FC = () => {
         render: (_value, record) => {
           const isBusy = rowLoadingId === record.id;
           const isPreparing = prepareLoadingId === record.id;
+          const isRemoteWorker = record.kind === 'remote';
+          // Keep rotate/delete controls scoped to remote workers so the local source-mode worker is managed by backend startup instead of ad-hoc admin token churn. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
           const nextStatus = record.status === 'disabled' ? 'offline' : 'disabled';
           const toggleLabel = record.status === 'disabled' ? t('workers.action.enable') : t('workers.action.disable');
           return (
@@ -156,17 +157,16 @@ export const SettingsWorkersPanel: FC = () => {
               <Button
                 size="small"
                 loading={isBusy}
-                disabled={record.systemManaged}
                 onClick={() => void handleUpdateStatus(record, nextStatus)}
               >
                 {toggleLabel}
               </Button>
-              {!record.systemManaged ? (
+              {isRemoteWorker ? (
                 <Button size="small" loading={isBusy} onClick={() => void handleRotateToken(record)}>
                   {t('workers.action.rotateToken')}
                 </Button>
               ) : null}
-              {!record.systemManaged ? (
+              {isRemoteWorker ? (
                 <Popconfirm
                   title={t('workers.action.deleteConfirmTitle')}
                   description={t('workers.action.deleteConfirmDesc')}

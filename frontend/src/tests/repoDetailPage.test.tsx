@@ -99,7 +99,7 @@ vi.mock('../api', () => {
     listMyModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
     listRepoModelProviderModels: vi.fn(async () => ({ models: [], source: 'fallback' })), // Mock model discovery API. b8fucnmey62u0muyn7i0
     fetchRepoProviderMeta: vi.fn(async () => ({ provider: 'gitlab', visibility: 'unknown' })),
-    fetchWorkers: vi.fn(async () => [{ id: 'w1', name: 'Worker 1', kind: 'remote', status: 'online', systemManaged: false, maxConcurrency: 1, currentConcurrency: 0, createdAt: '2026-01-11T00:00:00.000Z', updatedAt: '2026-01-11T00:00:00.000Z' }]),
+    fetchWorkers: vi.fn(async () => [{ id: 'w1', name: 'Worker 1', kind: 'remote', status: 'online', maxConcurrency: 1, currentConcurrency: 0, createdAt: '2026-01-11T00:00:00.000Z', updatedAt: '2026-01-11T00:00:00.000Z' }]),
     fetchRepoProviderActivity: vi.fn(async () => ({
       provider: 'gitlab',
       commits: { items: [], page: 1, pageSize: 5, hasMore: false },

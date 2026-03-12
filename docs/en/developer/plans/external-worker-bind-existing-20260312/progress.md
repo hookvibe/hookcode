@@ -1,40 +1,84 @@
 # Progress Log
 
 ## 2026-03-12
-- Initialized session `external-worker-bind-existing-20260312` with the file-context-planning workflow.
-- Investigated GitHub Actions, Docker compose, backend bootstrap, and worker-selection code paths for external worker mode.
-- Replaced backend external-worker bootstrap with credential-based binding to an existing remote worker row.
-- Updated Docker/user docs to explain that `external` mode now binds an existing worker instead of auto-creating one.
-- Added unit coverage for config parsing, worker binding success/failure paths, and bootstrap log behavior.
-- Updated the unreleased changelog entry.
+- Reused session `external-worker-bind-existing-20260312` after the user changed direction away from Docker/external worker bootstrap.
+- Re-scanned GitHub Actions, Docker, backend worker routing/bootstrap, API DTOs, frontend worker panel, task-creation readiness checks, and worker-related docs.
+- Removed the backend external worker bootstrap path and simplified worker auto-start mode parsing to `local` / `disabled`.
+- Removed `systemManaged` from backend worker routing, API types, frontend worker types/UI, and the Prisma schema.
+- Changed fallback worker routing to select only online workers; offline rows no longer act as implicit defaults.
+- Removed the bundled `worker` service from the main Docker Compose stack and stripped GitHub Actions/CI env generation of worker deployment wiring.
+- Updated README + user/API docs to describe Docker deployments as starting with no connected worker by default.
+- Updated the unreleased changelog entry to match the final implementation direction.
+
+
+## 2026-03-13
+- Performed a final cleanup pass for residual worker wording in code comments, README files, and worker docs.
+- Removed unused external bootstrap variables from `backend/.env.example` and clarified repo-level worker fallback docs so Docker/CI no longer imply a backend-owned default worker.
+- Re-ran `pnpm --filter hookcode-backend build`, `docker compose -f docker/docker-compose.yml config >/dev/null`, and `docker compose --env-file docker/.env.remote-worker.example -f docker/docker-compose.remote-worker.yml config >/dev/null` after the cleanup.
 
 ## Files Changed
+- `.github/workflows/ci.yml`
+- `README.md`
+- `README-zh-CN.md`
+- `backend/package.json`
+- `backend/prisma/schema.prisma`
+- `backend/prisma/migrations/20260312000200_remove_worker_system_managed/migration.sql`
 - `backend/src/bootstrap.ts`
+- `backend/src/modules/workers/dto/workers-swagger.dto.ts`
+- `backend/src/modules/workers/local-worker-supervisor.service.ts`
 - `backend/src/modules/workers/system-worker-config.ts`
+- `backend/src/modules/workers/workers-internal.controller.ts`
 - `backend/src/modules/workers/workers.service.ts`
 - `backend/src/tests/unit/createAppAfterAuthHook.test.ts`
 - `backend/src/tests/unit/systemWorkerConfig.test.ts`
-- `backend/src/tests/unit/workersServiceExternalBinding.test.ts`
+- `backend/src/tests/unit/workersInternalInlineExecute.test.ts`
+- `backend/src/tests/unit/workersServiceDefaultWorker.test.ts`
+- `backend/src/tests/unit/workersServiceLocalWorker.test.ts`
+- `backend/src/types/worker.ts`
 - `docker/.env.example`
-- `docs/en/user-docs/environment.md`
-- `docs/en/user-docs/workers.md`
-- `docs/en/user-docs/split-host-deployment.md`
+- `docker/.env.remote-worker.example`
+- `docker/ci/compose-build-up.sh`
+- `docker/ci/write-ci-env.sh`
+- `docker/docker-compose.yml`
+- `docs/en/api-reference/workers.md`
 - `docs/en/change-log/0.0.0.md`
+- `docs/en/user-docs/environment.md`
+- `docs/en/user-docs/quickstart.md`
+- `docs/en/user-docs/split-host-deployment.md`
+- `docs/en/user-docs/workers.md`
+- `frontend/src/api/types/workers.ts`
+- `frontend/src/components/settings/SettingsWorkersPanel.tsx`
+- `frontend/src/i18n/messages/en-US/ui.ts`
+- `frontend/src/i18n/messages/zh-CN/ui.ts`
+- `frontend/src/tests/repoDetailPage.test.tsx`
+- `frontend/src/tests/settingsWorkers.test.tsx`
+- `frontend/src/tests/taskGroupChatPageTestUtils.tsx`
 - `docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md`
 - `docs/en/developer/plans/external-worker-bind-existing-20260312/findings.md`
 - `docs/en/developer/plans/external-worker-bind-existing-20260312/progress.md`
+- `backend/.env.example`
+- `backend/src/modules/tasks/task-runner.service.ts`
+- `docs/en/user-docs/config/repositories.md`
 
 ## Test Results
-- `pnpm --filter hookcode-backend test -- --runInBand --runTestsByPath src/tests/unit/systemWorkerConfig.test.ts src/tests/unit/createAppAfterAuthHook.test.ts src/tests/unit/workersServiceExternalBinding.test.ts` ✅
-- `pnpm test` ✅
+- `pnpm --filter hookcode-backend test -- --runInBand --runTestsByPath src/tests/unit/systemWorkerConfig.test.ts src/tests/unit/createAppAfterAuthHook.test.ts src/tests/unit/workersServiceDefaultWorker.test.ts src/tests/unit/workersServiceLocalWorker.test.ts src/tests/unit/workersInternalInlineExecute.test.ts` ✅
+- `pnpm --filter hookcode-frontend test -- src/tests/settingsWorkers.test.tsx` ✅
+- `pnpm test` ⚠️ failed for pre-existing sandbox-sensitive preview tests unrelated to this change:
+  - `backend/src/tests/unit/previewPortPool.test.ts` (`no_available_preview_ports`)
+  - `backend/src/tests/unit/previewService.test.ts` (`EPERM` under `/Users/gaoruicheng/.hookcode/...`)
+  - `backend/src/tests/unit/previewWsProxy.test.ts` (`listen EPERM` on `127.0.0.1`)
+- `pnpm --filter hookcode-frontend test` ✅
+- `pnpm --filter hookcode-worker test` ✅
 - `pnpm --filter hookcode-backend build` ✅
+- `docker compose -f docker/docker-compose.yml config >/dev/null` ✅
+- `docker compose --env-file docker/.env.remote-worker.example -f docker/docker-compose.remote-worker.yml config >/dev/null` ✅
 
 ## Errors Encountered
-- `bash .codex/skills/file-context-planning/scripts/init-session.sh ...` printed `ERROR: docs.json missing navigation.languages[]` after creating the session files. No recovery needed for this task because the session folder was created successfully and `docs/docs.json` uses `navigation.tabs`.
-- The first targeted backend test command used repo-root paths (`backend/src/tests/...`) inside the filtered backend package, so Jest returned `No tests found`; reran with package-relative paths (`src/tests/...`) and the tests passed.
-- Existing `createAppAfterAuthHook` tests still emit expected mocked-app console warnings (`useGlobalInterceptors`, worker WS attach, local worker supervisor). These warnings predate this change and did not fail the suite.
+- `pnpm test` still fails in this sandbox because multiple preview-related backend tests need filesystem/socket capabilities outside the current environment. These failures were reproduced after the change but are unrelated to worker bootstrap/system-managed removal.
+- Existing `createAppAfterAuthHook` tests still emit expected mocked-app console warnings (`useGlobalInterceptors`, worker WS attach, local worker supervisor). These warnings predate this change and did not fail the targeted suite.
 
 ## Completion Notes
-- External mode now requires an existing remote worker entry with matching id/token.
-- Backend preserves the existing worker name/max concurrency instead of overwriting them from env.
-- Other remote `systemManaged` rows are demoted when binding the configured worker.
+- Docker/Actions deployments now default to `HOOKCODE_SYSTEM_WORKER_MODE=disabled` and start with no connected worker.
+- Fallback routing now only auto-selects online workers.
+- The user-facing/system-routing/database `systemManaged` concept has been removed.
+- Dedicated Docker workers remain available through `docker/docker-compose.remote-worker.yml` after creating a worker in **Settings → Workers**.

@@ -42,9 +42,9 @@ const workerToSummary = (row: any): WorkerSummary => ({
   preview: Boolean((row.capabilities?.preview ?? row.capabilities_json?.preview) || false)
 });
 
+// Expose worker records with only routing and runtime metadata so API consumers stay aligned with the simplified worker model. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
 const workerToRecord = (row: any): WorkerRecord => ({
   ...workerToSummary(row),
-  systemManaged: Boolean(row.systemManaged ?? row.system_managed),
   version: trimString(row.version),
   platform: trimString(row.platform),
   arch: trimString(row.arch),
@@ -67,8 +67,8 @@ export class WorkersService {
   constructor(private readonly logWriter: LogWriterService) {}
 
   async listWorkers(): Promise<WorkerRecord[]> {
-    // Load worker registry rows for the admin settings page and worker-aware selectors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    const rows = await db.worker.findMany({ orderBy: [{ systemManaged: 'desc' }, { createdAt: 'asc' }] });
+    // List workers by creation order so the admin panel stays deterministic without any hidden backend-owned priority rule. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+    const rows = await db.worker.findMany({ orderBy: [{ createdAt: 'asc' }] });
     return rows.map(workerToRecord);
   }
 
@@ -90,7 +90,6 @@ export class WorkersService {
         name: params.name.trim(),
         kind: 'remote',
         status: 'offline',
-        systemManaged: false,
         capabilities: { preview: false },
         maxConcurrency: Number.isFinite(params.maxConcurrency) && Number(params.maxConcurrency) > 0 ? Math.floor(Number(params.maxConcurrency)) : 1,
         currentConcurrency: 0,
@@ -106,18 +105,19 @@ export class WorkersService {
       message: `Worker created: ${row.name}`,
       code: 'WORKER_CREATED',
       actorUserId: params.actorUserId,
-      meta: { workerId: row.id, kind: row.kind, systemManaged: row.systemManaged }
+      meta: { workerId: row.id, kind: row.kind }
     });
     return { worker: workerToRecord(row), token };
   }
 
-  async ensureLocalSystemWorker(params: {
+  async ensureLocalWorker(params: {
     name: string;
     backendBaseUrl?: string;
     maxConcurrency?: number;
   }): Promise<{ worker: WorkerRecord; token: string }> {
     const now = new Date();
-    const existing = await db.worker.findFirst({ where: { systemManaged: true, kind: 'local' }, orderBy: { createdAt: 'asc' } });
+    // Reuse the first local worker row so source-mode backends still keep one colocated worker without tagging it as system managed. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+    const existing = await db.worker.findFirst({ where: { kind: 'local' }, orderBy: { createdAt: 'asc' } });
     const token = buildBootstrapToken();
     if (existing) {
       const updated = await db.worker.update({
@@ -140,7 +140,6 @@ export class WorkersService {
         name: params.name,
         kind: 'local',
         status: 'offline',
-        systemManaged: true,
         backendBaseUrl: params.backendBaseUrl,
         capabilities: { preview: true },
         maxConcurrency: Number.isFinite(params.maxConcurrency) && Number(params.maxConcurrency) > 0 ? Math.floor(Number(params.maxConcurrency)) : 2,
@@ -153,55 +152,6 @@ export class WorkersService {
     return { worker: workerToRecord(created), token };
   }
 
-  async bindExternalSystemWorker(params: {
-    workerId: string;
-    token: string;
-    backendBaseUrl?: string;
-  }): Promise<WorkerRecord> {
-    const now = new Date();
-    const configuredTokenHash = hashToken(params.token);
-    const existing = await db.worker.findUnique({ where: { id: params.workerId } });
-    // Bind external mode to an existing remote worker row so deployments must provision the worker explicitly before backend claims it as default. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
-    if (!existing) {
-      throw new Error(`Configured external system worker not found: ${params.workerId}`);
-    }
-
-    if (existing.kind !== 'remote') {
-      throw new Error(`Configured external system worker must be remote: ${params.workerId}`);
-    }
-    if (existing.disabledAt || existing.status === 'disabled') {
-      throw new Error(`Configured external system worker is disabled: ${params.workerId}`);
-    }
-    if (!existing.tokenHash || existing.tokenHash !== configuredTokenHash) {
-      throw new Error(`Configured external system worker token mismatch: ${params.workerId}`);
-    }
-
-    // Demote previously claimed remote system workers so backend routing keeps only one configured external default at a time. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
-    await db.worker.updateMany({
-      where: { kind: 'remote', systemManaged: true, id: { not: params.workerId } },
-      data: { systemManaged: false, updatedAt: now }
-    });
-
-    const row = await db.worker.update({
-      where: { id: params.workerId },
-      data: {
-        systemManaged: true,
-        status: 'offline',
-        disabledAt: null,
-        backendBaseUrl: params.backendBaseUrl,
-        currentConcurrency: 0,
-        updatedAt: now
-      }
-    });
-
-    void this.logWriter.logSystem({
-      level: 'info',
-      message: `External system worker bound: ${row.name}`,
-      code: 'WORKER_SYSTEM_EXTERNAL_BOUND',
-      meta: { workerId: row.id, kind: row.kind, systemManaged: row.systemManaged }
-    });
-    return workerToRecord(row);
-  }
   async rotateWorkerToken(id: string): Promise<{ worker: WorkerRecord; token: string } | null> {
     const existing = await db.worker.findUnique({ where: { id } });
     if (!existing) return null;
@@ -241,7 +191,8 @@ export class WorkersService {
 
   async deleteWorker(id: string): Promise<boolean> {
     const existing = await db.worker.findUnique({ where: { id } });
-    if (!existing || existing.systemManaged) return false;
+    // Limit deletes to remote workers so admins do not remove the colocated local worker row while backend still depends on it for source-mode execution. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+    if (!existing || existing.kind !== 'remote') return false;
     await db.worker.delete({ where: { id } });
     return true;
   }
@@ -418,20 +369,17 @@ export class WorkersService {
       if (robotWorkerId) return robotWorkerId;
     }
 
-    // Prefer online system-managed workers first so Docker/production can fall back to the configured external worker when a stale local row exists in the shared DB. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    const systemWorkers = await db.worker.findMany({
-      where: { systemManaged: true, disabledAt: null },
+    // Auto-pick only connected workers so Docker/CI deployments without an active worker surface as unconfigured instead of silently targeting stale offline rows. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+    const workers = await db.worker.findMany({
+      where: { disabledAt: null },
       orderBy: [{ createdAt: 'asc' }],
       select: { id: true, kind: true, status: true }
     });
-    const firstOnlineLocal = systemWorkers.find((worker) => worker.kind === 'local' && worker.status === 'online');
+    const firstOnlineLocal = workers.find((worker) => worker.kind === 'local' && worker.status === 'online');
     if (firstOnlineLocal?.id) return trimString(firstOnlineLocal.id) ?? null;
-    const firstOnlineRemote = systemWorkers.find((worker) => worker.kind === 'remote' && worker.status === 'online');
+    const firstOnlineRemote = workers.find((worker) => worker.kind === 'remote' && worker.status === 'online');
     if (firstOnlineRemote?.id) return trimString(firstOnlineRemote.id) ?? null;
-    const firstLocal = systemWorkers.find((worker) => worker.kind === 'local');
-    if (firstLocal?.id) return trimString(firstLocal.id) ?? null;
-    const firstRemote = systemWorkers.find((worker) => worker.kind === 'remote');
-    return trimString(firstRemote?.id) ?? null;
+    return null;
   }
 
   async isWorkerOnline(id: string): Promise<boolean> {

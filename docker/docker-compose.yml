@@ -14,13 +14,13 @@ services:
       args:
         PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR}
     env_file:
-      # Single Docker deployment env file shared by frontend(build) + backend/worker(runtime).
+      # Single Docker deployment env file shared by frontend(build) + backend(runtime).
       - ./.env
     environment:
       # Keep backend runtime storage on an explicit container path so named volumes persist HOOKCODE_WORK_DIR across rebuilds. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
       HOOKCODE_WORK_DIR: ${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
-      # Default Docker deployments to the external system-worker mode so backend and compose/remote workers share the same executor protocol. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      HOOKCODE_SYSTEM_WORKER_MODE: ${HOOKCODE_SYSTEM_WORKER_MODE:-external}
+      # Keep main Docker deployments disconnected by default so operators explicitly choose when and where workers connect. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+      HOOKCODE_SYSTEM_WORKER_MODE: ${HOOKCODE_SYSTEM_WORKER_MODE:-disabled}
     volumes:
       # Persist backend task groups and its supervised local-worker caches beneath HOOKCODE_WORK_DIR. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
       - backend_work_dir:${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
@@ -47,37 +47,6 @@ services:
       retries: 12
       start_period: 10s
 
-  worker:
-    # Run the standalone worker image separately from backend so deployments can place executors on arbitrary machines. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    build:
-      context: ..
-      dockerfile: worker/Dockerfile
-      args:
-        PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR}
-    env_file:
-      - ./.env
-    environment:
-      # Keep standalone worker runtime storage on the configured container path so runtime installs and sticky workspaces survive restarts. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      HOOKCODE_WORK_DIR: ${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
-      # Point the bundled Docker worker at backend using the same bootstrap credentials that backend registers as the default external system worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      HOOKCODE_BACKEND_URL: ${HOOKCODE_DOCKER_WORKER_BACKEND_URL:-http://backend:4000/api}
-      HOOKCODE_WORKER_ID: ${HOOKCODE_SYSTEM_WORKER_ID}
-      HOOKCODE_WORKER_TOKEN: ${HOOKCODE_SYSTEM_WORKER_TOKEN}
-      HOOKCODE_WORKER_NAME: ${HOOKCODE_SYSTEM_WORKER_NAME:-Docker Default Worker}
-      HOOKCODE_WORKER_KIND: remote
-      HOOKCODE_WORKER_PREVIEW: ${HOOKCODE_WORKER_PREVIEW:-0}
-      HOOKCODE_WORKER_MAX_CONCURRENCY: ${HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY:-1}
-    volumes:
-      # Persist standalone worker runtime installs and sticky workspaces beneath HOOKCODE_WORK_DIR. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      - worker_work_dir:${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # Run the built worker image entrypoint from /app so Docker deployments start the packaged standalone executor correctly. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    command: ["node", "/app/dist/main.js"]
-    depends_on:
-      - db
-      - backend
-
   frontend:
     build:
       context: ..
@@ -98,7 +67,7 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      # DB_* is used by backend/worker; reuse it for the Postgres container to keep a single env file.
+      # DB_* is used by backend and optional worker deployments; reuse it for the Postgres container to keep a single env file.
       POSTGRES_DB: ${DB_NAME:-hookcode}
       POSTGRES_USER: ${DB_USER:-hookcode}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-hookcode}
@@ -110,4 +79,3 @@ services:
 volumes:
   db_data: {}
   backend_work_dir: {}
-  worker_work_dir: {}

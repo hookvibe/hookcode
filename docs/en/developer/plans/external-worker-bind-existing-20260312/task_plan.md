@@ -1,61 +1,62 @@
-# Task Plan: Bind external worker by existing credentials
+# Task Plan: Remove Docker/Actions worker bootstrap and system-managed worker semantics
 
 ## Session Metadata
 - **Session Hash:** external-worker-bind-existing-20260312
 - **Created:** 2026-03-12
 
 ## Goal
-Change external system-worker bootstrap so backend binds to an already-created remote worker by configured id/token instead of auto-creating or overwriting a worker row.
+Remove GitHub Actions/Docker worker deployment/bootstrap behavior so deployments start with no connected worker by default, keep local worker support only for source-mode local runs, and delete the user-facing/system-routing concept of system-managed workers.
 
 ## Current Phase
-Phase 5
+Complete
 
 ## Phases
 ### Phase 1: Requirements & Discovery
-- [x] Confirm current GitHub Actions and Docker defaults for external worker mode.
-- [x] Trace backend bootstrap flow for `HOOKCODE_SYSTEM_WORKER_MODE=external`.
-- [x] Inspect worker selection logic and current tests/docs.
+- [x] Reconfirm the updated user requirement: no Docker/Actions worker bootstrap, no default connected worker, no system-managed concept.
+- [x] Map worker bootstrap, routing, DTO, UI, and docs surfaces affected by `systemManaged` and `HOOKCODE_SYSTEM_WORKER_*`.
+- [x] Verify task creation behavior when no worker is available.
 - **Status:** complete
 
-### Phase 2: Planning & Backend Design
-- [x] Define how configured credentials should resolve an existing worker.
-- [x] Decide which worker fields may still be updated during backend bootstrap.
-- [x] Identify failure modes for missing worker / wrong token / wrong worker kind.
+### Phase 2: Design
+- [x] Decide how default worker routing should behave without system-managed flags.
+- [x] Decide how backend local inline execution should be authorized after removing the concept.
+- [x] Decide how CI/Docker defaults should leave deployments with zero connected workers.
 - **Status:** complete
 
-### Phase 3: Implementation
-- [x] Replace external worker auto-registration with credential-based binding.
-- [x] Preserve default-worker routing by marking the matched worker as system managed.
-- [x] Keep startup failure handling auditable through system logs.
+### Phase 3: Backend & Workflow Implementation
+- [x] Remove GitHub Actions worker bootstrap/deployment env wiring.
+- [x] Remove backend external worker bootstrap flow and system-managed routing rules.
+- [x] Update worker CRUD/selection logic to operate without `systemManaged`.
+- [x] Keep source-mode local worker support working in `local` mode only.
 - **Status:** complete
 
-### Phase 4: Verification
-- [x] Add or update unit tests for config parsing and bootstrap behavior.
-- [x] Run backend-targeted tests.
-- [x] Run the full repo test suite per workflow requirement.
-- [x] Run backend build.
+### Phase 4: Frontend & API Contract
+- [x] Remove the `systemManaged` field from API-facing DTOs/types.
+- [x] Remove system-managed labels/locks from the workers settings UI.
+- [x] Ensure worker selectors and task creation flows still behave correctly with zero connected workers.
 - **Status:** complete
 
-### Phase 5: Docs & Delivery
-- [x] Update user-facing docs for external worker configuration semantics.
-- [x] Update progress log and changelog entry.
-- [x] Run completion check.
+### Phase 5: Verification & Docs
+- [x] Add/update unit tests for routing, inline execution, and workers panel behavior.
+- [x] Run targeted tests, the requested full repo test command, backend build, and Docker Compose config validation.
+- [x] Update user docs and changelog for the new deployment/worker model.
 - **Status:** complete
 
-## Final Technical Approach
-- Keep `external` mode and env names intact so deployments do not need a config rename.
-- Interpret `HOOKCODE_SYSTEM_WORKER_ID` + `HOOKCODE_SYSTEM_WORKER_TOKEN` as credentials for an existing remote worker row.
-- Reject missing rows, token mismatches, disabled workers, or non-remote workers instead of creating a new row.
-- Promote the matched worker into the backend-owned default worker set via `systemManaged=true` so task routing still finds it.
-- Demote other remote `systemManaged` rows during binding so one backend keeps one configured external default.
-- Refresh only routing safety metadata during bootstrap (`systemManaged`, `backendBaseUrl`, offline reset), while preserving worker identity fields created by admins.
+## Final Design Direction
+- Keep `HOOKCODE_SYSTEM_WORKER_MODE=local|disabled` support, but remove external bootstrap usage from GitHub Actions, Docker defaults, and the backend startup path.
+- In fallback routing, only auto-pick online workers; do not pick offline workers just because they exist.
+- Remove `systemManaged` from API responses, frontend state, UI labels/actions, and the Prisma schema.
+- Allow inline backend execution for local workers by `kind === 'local'` instead of a special system-managed marker.
+- Keep local worker auto-start only in source-mode/local mode; Docker/Actions deploy paths default to `disabled` so the UI opens with no connected worker.
+- Remove the bundled worker service from the main `docker/docker-compose.yml`; dedicated Docker worker usage now goes through `docker/docker-compose.remote-worker.yml` only.
 
 ## Key Decisions
-- Preserve the existing worker name and max concurrency from the DB instead of overwriting them from backend env.
-- Keep backend startup non-fatal when external binding fails, but log `WORKER_SYSTEM_BOOTSTRAP_FAILED` so operators can diagnose configuration errors.
-- Require operators to create the remote worker entry first for Docker/split-host flows, then point backend `external` mode at that existing id/token pair.
+- Do not auto-create or auto-bind any worker during Docker/Actions deployment.
+- Do not expose or depend on `systemManaged` in user-facing or backend routing behavior.
+- When no online/default worker exists, task creation should fail fast with the existing `WORKER_NOT_CONFIGURED` behavior.
+- Update the database schema too, so the retired concept disappears from data storage and generated Prisma types.
 
-## Risks / Follow-up Notes
-- Bundled Docker worker deployments now require a pre-created worker entry before the worker can authenticate successfully.
-- Split-host docs were updated to use a first-start `disabled` bootstrap, then switch to `external` after the worker entry exists.
-- Full repo test suite passed after the change; backend build also passed.
+## Risks / Notes
+- Existing tasks/robots can still pin explicit worker ids; those code paths remain intact.
+- The full `pnpm test` command still fails in this sandbox because several pre-existing preview tests need filesystem/socket permissions outside the current environment.
+- Targeted worker tests, all frontend tests, all worker tests, backend build, and Docker Compose config validation passed after this change.

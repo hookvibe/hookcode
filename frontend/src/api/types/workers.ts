@@ -31,7 +31,7 @@ export interface WorkerSummary {
 }
 
 export interface WorkerRecord extends WorkerSummary {
-  systemManaged: boolean;
+  // Keep worker records focused on connection and runtime details so the UI matches the simplified worker model. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
   version?: string;
   platform?: string;
   arch?: string;

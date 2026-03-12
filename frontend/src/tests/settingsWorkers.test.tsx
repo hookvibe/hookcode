@@ -16,7 +16,7 @@ vi.mock('../api', () => ({
   deleteWorker: vi.fn()
 }));
 
-// Verify the admin worker panel can load workers and reveal bootstrap credentials. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+// Verify the admin worker panel can load workers and reveal bootstrap credentials with the simplified worker metadata model. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
 const renderPanel = () =>
   render(
     <AntdApp>
@@ -34,7 +34,6 @@ describe('SettingsWorkersPanel', () => {
         name: 'Local worker',
         kind: 'local',
         status: 'online',
-        systemManaged: true,
         maxConcurrency: 2,
         currentConcurrency: 0,
         createdAt: '2026-03-07T00:00:00.000Z',
@@ -47,7 +46,6 @@ describe('SettingsWorkersPanel', () => {
         name: 'Remote worker',
         kind: 'remote',
         status: 'offline',
-        systemManaged: false,
         maxConcurrency: 1,
         currentConcurrency: 0,
         createdAt: '2026-03-07T00:00:00.000Z',
@@ -65,9 +63,8 @@ describe('SettingsWorkersPanel', () => {
 
     await waitFor(() => expect(api.fetchWorkers).toHaveBeenCalled());
     expect(await screen.findByText('Local worker')).toBeInTheDocument();
-    expect(screen.getByText('System managed')).toBeInTheDocument();
+    expect(screen.queryByText('System managed')).not.toBeInTheDocument();
   });
-
 
   test('surfaces backend create validation errors to the user', async () => {
     const ui = userEvent.setup();

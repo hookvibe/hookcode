@@ -7,7 +7,7 @@ HookCode now executes tasks through a standalone worker runtime.
 
 There are two worker shapes in v1:
 
-- **Local worker**: started automatically by each backend instance and managed by the backend.
+- **Local worker**: started automatically by source-mode backends when worker auto-start is enabled.
 - **Remote worker**: deployed on any reachable machine, then connected back to the backend over WebSocket.
 
 ## Local worker
@@ -22,7 +22,6 @@ Use the local worker when you want:
 
 Notes:
 
-- The local worker is registered as a **system-managed** worker.
 - It shares the same standalone worker runtime as remote workers.
 - In v1, preview/proxy features remain **local-worker only**.
 
@@ -54,9 +53,9 @@ Save the token immediately. The plain token is only shown at creation/rotation t
 
 Today the worker is shipped inside the HookCode monorepo/workspace.
 
-{/* Document Docker/production external-worker binding so operators reuse an existing remote worker entry instead of expecting backend to create one. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 */}
-For Docker/production deployments you can point backend at an already-created remote worker by setting `HOOKCODE_SYSTEM_WORKER_MODE=external` plus the matching `HOOKCODE_SYSTEM_WORKER_ID` and `HOOKCODE_SYSTEM_WORKER_TOKEN`. Backend binds that existing worker as its default system worker instead of creating a new worker row. The bundled Docker worker container can reuse the same id/token, while `HOOKCODE_SYSTEM_WORKER_NAME` and `HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY` still configure that worker process.
-If you start Docker Compose manually instead of the CI helper script, the same remote-worker-only setup is just `docker compose -f docker/docker-compose.yml up -d --build db backend frontend` while the remote worker runs elsewhere with the same `HOOKCODE_SYSTEM_WORKER_*` credentials.
+{/* Document Docker/production worker startup without the removed bundled-worker bootstrap path. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 */}
+For Docker/production deployments keep the backend on `HOOKCODE_SYSTEM_WORKER_MODE=disabled` so the app opens with no connected worker by default. Then create a remote worker in **Settings → Workers** and start it from source or from the dedicated `docker/docker-compose.remote-worker.yml` host flow below.
+If you start Docker Compose manually for the main app stack, the recommended command is `docker compose -f docker/docker-compose.yml up -d --build db backend frontend`.
 
 #### Option A: Run the worker directly from the repo
 
@@ -116,12 +115,13 @@ Behavior in v1:
 
 Task routing follows this model:
 
-- each backend has one default **system worker**
-- source-mode backends default to the local supervised worker, while Docker/production deployments can default to a configured external worker
-- new chat/webhook tasks execute on the current backend's selected system worker by default
+- source-mode backends can auto-start one local worker when `HOOKCODE_SYSTEM_WORKER_MODE=local`
+- Docker/production deployments default to no connected worker until an operator starts one
+- new chat/webhook tasks auto-pick the first online local worker, then the first online remote worker, when no explicit worker is pinned
 - admins can override worker selection when creating chat tasks
 - repo robots can define a **default worker** for future tasks
 - tasks and task groups keep the selected worker id for traceability
+- if no worker is online, creating a new task fails until a worker connects
 
 ## Health and failure behavior
 

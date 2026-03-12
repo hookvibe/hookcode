@@ -25,7 +25,7 @@ export interface WorkerSummary {
 }
 
 export interface WorkerRecord extends WorkerSummary {
-  systemManaged: boolean;
+  // Keep worker API records focused on connection/runtime state instead of legacy backend-managed classification. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
   version?: string;
   platform?: string;
   arch?: string;

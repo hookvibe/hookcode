@@ -60,7 +60,6 @@ export const enUSUi = {
   'workers.runtime.ready': 'Ready',
   'workers.runtime.error': 'Runtime error',
   'workers.runtime.unknown': 'Unknown',
-  'workers.common.systemManaged': 'System managed',
   'workers.common.preview': 'Preview',
   'workers.common.unknown': 'Unknown worker',
   'workers.action.create': 'Create worker',
