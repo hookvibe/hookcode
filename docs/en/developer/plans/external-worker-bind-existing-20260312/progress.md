@@ -15,6 +15,9 @@
 - Performed a final cleanup pass for residual worker wording in code comments, README files, and worker docs.
 - Removed unused external bootstrap variables from `backend/.env.example` and clarified repo-level worker fallback docs so Docker/CI no longer imply a backend-owned default worker.
 - Re-ran `pnpm --filter hookcode-backend build`, `docker compose -f docker/docker-compose.yml config >/dev/null`, and `docker compose --env-file docker/.env.remote-worker.example -f docker/docker-compose.remote-worker.yml config >/dev/null` after the cleanup.
+- Fixed CI migration env propagation by wiring `HOOKCODE_DB_ACCEPT_DATA_LOSS` through `.github/workflows/ci.yml` and `docker/ci/write-ci-env.sh` (default `false`, opt-in via secret for intentional destructive migrations).
+- Updated `docker/.env.example` and environment docs to document the destructive-migration safeguard variable and its one-time operational usage.
+- Added pre-checkout git transport hardening in both CI jobs to mitigate intermittent `GnuTLS recv error (-110)` fetch failures on self-hosted runners.
 
 ## Files Changed
 - `.github/workflows/ci.yml`
@@ -39,6 +42,7 @@
 - `docker/.env.remote-worker.example`
 - `docker/ci/compose-build-up.sh`
 - `docker/ci/write-ci-env.sh`
+- `.github/workflows/ci.yml`
 - `docker/docker-compose.yml`
 - `docs/en/api-reference/workers.md`
 - `docs/en/change-log/0.0.0.md`
@@ -72,6 +76,10 @@
 - `pnpm --filter hookcode-backend build` ✅
 - `docker compose -f docker/docker-compose.yml config >/dev/null` ✅
 - `docker compose --env-file docker/.env.remote-worker.example -f docker/docker-compose.remote-worker.yml config >/dev/null` ✅
+- `AUTH_TOKEN_SECRET=test-secret HOOKCODE_DB_ACCEPT_DATA_LOSS=true bash docker/ci/write-ci-env.sh /tmp/hookcode-ci.env && rg -n "HOOKCODE_DB_ACCEPT_DATA_LOSS" /tmp/hookcode-ci.env` ✅ (`"true"` written)
+- `AUTH_TOKEN_SECRET=test-secret bash docker/ci/write-ci-env.sh /tmp/hookcode-ci-default.env && rg -n "HOOKCODE_DB_ACCEPT_DATA_LOSS" /tmp/hookcode-ci-default.env` ✅ (`"false"` written by default)
+- `docker compose --env-file /tmp/hookcode-ci.env -f docker/docker-compose.yml config >/dev/null` ✅
+- `git config --global http.version HTTP/1.1` + `http.maxRequests=2` + low-speed guard wiring in CI jobs ✅ (config-only workflow change)
 
 ## Errors Encountered
 - `pnpm test` still fails in this sandbox because multiple preview-related backend tests need filesystem/socket capabilities outside the current environment. These failures were reproduced after the change but are unrelated to worker bootstrap/system-managed removal.

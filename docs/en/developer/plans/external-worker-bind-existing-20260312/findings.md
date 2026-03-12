@@ -10,3 +10,5 @@
 - The main Docker stack no longer needs a bundled `worker` service because the repo already ships `docker/docker-compose.remote-worker.yml` for optional dedicated worker hosts.
 - Removing `system_managed` from the Prisma schema is low-risk because the field is no longer referenced by backend code or frontend contracts.
 - `backend/.env.example` still documented the removed external bootstrap variables even though runtime no longer reads them, so operators could misread the default deployment model unless the example file was cleaned too.
+- GitHub Actions CI env rendering did not pass through `HOOKCODE_DB_ACCEPT_DATA_LOSS`, so destructive migrations (for example `DROP COLUMN`) could not be explicitly unlocked even when operators intended a one-time guarded migration.
+- Self-hosted GitHub Actions runners still showed intermittent `GnuTLS recv error (-110)` during `actions/checkout` fetch over HTTPS, so checkout hardening must run before fetch to force HTTP/1.1 and lower transfer aggressiveness.

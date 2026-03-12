@@ -82,6 +82,8 @@ write_kv DB_PORT "${DB_PORT:-5432}"
 write_kv DB_USER "${DB_USER:-${HOOKCODE_DB_USER:-hookcode}}"
 write_kv DB_PASSWORD "${DB_PASSWORD:-${HOOKCODE_DB_PASSWORD:-hookcode}}"
 write_kv DB_NAME "${DB_NAME:-${HOOKCODE_DB_NAME:-hookcode}}"
+# Keep destructive SQL migration unlock as an explicit CI opt-in so DROP/TRUNCATE statements require deliberate operator intent. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+write_kv HOOKCODE_DB_ACCEPT_DATA_LOSS "${HOOKCODE_DB_ACCEPT_DATA_LOSS:-false}"
 
 # Keep Docker runtime storage on an explicit absolute container path so Compose volume targets match HOOKCODE_WORK_DIR for backend and worker state. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
 work_dir_root="${HOOKCODE_WORK_DIR:-/var/lib/hookcode}"

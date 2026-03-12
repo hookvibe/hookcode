@@ -22,6 +22,14 @@ jobs:
   test:
     runs-on: self-hosted
     steps:
+      # Force checkout fetches to HTTP/1.1 on self-hosted runners to reduce intermittent GnuTLS TLS termination failures against GitHub HTTPS remotes. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+      - name: Harden git transport
+        run: |
+          git config --global http.version HTTP/1.1
+          git config --global http.maxRequests 2
+          git config --global http.lowSpeedLimit 1
+          git config --global http.lowSpeedTime 600
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -62,6 +70,14 @@ jobs:
       - test
     environment: hookcode
     steps:
+      # Force checkout fetches to HTTP/1.1 on self-hosted runners to reduce intermittent GnuTLS TLS termination failures against GitHub HTTPS remotes. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+      - name: Harden git transport
+        run: |
+          git config --global http.version HTTP/1.1
+          git config --global http.maxRequests 2
+          git config --global http.lowSpeedLimit 1
+          git config --global http.lowSpeedTime 600
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -82,6 +98,8 @@ jobs:
           HOOKCODE_DB_USER: ${{ secrets.HOOKCODE_DB_USER || 'hookcode' }}
           HOOKCODE_DB_PASSWORD: ${{ secrets.HOOKCODE_DB_PASSWORD || 'hookcode' }}
           HOOKCODE_DB_NAME: ${{ secrets.HOOKCODE_DB_NAME || 'hookcode' }}
+          # Keep destructive migration unlock explicit in CI by requiring an opt-in secret and defaulting to false. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+          HOOKCODE_DB_ACCEPT_DATA_LOSS: ${{ secrets.HOOKCODE_DB_ACCEPT_DATA_LOSS || 'false' }}
           # Keep CI Docker deployments on an explicit absolute work root so backend runtime state lands on the mounted HOOKCODE_WORK_DIR volume. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
           HOOKCODE_WORK_DIR: ${{ secrets.HOOKCODE_WORK_DIR || '/var/lib/hookcode' }}
           # Keep GitHub Actions Docker deployments disconnected by default so the app opens with no auto-started worker until an operator provisions one explicitly. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312

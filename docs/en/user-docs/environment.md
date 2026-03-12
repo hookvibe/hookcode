@@ -59,9 +59,12 @@ Either set `DATABASE_URL` or set the split fields:
 - `DB_USER`
 - `DB_PASSWORD`
 - `DB_NAME`
+- `HOOKCODE_DB_ACCEPT_DATA_LOSS` (default `false`; set `true` only for intentional destructive migrations such as `DROP COLUMN` after backups)
 
 {/* Keep migration assets tied to the packaged backend build so HOOKCODE_WORK_DIR stays runtime-only. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
 - SQL migrations always load from the packaged backend build; there is no separate env path override for migrations.
+{/* Document migration safety unlock for CI/docker deployments so destructive schema changes require explicit operator confirmation. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312 */}
+- For CI/Docker deployments, keep `HOOKCODE_DB_ACCEPT_DATA_LOSS=false` by default and only enable it for the migration run that requires destructive SQL.
 
 ### Runtime storage
 
