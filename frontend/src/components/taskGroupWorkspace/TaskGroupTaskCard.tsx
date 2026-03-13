@@ -27,6 +27,7 @@ import {
 import { formatDateTime } from '../../utils/dateUtc';
 import { formatRobotLabelWithProvider } from '../../utils/robot';
 import { TaskGitStatusPanel } from '../tasks/TaskGitStatusPanel';
+import { TaskProviderRoutingPanel } from '../tasks/TaskProviderRoutingPanel';
 import { MarkdownViewer } from '../MarkdownViewer';
 import { WorkerSummaryTag } from '../workers/WorkerSummaryTag';
 
@@ -186,6 +187,7 @@ export const TaskGroupTaskCard = ({
             </div>
           ) : null}
 
+          {task.result?.providerRouting ? <TaskProviderRoutingPanel task={task} variant="compact" /> : null}
           {task.result?.gitStatus?.enabled ? <TaskGitStatusPanel task={task} variant="compact" /> : null}
 
           <div className="hc-task-workspace-card__actions" onClick={stopCardClick}>

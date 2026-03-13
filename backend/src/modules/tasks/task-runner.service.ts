@@ -393,11 +393,11 @@ export class TaskRunner {
       }
 
       // Persist git status alongside logs/output so the UI can display change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-      const { providerCommentUrl, outputText, gitStatus } = await this.agentService.callAgent(task, {
+      const { providerCommentUrl, outputText, gitStatus, providerRouting } = await this.agentService.callAgent(task, {
         signal: abortController.signal
       });
       // Finalize without embedding log arrays because logs are stored in task_logs. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
-      await this.finalizeWithRetry(task.id, 'succeeded', { providerCommentUrl, outputText, gitStatus });
+      await this.finalizeWithRetry(task.id, 'succeeded', { providerCommentUrl, outputText, gitStatus, providerRouting });
       // Record successful task completion in the audit log. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       void this.logWriter.logExecution({
         level: 'info',
@@ -425,6 +425,7 @@ export class TaskRunner {
       const providerCommentUrl = err instanceof AgentExecutionError ? err.providerCommentUrl : undefined;
       // Preserve git status on failed runs so the UI can show unpushed changes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
       const gitStatus = err instanceof AgentExecutionError ? err.gitStatus : undefined;
+      const providerRouting = err instanceof AgentExecutionError ? err.providerRouting : undefined;
       const message = getErrorMessage(err);
 
       if (!abortReason && err instanceof AgentExecutionError && err.aborted) {
@@ -437,7 +438,8 @@ export class TaskRunner {
         await this.finalizeWithRetry(task.id, 'failed', {
           message: TASK_MANUAL_STOP_MESSAGE,
           providerCommentUrl,
-          gitStatus
+          gitStatus,
+          providerRouting
         });
         // Persist manual-stop events for audit visibility. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
         void this.logWriter.logExecution({
@@ -497,7 +499,7 @@ export class TaskRunner {
 
       console.error('[taskRunner] task failed', task.id, err);
       // Persist failure metadata without duplicating log payloads in result_json. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
-      await this.finalizeWithRetry(task.id, 'failed', { message, providerCommentUrl, gitStatus });
+      await this.finalizeWithRetry(task.id, 'failed', { message, providerCommentUrl, gitStatus, providerRouting });
       // Capture failures in the execution log stream for debugging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
       void this.logWriter.logExecution({
         level: 'error',

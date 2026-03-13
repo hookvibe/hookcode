@@ -362,6 +362,8 @@ export const zhCNRepos = {
   'repos.robotForm.modelCredential.source.user.gemini_cli': '使用账号全局凭据（gemini_cli，可跨机器人）',
   'repos.robotForm.modelCredential.source.repo': '使用仓库级凭据（仅当前仓库）',
   'repos.robotForm.modelCredential.source.robot': '为该机器人单独设置',
+  // Explain that robot execution checks local auth first before following the robot's configured stored source. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  'repos.robotForm.modelCredential.precedence': '执行时会先检查本机 CLI 登录态；若不可用，则按当前 robot 配置的 robot / repo / user 来源继续解析。',
   'repos.robotForm.modelCredential.apiBaseUrl': 'API 地址（可选）',
   'repos.robotForm.modelCredential.apiBaseUrlPlaceholder': '留空则使用默认',
   'repos.robotForm.modelCredential.apiKey': 'API 密钥',
@@ -447,6 +449,14 @@ export const zhCNRepos = {
   'repos.robotForm.networkAccess': '网络访问（仅 workspace-write）',
   // Claude/Gemini 网络访问标签简化显示。 <SESSION_HASH>
   'repos.robotForm.networkAccessClaude': '网络访问',
+  'repos.robotForm.routing.help': '上方选中的 provider 仍然是主 provider。这里可以额外配置一个备用 provider，在主 provider 不可用或执行失败时自动切换一次。',
+  'repos.robotForm.routing.mode': '路由模式',
+  'repos.robotForm.routing.mode.fixed': '固定主 provider',
+  'repos.robotForm.routing.mode.availability_first': '可用性优先',
+  'repos.robotForm.routing.fallbackProvider': '备用 provider',
+  'repos.robotForm.routing.failoverPolicy': '降级策略',
+  'repos.robotForm.routing.failoverPolicy.disabled': '禁用',
+  'repos.robotForm.routing.failoverPolicy.fallback_provider_once': '失败后切换一次',
   'repos.robotForm.activationTip': '提示：测试会校验 Token 权限并记录身份信息（不会回显 Token）。',
   'repos.robotForm.activation.lastTestAt': '最近测试时间',
   'repos.robotForm.activation.lastTestMessage': '最近测试信息',

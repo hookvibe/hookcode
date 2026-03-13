@@ -1,10 +1,15 @@
 import { spawn } from 'child_process';
 import { createRequire } from 'module';
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir, copyFile } from 'fs/promises';
+import os from 'os';
 import path from 'path';
 import readline from 'readline';
 import { buildMergedProcessEnv, createAsyncLineLogger } from '../utils/providerRuntime';
 import { normalizeHttpBaseUrl } from '../utils/url';
+import {
+  normalizeProviderRoutingConfig,
+  type ProviderRoutingConfig
+} from '../providerRouting/providerRouting.types';
 
 export const GEMINI_CLI_PROVIDER_KEY = 'gemini_cli' as const;
 
@@ -50,6 +55,8 @@ export interface GeminiCliRobotProviderConfig {
    */
   sandbox: 'workspace-write' | 'read-only';
   sandbox_workspace_write: { network_access: boolean };
+  // Persist provider failover choices inside the existing config blob for the Phase-A MVP. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  routingConfig: ProviderRoutingConfig;
 }
 
 export interface GeminiCliCredentialPublic {
@@ -99,7 +106,8 @@ export const getDefaultGeminiCliRobotProviderConfig = (): GeminiCliRobotProvider
   credential: undefined,
   model: 'gemini-2.5-pro',
   sandbox: 'read-only',
-  sandbox_workspace_write: { network_access: false }
+  sandbox_workspace_write: { network_access: false },
+  routingConfig: normalizeProviderRoutingConfig(undefined, GEMINI_CLI_PROVIDER_KEY)
 });
 
 export const normalizeGeminiCliRobotProviderConfig = (raw: unknown): GeminiCliRobotProviderConfig => {
@@ -114,6 +122,7 @@ export const normalizeGeminiCliRobotProviderConfig = (raw: unknown): GeminiCliRo
   const remark = credentialRaw ? asString(credentialRaw.remark).trim() : '';
 
   const sandboxWorkspaceWriteRaw = isRecord(raw.sandbox_workspace_write) ? raw.sandbox_workspace_write : null;
+  const sandbox = normalizeSandbox(raw.sandbox);
 
   const next: GeminiCliRobotProviderConfig = {
     credentialSource,
@@ -128,10 +137,12 @@ export const normalizeGeminiCliRobotProviderConfig = (raw: unknown): GeminiCliRo
           }
         : undefined,
     model: normalizeGeminiModel(raw.model),
-    sandbox: normalizeSandbox(raw.sandbox),
+    sandbox,
     sandbox_workspace_write: {
-      network_access: asBoolean(sandboxWorkspaceWriteRaw?.network_access, false)
-    }
+      // Drop stale network-access flags outside workspace-write so read-only runs stay isolated. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+      network_access: sandbox === 'workspace-write' && asBoolean(sandboxWorkspaceWriteRaw?.network_access, false)
+    },
+    routingConfig: normalizeProviderRoutingConfig(raw.routingConfig, GEMINI_CLI_PROVIDER_KEY)
   };
 
   return next;
@@ -187,7 +198,8 @@ export const toPublicGeminiCliRobotProviderConfig = (raw: unknown): GeminiCliRob
         : undefined,
     model: normalized.model,
     sandbox: normalized.sandbox,
-    sandbox_workspace_write: normalized.sandbox_workspace_write
+    sandbox_workspace_write: normalized.sandbox_workspace_write,
+    routingConfig: normalized.routingConfig
   };
 };
 
@@ -312,7 +324,7 @@ export const runGeminiCliExecWithCli = async (params: {
   sandbox: 'read-only' | 'workspace-write';
   networkAccess: boolean;
   resumeSessionId?: string;
-  apiKey: string;
+  apiKey?: string;
   apiBaseUrl?: string;
   outputLastMessageFile: string;
   geminiHomeDir: string;
@@ -334,19 +346,27 @@ export const runGeminiCliExecWithCli = async (params: {
   const coreTools = isRecord(systemSettings.tools) && Array.isArray((systemSettings.tools as any).core) ? ((systemSettings.tools as any).core as string[]) : [];
 
   await mkdir(params.geminiHomeDir, { recursive: true });
+  const localGeminiDir = path.join(os.homedir(), '.gemini');
+  const isolatedGeminiDir = path.join(params.geminiHomeDir, '.gemini');
+  await mkdir(isolatedGeminiDir, { recursive: true });
+  // Copy local Gemini OAuth files into the isolated HOME so local CLI auth still works under HookCode's sandboxed runtime. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  for (const fileName of ['oauth_creds.json', 'google_accounts.json']) {
+    try {
+      await copyFile(path.join(localGeminiDir, fileName), path.join(isolatedGeminiDir, fileName));
+    } catch {}
+  }
+
   const systemSettingsPath = path.join(params.geminiHomeDir, 'hookcode-gemini-system-settings.json');
   await writeFile(systemSettingsPath, JSON.stringify(systemSettings, null, 2), 'utf8');
 
-  const policyDir = path.join(params.geminiHomeDir, '.gemini', 'policies');
+  const policyDir = path.join(isolatedGeminiDir, 'policies');
   await mkdir(policyDir, { recursive: true });
   const policyPath = path.join(policyDir, 'hookcode.toml');
   await writeFile(policyPath, buildPolicyToml({ allowTools: coreTools }), 'utf8');
 
   const apiBaseUrl = normalizeHttpBaseUrl(params.apiBaseUrl);
-  const mergedEnv = buildMergedProcessEnv({
+  const runtimeEnvOverrides: Record<string, string | undefined> = {
     ...params.env,
-    // Business intent: allow selecting Gemini credentials at runtime without mutating process.env.
-    GEMINI_API_KEY: params.apiKey,
     ...(apiBaseUrl
       ? {
           // Business intent: allow routing Gemini requests through a proxy by overriding the Gemini API base URL.
@@ -360,7 +380,10 @@ export const runGeminiCliExecWithCli = async (params: {
     HOME: params.geminiHomeDir,
     USERPROFILE: params.geminiHomeDir,
     GEMINI_CLI_SYSTEM_SETTINGS_PATH: systemSettingsPath
-  });
+  };
+  // Allow Gemini CLI to reuse copied local OAuth state when no runtime API key override is resolved. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  if ((params.apiKey ?? '').trim()) runtimeEnvOverrides.GEMINI_API_KEY = params.apiKey;
+  const mergedEnv = buildMergedProcessEnv(runtimeEnvOverrides);
 
   const runOnce = async (resumeSessionId?: string): Promise<{ threadId: string | null; finalResponse: string }> => {
     const spawnFn = params.__internal?.spawn ?? spawn;

@@ -27,6 +27,7 @@ import type {
   GeminiCliRobotProviderConfigPublic,
   ModelProvider,
   ModelProviderModelsResponse,
+  ProviderRoutingConfig,
   RepoAutomationConfig,
   RepoRobot,
   RepoPreviewEnvConfigPublic, // Track repo preview env config types for the env tab. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
@@ -173,6 +174,7 @@ type RobotFormValues = {
     credentialProfileId?: string | null;
     credential?: { apiBaseUrl?: string; apiKey?: string; hasApiKey?: boolean; remark?: string };
     sandbox_workspace_write?: { network_access?: boolean };
+    routingConfig?: ProviderRoutingConfig;
   };
 };
 
@@ -244,6 +246,16 @@ const normalizeCodexReasoningEffort = (value: unknown): 'low' | 'medium' | 'high
   const v = String(value ?? '').trim();
   if (v === 'low' || v === 'high' || v === 'xhigh') return v;
   return 'medium';
+};
+
+const normalizeRoutingMode = (value: unknown): 'fixed' | 'availability_first' => {
+  const raw = String(value ?? '').trim();
+  return raw === 'availability_first' ? 'availability_first' : 'fixed';
+};
+
+const normalizeFailoverPolicy = (value: unknown): 'disabled' | 'fallback_provider_once' => {
+  const raw = String(value ?? '').trim();
+  return raw === 'fallback_provider_once' ? 'fallback_provider_once' : 'disabled';
 };
 
 const defaultAutomationConfig = (): RepoAutomationConfig => ({
@@ -418,6 +430,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
   const watchedModelProvider = Form.useWatch('modelProvider', robotForm);
   const watchedModelCredentialSource = Form.useWatch(['modelProviderConfig', 'credentialSource'], robotForm);
   const watchedModelCredentialProfileId = Form.useWatch(['modelProviderConfig', 'credentialProfileId'], robotForm);
+  const watchedModelSandbox = Form.useWatch(['modelProviderConfig', 'sandbox'], robotForm);
 
   const robotsSorted = useMemo(() => {
     const list = Array.isArray(robots) ? robots : [];
@@ -426,6 +439,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       return String(a.name ?? '').localeCompare(String(b.name ?? ''));
     });
   }, [robots]);
+
+
+  useEffect(() => {
+    const provider = String(watchedModelProvider ?? '').trim();
+    const sandbox = normalizeCodexSandbox(watchedModelSandbox);
+    const networkAccess = Boolean(robotForm.getFieldValue(['modelProviderConfig', 'sandbox_workspace_write', 'network_access']));
+    if (provider === 'codex' || sandbox === 'workspace-write' || !networkAccess) return;
+    // Reset stale network-access form state whenever the selected sandbox can no longer use web/network tools. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+    robotForm.setFieldValue(['modelProviderConfig', 'sandbox_workspace_write', 'network_access'], false);
+  }, [robotForm, watchedModelProvider, watchedModelSandbox]);
 
   const webhookPath = useMemo(() => {
     if (!repo) return '';
@@ -1223,7 +1246,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
             credentialProfileId: null,
             model: 'claude-sonnet-4-5-20250929',
             sandbox: 'read-only',
-            sandbox_workspace_write: { network_access: false }
+            sandbox_workspace_write: { network_access: false },
+            routingConfig: { mode: 'fixed', failoverPolicy: 'disabled' }
           } as any;
         }
         if (provider === 'gemini_cli') {
@@ -1232,16 +1256,18 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
             credentialProfileId: null,
             model: 'gemini-2.5-pro',
             sandbox: 'read-only',
-            sandbox_workspace_write: { network_access: false }
+            sandbox_workspace_write: { network_access: false },
+            routingConfig: { mode: 'fixed', failoverPolicy: 'disabled' }
           } as any;
         }
         return {
           credentialSource: 'user',
           credentialProfileId: null,
-          model: 'gpt-5.2',
+          model: 'gpt-5.1-codex-max',
           sandbox: 'read-only',
           // Codex defaults omit network access since it is always enabled now. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
-          model_reasoning_effort: 'medium'
+          model_reasoning_effort: 'medium',
+          routingConfig: { mode: 'fixed', failoverPolicy: 'disabled' }
         } as any;
       };
 
@@ -1285,6 +1311,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       const credentialSource = normalizeCredentialSource(cfg?.credentialSource ?? providerDefaults.credentialSource);
       const credentialProfileId =
         credentialSource === 'robot' ? null : typeof cfg?.credentialProfileId === 'string' ? cfg.credentialProfileId.trim() || null : null;
+      const routingConfig = cfg?.routingConfig ?? providerDefaults.routingConfig;
 
       // Normalize dependency override fields from the robot payload for the editor state. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
       const dependencyOverride = Boolean(robot.dependencyConfig);
@@ -1336,9 +1363,20 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
             ? { model_reasoning_effort: cfg?.model_reasoning_effort ?? (providerDefaults as any).model_reasoning_effort }
             : {
                 sandbox_workspace_write: {
-                  network_access: Boolean(cfg?.sandbox_workspace_write?.network_access ?? providerDefaults?.sandbox_workspace_write?.network_access)
+                  // Keep editor state aligned with execution rules by clearing read-only network flags on load. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+                  network_access:
+                    normalizeCodexSandbox(cfg?.sandbox ?? providerDefaults?.sandbox) === 'workspace-write' &&
+                    Boolean(cfg?.sandbox_workspace_write?.network_access ?? providerDefaults?.sandbox_workspace_write?.network_access)
                 }
-              })
+              }),
+          routingConfig: {
+            mode: normalizeRoutingMode(routingConfig?.mode),
+            fallbackProvider:
+              typeof routingConfig?.fallbackProvider === 'string' && routingConfig.fallbackProvider.trim()
+                ? routingConfig.fallbackProvider.trim()
+                : undefined,
+            failoverPolicy: normalizeFailoverPolicy(routingConfig?.failoverPolicy)
+          }
         }
       };
     },
@@ -1520,6 +1558,14 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
           credentialSource === 'robot' && typeof cfg?.credential?.apiKey === 'string' ? cfg.credential.apiKey.trim() : '';
         const shouldSendModelApiKey =
           credentialSource === 'robot' && (!editingRobot || robotChangingModelApiKey || !editingRobotHasApiKey);
+        const routingMode = normalizeRoutingMode(cfg?.routingConfig?.mode);
+        const fallbackProviderRaw = String(cfg?.routingConfig?.fallbackProvider ?? '').trim();
+        const fallbackProvider =
+          fallbackProviderRaw && fallbackProviderRaw !== normalizedModelProvider ? fallbackProviderRaw : undefined;
+        const failoverPolicy =
+          fallbackProvider && normalizeFailoverPolicy(cfg?.routingConfig?.failoverPolicy) === 'fallback_provider_once'
+            ? 'fallback_provider_once'
+            : 'disabled';
 
         // Persist the selected repo workflow mode so the backend can enforce direct/fork. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
         const workflowMode = values.repoWorkflowMode ?? 'auto';
@@ -1560,7 +1606,12 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                 model: cfg.model,
                 sandbox: normalizeCodexSandbox(cfg.sandbox),
                 // Codex payload omits network access because it is always enabled. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
-                model_reasoning_effort: normalizeCodexReasoningEffort(cfg.model_reasoning_effort)
+                model_reasoning_effort: normalizeCodexReasoningEffort(cfg.model_reasoning_effort),
+                routingConfig: {
+                  mode: routingMode,
+                  fallbackProvider,
+                  failoverPolicy
+                }
               }
             : {
                 credentialSource,
@@ -1575,7 +1626,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                     : undefined,
                 model: String(cfg.model ?? '').trim(),
                 sandbox: normalizeCodexSandbox(cfg.sandbox),
-                sandbox_workspace_write: { network_access: Boolean(cfg?.sandbox_workspace_write?.network_access) }
+                // Clear stale network-access flags when the selected sandbox is not workspace-write. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+                sandbox_workspace_write: {
+                  network_access:
+                    normalizeCodexSandbox(cfg.sandbox) === 'workspace-write' && Boolean(cfg?.sandbox_workspace_write?.network_access)
+                },
+                routingConfig: {
+                  mode: routingMode,
+                  fallbackProvider,
+                  failoverPolicy
+                }
               },
           defaultBranch: values.defaultBranch === undefined ? undefined : values.defaultBranch,
           repoWorkflowMode: workflowMode,
@@ -2435,7 +2495,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                           columns={[
                             { title: t('repos.invites.column.email'), dataIndex: 'email', render: (value: string) => <Typography.Text>{value}</Typography.Text> },
                             { title: t('repos.invites.column.role'), dataIndex: 'role', render: (value: RepoRole) => <Tag color="blue">{t(`repos.members.role.${value}` as const)}</Tag> },
-                            { title: t('repos.invites.column.status'), key: 'status', render: (_: any, invite: RepoInvite) => { const status = resolveInviteStatus(invite); return <Tag color={status.color}>{t(`repos.invites.status.${status.key}`)}</Tag>; } },
+                            { title: t('repos.invites.column.status'), key: 'status', render: (_: any, invite: RepoInvite) => { const status = resolveInviteStatus(invite); return <Tag color={status.color}>{t(`repos.invites.status.${status.key}` as any)}</Tag>; } },
                             { title: t('repos.invites.column.expiresAt'), dataIndex: 'expiresAt', render: (value: string) => <Typography.Text type="secondary">{formatTime(value)}</Typography.Text> },
                             {
                               title: t('common.actions'), key: 'actions',
@@ -3047,6 +3107,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
 
                 return (
                   <Card size="small" title={t('repos.robotForm.section.model')} className="hc-inner-card" styles={{ body: { padding: 12 } }}>
+                    {/* Surface the new local-first execution precedence while still keeping robot/repo/user overrides visible. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313 */}
+                    <Alert type="info" showIcon style={{ marginBottom: 12 }} message={t('repos.robotForm.modelCredential.precedence')} />
                     <Row gutter={16}>
                       <Col xs={24} md={12}>
                         <Form.Item
@@ -3083,7 +3145,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                                   : {
                                       credentialSource: 'user',
                                       credentialProfileId: null,
-                                      model: 'gpt-5.2',
+                                      model: 'gpt-5.1-codex-max',
                                       sandbox: 'read-only',
                                       // Codex defaults omit network access since it is always enabled now. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
                                       model_reasoning_effort: 'medium'
@@ -3120,7 +3182,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                             name={['modelProviderConfig', 'credentialProfileId']}
                             rules={[
                               {
-                                required: source !== 'robot',
+                                // Keep the profile selector required once the robot has entered the non-robot credential branch. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+                                required: true,
                                 message: t('repos.robotForm.modelCredential.profileRequired')
                               }
                             ]}
@@ -3317,6 +3380,49 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                           </Form.Item>
                         </Col>
                       ) : null}
+                    </Row>
+
+                    <Divider style={{ margin: '8px 0 16px' }} />
+                    <Alert
+                      type="info"
+                      showIcon
+                      message={t('repos.robotForm.routing.help')}
+                      style={{ marginBottom: 12 }}
+                    />
+                    <Row gutter={16}>
+                      <Col xs={24} md={8}>
+                        <Form.Item label={t('repos.robotForm.routing.mode')} name={['modelProviderConfig', 'routingConfig', 'mode']}>
+                          <Select
+                            options={[
+                              { value: 'fixed', label: t('repos.robotForm.routing.mode.fixed') },
+                              { value: 'availability_first', label: t('repos.robotForm.routing.mode.availability_first') }
+                            ]}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={8}>
+                        <Form.Item label={t('repos.robotForm.routing.fallbackProvider')} name={['modelProviderConfig', 'routingConfig', 'fallbackProvider']}>
+                          <Select
+                            allowClear
+                            options={[
+                              { value: 'claude_code', label: t('repos.robotForm.modelProvider.claude_code'), disabled: provider === 'claude_code' },
+                              { value: 'gemini_cli', label: t('repos.robotForm.modelProvider.gemini_cli'), disabled: provider === 'gemini_cli' },
+                              { value: 'codex', label: t('repos.robotForm.modelProvider.codex'), disabled: provider === 'codex' }
+                            ]}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} md={8}>
+                        <Form.Item label={t('repos.robotForm.routing.failoverPolicy')} name={['modelProviderConfig', 'routingConfig', 'failoverPolicy']}>
+                          <Select
+                            disabled={!String(getFieldValue(['modelProviderConfig', 'routingConfig', 'fallbackProvider']) ?? '').trim()}
+                            options={[
+                              { value: 'disabled', label: t('repos.robotForm.routing.failoverPolicy.disabled') },
+                              { value: 'fallback_provider_once', label: t('repos.robotForm.routing.failoverPolicy.fallback_provider_once') }
+                            ]}
+                          />
+                        </Form.Item>
+                      </Col>
                     </Row>
                   </Card>
                 );

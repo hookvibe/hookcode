@@ -363,6 +363,8 @@ export const enUSRepos = {
   'repos.robotForm.modelCredential.source.user.gemini_cli': 'Use account-level credential (gemini_cli)',
   'repos.robotForm.modelCredential.source.repo': 'Use repo-scoped credential',
   'repos.robotForm.modelCredential.source.robot': 'Configure per robot',
+  // Explain that robot execution checks local auth first before following the robot's configured stored source. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  'repos.robotForm.modelCredential.precedence': 'Execution checks local CLI auth first. If it is unavailable, this robot falls back to its configured robot / repo / user source.',
   'repos.robotForm.modelCredential.apiBaseUrl': 'API base URL (optional)',
   'repos.robotForm.modelCredential.apiBaseUrlPlaceholder': 'Leave empty to use default',
   'repos.robotForm.modelCredential.apiKey': 'API key',
@@ -440,6 +442,14 @@ export const enUSRepos = {
   'repos.robotForm.networkAccess': 'Network access (workspace-write only)',
   // Simplified network access label for Claude/Gemini providers. <SESSION_HASH>
   'repos.robotForm.networkAccessClaude': 'Network access',
+  'repos.robotForm.routing.help': 'The provider selected above remains the primary provider. Optional failover can switch to one fallback provider when the primary is unavailable or fails.',
+  'repos.robotForm.routing.mode': 'Routing mode',
+  'repos.robotForm.routing.mode.fixed': 'Fixed',
+  'repos.robotForm.routing.mode.availability_first': 'Availability first',
+  'repos.robotForm.routing.fallbackProvider': 'Fallback provider',
+  'repos.robotForm.routing.failoverPolicy': 'Failover policy',
+  'repos.robotForm.routing.failoverPolicy.disabled': 'Disabled',
+  'repos.robotForm.routing.failoverPolicy.fallback_provider_once': 'Fallback once',
   'repos.robotForm.activationTip': 'Tip: test validates permissions and records identity info (token is never returned).',
   'repos.robotForm.activation.lastTestAt': 'Last test time',
   'repos.robotForm.activation.lastTestMessage': 'Last test message',

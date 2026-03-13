@@ -1181,6 +1181,7 @@ export class TaskService {
                'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                'tokenUsage', result_json->'tokenUsage',
                'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+               'providerRouting', result_json->'providerRouting',
                'gitStatus', result_json->'gitStatus'
              )) AS result_json
       FROM tasks
@@ -1263,7 +1264,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1282,7 +1284,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1301,7 +1304,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1320,7 +1324,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1339,7 +1344,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1367,7 +1373,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1386,7 +1393,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1414,7 +1422,8 @@ export class TaskService {
                  'summary', NULLIF(result_json->>'summary', ''),
                  'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                  'tokenUsage', result_json->'tokenUsage',
-                 'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                 'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                 'providerRouting', result_json->'providerRouting'
                )) AS result_json
         FROM tasks
         WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)

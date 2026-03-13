@@ -23,6 +23,7 @@ import { JsonViewer } from '../components/JsonViewer';
 import { MarkdownViewer } from '../components/MarkdownViewer';
 import { TaskLogViewer } from '../components/TaskLogViewer';
 import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
+import { TaskProviderRoutingPanel } from '../components/tasks/TaskProviderRoutingPanel';
 import { WorkerSummaryTag } from '../components/workers/WorkerSummaryTag';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { getPrevHashForBack, isInAppHash } from '../navHistory';
@@ -555,6 +556,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                   <Typography.Text type="secondary">{t('task.page.resultPending')}</Typography.Text>
                 )}
               </Card>
+              {task?.result?.providerRouting ? <TaskProviderRoutingPanel task={task} variant="full" /> : null}
               {task?.result?.gitStatus?.enabled ? (
                 <div className="hc-task-detail-result-gitstatus">
                   {/* Move git status into the Result panel after the main output. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */}

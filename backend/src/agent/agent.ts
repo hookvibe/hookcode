@@ -15,6 +15,7 @@ import {
   type TaskTokenUsage
 } from '../services/taskTokenUsage';
 import { buildPrompt } from './promptBuilder';
+import { resolveProviderExecutionCredential } from '../modelProviders/providerCredentialResolver';
 import { postToProvider } from './reporter';
 import type { RepoRobotWithToken } from '../modules/repositories/repo-robot.service';
 import type { RepoProvider, Repository } from '../types/repository';
@@ -74,6 +75,19 @@ import { RuntimeService } from '../services/runtimeService';
 import { HookcodeConfigService } from '../services/hookcodeConfigService';
 import type { DependencyResult, HookcodeConfig, RobotDependencyConfig } from '../types/dependency';
 import { resolveBuildRoot, resolveTaskGroupWorkspaceRoot } from '../utils/workDir';
+import {
+  buildProviderRoutingAttemptFailureLog,
+  buildProviderRoutingAttemptStartLog,
+  buildProviderRoutingCompletionLog,
+  buildProviderRoutingPlanLog
+} from '../providerRouting/providerRoutingLogger';
+import {
+  buildProviderRoutingPlan,
+  toProviderRoutingResult,
+  updateProviderRoutingAttempt,
+  type ProviderRoutingAttemptPlan
+} from '../providerRouting/providerRouting.service';
+import type { ProviderRoutingResult, RoutedProviderKey } from '../providerRouting/providerRouting.types';
 
 /**
  * Core task execution (callAgent):
@@ -906,12 +920,15 @@ export class AgentExecutionError extends Error {
   readonly aborted?: boolean; // Flag abort-driven exits for pause/stop handling. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   // Attach git status snapshot for failed tasks to preserve change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   readonly gitStatus?: TaskResult['gitStatus'];
+  // Bubble provider routing decisions into failed task results for failover diagnostics. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  readonly providerRouting?: ProviderRoutingResult;
 
   constructor(
     message: string,
     params: {
       providerCommentUrl?: string;
       gitStatus?: TaskResult['gitStatus'];
+      providerRouting?: ProviderRoutingResult;
       cause?: unknown;
       aborted?: boolean;
     }
@@ -921,6 +938,7 @@ export class AgentExecutionError extends Error {
     this.providerCommentUrl = params.providerCommentUrl;
     this.aborted = params.aborted;
     this.gitStatus = params.gitStatus;
+    this.providerRouting = params.providerRouting;
     if (params.cause !== undefined) {
       (this as any).cause = params.cause;
     }
@@ -1011,11 +1029,59 @@ export const resolveExecution = async (
   );
 };
 
+const resolveProviderRunConfig = (
+  provider: RoutedProviderKey,
+  rawConfig: unknown
+): {
+  provider: RoutedProviderKey;
+  normalized: any;
+  sandbox: 'read-only' | 'workspace-write';
+  networkAccess: boolean;
+  outputLastMessageFileName: string;
+} => {
+  // Normalize provider-specific execution settings per attempt so routing/failover can reuse one execution pipeline. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  if (provider === CODEX_PROVIDER_KEY) {
+    const normalized = normalizeCodexRobotProviderConfig(rawConfig);
+    return {
+      provider,
+      normalized,
+      sandbox: normalized.sandbox,
+      networkAccess: true,
+      outputLastMessageFileName: 'codex-output.txt'
+    };
+  }
+
+  if (provider === CLAUDE_CODE_PROVIDER_KEY) {
+    const normalized = normalizeClaudeCodeRobotProviderConfig(rawConfig);
+    return {
+      provider,
+      normalized,
+      sandbox: normalized.sandbox,
+      networkAccess: normalized.sandbox === 'workspace-write' && normalized.sandbox_workspace_write.network_access,
+      outputLastMessageFileName: 'claude-output.txt'
+    };
+  }
+
+  const normalized = normalizeGeminiCliRobotProviderConfig(rawConfig);
+  return {
+    provider,
+    normalized,
+    sandbox: normalized.sandbox,
+    networkAccess: normalized.sandbox === 'workspace-write' && normalized.sandbox_workspace_write.network_access,
+    outputLastMessageFileName: 'gemini-output.txt'
+  };
+};
+
 // Return git status alongside logs so downstream services can persist change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 async function callAgent(
   task: Task,
   options?: { signal?: AbortSignal }
-): Promise<{ providerCommentUrl?: string; outputText?: string; gitStatus?: TaskResult['gitStatus'] }> {
+): Promise<{
+  providerCommentUrl?: string;
+  outputText?: string;
+  gitStatus?: TaskResult['gitStatus'];
+  providerRouting?: ProviderRoutingResult;
+}> {
   assertAgentServicesReady();
 
   let logsSeq = 0;
@@ -1027,12 +1093,14 @@ async function callAgent(
   let repoWorkflow: TaskResult['repoWorkflow'] | undefined; // Surface direct-vs-fork workflow to UI/logs. 24yz61mdik7tqdgaa152
   // Track git status snapshots for write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   let gitStatus: TaskResult['gitStatus'] | undefined;
+  // Persist provider routing/failover state alongside token usage while the task is still running. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  let providerRouting: ProviderRoutingResult | undefined;
   let gitBaseline: TaskGitStatusSnapshot | undefined;
   // Store repo workspace path for post-run git status capture, even on failure. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   let repoDir = '';
   const taskLogsDbEnabled = isTaskLogsDbEnabled(); // Persist task logs based on DB toggle even when user visibility is disabled. nykx5svtlgh050cstyht
   let taskGroupId: string | null = typeof task.groupId === 'string' ? task.groupId.trim() : null;
-  let threadIdBound = false;
+  let pendingResumeThreadId: string | null = null;
   // Track whether this run is allowed to mutate repos before collecting git status. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   let writeEnabled = false;
   // Honor pause/stop signals from the task runner. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
@@ -1062,6 +1130,7 @@ async function callAgent(
       // Persist token usage metadata without embedding log arrays in result_json. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       const patch: any = { tokenUsage };
       if (repoWorkflow) patch.repoWorkflow = repoWorkflow;
+      if (providerRouting) patch.providerRouting = providerRouting;
       await taskService.patchResult(task.id, patch);
     } catch (err) {
       lastPersistErrorAt = now;
@@ -1106,15 +1175,7 @@ async function callAgent(
       extractCodexExecThreadIdFromLine(line) ??
       extractClaudeCodeExecThreadIdFromLine(line) ??
       extractGeminiCliExecThreadIdFromLine(line);
-    if (threadId && !threadIdBound) {
-      if (!taskGroupId) {
-        taskGroupId = await taskService.ensureTaskGroupId(task);
-      }
-      if (taskGroupId) {
-        threadIdBound = true;
-        await taskService.bindTaskGroupThreadId(taskGroupId, threadId);
-      }
-    }
+    if (threadId) pendingResumeThreadId = threadId;
 
     const delta =
       extractCodexExecTokenUsageDeltaFromLine(line) ??
@@ -1757,15 +1818,22 @@ exit 0
       }
     }
 
-    // Resolve provider selection before building prompts to allow provider-specific context. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
-    const modelProvider = safeTrim(execution.robot.modelProvider).toLowerCase() || CODEX_PROVIDER_KEY;
-    const isCodexProvider = modelProvider === CODEX_PROVIDER_KEY;
-    const isClaudeCodeProvider = modelProvider === CLAUDE_CODE_PROVIDER_KEY;
-    const isGeminiCliProvider = modelProvider === GEMINI_CLI_PROVIDER_KEY;
-    if (!isCodexProvider && !isClaudeCodeProvider && !isGeminiCliProvider) {
-      await appendLog(`Unsupported model provider: ${modelProvider}`);
-      throw new Error(`unsupported model provider: ${modelProvider}`);
+    // Resolve provider routing after repo/prompt preparation so failover can reuse the same workspace state. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+    const modelProvider = safeTrim(execution.robot.modelProvider).toLowerCase();
+    if (modelProvider !== CODEX_PROVIDER_KEY && modelProvider !== CLAUDE_CODE_PROVIDER_KEY && modelProvider !== GEMINI_CLI_PROVIDER_KEY) {
+      await appendLog(`Unsupported model provider: ${modelProvider || '<empty>'}`);
+      throw new Error(`unsupported model provider: ${modelProvider || '<empty>'}`);
     }
+    const primaryProvider = modelProvider as RoutedProviderKey;
+
+    const persistProviderRouting = async () => {
+      if (!providerRouting) return;
+      try {
+        await taskService.patchResult(task.id, { providerRouting });
+      } catch (err) {
+        console.warn('[agent] provider routing persist failed (ignored)', { taskId: task.id, error: toErrorSummary(err) });
+      }
+    };
 
     // Build prompt based on robot type.
     const promptCtx = await buildPrompt({
@@ -1782,39 +1850,21 @@ exit 0
     // Prepend enabled skill prompt text before the main task prompt. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
     const skillPromptPrefix = await buildSkillPromptPrefix(appendLog, taskGroupId);
     const promptBase = `${skillPromptPrefix}${promptCtx.body}`;
-    // Prepend workspace-root guidance for Claude Code so cwd expectations are explicit. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
-    const promptBody = isClaudeCodeProvider
-      ? `${buildTaskGroupWorkspacePromptPrefix({ taskGroupDir, repoFolderName })}${promptBase}`
-      : promptBase;
-    await writeFile(promptFile, promptBody, 'utf8');
+    const routingPlan = await buildProviderRoutingPlan({
+      primaryProvider,
+      primaryConfigRaw: execution.robot.modelProviderConfigRaw,
+      userCredentials: execution.userCredentials,
+      repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
+    });
+    providerRouting = toProviderRoutingResult(routingPlan);
+    await appendLog(buildProviderRoutingPlanLog(routingPlan));
+    await persistProviderRouting();
 
-    // Run the selected model provider (default: codex).
-
-    const outputLastMessageFileName = isClaudeCodeProvider
-      ? 'claude-output.txt'
-      : isGeminiCliProvider
-        ? 'gemini-output.txt'
-        : 'codex-output.txt';
-    // Store provider outputs in the task-group root to keep artifacts alongside the group workspace. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
-    const outputSelection = buildTaskOutputFilePath({ taskGroupDir, fileName: outputLastMessageFileName });
-    const outputLastMessageFile = outputSelection.filePath;
-    await mkdir(outputSelection.dir, { recursive: true });
-    await rm(outputLastMessageFile, { force: true });
-
-    const codexCfg = isCodexProvider ? normalizeCodexRobotProviderConfig(execution.robot.modelProviderConfigRaw) : null;
-    const claudeCfg = isClaudeCodeProvider ? normalizeClaudeCodeRobotProviderConfig(execution.robot.modelProviderConfigRaw) : null;
-    const geminiCfg = isGeminiCliProvider ? normalizeGeminiCliRobotProviderConfig(execution.robot.modelProviderConfigRaw) : null;
-    const sandboxMode = isCodexProvider
-      ? codexCfg!.sandbox
-      : isClaudeCodeProvider
-        ? claudeCfg!.sandbox
-        : geminiCfg!.sandbox;
-    // Codex network access is always enabled; only non-Codex providers read robot config. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
-    const networkAccess = isCodexProvider
-      ? true
-      : isClaudeCodeProvider
-        ? claudeCfg!.sandbox_workspace_write.network_access
-        : geminiCfg!.sandbox_workspace_write.network_access;
+    const attemptRunConfigs = routingPlan.attempts.map((attempt) => ({
+      attempt,
+      runConfig: resolveProviderRunConfig(attempt.provider, attempt.providerConfigRaw)
+    }));
+    const requiresGitIdentity = attemptRunConfigs.some(({ runConfig }) => runConfig.sandbox === 'workspace-write');
 
     // Enforce a repo-local git identity for workspace-write runs to ensure commits match the token owner.
     const tokenUserName = safeTrim(execution.robot.repoTokenUserName);
@@ -1822,7 +1872,7 @@ exit 0
     let gitUserName = '';
     let gitUserEmail = '';
 
-    if (sandboxMode === 'workspace-write') {
+    if (requiresGitIdentity) {
       gitUserName = tokenUserName;
       gitUserEmail = tokenUserEmail;
       if (!gitUserName || !gitUserEmail) {
@@ -1846,221 +1896,210 @@ exit 0
 
     let threadId: string | null = null;
     let finalResponse = '';
+    let outputLastMessageFileName = '';
+    let providerRunSucceeded = false;
 
-    if (isCodexProvider) {
-      const credentialSource = codexCfg!.credentialSource;
-      const robotApiKey = (codexCfg!.credential?.apiKey ?? '').trim();
-      const robotApiBaseUrl = (codexCfg!.credential?.apiBaseUrl ?? '').trim();
+    const selectedAttempt = routingPlan.attempts.find((attempt) => attempt.provider === routingPlan.selectedProvider) ?? routingPlan.attempts[0];
+    const fallbackAttempt =
+      routingPlan.selectedProvider === routingPlan.primaryProvider && routingPlan.failoverPolicy === 'fallback_provider_once'
+        ? routingPlan.attempts.find((attempt) => attempt.role === 'fallback')
+        : undefined;
+    const attemptQueue: ProviderRoutingAttemptPlan[] = fallbackAttempt ? [selectedAttempt, fallbackAttempt] : [selectedAttempt];
+    let lastAttemptError: unknown = null;
 
-      const userProfile =
-        credentialSource === 'user' ? pickCredentialProfile(execution.userCredentials?.codex, codexCfg!.credentialProfileId) : null;
-      const repoProfile =
-        credentialSource === 'repo'
-          ? pickCredentialProfile(execution.repoScopedCredentials?.modelProvider?.codex, codexCfg!.credentialProfileId)
-          : null;
+    for (let index = 0; index < attemptQueue.length; index += 1) {
+      const attempt = attemptQueue[index];
+      // Only mark failover as triggered when the fallback runs after a primary failure, not when availability-first selects it upfront. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+      const failoverExecution = attempt.role === 'fallback' && index > 0;
+      const runConfig = resolveProviderRunConfig(attempt.provider, attempt.providerConfigRaw);
+      outputLastMessageFileName = runConfig.outputLastMessageFileName;
+      const outputSelection = buildTaskOutputFilePath({ taskGroupDir, fileName: outputLastMessageFileName });
+      const outputLastMessageFile = outputSelection.filePath;
+      await mkdir(outputSelection.dir, { recursive: true });
+      await rm(outputLastMessageFile, { force: true });
 
-      const userApiKey = credentialSource === 'user' ? safeTrim(userProfile?.apiKey) : '';
-      const userApiBaseUrl = credentialSource === 'user' ? safeTrim(userProfile?.apiBaseUrl) : '';
-      const repoApiKey =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiKey) : '';
-      const repoApiBaseUrl =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiBaseUrl) : '';
+      const promptBody =
+        attempt.provider === CLAUDE_CODE_PROVIDER_KEY
+          ? `${buildTaskGroupWorkspacePromptPrefix({ taskGroupDir, repoFolderName })}${promptBase}`
+          : promptBase;
+      await writeFile(promptFile, promptBody, 'utf8');
 
-      const apiKey = credentialSource === 'robot' ? robotApiKey : credentialSource === 'repo' ? repoApiKey : userApiKey;
-      const apiBaseUrl =
-        credentialSource === 'robot' ? robotApiBaseUrl : credentialSource === 'repo' ? repoApiBaseUrl : userApiBaseUrl;
+      providerRouting = {
+        ...updateProviderRoutingAttempt(providerRouting!, attempt.provider, {
+          status: 'running',
+          reason: failoverExecution ? 'Running after primary provider failure.' : 'Selected for execution.',
+          startedAt: new Date().toISOString(),
+          finishedAt: undefined,
+          error: undefined
+        }),
+        failoverTriggered: providerRouting?.failoverTriggered || failoverExecution
+      };
+      await persistProviderRouting();
+      await appendLog(buildProviderRoutingAttemptStartLog(attempt, index + 1, attemptQueue.length));
 
-      if (!apiKey) {
-        const credentialBack =
-          credentialSource === 'robot'
-            ? 'codex apiKey is required (robot credential)'
-            : credentialSource === 'repo'
-              ? 'codex apiKey is required (repo-scoped credential profile)'
-              : 'codex apiKey is required (user credential profile)';
-        await appendLog(credentialBack);
-        throw new Error(credentialBack);
+      try {
+        pendingResumeThreadId = null;
+        const resolvedProviderCredential = await resolveProviderExecutionCredential({
+          provider: attempt.provider,
+          robotConfigRaw: attempt.providerConfigRaw,
+          userCredentials: execution.userCredentials,
+          repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
+        });
+        providerRouting = updateProviderRoutingAttempt(providerRouting!, attempt.provider, {
+          credential: {
+            requestedStoredSource: resolvedProviderCredential.requestedStoredSource,
+            resolvedLayer: resolvedProviderCredential.resolvedLayer,
+            resolvedMethod: resolvedProviderCredential.resolvedMethod,
+            canExecute: resolvedProviderCredential.canExecute,
+            profileId: resolvedProviderCredential.profileId,
+            fallbackUsed: resolvedProviderCredential.fallbackUsed,
+            reason: resolvedProviderCredential.reason
+          }
+        });
+        await persistProviderRouting();
+        await appendLog(
+          `Model provider credential resolved: provider=${attempt.provider} requested=${resolvedProviderCredential.requestedStoredSource} resolved=${resolvedProviderCredential.resolvedLayer} method=${resolvedProviderCredential.resolvedMethod}${resolvedProviderCredential.profileId ? ` profile=${resolvedProviderCredential.profileId}` : ''}${resolvedProviderCredential.fallbackUsed ? ' fallback=true' : ''}`
+        );
+        if (!resolvedProviderCredential.canExecute) {
+          const message = resolvedProviderCredential.reason || `No executable credential is available for provider ${attempt.provider}`;
+          await appendLog(message);
+          throw new Error(message);
+        }
+
+        if (attempt.provider === CODEX_PROVIDER_KEY) {
+          const outputSchema = await readCodexOutputSchema({ taskGroupDir, appendLog });
+          const res = await runCodexExecWithSdk({
+            repoDir,
+            workspaceDir: taskGroupDir,
+            promptFile,
+            model: runConfig.normalized.model,
+            sandbox: runConfig.normalized.sandbox,
+            modelReasoningEffort: runConfig.normalized.model_reasoning_effort,
+            resumeThreadId: resumeThreadId || undefined,
+            apiKey: resolvedProviderCredential.apiKey,
+            apiBaseUrl: resolvedProviderCredential.apiBaseUrl || undefined,
+            outputSchema,
+            outputLastMessageFile,
+            signal: abortSignal,
+            env:
+              runConfig.sandbox === 'workspace-write'
+                ? {
+                    GIT_AUTHOR_NAME: gitUserName,
+                    GIT_AUTHOR_EMAIL: gitUserEmail,
+                    GIT_COMMITTER_NAME: gitUserName,
+                    GIT_COMMITTER_EMAIL: gitUserEmail
+                  }
+                : undefined,
+            redact: redactSensitiveText,
+            logLine: appendRawLog
+          });
+          threadId = res.threadId;
+          finalResponse = res.finalResponse;
+        } else if (attempt.provider === CLAUDE_CODE_PROVIDER_KEY) {
+          const res = await runClaudeCodeExecWithSdk({
+            repoDir,
+            workspaceDir: taskGroupDir,
+            promptFile,
+            model: runConfig.normalized.model,
+            sandbox: runConfig.normalized.sandbox,
+            networkAccess: runConfig.networkAccess,
+            resumeSessionId: resumeThreadId || undefined,
+            apiKey: resolvedProviderCredential.apiKey,
+            apiBaseUrl: resolvedProviderCredential.apiBaseUrl || undefined,
+            outputLastMessageFile,
+            signal: abortSignal,
+            env:
+              runConfig.sandbox === 'workspace-write'
+                ? {
+                    GIT_AUTHOR_NAME: gitUserName,
+                    GIT_AUTHOR_EMAIL: gitUserEmail,
+                    GIT_COMMITTER_NAME: gitUserName,
+                    GIT_COMMITTER_EMAIL: gitUserEmail
+                  }
+                : undefined,
+            redact: redactSensitiveText,
+            logLine: appendRawLog
+          });
+          threadId = res.threadId;
+          finalResponse = res.finalResponse;
+        } else {
+          const geminiScopeId = taskGroupId ? taskGroupId : task.id;
+          const geminiHomeDir = path.join(BUILD_ROOT, '.gemini_cli_home', `${execution.provider}__${repoSlug}`, geminiScopeId);
+          const res = await runGeminiCliExecWithCli({
+            repoDir,
+            workspaceDir: taskGroupDir,
+            promptFile,
+            model: runConfig.normalized.model,
+            sandbox: runConfig.normalized.sandbox,
+            networkAccess: runConfig.networkAccess,
+            resumeSessionId: resumeThreadId || undefined,
+            apiKey: resolvedProviderCredential.apiKey,
+            apiBaseUrl: resolvedProviderCredential.apiBaseUrl || undefined,
+            outputLastMessageFile,
+            geminiHomeDir,
+            signal: abortSignal,
+            env:
+              runConfig.sandbox === 'workspace-write'
+                ? {
+                    GIT_AUTHOR_NAME: gitUserName,
+                    GIT_AUTHOR_EMAIL: gitUserEmail,
+                    GIT_COMMITTER_NAME: gitUserName,
+                    GIT_COMMITTER_EMAIL: gitUserEmail
+                  }
+                : undefined,
+            redact: redactSensitiveText,
+            logLine: appendRawLog
+          });
+          threadId = res.threadId;
+          finalResponse = res.finalResponse;
+        }
+
+        console.log('[agent] model exec completed', { taskId: task.id, provider: attempt.provider, threadId });
+        await moveTaskOutputToGroupRoot({
+          taskGroupDir,
+          fileName: outputLastMessageFileName,
+          sourcePath: outputLastMessageFile,
+          appendLog
+        });
+
+        const threadIdToBind = threadId || pendingResumeThreadId;
+        if (threadIdToBind && taskGroupId) {
+          await taskService.bindTaskGroupThreadId(taskGroupId, threadIdToBind);
+        }
+
+        providerRouting = {
+          ...updateProviderRoutingAttempt(providerRouting!, attempt.provider, {
+            status: 'succeeded',
+            reason: failoverExecution ? 'Fallback provider succeeded after primary failure.' : 'Execution completed successfully.',
+            finishedAt: new Date().toISOString()
+          }),
+          finalProvider: attempt.provider,
+          failoverTriggered: providerRouting?.failoverTriggered || failoverExecution
+        };
+        await persistProviderRouting();
+        providerRunSucceeded = true;
+        break;
+      } catch (attemptErr: any) {
+        lastAttemptError = attemptErr;
+        if (abortSignal?.aborted) throw attemptErr;
+        const safeError = redactSensitiveText(attemptErr?.message || String(attemptErr));
+        providerRouting = updateProviderRoutingAttempt(providerRouting!, attempt.provider, {
+          status: 'failed',
+          error: safeError,
+          reason: safeError,
+          finishedAt: new Date().toISOString()
+        });
+        await persistProviderRouting();
+        await appendLog(buildProviderRoutingAttemptFailureLog(attempt, safeError));
+        if (attempt.role === 'fallback' || index === attemptQueue.length - 1) {
+          throw attemptErr;
+        }
       }
-
-      // Load the task-group Codex schema so turns can emit structured output + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-      const outputSchema = await readCodexOutputSchema({ taskGroupDir, appendLog });
-
-      // Execute providers from the task-group root to match the new workspace layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-      // Change record: avoid noisy debug `console.error` logs; rely on structured logs + per-task appendLog instead.
-      const res = await runCodexExecWithSdk({
-        repoDir,
-        workspaceDir: taskGroupDir,
-        promptFile,
-        model: codexCfg!.model,
-        sandbox: codexCfg!.sandbox,
-        // Codex execution now defaults to network access enabled regardless of robot config. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
-        modelReasoningEffort: codexCfg!.model_reasoning_effort,
-        resumeThreadId: resumeThreadId || undefined,
-        apiKey,
-        apiBaseUrl: apiBaseUrl || undefined,
-        outputSchema,
-        outputLastMessageFile,
-        signal: abortSignal,
-        env: {
-          ...(sandboxMode === 'workspace-write'
-            ? {
-                GIT_AUTHOR_NAME: gitUserName,
-                GIT_AUTHOR_EMAIL: gitUserEmail,
-                GIT_COMMITTER_NAME: gitUserName,
-                GIT_COMMITTER_EMAIL: gitUserEmail
-              }
-            : {})
-        },
-        redact: redactSensitiveText,
-        logLine: appendRawLog
-      });
-      threadId = res.threadId;
-      finalResponse = res.finalResponse;
-    } else if (isClaudeCodeProvider) {
-      const credentialSource = claudeCfg!.credentialSource;
-      const robotApiKey = (claudeCfg!.credential?.apiKey ?? '').trim();
-      const robotApiBaseUrl = (claudeCfg!.credential?.apiBaseUrl ?? '').trim();
-
-      const userProfile =
-        credentialSource === 'user'
-          ? pickCredentialProfile(execution.userCredentials?.claude_code, claudeCfg!.credentialProfileId)
-          : null;
-      const repoProfile =
-        credentialSource === 'repo'
-          ? pickCredentialProfile(execution.repoScopedCredentials?.modelProvider?.claude_code, claudeCfg!.credentialProfileId)
-          : null;
-
-      const userApiKey = credentialSource === 'user' ? safeTrim(userProfile?.apiKey) : '';
-      const userApiBaseUrl = credentialSource === 'user' ? safeTrim(userProfile?.apiBaseUrl) : '';
-      const repoApiKey =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiKey) : '';
-      const repoApiBaseUrl =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiBaseUrl) : '';
-
-      const apiKey = credentialSource === 'robot' ? robotApiKey : credentialSource === 'repo' ? repoApiKey : userApiKey;
-      const apiBaseUrl =
-        credentialSource === 'robot' ? robotApiBaseUrl : credentialSource === 'repo' ? repoApiBaseUrl : userApiBaseUrl;
-
-      if (!apiKey) {
-        const credentialBack =
-          credentialSource === 'robot'
-            ? 'claude_code apiKey is required (robot credential)'
-            : credentialSource === 'repo'
-              ? 'claude_code apiKey is required (repo-scoped credential profile)'
-              : 'claude_code apiKey is required (user credential profile)';
-        await appendLog(credentialBack);
-        throw new Error(credentialBack);
-      }
-
-      // Execute providers from the task-group root to match the new workspace layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-      const res = await runClaudeCodeExecWithSdk({
-        repoDir,
-        workspaceDir: taskGroupDir,
-        promptFile,
-        model: claudeCfg!.model,
-        sandbox: claudeCfg!.sandbox,
-        networkAccess,
-        resumeSessionId: resumeThreadId || undefined,
-        apiKey,
-        apiBaseUrl: apiBaseUrl || undefined,
-        outputLastMessageFile,
-        signal: abortSignal,
-        env: {
-          ...(sandboxMode === 'workspace-write'
-            ? {
-                GIT_AUTHOR_NAME: gitUserName,
-                GIT_AUTHOR_EMAIL: gitUserEmail,
-                GIT_COMMITTER_NAME: gitUserName,
-                GIT_COMMITTER_EMAIL: gitUserEmail
-              }
-            : {})
-        },
-        redact: redactSensitiveText,
-        logLine: appendRawLog
-      });
-      threadId = res.threadId;
-      finalResponse = res.finalResponse;
-    } else {
-      const credentialSource = geminiCfg!.credentialSource;
-      const robotApiKey = (geminiCfg!.credential?.apiKey ?? '').trim();
-      const robotApiBaseUrl = (geminiCfg!.credential?.apiBaseUrl ?? '').trim();
-
-      const userProfile =
-        credentialSource === 'user'
-          ? pickCredentialProfile(execution.userCredentials?.gemini_cli, geminiCfg!.credentialProfileId)
-          : null;
-      const repoProfile =
-        credentialSource === 'repo'
-          ? pickCredentialProfile(execution.repoScopedCredentials?.modelProvider?.gemini_cli, geminiCfg!.credentialProfileId)
-          : null;
-
-      const userApiKey = credentialSource === 'user' ? safeTrim(userProfile?.apiKey) : '';
-      const userApiBaseUrl = credentialSource === 'user' ? safeTrim(userProfile?.apiBaseUrl) : '';
-      const repoApiKey =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiKey) : '';
-      const repoApiBaseUrl =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiBaseUrl) : '';
-
-      const apiKey = credentialSource === 'robot' ? robotApiKey : credentialSource === 'repo' ? repoApiKey : userApiKey;
-      const apiBaseUrl =
-        credentialSource === 'robot' ? robotApiBaseUrl : credentialSource === 'repo' ? repoApiBaseUrl : userApiBaseUrl;
-
-      if (!apiKey) {
-        const credentialBack =
-          credentialSource === 'robot'
-            ? 'gemini_cli apiKey is required (robot credential)'
-            : credentialSource === 'repo'
-              ? 'gemini_cli apiKey is required (repo-scoped credential profile)'
-              : 'gemini_cli apiKey is required (user credential profile)';
-        await appendLog(credentialBack);
-        throw new Error(credentialBack);
-      }
-
-      const geminiScopeId = taskGroupId ? taskGroupId : task.id;
-      const geminiHomeDir = path.join(BUILD_ROOT, '.gemini_cli_home', `${execution.provider}__${repoSlug}`, geminiScopeId);
-
-      // Execute providers from the task-group root to match the new workspace layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-      const res = await runGeminiCliExecWithCli({
-        repoDir,
-        workspaceDir: taskGroupDir,
-        promptFile,
-        model: geminiCfg!.model,
-        sandbox: geminiCfg!.sandbox,
-        networkAccess,
-        resumeSessionId: resumeThreadId || undefined,
-        apiKey,
-        apiBaseUrl: apiBaseUrl || undefined,
-        outputLastMessageFile,
-        geminiHomeDir,
-        signal: abortSignal,
-        env: {
-          ...(sandboxMode === 'workspace-write'
-            ? {
-                GIT_AUTHOR_NAME: gitUserName,
-                GIT_AUTHOR_EMAIL: gitUserEmail,
-                GIT_COMMITTER_NAME: gitUserName,
-                GIT_COMMITTER_EMAIL: gitUserEmail
-              }
-            : {})
-        },
-        redact: redactSensitiveText,
-        logLine: appendRawLog
-      });
-      threadId = res.threadId;
-      finalResponse = res.finalResponse;
     }
 
-    console.log('[agent] model exec completed', { taskId: task.id, provider: modelProvider, threadId });
-    // Move provider output artifacts into the task-group root for consistent discovery. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-    await moveTaskOutputToGroupRoot({
-      taskGroupDir,
-      fileName: outputLastMessageFileName,
-      sourcePath: outputLastMessageFile,
-      appendLog
-    });
-
-    // Bind the thread ID to the task group for future resumption.
-    if (threadId && taskGroupId) {
-      await taskService.bindTaskGroupThreadId(taskGroupId, threadId);
+    if (!providerRunSucceeded && lastAttemptError) throw lastAttemptError;
+    if (providerRouting) {
+      await appendLog(buildProviderRoutingCompletionLog(providerRouting));
     }
 
     if (writeEnabled) {
@@ -2095,7 +2134,7 @@ exit 0
     // - Change record: skip `postToProvider()` when `eventType=chat` or payload explicitly sets `__skipProviderPost`.
     if (skipProviderPost) {
       await appendLog('Provider posting skipped (chat/manual task)');
-      return { outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
+      return { outputText: safeOutputText ? safeOutputText : undefined, gitStatus, providerRouting };
     }
 
     const details = buildGitlabLogDetails(logs);
@@ -2118,7 +2157,7 @@ exit 0
       await appendLog('Posted successfully');
     }
 
-    return { providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
+    return { providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined, gitStatus, providerRouting };
   } catch (err: any) {
     // Short-circuit aborts so pause/stop does not post failure comments. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     if (abortSignal?.aborted) {
@@ -2127,6 +2166,7 @@ exit 0
       // Strip log payloads from AgentExecutionError now that logs live in task_logs. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       throw new AgentExecutionError(safeMessage, {
         gitStatus,
+        providerRouting,
         cause: err,
         aborted: true
       });
@@ -2184,7 +2224,7 @@ exit 0
 
     const safeMessage = redactSensitiveText(err?.message || String(err));
     // Bubble git status into failed task results for UI visibility. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-    throw new AgentExecutionError(safeMessage, { providerCommentUrl, gitStatus, cause: err });
+    throw new AgentExecutionError(safeMessage, { providerCommentUrl, gitStatus, providerRouting, cause: err });
   }
 }
 

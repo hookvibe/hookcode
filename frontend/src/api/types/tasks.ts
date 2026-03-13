@@ -104,6 +104,48 @@ export interface TaskGitStatus {
   errors?: string[];
 }
 
+export interface TaskProviderRoutingCredential {
+  requestedStoredSource: 'robot' | 'repo' | 'user';
+  resolvedLayer: 'local' | 'robot' | 'repo' | 'user' | 'none';
+  resolvedMethod:
+    | 'env_api_key'
+    | 'credentials_file'
+    | 'auth_json_tokens'
+    | 'auth_json_api_key'
+    | 'oauth_creds'
+    | 'robot_embedded'
+    | 'repo_profile'
+    | 'user_profile'
+    | 'none';
+  canExecute: boolean;
+  profileId?: string;
+  fallbackUsed: boolean;
+  reason?: string;
+}
+
+export interface TaskProviderRoutingAttempt {
+  provider: ModelProvider;
+  role: 'primary' | 'fallback';
+  status: 'planned' | 'skipped' | 'running' | 'succeeded' | 'failed';
+  reason?: string;
+  error?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  credential: TaskProviderRoutingCredential;
+}
+
+export interface TaskProviderRouting {
+  mode: 'fixed' | 'availability_first';
+  failoverPolicy: 'disabled' | 'fallback_provider_once';
+  primaryProvider: ModelProvider;
+  fallbackProvider?: ModelProvider;
+  selectedProvider: ModelProvider;
+  finalProvider?: ModelProvider;
+  selectionReason: string;
+  failoverTriggered: boolean;
+  attempts: TaskProviderRoutingAttempt[];
+}
+
 export interface TaskSequenceLink {
   // Mirror backend-derived queue links so the workspace can render explicit execution connectors. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   order: number;
@@ -120,6 +162,7 @@ export interface TaskResult {
   logs?: string[];
   outputText?: string;
   providerCommentUrl?: string;
+  providerRouting?: TaskProviderRouting;
   tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
   // Surface backend git status in task result payloads for UI reuse. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   gitStatus?: TaskGitStatus;

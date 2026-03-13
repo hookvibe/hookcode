@@ -3,6 +3,7 @@ import type { RobotPermission } from './repoRobot';
 import type { DependencyResult } from './dependency';
 import type { TimeWindowSource } from './timeWindow';
 import type { WorkerSummary } from './worker';
+import type { ProviderRoutingResult } from '../providerRouting/providerRouting.types';
 
 // Keep a narrow task-status union while replacing pause/resume execution control with manual-stop failures. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
@@ -147,6 +148,8 @@ export interface TaskResult {
    * - Used as a quick entry in the console for "view posted comment / jump to logs"
    */
   providerCommentUrl?: string;
+  // Persist provider routing/failover decisions for task detail and task-group diagnostics. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  providerRouting?: ProviderRoutingResult;
   /**
    * Repository workflow metadata for UI/debugging (direct clone vs fork-based PR/MR). 24yz61mdik7tqdgaa152
    */

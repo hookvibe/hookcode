@@ -1,6 +1,15 @@
 // Extract model-provider related API types for reuse across UI features. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
 export type ModelProvider = 'codex' | 'claude_code' | 'gemini_cli' | (string & {});
+export type ProviderRoutingMode = 'fixed' | 'availability_first';
+export type ProviderFailoverPolicy = 'disabled' | 'fallback_provider_once';
+
+// Expose robot-level provider routing config in the shared model-provider type surface. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+export interface ProviderRoutingConfig {
+  mode: ProviderRoutingMode;
+  fallbackProvider?: ModelProvider;
+  failoverPolicy: ProviderFailoverPolicy;
+}
 
 export type ModelProviderModelsSource = 'remote' | 'fallback';
 
@@ -41,6 +50,7 @@ export interface CodexRobotProviderConfigPublic {
   sandbox: CodexSandbox;
   // Codex network access is always enabled and no longer part of the config payload. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
   model_reasoning_effort: CodexReasoningEffort;
+  routingConfig: ProviderRoutingConfig;
 }
 
 export type ClaudeCodeSandbox = 'workspace-write' | 'read-only';
@@ -52,6 +62,7 @@ export interface ClaudeCodeRobotProviderConfigPublic {
   model: string;
   sandbox: ClaudeCodeSandbox;
   sandbox_workspace_write: { network_access: boolean };
+  routingConfig: ProviderRoutingConfig;
 }
 
 export type GeminiCliSandbox = 'workspace-write' | 'read-only';
@@ -63,4 +74,33 @@ export interface GeminiCliRobotProviderConfigPublic {
   model: string;
   sandbox: GeminiCliSandbox;
   sandbox_workspace_write: { network_access: boolean };
+  routingConfig: ProviderRoutingConfig;
+}
+
+
+// Describe the local provider runtime-status payload returned by the account settings API. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+export type ProviderRuntimeMethod =
+  | 'env_api_key'
+  | 'credentials_file'
+  | 'auth_json_tokens'
+  | 'auth_json_api_key'
+  | 'oauth_creds'
+  | 'none';
+
+export interface ProviderRuntimeStatus {
+  provider: 'codex' | 'claude_code' | 'gemini_cli';
+  authenticated: boolean;
+  method?: ProviderRuntimeMethod;
+  displayName?: string;
+  supportsModelListing: boolean;
+  hasApiKey: boolean;
+}
+
+export interface ProviderRuntimeStatusesResponse {
+  precedence: string[];
+  providers: {
+    codex: ProviderRuntimeStatus;
+    claude_code: ProviderRuntimeStatus;
+    gemini_cli: ProviderRuntimeStatus;
+  };
 }

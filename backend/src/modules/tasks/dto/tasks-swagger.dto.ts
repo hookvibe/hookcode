@@ -101,6 +101,108 @@ export class TaskGitStatusDto {
   errors?: string[];
 }
 
+export class TaskProviderRoutingCredentialDto {
+  // Swagger DTO for provider credential routing metadata. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  @ApiProperty({ enum: ['robot', 'repo', 'user'] })
+  requestedStoredSource!: 'robot' | 'repo' | 'user';
+
+  @ApiProperty({ enum: ['local', 'robot', 'repo', 'user', 'none'] })
+  resolvedLayer!: 'local' | 'robot' | 'repo' | 'user' | 'none';
+
+  @ApiProperty({
+    enum: [
+      'env_api_key',
+      'credentials_file',
+      'auth_json_tokens',
+      'auth_json_api_key',
+      'oauth_creds',
+      'robot_embedded',
+      'repo_profile',
+      'user_profile',
+      'none'
+    ]
+  })
+  resolvedMethod!:
+    | 'env_api_key'
+    | 'credentials_file'
+    | 'auth_json_tokens'
+    | 'auth_json_api_key'
+    | 'oauth_creds'
+    | 'robot_embedded'
+    | 'repo_profile'
+    | 'user_profile'
+    | 'none';
+
+  @ApiProperty()
+  canExecute!: boolean;
+
+  @ApiPropertyOptional()
+  profileId?: string;
+
+  @ApiProperty()
+  fallbackUsed!: boolean;
+
+  @ApiPropertyOptional()
+  reason?: string;
+}
+
+export class TaskProviderRoutingAttemptDto {
+  // Swagger DTO for per-attempt provider failover state. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  @ApiProperty({ enum: ['codex', 'claude_code', 'gemini_cli'] })
+  provider!: 'codex' | 'claude_code' | 'gemini_cli';
+
+  @ApiProperty({ enum: ['primary', 'fallback'] })
+  role!: 'primary' | 'fallback';
+
+  @ApiProperty({ enum: ['planned', 'skipped', 'running', 'succeeded', 'failed'] })
+  status!: 'planned' | 'skipped' | 'running' | 'succeeded' | 'failed';
+
+  @ApiPropertyOptional()
+  reason?: string;
+
+  @ApiPropertyOptional()
+  error?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  startedAt?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  finishedAt?: string;
+
+  @ApiProperty({ type: TaskProviderRoutingCredentialDto })
+  credential!: TaskProviderRoutingCredentialDto;
+}
+
+export class TaskProviderRoutingDto {
+  // Swagger DTO for provider routing decisions shown in task detail. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  @ApiProperty({ enum: ['fixed', 'availability_first'] })
+  mode!: 'fixed' | 'availability_first';
+
+  @ApiProperty({ enum: ['disabled', 'fallback_provider_once'] })
+  failoverPolicy!: 'disabled' | 'fallback_provider_once';
+
+  @ApiProperty({ enum: ['codex', 'claude_code', 'gemini_cli'] })
+  primaryProvider!: 'codex' | 'claude_code' | 'gemini_cli';
+
+  @ApiPropertyOptional({ enum: ['codex', 'claude_code', 'gemini_cli'] })
+  fallbackProvider?: 'codex' | 'claude_code' | 'gemini_cli';
+
+  @ApiProperty({ enum: ['codex', 'claude_code', 'gemini_cli'] })
+  selectedProvider!: 'codex' | 'claude_code' | 'gemini_cli';
+
+  @ApiPropertyOptional({ enum: ['codex', 'claude_code', 'gemini_cli'] })
+  finalProvider?: 'codex' | 'claude_code' | 'gemini_cli';
+
+  @ApiProperty()
+  selectionReason!: string;
+
+  @ApiProperty()
+  failoverTriggered!: boolean;
+
+  @ApiProperty({ type: TaskProviderRoutingAttemptDto, isArray: true })
+  attempts!: TaskProviderRoutingAttemptDto[];
+}
+
 export class TaskResultDto {
   @ApiPropertyOptional({ enum: ['A', 'B', 'C', 'D'] })
   grade?: 'A' | 'B' | 'C' | 'D';
@@ -139,6 +241,10 @@ export class TaskResultDto {
 
   @ApiPropertyOptional()
   providerCommentUrl?: string;
+
+  @ApiPropertyOptional({ type: TaskProviderRoutingDto })
+  // Expose provider routing decisions in task result responses for failover visibility. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  providerRouting?: TaskProviderRoutingDto;
 
   // Expose git status payload in task result responses. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   @ApiPropertyOptional({ type: TaskGitStatusDto })
