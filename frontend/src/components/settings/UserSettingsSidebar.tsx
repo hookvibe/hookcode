@@ -36,15 +36,7 @@ import { useT } from '../../i18n';
 import { buildHomeHash, buildSettingsHash, type SettingsTab } from '../../router';
 import { navigateFromSidebar } from '../../navHistory';
 import { clearAuth, getStoredUser, getToken } from '../../auth';
-
-// LocalStorage key for persisting settings sidebar collapsed state. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
-const SETTINGS_SIDEBAR_COLLAPSED_KEY = 'hookcode-settings-sider-collapsed';
-
-const getStoredSettingsSidebarCollapsed = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  const stored = window.localStorage?.getItem(SETTINGS_SIDEBAR_COLLAPSED_KEY) ?? '';
-  return stored === '1' || stored === 'true';
-};
+import { getStoredSettingsSidebarCollapsed, SETTINGS_SIDEBAR_COLLAPSED_STORAGE_KEY } from './layout';
 
 // Settings navigation items grouped by category for visual separation. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 interface NavGroup {
@@ -87,24 +79,30 @@ const SETTINGS_NAV_GROUPS: NavGroup[] = [
 export interface UserSettingsSidebarProps {
   activeTab: SettingsTab;
   className?: string;
+  collapsed?: boolean;
+  onCollapsedChange?: (nextCollapsed: boolean) => void;
 }
 
 // User settings sidebar with sub-page navigation and collapse toggle. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
   activeTab,
   className = '',
+  collapsed,
+  onCollapsedChange,
 }) => {
   const t = useT();
   const user = getStoredUser();
   const canLogout = Boolean(getToken());
 
-  // Persist sidebar collapsed state across page loads via localStorage. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
-  const [collapsed, setCollapsed] = useState(() => getStoredSettingsSidebarCollapsed());
+  // Keep the sidebar collapse state controllable so the settings page shell can size breakout tables against the real sidebar width. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312
+  const [internalCollapsed, setInternalCollapsed] = useState(() => getStoredSettingsSidebarCollapsed());
+  const resolvedCollapsed = collapsed ?? internalCollapsed;
 
   const toggleCollapsed = () => {
-    const next = !collapsed;
-    setCollapsed(next);
-    window.localStorage?.setItem(SETTINGS_SIDEBAR_COLLAPSED_KEY, next ? '1' : '0');
+    const next = !resolvedCollapsed;
+    if (collapsed === undefined) setInternalCollapsed(next);
+    onCollapsedChange?.(next);
+    window.localStorage?.setItem(SETTINGS_SIDEBAR_COLLAPSED_STORAGE_KEY, next ? '1' : '0');
   };
 
   const navigate = (hash: string) => {
@@ -122,7 +120,7 @@ export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
   const roleText = isAdmin ? t('panel.role.admin') : t('panel.role.user');
 
   return (
-    <nav className={`hc-modern-sidebar hc-settings-sidebar ${collapsed ? 'hc-settings-sidebar--collapsed' : ''} ${className}`}>
+    <nav className={`hc-modern-sidebar hc-settings-sidebar ${resolvedCollapsed ? 'hc-settings-sidebar--collapsed' : ''} ${className}`}>
       {/* Header with back link and collapse toggle. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */}
       <div className="hc-settings-sidebar-header">
         <button
@@ -131,15 +129,15 @@ export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
           title={t('common.backToHome')}
         >
           <LeftOutlined />
-          {!collapsed && <span>{t('common.backToHome')}</span>}
+          {!resolvedCollapsed && <span>{t('common.backToHome')}</span>}
         </button>
         {/* Collapse/expand toggle button — mirrors the repo sidebar pattern. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */}
         <button
           className="hc-sidebar-toggle"
           onClick={toggleCollapsed}
-          title={collapsed ? t('common.expandSidebar') : t('common.collapseSidebar')}
+          title={resolvedCollapsed ? t('common.expandSidebar') : t('common.collapseSidebar')}
         >
-          {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          {resolvedCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
         </button>
       </div>
 
@@ -148,7 +146,7 @@ export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
         <div className="hc-settings-sidebar-avatar">
           <UserOutlined />
         </div>
-        {!collapsed && (
+        {!resolvedCollapsed && (
           <div className="hc-settings-sidebar-identity__info">
             <span className="hc-settings-sidebar-identity__name" title={displayName}>
               {displayName}
@@ -163,7 +161,7 @@ export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
         {SETTINGS_NAV_GROUPS.map((group, gi) => (
           <div key={gi} className="hc-sidebar-section">
             {/* Hide section titles when collapsed — only show icon nav items. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */}
-            {group.titleKey && !collapsed && (
+            {group.titleKey && !resolvedCollapsed && (
               <span className="hc-sidebar-section-title">{t(group.titleKey as any)}</span>
             )}
             {group.items.map((item) => {
@@ -177,7 +175,7 @@ export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
                 title={t(item.labelKey as any)}
               >
                 <span className="hc-nav-icon">{item.icon}</span>
-                {!collapsed && <span className="hc-nav-label">{t(item.labelKey as any)}</span>}
+                {!resolvedCollapsed && <span className="hc-nav-label">{t(item.labelKey as any)}</span>}
               </button>
               );
             })}
@@ -193,7 +191,7 @@ export const UserSettingsSidebar: FC<UserSettingsSidebarProps> = ({
             title={t('panel.logout.ok')}
           >
             <span className="hc-nav-icon"><LogoutOutlined /></span>
-            {!collapsed && <span className="hc-nav-label">{t('panel.logout.ok')}</span>}
+            {!resolvedCollapsed && <span className="hc-nav-label">{t('panel.logout.ok')}</span>}
           </button>
         </div>
       </div>

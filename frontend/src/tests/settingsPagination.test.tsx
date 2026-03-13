@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { SettingsNotificationsPanel } from '../components/settings/SettingsNotificationsPanel';
 import { SettingsLogsPanel } from '../components/settings/SettingsLogsPanel';
+import { SETTINGS_DATA_TABLE_CLASS_NAME } from '../components/settings/layout';
 import { setLocale } from '../i18n';
 import * as api from '../api';
 
@@ -40,6 +41,7 @@ describe('Settings pagination', () => {
 
     await waitFor(() => expect(api.fetchNotifications).toHaveBeenCalled());
     expect(document.querySelector('.ant-pagination')).toBeTruthy();
+    expect(document.querySelector(`.${SETTINGS_DATA_TABLE_CLASS_NAME}`)).toBeTruthy();
   });
 
   // Ensure logs table shows pagination UI. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303
@@ -61,5 +63,6 @@ describe('Settings pagination', () => {
 
     await waitFor(() => expect(api.fetchSystemLogs).toHaveBeenCalled());
     expect(document.querySelector('.ant-pagination')).toBeTruthy();
+    expect(document.querySelector(`.${SETTINGS_DATA_TABLE_CLASS_NAME}`)).toBeTruthy();
   });
 });

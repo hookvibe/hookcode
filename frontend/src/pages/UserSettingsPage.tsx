@@ -15,7 +15,7 @@
  *
  * Standalone settings page replacing modal-based user panel. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
  */
-import { FC, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { FC, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   App,
   Alert,
@@ -76,6 +76,12 @@ import { UserSettingsSidebar } from '../components/settings/UserSettingsSidebar'
 import { SettingsLogsPanel } from '../components/settings/SettingsLogsPanel';
 import { SettingsNotificationsPanel } from '../components/settings/SettingsNotificationsPanel';
 import { NotificationsPopover } from '../components/notifications/NotificationsPopover';
+import {
+  getSettingsPanelSectionClassName,
+  getStoredSettingsSidebarCollapsed,
+  SETTINGS_SIDEBAR_COLLAPSED_WIDTH,
+  SETTINGS_SIDEBAR_EXPANDED_WIDTH
+} from '../components/settings/layout';
 import { SettingsPreviewPanel } from '../components/settings/SettingsPreviewPanel';
 import { SettingsWorkersPanel } from '../components/settings/SettingsWorkersPanel';
 // Keep both notifications and preview settings components available after branch sync. docs/en/developer/plans/sync-main-dev-20260303/task_plan.md sync-main-dev-20260303
@@ -140,6 +146,13 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const t = useT();
   const locale = useLocale();
   const { message } = App.useApp();
+
+  // Mirror the persisted settings sidebar width at the page-shell level so breakout tables size against the real navigation state. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312
+  const [settingsSidebarCollapsed, setSettingsSidebarCollapsed] = useState(() => getStoredSettingsSidebarCollapsed());
+  const settingsLayoutStyle = useMemo<CSSProperties>(
+    () => ({ '--hc-settings-sidebar-width': `${settingsSidebarCollapsed ? SETTINGS_SIDEBAR_COLLAPSED_WIDTH : SETTINGS_SIDEBAR_EXPANDED_WIDTH}px` } as CSSProperties),
+    [settingsSidebarCollapsed]
+  );
 
   const [user, setUser] = useState<AuthUser | null>(() => getStoredUser());
   const [userLoading, setUserLoading] = useState(false);
@@ -973,21 +986,21 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         );
 
       case 'logs':
-        // Render admin-only log viewer inside the settings page. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
+        // Render the logs panel as a centered breakout section so wide tables can exceed the default settings width without changing other tabs. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312
         if (!isAdmin) {
           return <Alert type="warning" showIcon message="Admin access is required to view system logs." />;
         }
         return (
-          <div className="hc-panel-section">
+          <div className={getSettingsPanelSectionClassName('logs')}>
             <div className="hc-panel-section-title">{t('panel.tabs.logs')}</div>
             <SettingsLogsPanel />
           </div>
         );
 
       case 'notifications':
-        // Render per-user notifications inside the settings page. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
+        // Render the notifications panel as a centered breakout section so table rows can use more horizontal space than the default settings column. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312
         return (
-          <div className="hc-panel-section">
+          <div className={getSettingsPanelSectionClassName('notifications')}>
             <div className="hc-panel-section-title">{t('panel.tabs.notifications')}</div>
             <SettingsNotificationsPanel />
           </div>
@@ -1006,12 +1019,12 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         );
 
       case 'workers':
-        // Render the admin worker registry inside settings so executor bootstrap stays out of repo pages. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+        // Render the worker registry as a centered breakout section so the sticky action column has room without widening every settings tab. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312
         if (!isAdmin) {
           return <Alert type="warning" showIcon message={t('workers.guard.adminRequired')} />;
         }
         return (
-          <div className="hc-panel-section">
+          <div className={getSettingsPanelSectionClassName('workers')}>
             <div className="hc-panel-section-title">{t('panel.tabs.workers')}</div>
             <SettingsWorkersPanel />
           </div>
@@ -1059,8 +1072,8 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   // ---- Page layout (replaces modal layout) ---- docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
   return (
     <>
-      <div className="hc-settings-layout">
-        <UserSettingsSidebar activeTab={activeTab} />
+      <div className="hc-settings-layout" style={settingsLayoutStyle}>
+        <UserSettingsSidebar activeTab={activeTab} collapsed={settingsSidebarCollapsed} onCollapsedChange={setSettingsSidebarCollapsed} />
         <div className="hc-page hc-settings-page" style={{ flex: 1, minWidth: 0 }}>
           <PageNav
             title={t(tabTitleKey[activeTab] as any)}
@@ -1079,6 +1092,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
             userPanel={settingsUserPanel}
           />
           <div className="hc-page__body">
+            {/* Keep the default settings page column centered; only marked table sections break out wider. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312 */}
             <div className="hc-settings-tab-content">
               {renderContent()}
             </div>

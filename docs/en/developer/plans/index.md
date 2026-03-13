@@ -12,6 +12,7 @@ Planning sessions capture decisions, research, and progress for complex tasks. E
 
 | Session | Title | Task Plan | Findings | Progress |
 | --- | --- | --- | --- | --- |
+| `settings-table-layout-20260312` | Task Plan: Relax settings table width and fix executor dialog theme | [task_plan](./settings-table-layout-20260312/task_plan) | [findings](./settings-table-layout-20260312/findings) | [progress](./settings-table-layout-20260312/progress) |
 | `jmdhqw70p9m32onz45v5` | Task Plan: Repo list creator + pull method UX + repo detail tasks | [task_plan](./jmdhqw70p9m32onz45v5/task_plan) | [findings](./jmdhqw70p9m32onz45v5/findings) | [progress](./jmdhqw70p9m32onz45v5/progress) |
 | `0lldjnbw5qxdhw4wwftz` | Task Plan: Enforce planning-with-files in AGENTS.md | [task_plan](./0lldjnbw5qxdhw4wwftz/task_plan) | [findings](./0lldjnbw5qxdhw4wwftz/findings) | [progress](./0lldjnbw5qxdhw4wwftz/progress) |
 | `0nazpc53wnvljv5yh7c6` | Task Plan: Fix Live logs 404 in CI | [task_plan](./0nazpc53wnvljv5yh7c6/task_plan) | [findings](./0nazpc53wnvljv5yh7c6/findings) | [progress](./0nazpc53wnvljv5yh7c6/progress) |

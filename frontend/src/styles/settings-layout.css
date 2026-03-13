@@ -3,6 +3,9 @@
 
 /* ---------- LAYOUT CONTAINER ---------- */
 .hc-settings-layout {
+  --hc-settings-sidebar-width: 240px;
+  --hc-settings-breakout-max: 1480px;
+  --hc-settings-breakout-gutter: clamp(96px, 7vw, 120px);
   display: flex;
   flex-direction: row;
   height: 100vh;
@@ -199,6 +202,47 @@
   margin-right: auto;
   /* Smooth entry animation when switching tabs. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
   animation: hc-settings-tab-fade-in 0.2s ease-out;
+}
+
+/* Let only the table-heavy settings sections break out beyond the default 1000px tab width while staying centered on the same page axis. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312 */
+.hc-settings-page .hc-panel-section--table-breakout {
+  width: min(
+    var(--hc-settings-breakout-max),
+    max(100%, calc(100vw - var(--hc-settings-sidebar-width) - var(--hc-settings-breakout-gutter)))
+  );
+  max-width: none;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.hc-settings-page .hc-panel-section--table-breakout > * {
+  width: 100%;
+}
+
+.hc-settings-page .hc-panel-section--table-breakout > .ant-space {
+  display: flex;
+}
+
+.hc-settings-page .hc-panel-section--table-breakout > .ant-space > .ant-space-item {
+  width: 100%;
+}
+
+/* Keep wide settings tables scrollable while sticky action cells inherit the active theme surface. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312 */
+.hc-settings-data-table {
+  width: 100%;
+}
+
+.hc-settings-data-table--sticky-actions .ant-table-thead > tr > .ant-table-cell-fix-right,
+.hc-settings-data-table--sticky-actions .ant-table-thead > tr > .ant-table-cell-fix-right-first,
+.hc-settings-data-table--sticky-actions .ant-table-tbody > tr > .ant-table-cell-fix-right,
+.hc-settings-data-table--sticky-actions .ant-table-tbody > tr > .ant-table-cell-fix-right-first {
+  background: var(--hc-panel-bg);
+}
+
+.hc-settings-data-table--sticky-actions .ant-table-tbody > tr:hover > .ant-table-cell-fix-right,
+.hc-settings-data-table--sticky-actions .ant-table-tbody > tr:hover > .ant-table-cell-fix-right-first {
+  background: color-mix(in srgb, var(--surface-hover) 88%, var(--hc-panel-bg));
 }
 
 @keyframes hc-settings-tab-fade-in {
