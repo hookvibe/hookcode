@@ -1,6 +1,5 @@
 # Findings & Decisions: Implement provider routing and failover MVP
-<!-- Capture the implementation scope and architecture decisions for the provider-routing MVP. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313 -->
-
+{/* Capture the implementation scope and architecture decisions for the provider-routing MVP. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313 */}
 ## Session Metadata
 - **Session Hash:** providerroutingimpl20260313
 - **Created:** 2026-03-13

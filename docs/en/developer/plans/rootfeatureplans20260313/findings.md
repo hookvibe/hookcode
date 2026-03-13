@@ -1,6 +1,5 @@
 # Findings & Decisions: Create root-level feature roadmap plans
-<!-- Capture why these root-level roadmap files were chosen and how they map to HookCode's architecture. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313 -->
-
+{/* Capture why these root-level roadmap files were chosen and how they map to HookCode's architecture. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313 */}
 ## Session Metadata
 - **Session Hash:** rootfeatureplans20260313
 - **Created:** 2026-03-13

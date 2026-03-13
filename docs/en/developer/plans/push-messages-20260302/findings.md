@@ -1,6 +1,5 @@
 # Findings & Decisions: Push notifications to frontend
-<!-- Capture initial requirements and discovery notes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302 -->
-
+{/* Capture initial requirements and discovery notes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302 */}
 ## Session Metadata
 - **Session Hash:** push-messages-20260302
 - **Created:** 2026-03-02
@@ -11,7 +10,7 @@
 - Support multiple concurrent sessions/tabs/devices for the same user.
 
 ## Research Findings
-<!-- Update discovery on existing notifications and SSE usage. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302 -->
+{/* Update discovery on existing notifications and SSE usage. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302 */}
 - Repo root contains `backend`, `frontend`, and `shared`; message flow likely spans backend API and frontend state.
 - The frontend already uses `createAuthedEventSource('/events/stream', { topics: 'notifications' })` in notifications UI components, suggesting SSE-based push is intended.
 - The backend has `modules/notifications` and `modules/events/event-stream.service.ts`; `EventStreamService.publish` supports optional `userIds` filtering and `EventsController` attaches `req.user?.id` when subscribing.

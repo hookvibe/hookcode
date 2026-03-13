@@ -1,6 +1,5 @@
 # Task Plan: Add preview management dashboards for repo/admin + preview button state fix
-<!-- Expand this session scope to include preview management dashboards and the preview-starting UI state fix. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
-
+{/* Expand this session scope to include preview management dashboards and the preview-starting UI state fix. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 */}
 ## Session Metadata
 - **Session Hash:** preview-management-dashboard-20260303
 - **Created:** 2026-03-03

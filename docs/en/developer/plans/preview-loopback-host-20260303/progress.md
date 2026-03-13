@@ -1,6 +1,5 @@
 # Progress Log
-<!-- Track execution timeline for loopback preview diagnosis. docs/en/developer/plans/preview-loopback-host-20260303/task_plan.md preview-loopback-host-20260303 -->
-
+{/* Track execution timeline for loopback preview diagnosis. docs/en/developer/plans/preview-loopback-host-20260303/task_plan.md preview-loopback-host-20260303 */}
 ## Session Metadata
 - **Session Title:** Investigate 127.0.0.1 preview access issue
 - **Session Hash:** preview-loopback-host-20260303

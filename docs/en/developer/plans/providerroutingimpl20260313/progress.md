@@ -1,6 +1,5 @@
 # Progress Log
-<!-- Record the execution history for the provider-routing MVP implementation. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313 -->
-
+{/* Record the execution history for the provider-routing MVP implementation. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313 */}
 ## Session Metadata
 - **Session Title:** Implement provider routing and failover MVP
 - **Session Hash:** providerroutingimpl20260313

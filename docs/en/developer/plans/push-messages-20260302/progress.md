@@ -1,6 +1,5 @@
 # Progress Log
-<!-- Log planning setup and errors for push messaging work. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302 -->
-
+{/* Log planning setup and errors for push messaging work. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302 */}
 ## Session Metadata
 - **Session Title:** Push notifications to frontend
 - **Session Hash:** push-messages-20260302

@@ -8,7 +8,7 @@
 Deliver a task-result notification system with backend APIs, SSE, and frontend UI (top-right panel + settings tab), including read/clear semantics and documentation.
 
 ## Current Phase
-<!-- Mark plan as completed after delivery. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Mark plan as completed after delivery. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 Complete
 
 ## Phases
@@ -21,12 +21,12 @@ Complete
 
 ### Phase 2: Planning & Structure
 - [x] Define technical approach (new notifications model + SSE + UI panel + settings tab).
-<!-- Align plan checklist with creator fallback requirement. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Align plan checklist with creator fallback requirement. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 - [x] Decide recipient logic (trigger user else repo owner/creator).
 - [x] Document decisions with rationale.
 - **Status:** complete
 
-<!-- Record implementation phase completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Record implementation phase completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 ### Phase 3: Implementation
 - [x] Add DB schema + migrations (Notification model, Task actorUserId).
 - [x] Build notifications service + controller + SSE user filtering.
@@ -35,7 +35,7 @@ Complete
 - [x] Update API types + docs.
 - **Status:** complete
 
-<!-- Record testing phase completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Record testing phase completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 ### Phase 4: Testing & Verification
 - [x] Add backend unit tests for notifications API + creation.
 - [x] Add frontend tests for notification UI.
@@ -43,7 +43,7 @@ Complete
 - [x] Document test results in progress.md.
 - **Status:** complete
 
-<!-- Record delivery phase completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Record delivery phase completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 ### Phase 5: Delivery
 - [x] Update changelog entry with session hash + plan link.
 - [x] Ensure docs reflect API and clear/read semantics.
@@ -51,7 +51,7 @@ Complete
 - **Status:** complete
 
 ## Key Questions
-<!-- Clarify recipient fallback to repo owner (creator). docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Clarify recipient fallback to repo owner (creator). docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 1. How to resolve the notification recipient? (Answer: actor/trigger user from webhook payload, else repo owner/creator)
 2. Where to surface all notifications? (Answer: new Settings tab next to logs)
 3. What does “clear” mean? (Answer: mark all read for current user)
@@ -60,7 +60,7 @@ Complete
 | Decision | Rationale |
 |----------|-----------|
 | Add a dedicated Notification model instead of reusing SystemLog. | Notifications are user-scoped and need read state; SystemLog is admin/audit only. |
-<!-- Record updated recipient resolution for creator fallback. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Record updated recipient resolution for creator fallback. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 | Recipient resolution: trigger user → repo owner/creator. | Matches user requirement; ensures someone is notified if trigger cannot be mapped. |
 | Add settings tab `notifications` next to logs. | Aligns with existing admin logs tab and user request. |
 | Use SSE topic `notifications` with per-user filtering. | Provides realtime badge updates without polling. |

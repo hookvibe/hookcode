@@ -8,8 +8,8 @@
 ### Loop 1: Create Plan
 ```bash
 SESSION_HASH="sddsa89612jk4hbwas678"
-bash .codex/skills/file-context-planning/scripts/init-session.sh "$SESSION_HASH" "morning-exercise-research"
-# (Alternative) Copy templates from .codex/skills/file-context-planning/templates/
+bash .gemini/skills/file-context-planning/scripts/init-session.sh "$SESSION_HASH" "morning-exercise-research"
+# (Alternative) Copy templates from .gemini/skills/file-context-planning/templates/
 ```
 
 ```markdown

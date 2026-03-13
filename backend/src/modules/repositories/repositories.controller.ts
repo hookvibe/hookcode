@@ -75,6 +75,7 @@ import {
   ListRepoMembersResponseDto,
   ListRepoRobotsResponseDto,
   RepoProviderActivityResponseDto,
+  RepoRobotDryRunResponseDto,
   ListRepoWebhookDeliveriesResponseDto,
   ListRepositoriesResponseDto,
   CreateRepoInviteResponseDto,
@@ -101,6 +102,8 @@ import {
 } from '../../services/repoWorkflowMode'; // Import fork workflow helpers for controller checks. docs/en/developer/plans/repoctrlfix20260124/task_plan.md repoctrlfix20260124
 import { TestRepoRobotWorkflowDto } from './dto/test-repo-robot-workflow.dto';
 import { TestRepoWorkflowDto } from './dto/test-repo-workflow.dto';
+import { RepoRobotDryRunDto } from './dto/repo-robot-dry-run.dto';
+import { runRepoRobotDryRun, type RepoRobotDryRunInput, type RepoRobotDryRunSimulationInput } from './repo-robot-dry-run';
 
 const normalizeProvider = (value: unknown): RepoProvider => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -280,6 +283,80 @@ export class RepositoriesController {
     const user = ensureRequestUser(req);
     await this.repoAccessService.requireRepoOwner(user, repoId);
     return user;
+  }
+
+  // Reuse one controller path for both saved-robot and unsaved-draft playground requests. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+  private async executeRepoRobotDryRun(
+    req: Request,
+    repoId: string,
+    body: RepoRobotDryRunDto,
+    options?: { robotId?: string }
+  ) {
+    try {
+      const user = ensureRequestUser(req);
+      const repo = await this.repositoryService.getById(repoId);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoManage(user, repoId);
+
+      const existingRobot = options?.robotId ? await this.repoRobotService.getByIdWithToken(options.robotId) : null;
+      if (options?.robotId && (!existingRobot || existingRobot.repoId !== repoId)) {
+        throw new NotFoundException({ error: 'Robot not found' });
+      }
+
+      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+      const userCredentials = await this.userService.getModelCredentialsRaw(user.id);
+      const robotsInRepo = await this.repoRobotService.listByRepoWithToken(repoId);
+      const skillPromptPrefix = await this.skillsService.buildPromptPrefix(Array.isArray(repo.skillDefaults) ? repo.skillDefaults : null);
+      // Normalize the controller DTO into the repository dry-run contract before the helper applies simulation defaults. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+      const dryRunInput: RepoRobotDryRunInput = {
+        mode: body?.mode ?? undefined,
+        simulation: body?.simulation
+          ? {
+              ...body.simulation,
+              type: body.simulation.type as RepoRobotDryRunSimulationInput['type']
+            }
+          : undefined,
+        draft: body?.draft ? { ...body.draft } : undefined
+      };
+
+      const result = await runRepoRobotDryRun({
+        repo,
+        existingRobot,
+        input: dryRunInput,
+        userCredentials,
+        repoScopedCredentials: repoScopedCredentials?.modelProvider ?? null,
+        robotsInRepo,
+        skillPromptPrefix
+      });
+
+      void this.logWriter.logOperation({
+        level: 'info',
+        message: existingRobot ? 'Repo robot dry run executed.' : 'Repo robot draft dry run executed.',
+        actorUserId: user.id,
+        repoId,
+        meta: {
+          robotId: existingRobot?.id,
+          mode: body?.mode ?? 'render_only',
+          simulationType: body?.simulation?.type ?? 'manual_chat',
+          finalProvider: result.resolvedProvider.routing.finalProvider ?? result.resolvedProvider.provider
+        }
+      });
+
+      return result;
+    } catch (err: any) {
+      if (err instanceof HttpException) throw err;
+      const message = err?.message ? String(err.message) : 'Failed to execute robot dry run';
+      if (
+        message.includes('promptDefault is required') ||
+        message.includes('provider must be') ||
+        message.includes('mode') ||
+        message.includes('dry run')
+      ) {
+        throw new BadRequestException({ error: message });
+      }
+      console.error('[repos] robot dry run failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to execute robot dry run' });
+    }
   }
 
   @Get()
@@ -2042,6 +2119,39 @@ export class RepositoriesController {
       console.error('[repos] test robot failed', err);
       throw new InternalServerErrorException({ error: 'Failed to test robot' });
     }
+  }
+
+  @Post(':id/robots/dry-run')
+  @ApiOperation({
+    summary: 'Dry-run a repo robot draft',
+    description: 'Preview the rendered prompt, provider resolution, and isolated dry-run output for a repo robot draft.',
+    operationId: 'repos_dry_run_robot_draft'
+  })
+  @ApiOkResponse({ description: 'OK', type: RepoRobotDryRunResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async dryRunRobotDraft(@Param('id') id: string, @Req() req: Request, @Body() body: RepoRobotDryRunDto) {
+    return await this.executeRepoRobotDryRun(req, id, body);
+  }
+
+  @Post(':id/robots/:robotId/dry-run')
+  @ApiOperation({
+    summary: 'Dry-run a saved repo robot',
+    description: 'Preview the rendered prompt, provider resolution, and isolated dry-run output for a saved repo robot.',
+    operationId: 'repos_dry_run_robot'
+  })
+  @ApiOkResponse({ description: 'OK', type: RepoRobotDryRunResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async dryRunRobot(
+    @Param('id') id: string,
+    @Param('robotId') robotId: string,
+    @Req() req: Request,
+    @Body() body: RepoRobotDryRunDto
+  ) {
+    return await this.executeRepoRobotDryRun(req, id, body, { robotId });
   }
 
   @Post(':id/robots/:robotId/workflow/test')

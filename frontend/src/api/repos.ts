@@ -11,6 +11,8 @@ import type {
   RepoProviderVisibility,
   RepoRole,
   RepoRobot,
+  RepoRobotDryRunRequest,
+  RepoRobotDryRunResponse,
   RepoPreviewEnvConfigPublic,
   RepoScopedCredentialsPublic,
   RepoWebhookDeliveryDetail,
@@ -330,6 +332,17 @@ export const testRepoRobot = async (
   );
   // Refresh repo caches after robot test runs update metadata. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   invalidateRepoCaches();
+  return data;
+};
+
+// Call the robot playground API with either a saved robot id or an unsaved draft route. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+export const dryRunRepoRobot = async (
+  repoId: string,
+  params: RepoRobotDryRunRequest,
+  robotId?: string | null
+): Promise<RepoRobotDryRunResponse> => {
+  const path = robotId ? `/repos/${repoId}/robots/${robotId}/dry-run` : `/repos/${repoId}/robots/dry-run`;
+  const { data } = await api.post<RepoRobotDryRunResponse>(path, params);
   return data;
 };
 

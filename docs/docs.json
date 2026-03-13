@@ -10,80 +10,1603 @@
   },
   "favicon": "/logo/logo-light-512.png",
   "navigation": {
-    "tabs": [
+    "languages": [
       {
-        "tab": "user-docs",
-        "groups": [
+        "language": "en",
+        "default": true,
+        "tabs": [
           {
-            "group": "Start Here",
-            "pages": [
-              "index",
-              "en/user-docs/quickstart",
-              "en/user-docs/index"
+            "tab": "user-docs",
+            "groups": [
+              {
+                "group": "Start Here",
+                "pages": [
+                  "index",
+                  "en/user-docs/quickstart",
+                  "en/user-docs/index"
+                ]
+              },
+              {
+                "group": "Configuration",
+                "pages": [
+                  "en/user-docs/config/repositories",
+                  "en/user-docs/config/robots",
+                  "en/user-docs/config/triggers",
+                  "en/user-docs/config/hookcode-yml"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "en/user-docs/features",
+                  "en/user-docs/workers",
+                  "en/user-docs/split-host-deployment",
+                  "en/user-docs/preview",
+                  "en/user-docs/environment",
+                  "en/user-docs/custom-dockerfile",
+                  "en/user-docs/troubleshooting"
+                ]
+              }
             ]
           },
           {
-            "group": "Configuration",
-            "pages": [
-              "en/user-docs/config/repositories",
-              "en/user-docs/config/robots",
-              "en/user-docs/config/triggers",
-              "en/user-docs/config/hookcode-yml"
+            "tab": "api-reference",
+            "groups": [
+              {
+                "group": "API Reference",
+                "pages": [
+                  "en/api-reference/index",
+                  "en/api-reference/auth-users",
+                  "en/api-reference/repositories",
+                  "en/api-reference/workers",
+                  "en/api-reference/tasks-and-groups",
+                  "en/api-reference/logs",
+                  "en/api-reference/notifications",
+                  "en/api-reference/webhooks-events-tools",
+                  "en/api-reference/openapi"
+                ]
+              }
             ]
           },
           {
-            "group": "Guides",
-            "pages": [
-              "en/user-docs/features",
-              "en/user-docs/workers",
-              "en/user-docs/split-host-deployment",
-              "en/user-docs/preview",
-              "en/user-docs/environment",
-              "en/user-docs/custom-dockerfile",
-              "en/user-docs/troubleshooting"
+            "tab": "Developer Docs",
+            "groups": [
+              {
+                "group": "Developer",
+                "pages": [
+                  "en/developer/index",
+                  "en/developer/plans/index"
+                ]
+              },
+              {
+                "group": "Plans",
+                "pages": [
+                  {
+                    "group": "Legacy Docs: Split docs into 4 navbar categories (z91bv632ewan7oocdkb4)",
+                    "pages": [
+                      "en/developer/plans/z91bv632ewan7oocdkb4/task_plan",
+                      "en/developer/plans/z91bv632ewan7oocdkb4/findings",
+                      "en/developer/plans/z91bv632ewan7oocdkb4/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Structured execution viewer — JSONL + diffs (replace live logs) (yjlphd6rbkrq521ny796)",
+                    "pages": [
+                      "en/developer/plans/yjlphd6rbkrq521ny796/task_plan",
+                      "en/developer/plans/yjlphd6rbkrq521ny796/findings",
+                      "en/developer/plans/yjlphd6rbkrq521ny796/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "任务组页面日志样式与滚动修复 (xyaw6rrnebdb2uyuuv4a)",
+                    "pages": [
+                      "en/developer/plans/xyaw6rrnebdb2uyuuv4a/task_plan",
+                      "en/developer/plans/xyaw6rrnebdb2uyuuv4a/findings",
+                      "en/developer/plans/xyaw6rrnebdb2uyuuv4a/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task Detail Prompt Patch Two-Column Display (x0kprszlsorw9vi8jih9)",
+                    "pages": [
+                      "en/developer/plans/x0kprszlsorw9vi8jih9/task_plan",
+                      "en/developer/plans/x0kprszlsorw9vi8jih9/findings",
+                      "en/developer/plans/x0kprszlsorw9vi8jih9/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix worker stuck after unknown reasoning parameter error (worker-stuck-reasoning-20260304)",
+                    "pages": [
+                      "en/developer/plans/worker-stuck-reasoning-20260304/task_plan",
+                      "en/developer/plans/worker-stuck-reasoning-20260304/findings",
+                      "en/developer/plans/worker-stuck-reasoning-20260304/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "External worker executor refactor (worker-executor-refactor-20260307)",
+                    "pages": [
+                      "en/developer/plans/worker-executor-refactor-20260307/task_plan",
+                      "en/developer/plans/worker-executor-refactor-20260307/findings",
+                      "en/developer/plans/worker-executor-refactor-20260307/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix sidebar pages wide-screen layout (widescreen-layout-20260301)",
+                    "pages": [
+                      "en/developer/plans/widescreen-layout-20260301/task_plan",
+                      "en/developer/plans/widescreen-layout-20260301/findings",
+                      "en/developer/plans/widescreen-layout-20260301/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Convert user panel popover to standalone page (user-panel-page-20260301)",
+                    "pages": [
+                      "en/developer/plans/user-panel-page-20260301/task_plan",
+                      "en/developer/plans/user-panel-page-20260301/findings",
+                      "en/developer/plans/user-panel-page-20260301/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "robot write permission change tracking mechanism design (ujmczqa7zhw9pjaitfdj)",
+                    "pages": [
+                      "en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan",
+                      "en/developer/plans/ujmczqa7zhw9pjaitfdj/findings",
+                      "en/developer/plans/ujmczqa7zhw9pjaitfdj/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Refactor UI to flat neutral palette (uiuxflat20260203)",
+                    "pages": [
+                      "en/developer/plans/uiuxflat20260203/task_plan",
+                      "en/developer/plans/uiuxflat20260203/findings",
+                      "en/developer/plans/uiuxflat20260203/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Modernize Frontend Visual Design System (ui-modernize-20260301)",
+                    "pages": [
+                      "en/developer/plans/ui-modernize-20260301/task_plan",
+                      "en/developer/plans/ui-modernize-20260301/findings",
+                      "en/developer/plans/ui-modernize-20260301/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Improve TaskGroup chat page UI design (ui-improve-20260302)",
+                    "pages": [
+                      "en/developer/plans/ui-improve-20260302/task_plan",
+                      "en/developer/plans/ui-improve-20260302/findings",
+                      "en/developer/plans/ui-improve-20260302/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "preview highlight logic review (ue5f7ky5wnpsopa2ak8w)",
+                    "pages": [
+                      "en/developer/plans/ue5f7ky5wnpsopa2ak8w/task_plan",
+                      "en/developer/plans/ue5f7ky5wnpsopa2ak8w/findings",
+                      "en/developer/plans/ue5f7ky5wnpsopa2ak8w/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "repo-details-dashboard (u55e45ffi8jng44erdzp)",
+                    "pages": [
+                      "en/developer/plans/u55e45ffi8jng44erdzp/task_plan",
+                      "en/developer/plans/u55e45ffi8jng44erdzp/findings",
+                      "en/developer/plans/u55e45ffi8jng44erdzp/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix todo_list event display in exec logs (todoeventlog20260123)",
+                    "pages": [
+                      "en/developer/plans/todoeventlog20260123/task_plan",
+                      "en/developer/plans/todoeventlog20260123/findings",
+                      "en/developer/plans/todoeventlog20260123/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "time windowed task execution (timewindowtask20260126)",
+                    "pages": [
+                      "en/developer/plans/timewindowtask20260126/task_plan",
+                      "en/developer/plans/timewindowtask20260126/findings",
+                      "en/developer/plans/timewindowtask20260126/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Show full codex log text in thoughtchain (thoughtchain-log-display)",
+                    "pages": [
+                      "en/developer/plans/thoughtchain-log-display/task_plan",
+                      "en/developer/plans/thoughtchain-log-display/findings",
+                      "en/developer/plans/thoughtchain-log-display/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Move repo pull to task group workspace (tgpull2wkg7n9f4a)",
+                    "pages": [
+                      "en/developer/plans/tgpull2wkg7n9f4a/task_plan",
+                      "en/developer/plans/tgpull2wkg7n9f4a/findings",
+                      "en/developer/plans/tgpull2wkg7n9f4a/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix failing tests and update AGENTS workflow (testfix20260131)",
+                    "pages": [
+                      "en/developer/plans/testfix20260131/task_plan",
+                      "en/developer/plans/testfix20260131/findings",
+                      "en/developer/plans/testfix20260131/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Analyze noisy test output (test-output-noise-20260129)",
+                    "pages": [
+                      "en/developer/plans/test-output-noise-20260129/task_plan",
+                      "en/developer/plans/test-output-noise-20260129/findings",
+                      "en/developer/plans/test-output-noise-20260129/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task detail summary cards equal height (tdsummaryequalh20260117v2n9)",
+                    "pages": [
+                      "en/developer/plans/tdsummaryequalh20260117v2n9/task_plan",
+                      "en/developer/plans/tdsummaryequalh20260117v2n9/findings",
+                      "en/developer/plans/tdsummaryequalh20260117v2n9/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task detail summary strip wrap (no horizontal scroll) (tdstripwrap20260117b5m7)",
+                    "pages": [
+                      "en/developer/plans/tdstripwrap20260117b5m7/task_plan",
+                      "en/developer/plans/tdstripwrap20260117b5m7/findings",
+                      "en/developer/plans/tdstripwrap20260117b5m7/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task detail Steps reverse numbering (bottom is 1) (tdstepsreverse20260117k1p6)",
+                    "pages": [
+                      "en/developer/plans/tdstepsreverse20260117k1p6/task_plan",
+                      "en/developer/plans/tdstepsreverse20260117k1p6/findings",
+                      "en/developer/plans/tdstepsreverse20260117k1p6/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Frontend Task detail layout redesign (tdlayout20260117k8p3)",
+                    "pages": [
+                      "en/developer/plans/tdlayout20260117k8p3/task_plan",
+                      "en/developer/plans/tdlayout20260117k8p3/findings",
+                      "en/developer/plans/tdlayout20260117k8p3/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Default collapse for task status menu (taskmenu-collapse-20260305)",
+                    "pages": [
+                      "en/developer/plans/taskmenu-collapse-20260305/task_plan",
+                      "en/developer/plans/taskmenu-collapse-20260305/findings",
+                      "en/developer/plans/taskmenu-collapse-20260305/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Remove legacy task logs env toggle (tasklogslegacy20260225)",
+                    "pages": [
+                      "en/developer/plans/tasklogslegacy20260225/task_plan",
+                      "en/developer/plans/tasklogslegacy20260225/findings",
+                      "en/developer/plans/tasklogslegacy20260225/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "task-log-dialog-ui (tasklogdialog20260128)",
+                    "pages": [
+                      "en/developer/plans/tasklogdialog20260128/task_plan",
+                      "en/developer/plans/tasklogdialog20260128/findings",
+                      "en/developer/plans/tasklogdialog20260128/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task group transition animation (taskgrouptransition20260123)",
+                    "pages": [
+                      "en/developer/plans/taskgrouptransition20260123/task_plan",
+                      "en/developer/plans/taskgrouptransition20260123/findings",
+                      "en/developer/plans/taskgrouptransition20260123/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "TaskGroup inline ThoughtChain + reverse paging (taskgroupthoughtchain20260121)",
+                    "pages": [
+                      "en/developer/plans/taskgroupthoughtchain20260121/task_plan",
+                      "en/developer/plans/taskgroupthoughtchain20260121/findings",
+                      "en/developer/plans/taskgroupthoughtchain20260121/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task group auto-scroll to bottom after async logs (taskgroupscrollbottom20260123)",
+                    "pages": [
+                      "en/developer/plans/taskgroupscrollbottom20260123/task_plan",
+                      "en/developer/plans/taskgroupscrollbottom20260123/findings",
+                      "en/developer/plans/taskgroupscrollbottom20260123/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Reorganize task-groups layout (taskgroups-reorg-20260131)",
+                    "pages": [
+                      "en/developer/plans/taskgroups-reorg-20260131/task_plan",
+                      "en/developer/plans/taskgroups-reorg-20260131/findings",
+                      "en/developer/plans/taskgroups-reorg-20260131/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix TaskGroupPreviewController DI error (taskgrouppreviewdi20260201)",
+                    "pages": [
+                      "en/developer/plans/taskgrouppreviewdi20260201/task_plan",
+                      "en/developer/plans/taskgrouppreviewdi20260201/findings",
+                      "en/developer/plans/taskgrouppreviewdi20260201/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix task group skeleton not hidden (taskgroup_skeleton_20260126)",
+                    "pages": [
+                      "en/developer/plans/taskgroup_skeleton_20260126/task_plan",
+                      "en/developer/plans/taskgroup_skeleton_20260126/findings",
+                      "en/developer/plans/taskgroup_skeleton_20260126/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task group worker environment handling (taskgroup-worker-env-20260203)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-worker-env-20260203/task_plan",
+                      "en/developer/plans/taskgroup-worker-env-20260203/findings",
+                      "en/developer/plans/taskgroup-worker-env-20260203/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Refactor task group page into queued task workspace (taskgroup-ui-refactor-20260306)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-ui-refactor-20260306/task_plan",
+                      "en/developer/plans/taskgroup-ui-refactor-20260306/findings",
+                      "en/developer/plans/taskgroup-ui-refactor-20260306/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Add task group token list page in sidebar (taskgroup-token-sidebar-20260302)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-token-sidebar-20260302/task_plan",
+                      "en/developer/plans/taskgroup-token-sidebar-20260302/findings",
+                      "en/developer/plans/taskgroup-token-sidebar-20260302/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Repo detail task group token pagination and placement (taskgroup-token-pagination-20260215)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-token-pagination-20260215/task_plan",
+                      "en/developer/plans/taskgroup-token-pagination-20260215/findings",
+                      "en/developer/plans/taskgroup-token-pagination-20260215/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Sidebar indicator for running task groups (taskgroup-running-dot-20260305)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-running-dot-20260305/task_plan",
+                      "en/developer/plans/taskgroup-running-dot-20260305/findings",
+                      "en/developer/plans/taskgroup-running-dot-20260305/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix resumeThread after task deletion (taskgroup-resume-thread-20260203)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-resume-thread-20260203/task_plan",
+                      "en/developer/plans/taskgroup-resume-thread-20260203/findings",
+                      "en/developer/plans/taskgroup-resume-thread-20260203/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task group parallel execution rule (taskgroup-parallel-20260227)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-parallel-20260227/task_plan",
+                      "en/developer/plans/taskgroup-parallel-20260227/findings",
+                      "en/developer/plans/taskgroup-parallel-20260227/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task group log loading refactor - performance and UX improvements (taskgroup-logs-refactor-20260306)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-logs-refactor-20260306/task_plan",
+                      "en/developer/plans/taskgroup-logs-refactor-20260306/findings",
+                      "en/developer/plans/taskgroup-logs-refactor-20260306/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Compact git status card in task group dialog (taskgroup-gitstatus-compact-20260303)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan",
+                      "en/developer/plans/taskgroup-gitstatus-compact-20260303/findings",
+                      "en/developer/plans/taskgroup-gitstatus-compact-20260303/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix empty task-group display after task deletion (taskgroup-empty-display-20260203)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-empty-display-20260203/task_plan",
+                      "en/developer/plans/taskgroup-empty-display-20260203/findings",
+                      "en/developer/plans/taskgroup-empty-display-20260203/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task detail layout horizontal tabs (taskdetailui20260121)",
+                    "pages": [
+                      "en/developer/plans/taskdetailui20260121/task_plan",
+                      "en/developer/plans/taskdetailui20260121/findings",
+                      "en/developer/plans/taskdetailui20260121/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Add HookCode task detail link to provider comments (taskdetailbacklink20260122k4p8)",
+                    "pages": [
+                      "en/developer/plans/taskdetailbacklink20260122k4p8/task_plan",
+                      "en/developer/plans/taskdetailbacklink20260122k4p8/findings",
+                      "en/developer/plans/taskdetailbacklink20260122k4p8/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Add pause/resume for task group executions (task-pause-resume-20260203)",
+                    "pages": [
+                      "en/developer/plans/task-pause-resume-20260203/task_plan",
+                      "en/developer/plans/task-pause-resume-20260203/findings",
+                      "en/developer/plans/task-pause-resume-20260203/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task log table + pagination (task-logs-table-20260306)",
+                    "pages": [
+                      "en/developer/plans/task-logs-table-20260306/task_plan",
+                      "en/developer/plans/task-logs-table-20260306/findings",
+                      "en/developer/plans/task-logs-table-20260306/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Modernize task group task card UI (task-group-card-modernize-20260306)",
+                    "pages": [
+                      "en/developer/plans/task-group-card-modernize-20260306/task_plan",
+                      "en/developer/plans/task-group-card-modernize-20260306/findings",
+                      "en/developer/plans/task-group-card-modernize-20260306/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix system log type mapping (systemlog-typefix-20260302)",
+                    "pages": [
+                      "en/developer/plans/systemlog-typefix-20260302/task_plan",
+                      "en/developer/plans/systemlog-typefix-20260302/findings",
+                      "en/developer/plans/systemlog-typefix-20260302/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Sync main and dev branches (sync-main-dev-20260303)",
+                    "pages": [
+                      "en/developer/plans/sync-main-dev-20260303/task_plan",
+                      "en/developer/plans/sync-main-dev-20260303/findings",
+                      "en/developer/plans/sync-main-dev-20260303/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Disable stale processing when PROCESSING_STALE_MS is blank (stale-disable-20260305)",
+                    "pages": [
+                      "en/developer/plans/stale-disable-20260305/task_plan",
+                      "en/developer/plans/stale-disable-20260305/findings",
+                      "en/developer/plans/stale-disable-20260305/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Split long files for maintainability (split-long-files-20260203)",
+                    "pages": [
+                      "en/developer/plans/split-long-files-20260203/task_plan",
+                      "en/developer/plans/split-long-files-20260203/findings",
+                      "en/developer/plans/split-long-files-20260203/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Split long files for maintainability (split-long-files-20260202)",
+                    "pages": [
+                      "en/developer/plans/split-long-files-20260202/task_plan",
+                      "en/developer/plans/split-long-files-20260202/findings",
+                      "en/developer/plans/split-long-files-20260202/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "skills registry + prompt text (skills-registry-20260225)",
+                    "pages": [
+                      "en/developer/plans/skills-registry-20260225/task_plan",
+                      "en/developer/plans/skills-registry-20260225/findings",
+                      "en/developer/plans/skills-registry-20260225/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Optimize sidebar separators and view-all button (sidebarviewall20260128)",
+                    "pages": [
+                      "en/developer/plans/sidebarviewall20260128/task_plan",
+                      "en/developer/plans/sidebarviewall20260128/findings",
+                      "en/developer/plans/sidebarviewall20260128/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Convert ArchivePage and SkillsPage to sidebar sub-navigation (sidebar-pages-20260301)",
+                    "pages": [
+                      "en/developer/plans/sidebar-pages-20260301/task_plan",
+                      "en/developer/plans/sidebar-pages-20260301/findings",
+                      "en/developer/plans/sidebar-pages-20260301/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Optimize sidebar menu behavior (sidebar-menu-20260131)",
+                    "pages": [
+                      "en/developer/plans/sidebar-menu-20260131/task_plan",
+                      "en/developer/plans/sidebar-menu-20260131/findings",
+                      "en/developer/plans/sidebar-menu-20260131/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix sidebar abnormal behavior in collapsed state (sidebar-collapsed-fix-20260205)",
+                    "pages": [
+                      "en/developer/plans/sidebar-collapsed-fix-20260205/task_plan",
+                      "en/developer/plans/sidebar-collapsed-fix-20260205/findings",
+                      "en/developer/plans/sidebar-collapsed-fix-20260205/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Refactor planning-with-files skill (sddsa89612jk4hbwas678)",
+                    "pages": [
+                      "en/developer/plans/sddsa89612jk4hbwas678/task_plan",
+                      "en/developer/plans/sddsa89612jk4hbwas678/findings",
+                      "en/developer/plans/sddsa89612jk4hbwas678/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Create root-level feature roadmap plans (rootfeatureplans20260313)",
+                    "pages": [
+                      "en/developer/plans/rootfeatureplans20260313/task_plan",
+                      "en/developer/plans/rootfeatureplans20260313/findings",
+                      "en/developer/plans/rootfeatureplans20260313/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Robot pull mode control (direct vs fork) (robotpullmode20260124)",
+                    "pages": [
+                      "en/developer/plans/robotpullmode20260124/task_plan",
+                      "en/developer/plans/robotpullmode20260124/findings",
+                      "en/developer/plans/robotpullmode20260124/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix robot form i18n keys and prompt section copy (robotform-i18n-fix-20260302)",
+                    "pages": [
+                      "en/developer/plans/robotform-i18n-fix-20260302/task_plan",
+                      "en/developer/plans/robotform-i18n-fix-20260302/findings",
+                      "en/developer/plans/robotform-i18n-fix-20260302/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Robot Dry Run and Prompt Playground (robot-dryrun-playground-20260313)",
+                    "pages": [
+                      "en/developer/plans/robot-dryrun-playground-20260313/task_plan",
+                      "en/developer/plans/robot-dryrun-playground-20260313/findings",
+                      "en/developer/plans/robot-dryrun-playground-20260313/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Replace loading spinners with skeletons (ro3ln7zex8d0wyynfj0m)",
+                    "pages": [
+                      "en/developer/plans/ro3ln7zex8d0wyynfj0m/task_plan",
+                      "en/developer/plans/ro3ln7zex8d0wyynfj0m/findings",
+                      "en/developer/plans/ro3ln7zex8d0wyynfj0m/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Review commit 11e1197 (rev11e1197)",
+                    "pages": [
+                      "en/developer/plans/rev11e1197/task_plan",
+                      "en/developer/plans/rev11e1197/findings",
+                      "en/developer/plans/rev11e1197/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix repositories.controller.ts CI compile errors (repoctrlfix20260124)",
+                    "pages": [
+                      "en/developer/plans/repoctrlfix20260124/task_plan",
+                      "en/developer/plans/repoctrlfix20260124/findings",
+                      "en/developer/plans/repoctrlfix20260124/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Add collapse/hide button to repo detail sidebar (repo-sidebar-collapse-20260301)",
+                    "pages": [
+                      "en/developer/plans/repo-sidebar-collapse-20260301/task_plan",
+                      "en/developer/plans/repo-sidebar-collapse-20260301/findings",
+                      "en/developer/plans/repo-sidebar-collapse-20260301/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Investigate slow repo page requests (repo-page-slow-requests-20260128)",
+                    "pages": [
+                      "en/developer/plans/repo-page-slow-requests-20260128/task_plan",
+                      "en/developer/plans/repo-page-slow-requests-20260128/findings",
+                      "en/developer/plans/repo-page-slow-requests-20260128/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix repo-level config missing in bot setup (repo-guide-visibility-20260227)",
+                    "pages": [
+                      "en/developer/plans/repo-guide-visibility-20260227/task_plan",
+                      "en/developer/plans/repo-guide-visibility-20260227/findings",
+                      "en/developer/plans/repo-guide-visibility-20260227/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Refactor repo detail page into sidebar sub-navigation tabs (repo-detail-subnav-20260228)",
+                    "pages": [
+                      "en/developer/plans/repo-detail-subnav-20260228/task_plan",
+                      "en/developer/plans/repo-detail-subnav-20260228/findings",
+                      "en/developer/plans/repo-detail-subnav-20260228/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Modernize repo detail page section display (repo-detail-modernize-20260301)",
+                    "pages": [
+                      "en/developer/plans/repo-detail-modernize-20260301/task_plan",
+                      "en/developer/plans/repo-detail-modernize-20260301/findings",
+                      "en/developer/plans/repo-detail-modernize-20260301/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix repo activity title overflow (repo-activity-title-overflow-20260227)",
+                    "pages": [
+                      "en/developer/plans/repo-activity-title-overflow-20260227/task_plan",
+                      "en/developer/plans/repo-activity-title-overflow-20260227/findings",
+                      "en/developer/plans/repo-activity-title-overflow-20260227/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task Plan - Refactor TaskGroup Preview UI (refactor-preview-ui-20260205)",
+                    "pages": [
+                      "en/developer/plans/refactor-preview-ui-20260205/task_plan",
+                      "en/developer/plans/refactor-preview-ui-20260205/findings",
+                      "en/developer/plans/refactor-preview-ui-20260205/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Rewrite README command presentation (readmecmd20260227)",
+                    "pages": [
+                      "en/developer/plans/readmecmd20260227/task_plan",
+                      "en/developer/plans/readmecmd20260227/findings",
+                      "en/developer/plans/readmecmd20260227/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Show bound AI for robot display (rbtaidisplay20260128)",
+                    "pages": [
+                      "en/developer/plans/rbtaidisplay20260128/task_plan",
+                      "en/developer/plans/rbtaidisplay20260128/findings",
+                      "en/developer/plans/rbtaidisplay20260128/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Archive repositories and tasks (qnp1mtxhzikhbi0xspbc)",
+                    "pages": [
+                      "en/developer/plans/qnp1mtxhzikhbi0xspbc/task_plan",
+                      "en/developer/plans/qnp1mtxhzikhbi0xspbc/findings",
+                      "en/developer/plans/qnp1mtxhzikhbi0xspbc/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "修复表格滚动条样式 (qh23ler2y5yeesg6hqel)",
+                    "pages": [
+                      "en/developer/plans/qh23ler2y5yeesg6hqel/task_plan",
+                      "en/developer/plans/qh23ler2y5yeesg6hqel/findings",
+                      "en/developer/plans/qh23ler2y5yeesg6hqel/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Push notifications to frontend (push-messages-20260302)",
+                    "pages": [
+                      "en/developer/plans/push-messages-20260302/task_plan",
+                      "en/developer/plans/push-messages-20260302/findings",
+                      "en/developer/plans/push-messages-20260302/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Implement provider routing and failover MVP (providerroutingimpl20260313)",
+                    "pages": [
+                      "en/developer/plans/providerroutingimpl20260313/task_plan",
+                      "en/developer/plans/providerroutingimpl20260313/findings",
+                      "en/developer/plans/providerroutingimpl20260313/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Migrate ClaudeCodeUI provider credential management into HookCode (providerclimigrate20260313)",
+                    "pages": [
+                      "en/developer/plans/providerclimigrate20260313/task_plan",
+                      "en/developer/plans/providerclimigrate20260313/findings",
+                      "en/developer/plans/providerclimigrate20260313/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Improve preview highlight selector fallbacks (previewhighlightselector20260204)",
+                    "pages": [
+                      "en/developer/plans/previewhighlightselector20260204/task_plan",
+                      "en/developer/plans/previewhighlightselector20260204/findings",
+                      "en/developer/plans/previewhighlightselector20260204/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix PreviewService DI in tests (preview-service-test-di-20260129)",
+                    "pages": [
+                      "en/developer/plans/preview-service-test-di-20260129/task_plan",
+                      "en/developer/plans/preview-service-test-di-20260129/findings",
+                      "en/developer/plans/preview-service-test-di-20260129/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Add preview management dashboards for repo/admin + preview button state fix (preview-management-dashboard-20260303)",
+                    "pages": [
+                      "en/developer/plans/preview-management-dashboard-20260303/task_plan",
+                      "en/developer/plans/preview-management-dashboard-20260303/findings",
+                      "en/developer/plans/preview-management-dashboard-20260303/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Investigate 127.0.0.1 preview access issue (preview-loopback-host-20260303)",
+                    "pages": [
+                      "en/developer/plans/preview-loopback-host-20260303/task_plan",
+                      "en/developer/plans/preview-loopback-host-20260303/findings",
+                      "en/developer/plans/preview-loopback-host-20260303/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Add preview port placeholders and repo env injection (preview-env-config-20260302)",
+                    "pages": [
+                      "en/developer/plans/preview-env-config-20260302/task_plan",
+                      "en/developer/plans/preview-env-config-20260302/findings",
+                      "en/developer/plans/preview-env-config-20260302/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Preview terminal mode via `.hookcode.yml` flag (preview-backend-terminal-output-20260303)",
+                    "pages": [
+                      "en/developer/plans/preview-backend-terminal-output-20260303/task_plan",
+                      "en/developer/plans/preview-backend-terminal-output-20260303/findings",
+                      "en/developer/plans/preview-backend-terminal-output-20260303/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Docs pixel theme (pixeldocs20260126)",
+                    "pages": [
+                      "en/developer/plans/pixeldocs20260126/task_plan",
+                      "en/developer/plans/pixeldocs20260126/findings",
+                      "en/developer/plans/pixeldocs20260126/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Payload JSON viewer UI (payloadjsonui20260128)",
+                    "pages": [
+                      "en/developer/plans/payloadjsonui20260128/task_plan",
+                      "en/developer/plans/payloadjsonui20260128/findings",
+                      "en/developer/plans/payloadjsonui20260128/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Move auto-generated PATs to repo area (pat-panel-20260204)",
+                    "pages": [
+                      "en/developer/plans/pat-panel-20260204/task_plan",
+                      "en/developer/plans/pat-panel-20260204/findings",
+                      "en/developer/plans/pat-panel-20260204/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Add pagination/load-more to archive, repos, skills, sidebar status (pagination-impl-20260227-b)",
+                    "pages": [
+                      "en/developer/plans/pagination-impl-20260227-b/task_plan",
+                      "en/developer/plans/pagination-impl-20260227-b/findings",
+                      "en/developer/plans/pagination-impl-20260227-b/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Add pagination/load-more to tasks + task groups + sidebar (pagination-impl-20260227)",
+                    "pages": [
+                      "en/developer/plans/pagination-impl-20260227/task_plan",
+                      "en/developer/plans/pagination-impl-20260227/findings",
+                      "en/developer/plans/pagination-impl-20260227/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Audit missing pagination/load-more (pagination-audit-20260227)",
+                    "pages": [
+                      "en/developer/plans/pagination-audit-20260227/task_plan",
+                      "en/developer/plans/pagination-audit-20260227/findings",
+                      "en/developer/plans/pagination-audit-20260227/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Swagger启动方式 (p1qnl1d63n6c7wiob2wt)",
+                    "pages": [
+                      "en/developer/plans/p1qnl1d63n6c7wiob2wt/task_plan",
+                      "en/developer/plans/p1qnl1d63n6c7wiob2wt/findings",
+                      "en/developer/plans/p1qnl1d63n6c7wiob2wt/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "PAT API debug skill (open-api-pat-skill-20260130)",
+                    "pages": [
+                      "en/developer/plans/open-api-pat-skill-20260130/task_plan",
+                      "en/developer/plans/open-api-pat-skill-20260130/findings",
+                      "en/developer/plans/open-api-pat-skill-20260130/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "open-api-pat-design (open-api-pat-design)",
+                    "pages": [
+                      "en/developer/plans/open-api-pat-design/task_plan",
+                      "en/developer/plans/open-api-pat-design/findings",
+                      "en/developer/plans/open-api-pat-design/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Repo detail Task activity trend chart fills one row (ofjpj2euygyvp2k5b8m2)",
+                    "pages": [
+                      "en/developer/plans/ofjpj2euygyvp2k5b8m2/task_plan",
+                      "en/developer/plans/ofjpj2euygyvp2k5b8m2/findings",
+                      "en/developer/plans/ofjpj2euygyvp2k5b8m2/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Split task log config (DB vs visibility) (nykx5svtlgh050cstyht)",
+                    "pages": [
+                      "en/developer/plans/nykx5svtlgh050cstyht/task_plan",
+                      "en/developer/plans/nykx5svtlgh050cstyht/findings",
+                      "en/developer/plans/nykx5svtlgh050cstyht/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task detail UI优化 (nsdxp7gt9e14t1upz90z)",
+                    "pages": [
+                      "en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan",
+                      "en/developer/plans/nsdxp7gt9e14t1upz90z/findings",
+                      "en/developer/plans/nsdxp7gt9e14t1upz90z/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Add notifications system based on task results (notify-panel-20260302)",
+                    "pages": [
+                      "en/developer/plans/notify-panel-20260302/task_plan",
+                      "en/developer/plans/notify-panel-20260302/findings",
+                      "en/developer/plans/notify-panel-20260302/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Notifications UX improvements (notifications-ui-20260303)",
+                    "pages": [
+                      "en/developer/plans/notifications-ui-20260303/task_plan",
+                      "en/developer/plans/notifications-ui-20260303/findings",
+                      "en/developer/plans/notifications-ui-20260303/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Migrate RepoTaskVolumeTrend chart to ECharts (nn62s3ci1xhpr7ublh51)",
+                    "pages": [
+                      "en/developer/plans/nn62s3ci1xhpr7ublh51/task_plan",
+                      "en/developer/plans/nn62s3ci1xhpr7ublh51/findings",
+                      "en/developer/plans/nn62s3ci1xhpr7ublh51/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Handle frontend network fluctuation toast (netflapui20260126)",
+                    "pages": [
+                      "en/developer/plans/netflapui20260126/task_plan",
+                      "en/developer/plans/netflapui20260126/findings",
+                      "en/developer/plans/netflapui20260126/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix SSE stream 404 in local dev (na4jfazi3z1vsrfofcj1)",
+                    "pages": [
+                      "en/developer/plans/na4jfazi3z1vsrfofcj1/task_plan",
+                      "en/developer/plans/na4jfazi3z1vsrfofcj1/findings",
+                      "en/developer/plans/na4jfazi3z1vsrfofcj1/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Multi-user roles, repo control, registration, invites (multiuserauth20260226)",
+                    "pages": [
+                      "en/developer/plans/multiuserauth20260226/task_plan",
+                      "en/developer/plans/multiuserauth20260226/findings",
+                      "en/developer/plans/multiuserauth20260226/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Sidebar tasks auto-expand & title layout (mks8pr4r3m1fo9oqx9av)",
+                    "pages": [
+                      "en/developer/plans/mks8pr4r3m1fo9oqx9av/task_plan",
+                      "en/developer/plans/mks8pr4r3m1fo9oqx9av/findings",
+                      "en/developer/plans/mks8pr4r3m1fo9oqx9av/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Make MD comments Mintlify-compatible (mintmdxcomment20260122)",
+                    "pages": [
+                      "en/developer/plans/mintmdxcomment20260122/task_plan",
+                      "en/developer/plans/mintmdxcomment20260122/findings",
+                      "en/developer/plans/mintmdxcomment20260122/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Mintlify docs refactor (mintlify-docs-20260301)",
+                    "pages": [
+                      "en/developer/plans/mintlify-docs-20260301/task_plan",
+                      "en/developer/plans/mintlify-docs-20260301/findings",
+                      "en/developer/plans/mintlify-docs-20260301/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Add admin log system (logs-audit-20260302)",
+                    "pages": [
+                      "en/developer/plans/logs-audit-20260302/task_plan",
+                      "en/developer/plans/logs-audit-20260302/findings",
+                      "en/developer/plans/logs-audit-20260302/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Persist sidebar state (l7pvyrepxb0mx2ipdh2y)",
+                    "pages": [
+                      "en/developer/plans/l7pvyrepxb0mx2ipdh2y/task_plan",
+                      "en/developer/plans/l7pvyrepxb0mx2ipdh2y/findings",
+                      "en/developer/plans/l7pvyrepxb0mx2ipdh2y/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Stop auto HTML comments in changelog entries (l290bb7v758opd6uxu6r)",
+                    "pages": [
+                      "en/developer/plans/l290bb7v758opd6uxu6r/task_plan",
+                      "en/developer/plans/l290bb7v758opd6uxu6r/findings",
+                      "en/developer/plans/l290bb7v758opd6uxu6r/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Repo panel provider activity row (kzxac35mxk0fg358i7zs)",
+                    "pages": [
+                      "en/developer/plans/kzxac35mxk0fg358i7zs/task_plan",
+                      "en/developer/plans/kzxac35mxk0fg358i7zs/findings",
+                      "en/developer/plans/kzxac35mxk0fg358i7zs/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Implement reusable SSE change notifications (Route A) (kxthpiu4eqrmu0c6bboa)",
+                    "pages": [
+                      "en/developer/plans/kxthpiu4eqrmu0c6bboa/task_plan",
+                      "en/developer/plans/kxthpiu4eqrmu0c6bboa/findings",
+                      "en/developer/plans/kxthpiu4eqrmu0c6bboa/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Sidebar hover tooltips & status nav button (kwq0evw438cxawea0lcj)",
+                    "pages": [
+                      "en/developer/plans/kwq0evw438cxawea0lcj/task_plan",
+                      "en/developer/plans/kwq0evw438cxawea0lcj/findings",
+                      "en/developer/plans/kwq0evw438cxawea0lcj/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Repo list creator + pull method UX + repo detail tasks (jmdhqw70p9m32onz45v5)",
+                    "pages": [
+                      "en/developer/plans/jmdhqw70p9m32onz45v5/task_plan",
+                      "en/developer/plans/jmdhqw70p9m32onz45v5/findings",
+                      "en/developer/plans/jmdhqw70p9m32onz45v5/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "enhance preview highlight with bubble (jemhyxnaw3lt4qbxtr48)",
+                    "pages": [
+                      "en/developer/plans/jemhyxnaw3lt4qbxtr48/task_plan",
+                      "en/developer/plans/jemhyxnaw3lt4qbxtr48/findings",
+                      "en/developer/plans/jemhyxnaw3lt4qbxtr48/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "backend error message improvements (im5mpw0g5827wu95w4ki)",
+                    "pages": [
+                      "en/developer/plans/im5mpw0g5827wu95w4ki/task_plan",
+                      "en/developer/plans/im5mpw0g5827wu95w4ki/findings",
+                      "en/developer/plans/im5mpw0g5827wu95w4ki/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Update hookcode.yml for preview ports (hookcode-yml-update)",
+                    "pages": [
+                      "en/developer/plans/hookcode-yml-update/task_plan",
+                      "en/developer/plans/hookcode-yml-update/findings",
+                      "en/developer/plans/hookcode-yml-update/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Create hookcode.yml skill (hookcode-yml-skill-20260129)",
+                    "pages": [
+                      "en/developer/plans/hookcode-yml-skill-20260129/task_plan",
+                      "en/developer/plans/hookcode-yml-skill-20260129/findings",
+                      "en/developer/plans/hookcode-yml-skill-20260129/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "homepage-design-pencil-20260304 (homepage-design-pencil-20260304)",
+                    "pages": [
+                      "en/developer/plans/homepage-design-pencil-20260304/task_plan",
+                      "en/developer/plans/homepage-design-pencil-20260304/findings",
+                      "en/developer/plans/homepage-design-pencil-20260304/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Global network flap UX handling (globalnetux20260126)",
+                    "pages": [
+                      "en/developer/plans/globalnetux20260126/task_plan",
+                      "en/developer/plans/globalnetux20260126/findings",
+                      "en/developer/plans/globalnetux20260126/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Docs glassmorphism redesign (glassdocs20260126)",
+                    "pages": [
+                      "en/developer/plans/glassdocs20260126/task_plan",
+                      "en/developer/plans/glassdocs20260126/findings",
+                      "en/developer/plans/glassdocs20260126/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix task git push tests (gitpushfix20260127)",
+                    "pages": [
+                      "en/developer/plans/gitpushfix20260127/task_plan",
+                      "en/developer/plans/gitpushfix20260127/findings",
+                      "en/developer/plans/gitpushfix20260127/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Diagnose git clone code 128 in task group worker (gitclone128-20260304)",
+                    "pages": [
+                      "en/developer/plans/gitclone128-20260304/task_plan",
+                      "en/developer/plans/gitclone128-20260304/findings",
+                      "en/developer/plans/gitclone128-20260304/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix agent git config key names for push workflow (gitcfgfix20260123)",
+                    "pages": [
+                      "en/developer/plans/gitcfgfix20260123/task_plan",
+                      "en/developer/plans/gitcfgfix20260123/findings",
+                      "en/developer/plans/gitcfgfix20260123/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Handle gemini/claude agent files and templates (gemini-claude-agents-20260205)",
+                    "pages": [
+                      "en/developer/plans/gemini-claude-agents-20260205/task_plan",
+                      "en/developer/plans/gemini-claude-agents-20260205/findings",
+                      "en/developer/plans/gemini-claude-agents-20260205/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix frontend test failures (frontendtestfix20260205)",
+                    "pages": [
+                      "en/developer/plans/frontendtestfix20260205/task_plan",
+                      "en/developer/plans/frontendtestfix20260205/findings",
+                      "en/developer/plans/frontendtestfix20260205/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Queued Task Waiting Reason Hints and Retry (f3a9c2d8e1b7f4a0c6d1)",
+                    "pages": [
+                      "en/developer/plans/f3a9c2d8e1b7f4a0c6d1/task_plan",
+                      "en/developer/plans/f3a9c2d8e1b7f4a0c6d1/findings",
+                      "en/developer/plans/f3a9c2d8e1b7f4a0c6d1/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "UI card refresh + taskgroup cards (f39gmn6cmthygu02clmw)",
+                    "pages": [
+                      "en/developer/plans/f39gmn6cmthygu02clmw/task_plan",
+                      "en/developer/plans/f39gmn6cmthygu02clmw/findings",
+                      "en/developer/plans/f39gmn6cmthygu02clmw/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Migrate docs.json to Legacy Docs Site (dsim8xybp9oa18nz1gfq)",
+                    "pages": [
+                      "en/developer/plans/dsim8xybp9oa18nz1gfq/task_plan",
+                      "en/developer/plans/dsim8xybp9oa18nz1gfq/findings",
+                      "en/developer/plans/dsim8xybp9oa18nz1gfq/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Docs workflow + Mintlify navigation (docsworkflowapi20260121)",
+                    "pages": [
+                      "en/developer/plans/docsworkflowapi20260121/task_plan",
+                      "en/developer/plans/docsworkflowapi20260121/findings",
+                      "en/developer/plans/docsworkflowapi20260121/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Auto-update docs.json for plan sessions (docsjsonindex20260121)",
+                    "pages": [
+                      "en/developer/plans/docsjsonindex20260121/task_plan",
+                      "en/developer/plans/docsjsonindex20260121/findings",
+                      "en/developer/plans/docsjsonindex20260121/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Translate docs/en Markdown to English (docsentrans20260121)",
+                    "pages": [
+                      "en/developer/plans/docsentrans20260121/task_plan",
+                      "en/developer/plans/docsentrans20260121/findings",
+                      "en/developer/plans/docsentrans20260121/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Refactor realtime structured logs to ThoughtChain (djr800k3pf1hl98me7z5)",
+                    "pages": [
+                      "en/developer/plans/djr800k3pf1hl98me7z5/task_plan",
+                      "en/developer/plans/djr800k3pf1hl98me7z5/findings",
+                      "en/developer/plans/djr800k3pf1hl98me7z5/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Responsive audit for mobile/tablet (dhbg1plvf7lvamcpt546)",
+                    "pages": [
+                      "en/developer/plans/dhbg1plvf7lvamcpt546/task_plan",
+                      "en/developer/plans/dhbg1plvf7lvamcpt546/findings",
+                      "en/developer/plans/dhbg1plvf7lvamcpt546/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Investigate dev run missing file errors (dev-missing-file-20260201)",
+                    "pages": [
+                      "en/developer/plans/dev-missing-file-20260201/task_plan",
+                      "en/developer/plans/dev-missing-file-20260201/findings",
+                      "en/developer/plans/dev-missing-file-20260201/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Multi-language dependency management implementation (depmanimpl20260124)",
+                    "pages": [
+                      "en/developer/plans/depmanimpl20260124/task_plan",
+                      "en/developer/plans/depmanimpl20260124/findings",
+                      "en/developer/plans/depmanimpl20260124/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Multi-language dependency management docs (depman20260124)",
+                    "pages": [
+                      "en/developer/plans/depman20260124/task_plan",
+                      "en/developer/plans/depman20260124/findings",
+                      "en/developer/plans/depman20260124/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Dashboard chart: line + range filter (dashtrendline20260119m9v2)",
+                    "pages": [
+                      "en/developer/plans/dashtrendline20260119m9v2/task_plan",
+                      "en/developer/plans/dashtrendline20260119m9v2/findings",
+                      "en/developer/plans/dashtrendline20260119m9v2/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Reply to triggering webhook comment (commentreply20260122r9k2)",
+                    "pages": [
+                      "en/developer/plans/commentreply20260122r9k2/task_plan",
+                      "en/developer/plans/commentreply20260122r9k2/findings",
+                      "en/developer/plans/commentreply20260122r9k2/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix task-group workspace root path expansion (codexoutputdirfix20260205)",
+                    "pages": [
+                      "en/developer/plans/codexoutputdirfix20260205/task_plan",
+                      "en/developer/plans/codexoutputdirfix20260205/findings",
+                      "en/developer/plans/codexoutputdirfix20260205/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Relocate Codex output directory (codexoutputdir20260124)",
+                    "pages": [
+                      "en/developer/plans/codexoutputdir20260124/task_plan",
+                      "en/developer/plans/codexoutputdir20260124/findings",
+                      "en/developer/plans/codexoutputdir20260124/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Remove codex networkAccessEnabled config (codexnetaccess20260127)",
+                    "pages": [
+                      "en/developer/plans/codexnetaccess20260127/task_plan",
+                      "en/developer/plans/codexnetaccess20260127/findings",
+                      "en/developer/plans/codexnetaccess20260127/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Adapt Claude Code log display page to structured log format (claudecode-log-display20260123)",
+                    "pages": [
+                      "en/developer/plans/claudecode-log-display20260123/task_plan",
+                      "en/developer/plans/claudecode-log-display20260123/findings",
+                      "en/developer/plans/claudecode-log-display20260123/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Claude skills compatibility audit and fixes (claude-skills-audit-20260227)",
+                    "pages": [
+                      "en/developer/plans/claude-skills-audit-20260227/task_plan",
+                      "en/developer/plans/claude-skills-audit-20260227/findings",
+                      "en/developer/plans/claude-skills-audit-20260227/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Diagnose CI failures: node-pty build + TasksController DI (cierrtasklogs20260124)",
+                    "pages": [
+                      "en/developer/plans/cierrtasklogs20260124/task_plan",
+                      "en/developer/plans/cierrtasklogs20260124/findings",
+                      "en/developer/plans/cierrtasklogs20260124/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Hide non-error message status label (chat-message-status-20260305)",
+                    "pages": [
+                      "en/developer/plans/chat-message-status-20260305/task_plan",
+                      "en/developer/plans/chat-message-status-20260305/findings",
+                      "en/developer/plans/chat-message-status-20260305/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Optimize task-group structured log UI (c3ytvybx46880dhfqk7t)",
+                    "pages": [
+                      "en/developer/plans/c3ytvybx46880dhfqk7t/task_plan",
+                      "en/developer/plans/c3ytvybx46880dhfqk7t/findings",
+                      "en/developer/plans/c3ytvybx46880dhfqk7t/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Dynamic models by credential (b8fucnmey62u0muyn7i0)",
+                    "pages": [
+                      "en/developer/plans/b8fucnmey62u0muyn7i0/task_plan",
+                      "en/developer/plans/b8fucnmey62u0muyn7i0/findings",
+                      "en/developer/plans/b8fucnmey62u0muyn7i0/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Remove branches filter for issue triggers (b7x1k3m9p2r5t8n0q6s4)",
+                    "pages": [
+                      "en/developer/plans/b7x1k3m9p2r5t8n0q6s4/task_plan",
+                      "en/developer/plans/b7x1k3m9p2r5t8n0q6s4/findings",
+                      "en/developer/plans/b7x1k3m9p2r5t8n0q6s4/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task input actions menu + preview auto-start (b0lmcv9gkmu76vryzkjt)",
+                    "pages": [
+                      "en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan",
+                      "en/developer/plans/b0lmcv9gkmu76vryzkjt/findings",
+                      "en/developer/plans/b0lmcv9gkmu76vryzkjt/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Repo Task activity metrics show recent tasks (aw85xyfsp5zfg6ihq3jr)",
+                    "pages": [
+                      "en/developer/plans/aw85xyfsp5zfg6ihq3jr/task_plan",
+                      "en/developer/plans/aw85xyfsp5zfg6ihq3jr/findings",
+                      "en/developer/plans/aw85xyfsp5zfg6ihq3jr/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix automation disable timeWindow validation (automation-disable-20260204)",
+                    "pages": [
+                      "en/developer/plans/automation-disable-20260204/task_plan",
+                      "en/developer/plans/automation-disable-20260204/findings",
+                      "en/developer/plans/automation-disable-20260204/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix missing NestJS decorators (apiquery-fix-20260227)",
+                    "pages": [
+                      "en/developer/plans/apiquery-fix-20260227/task_plan",
+                      "en/developer/plans/apiquery-fix-20260227/findings",
+                      "en/developer/plans/apiquery-fix-20260227/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix account edit feature toggle unit test (account-edit-feature-toggle-test)",
+                    "pages": [
+                      "en/developer/plans/account-edit-feature-toggle-test/task_plan",
+                      "en/developer/plans/account-edit-feature-toggle-test/findings",
+                      "en/developer/plans/account-edit-feature-toggle-test/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Optimize dashboard polling for task APIs (7bqwou6abx4ste96ikhv)",
+                    "pages": [
+                      "en/developer/plans/7bqwou6abx4ste96ikhv/task_plan",
+                      "en/developer/plans/7bqwou6abx4ste96ikhv/findings",
+                      "en/developer/plans/7bqwou6abx4ste96ikhv/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "debug github push failure (6no1ytxesakul6daioji)",
+                    "pages": [
+                      "en/developer/plans/6no1ytxesakul6daioji/task_plan",
+                      "en/developer/plans/6no1ytxesakul6daioji/findings",
+                      "en/developer/plans/6no1ytxesakul6daioji/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "frontend repos onboarding wizard (58w1q3n5nr58flmempxe)",
+                    "pages": [
+                      "en/developer/plans/58w1q3n5nr58flmempxe/task_plan",
+                      "en/developer/plans/58w1q3n5nr58flmempxe/findings",
+                      "en/developer/plans/58w1q3n5nr58flmempxe/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Repo activity list UI redesign (4wrx55jmsm8z5fuqlfdc)",
+                    "pages": [
+                      "en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan",
+                      "en/developer/plans/4wrx55jmsm8z5fuqlfdc/findings",
+                      "en/developer/plans/4wrx55jmsm8z5fuqlfdc/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "credential list unify (4j0wbhcp2cpoyi8oefex)",
+                    "pages": [
+                      "en/developer/plans/4j0wbhcp2cpoyi8oefex/task_plan",
+                      "en/developer/plans/4j0wbhcp2cpoyi8oefex/findings",
+                      "en/developer/plans/4j0wbhcp2cpoyi8oefex/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "TaskGroup Dev preview Phase 2 build (3ldcl6h5d61xj2hsu6as)",
+                    "pages": [
+                      "en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan",
+                      "en/developer/plans/3ldcl6h5d61xj2hsu6as/findings",
+                      "en/developer/plans/3ldcl6h5d61xj2hsu6as/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Tasks List Page Redesign and Active Filter Status Surfacing (3iz4jx8bsy7q7d6b3jr3)",
+                    "pages": [
+                      "en/developer/plans/3iz4jx8bsy7q7d6b3jr3/task_plan",
+                      "en/developer/plans/3iz4jx8bsy7q7d6b3jr3/findings",
+                      "en/developer/plans/3iz4jx8bsy7q7d6b3jr3/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix task group chat 400 (2w8gp733clurvugsxkme)",
+                    "pages": [
+                      "en/developer/plans/2w8gp733clurvugsxkme/task_plan",
+                      "en/developer/plans/2w8gp733clurvugsxkme/findings",
+                      "en/developer/plans/2w8gp733clurvugsxkme/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "preview iframe sandbox and toolbar (2se7kgnqyp427d5nvoej)",
+                    "pages": [
+                      "en/developer/plans/2se7kgnqyp427d5nvoej/task_plan",
+                      "en/developer/plans/2se7kgnqyp427d5nvoej/findings",
+                      "en/developer/plans/2se7kgnqyp427d5nvoej/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Adjust preview layout for desktop and mobile (2gtiyjttzqy1dd3s4k1o)",
+                    "pages": [
+                      "en/developer/plans/2gtiyjttzqy1dd3s4k1o/task_plan",
+                      "en/developer/plans/2gtiyjttzqy1dd3s4k1o/findings",
+                      "en/developer/plans/2gtiyjttzqy1dd3s4k1o/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Prevent fork bypass + ensure upstream PR targeting (24yz61mdik7tqdgaa152)",
+                    "pages": [
+                      "en/developer/plans/24yz61mdik7tqdgaa152/task_plan",
+                      "en/developer/plans/24yz61mdik7tqdgaa152/findings",
+                      "en/developer/plans/24yz61mdik7tqdgaa152/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Preview layout + composer actions + preview indicator + auto-stop (1vm5eh8mg4zuc2m3wiy8)",
+                    "pages": [
+                      "en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan",
+                      "en/developer/plans/1vm5eh8mg4zuc2m3wiy8/findings",
+                      "en/developer/plans/1vm5eh8mg4zuc2m3wiy8/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix Live logs 404 in CI (0nazpc53wnvljv5yh7c6)",
+                    "pages": [
+                      "en/developer/plans/0nazpc53wnvljv5yh7c6/task_plan",
+                      "en/developer/plans/0nazpc53wnvljv5yh7c6/findings",
+                      "en/developer/plans/0nazpc53wnvljv5yh7c6/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Enforce planning-with-files in AGENTS.md (0lldjnbw5qxdhw4wwftz)",
+                    "pages": [
+                      "en/developer/plans/0lldjnbw5qxdhw4wwftz/task_plan",
+                      "en/developer/plans/0lldjnbw5qxdhw4wwftz/findings",
+                      "en/developer/plans/0lldjnbw5qxdhw4wwftz/progress"
+                    ],
+                    "expanded": false
+                  }
+                ]
+              }
             ]
-          }
-        ]
-      },
-      {
-        "tab": "api-reference",
-        "groups": [
+          },
           {
-            "group": "API Reference",
-            "pages": [
-              "en/api-reference/index",
-              "en/api-reference/auth-users",
-              "en/api-reference/repositories",
-              "en/api-reference/workers",
-              "en/api-reference/tasks-and-groups",
-              "en/api-reference/logs",
-              "en/api-reference/notifications",
-              "en/api-reference/webhooks-events-tools",
-              "en/api-reference/openapi"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "developer",
-        "groups": [
-          {
-            "group": "Developer",
-            "pages": [
-              "en/developer/index",
-              "en/developer/plans/index"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "change-log",
-        "groups": [
-          {
-            "group": "Changelog",
-            "pages": [
-              "en/change-log/index",
-              "en/change-log/0.0.0"
+            "tab": "change-log",
+            "groups": [
+              {
+                "group": "Changelog",
+                "pages": [
+                  "en/change-log/index",
+                  "en/change-log/0.0.0"
+                ]
+              }
             ]
           }
         ]

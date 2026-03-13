@@ -1,7 +1,6 @@
 # Task Plan: Compact git status card in task group dialog
 
-<!-- Define the implementation and verification phases for the compact git status interaction. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303 -->
-
+{/* Define the implementation and verification phases for the compact git status interaction. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303 */}
 ## Session Metadata
 - **Session Hash:** taskgroup-gitstatus-compact-20260303
 - **Created:** 2026-03-03

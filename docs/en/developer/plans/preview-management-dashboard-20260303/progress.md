@@ -1,6 +1,5 @@
 # Progress Log
-<!-- Record implementation and validation steps for preview management dashboard feature. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
-
+{/* Record implementation and validation steps for preview management dashboard feature. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 */}
 ## Session Metadata
 - **Session Title:** Add preview management dashboards for repo/admin + preview button state fix
 - **Session Hash:** preview-management-dashboard-20260303
@@ -113,7 +112,7 @@
 | What have I learned? | Runtime preview state can be safely managed from existing in-memory services |
 | What have I done? | Implemented backend+frontend features, added tests, passed full test suites |
 
-<!-- Track backend preview timeout hotfix actions and runtime verification. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+{/* Track backend preview timeout hotfix actions and runtime verification. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 */}
 ## Post-Delivery Hotfix: Backend Preview Startup Timeout (2026-03-03)
 - **Status:** complete
 - Actions taken:
@@ -128,7 +127,7 @@
 - Verification:
   - `env ... pnpm --dir backend exec nest start` with preview-like env started successfully and logged `[backend] listening on http://0.0.0.0:<PORT>`.
 
-<!-- Record compile-error hotfix after switching backend preview startup command. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+{/* Record compile-error hotfix after switching backend preview startup command. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 */}
 ## Post-Delivery Hotfix: Backend Preview Exited(1) TS7006 (2026-03-03)
 - **Status:** complete
 - Actions taken:
@@ -142,7 +141,7 @@
 - Verification:
   - `pnpm --dir backend exec tsc -p tsconfig.json --noEmit` passed.
 
-<!-- Record follow-up fixes for Prisma client generation and controller typing in preview startup. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+{/* Record follow-up fixes for Prisma client generation and controller typing in preview startup. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 */}
 ## Post-Delivery Hotfix: Backend Preview Exited(1) Prisma + TS7006 (2026-03-03)
 - **Status:** complete
 - Actions taken:
@@ -159,7 +158,7 @@
 - Verification:
   - `pnpm --dir backend exec tsc -p tsconfig.json --noEmit` passed.
 
-<!-- Record dependency command allowlist fix and admin-tools strict typing patch after new preview failures. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+{/* Record dependency command allowlist fix and admin-tools strict typing patch after new preview failures. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 */}
 ## Post-Delivery Hotfix: Frontend Missing React + Backend PrismaStudio TS7006 (2026-03-03)
 - **Status:** complete
 - Actions taken:
@@ -180,7 +179,7 @@
   - In the reported task-group workspace, `frontend/node_modules/react` and `backend/node_modules/@prisma/client` resolved after running the dependency install.
   - Confirmed the reported task-group workspace still contained older snapshots of `.hookcode.yml` and backend source files, so a new/updated task-group workspace is required to inherit repository-side fixes.
 
-<!-- Record transient DB ECONNRESET startup fix and validation after latest backend failure reports. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 -->
+{/* Record transient DB ECONNRESET startup fix and validation after latest backend failure reports. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303 */}
 ## Post-Delivery Hotfix: Backend Preview Exited(1) ECONNRESET During ensureSchema (2026-03-03)
 - **Status:** complete
 - Actions taken:

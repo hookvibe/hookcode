@@ -1,6 +1,5 @@
 # Progress Log
-<!-- Record the execution history for creating the root-level roadmap set. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313 -->
-
+{/* Record the execution history for creating the root-level roadmap set. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313 */}
 ## Session Metadata
 - **Session Title:** Create root-level feature roadmap plans
 - **Session Hash:** rootfeatureplans20260313

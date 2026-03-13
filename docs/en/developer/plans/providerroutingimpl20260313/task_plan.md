@@ -1,6 +1,5 @@
 # Task Plan: Implement provider routing and failover MVP
-<!-- Drive the provider-routing MVP implementation with explicit scope and traceability. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313 -->
-
+{/* Drive the provider-routing MVP implementation with explicit scope and traceability. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313 */}
 ## Session Metadata
 - **Session Hash:** providerroutingimpl20260313
 - **Created:** 2026-03-13

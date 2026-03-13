@@ -75,6 +75,7 @@ import { RuntimeService } from '../services/runtimeService';
 import { HookcodeConfigService } from '../services/hookcodeConfigService';
 import type { DependencyResult, HookcodeConfig, RobotDependencyConfig } from '../types/dependency';
 import { resolveBuildRoot, resolveTaskGroupWorkspaceRoot } from '../utils/workDir';
+import { resolveProviderRunConfig } from '../utils/providerRunConfig';
 import {
   buildProviderRoutingAttemptFailureLog,
   buildProviderRoutingAttemptStartLog,
@@ -1029,49 +1030,6 @@ export const resolveExecution = async (
   );
 };
 
-const resolveProviderRunConfig = (
-  provider: RoutedProviderKey,
-  rawConfig: unknown
-): {
-  provider: RoutedProviderKey;
-  normalized: any;
-  sandbox: 'read-only' | 'workspace-write';
-  networkAccess: boolean;
-  outputLastMessageFileName: string;
-} => {
-  // Normalize provider-specific execution settings per attempt so routing/failover can reuse one execution pipeline. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
-  if (provider === CODEX_PROVIDER_KEY) {
-    const normalized = normalizeCodexRobotProviderConfig(rawConfig);
-    return {
-      provider,
-      normalized,
-      sandbox: normalized.sandbox,
-      networkAccess: true,
-      outputLastMessageFileName: 'codex-output.txt'
-    };
-  }
-
-  if (provider === CLAUDE_CODE_PROVIDER_KEY) {
-    const normalized = normalizeClaudeCodeRobotProviderConfig(rawConfig);
-    return {
-      provider,
-      normalized,
-      sandbox: normalized.sandbox,
-      networkAccess: normalized.sandbox === 'workspace-write' && normalized.sandbox_workspace_write.network_access,
-      outputLastMessageFileName: 'claude-output.txt'
-    };
-  }
-
-  const normalized = normalizeGeminiCliRobotProviderConfig(rawConfig);
-  return {
-    provider,
-    normalized,
-    sandbox: normalized.sandbox,
-    networkAccess: normalized.sandbox === 'workspace-write' && normalized.sandbox_workspace_write.network_access,
-    outputLastMessageFileName: 'gemini-output.txt'
-  };
-};
-
 // Return git status alongside logs so downstream services can persist change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 async function callAgent(
   task: Task,
@@ -1966,7 +1924,8 @@ exit 0
           throw new Error(message);
         }
 
-        if (attempt.provider === CODEX_PROVIDER_KEY) {
+        // Narrow provider-specific execution config from the shared resolver before accessing provider-only fields. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+        if (runConfig.provider === CODEX_PROVIDER_KEY) {
           const outputSchema = await readCodexOutputSchema({ taskGroupDir, appendLog });
           const res = await runCodexExecWithSdk({
             repoDir,
@@ -1995,7 +1954,7 @@ exit 0
           });
           threadId = res.threadId;
           finalResponse = res.finalResponse;
-        } else if (attempt.provider === CLAUDE_CODE_PROVIDER_KEY) {
+        } else if (runConfig.provider === CLAUDE_CODE_PROVIDER_KEY) {
           const res = await runClaudeCodeExecWithSdk({
             repoDir,
             workspaceDir: taskGroupDir,

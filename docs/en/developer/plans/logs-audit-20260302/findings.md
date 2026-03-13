@@ -37,7 +37,7 @@
 | Provide `LogWriterService` with `logSystem/logOperation/logExecution` helpers | Gives a global logging API to keep future changes consistent and auditable. |
 | Use `EventStreamService` topic `logs` for SSE | Reuses existing SSE infrastructure and avoids new streaming stack. |
 | Admin-only access enforced in controller using `RepoAccessService.isAdmin` | Aligns with existing RBAC checks. |
-<!-- Document FK decision for audit logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+{/* Document FK decision for audit logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
 | Keep log foreign keys nullable without DB constraints | Preserve audit logs even when related records are deleted. |
 
 ## Audit Review Follow-ups

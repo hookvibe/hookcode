@@ -40,3 +40,4 @@
 @import './styles/settings-layout.css'; /* Settings page sidebar + content layout. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
 @import './styles/archive-sidebar.css'; /* Archive page sidebar + content layout. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301 */
 @import './styles/skills-sidebar.css'; /* Skills page sidebar + content layout. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301 */
+@import './styles/repo-robot-dry-run.css'; /* Style the repo robot playground dialog without growing RepoDetailPage inline CSS. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313 */

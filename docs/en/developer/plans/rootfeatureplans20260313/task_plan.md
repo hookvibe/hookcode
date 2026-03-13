@@ -1,6 +1,5 @@
 # Task Plan: Create root-level feature roadmap plans
-<!-- Keep this planning session aligned with the root-level roadmap files created for HookCode. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313 -->
-
+{/* Keep this planning session aligned with the root-level roadmap files created for HookCode. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313 */}
 ## Session Metadata
 - **Session Hash:** rootfeatureplans20260313
 - **Created:** 2026-03-13

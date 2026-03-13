@@ -1,7 +1,6 @@
 # Findings & Decisions: Compact git status card in task group dialog
 
-<!-- Capture discovery and decisions for compact-by-default git status rendering. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303 -->
-
+{/* Capture discovery and decisions for compact-by-default git status rendering. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303 */}
 ## Session Metadata
 - **Session Hash:** taskgroup-gitstatus-compact-20260303
 - **Created:** 2026-03-03

@@ -1,55 +1,150 @@
 ---
 name: file-context-planning
-description: Persistent file-based planning for Gemini CLI. Stores task_plan.md, findings.md, and progress.md under docs/en/developer/plans/<session-hash>/ for durable planning and traceability. Use this for multi-step tasks to maintain context over long conversations.
+version: "4.0.0"
+description: "Persistent file-based planning for Gemini CLI. Stores task_plan.md/findings.md/progress.md under docs/en/developer/plans/<session-hash>/ for durable planning, traceability, and long-running task continuity."
 ---
 
 # Planning with Files (Gemini)
 
-Work like Manus: Use persistent markdown files as your "working memory on disk."
+Work like Manus: use markdown files as persistent working memory on disk.
 
 ## What This Skill Does
 
-This skill provides a structured workflow for managing complex tasks by persisting state in markdown files.
+Use this skill for multi-step or long-running tasks where context can drift over time.
 
-To use this skill:
-1.  **Initialize a session:** Create a folder under `docs/en/developer/plans/<session-hash>/`.
-2.  **Plan first:** Fill `task_plan.md` before implementation.
-3.  **Trace changes:** Use the session hash in inline code comments.
-4.  **Log discoveries:** Continuously update `findings.md`.
+It provides a durable planning workflow based on:
+- `docs/en/developer/plans/<session-hash>/task_plan.md`
+- `docs/en/developer/plans/<session-hash>/findings.md`
+- `docs/en/developer/plans/<session-hash>/progress.md`
 
-## Operational Checklist
+## Core Workflow
 
-1.  **Start Session:** Determine the `SESSION_HASH` (or generate one).
-2.  **Initialize:** Run `bash .gemini/skills/file-context-planning/scripts/init-session.sh "<hash>" "<title>"`.
-3.  **Fill Plan:** Define goals and phases in `task_plan.md`.
-4.  **Work & Update:**
-    - Re-read `task_plan.md` before major decisions.
-    - Log discoveries in `findings.md`.
-    - Update phase status in `task_plan.md` and logs in `progress.md`.
-5.  **Traceability:** Add `// ... docs/en/developer/plans/<hash>/task_plan.md <hash>` to code.
-6.  **Finalize:** Update `docs/en/change-log/0.0.0.md`.
+1. Create or choose a stable `session-hash`.
+2. Initialize the session folder before implementation.
+3. Fill `task_plan.md` first.
+4. Re-read `task_plan.md` before major decisions.
+5. Log discoveries in `findings.md`.
+6. Log execution, tests, and errors in `progress.md`.
+7. Add the same session hash in changed code/doc comments for traceability.
+8. Update `docs/en/change-log/0.0.0.md` when the work is complete.
 
-## Directory Layout
+## Quick Start
 
-- **Skill Assets:** `.gemini/skills/file-context-planning/`
-- **Session Plans:** `docs/en/developer/plans/<session-hash>/`
+### Initialize a session
 
-## Scripts
+```bash
+bash .gemini/skills/file-context-planning/scripts/init-session.sh "<session-hash>" "<session-title>"
+```
 
-- `scripts/init-session.sh`: Initialize planning files.
-- `scripts/check-complete.sh`: Verify phase completion.
-- `scripts/append-changelog.sh`: Add entry to release notes.
+This creates:
+- `docs/en/developer/plans/<session-hash>/task_plan.md`
+- `docs/en/developer/plans/<session-hash>/findings.md`
+- `docs/en/developer/plans/<session-hash>/progress.md`
+
+If `docs/docs.json` exists, the script also attempts to sync Mintlify navigation so the new plan pages stay discoverable.
+
+### Rebuild plan navigation manually
+
+```bash
+bash .gemini/skills/file-context-planning/scripts/sync-docs-json-plans.sh
+```
+
+Use this when:
+- a session folder was created manually
+- you want to rebuild the plans navigation deterministically
+- `docs/docs.json` changed and you want to resync plan entries
+
+### Check whether all phases are complete
+
+```bash
+bash .gemini/skills/file-context-planning/scripts/check-complete.sh <session-hash>
+```
+
+### Append a changelog entry
+
+```bash
+printf '%s' "<one-line-summary>" | bash .gemini/skills/file-context-planning/scripts/append-changelog.sh "<session-hash>"
+```
+
+## Important Behavior
+
+### Docs navigation sync
+
+The shared sync script supports both:
+- legacy `navigation.tabs`
+- newer `navigation.languages[].tabs[]`
+
+If docs navigation is invalid, `init-session.sh` now warns but still keeps the planning files it created.
+
+### Mintlify-safe docs comments
+
+When editing markdown that Mintlify parses as MDX, avoid HTML comments like:
+
+```md
+<!-- comment -->
+```
+
+Prefer:
+
+```md
+{/* comment */}
+```
+
+### Grouped plan navigation
+
+The sync script writes grouped plan entries so each session appears as one collapsible navigation group containing:
+- `task_plan`
+- `findings`
+- `progress`
 
 ## Traceability Format
 
-**Format:** `<one sentence in English> <relative-plan-path> <session-hash>`
+Use this format in changed areas:
 
-Example:
-`// Add input validation for webhook payload. docs/en/developer/plans/sddsa89612jk4hbwas678/task_plan.md sddsa89612jk4hbwas678`
+`<one sentence in English> <relative-plan-path> <session-hash>`
 
-## Critical Rules
+Examples:
+- JS/TS: `// Add retry guard for provider fallback. docs/en/developer/plans/abcd1234/task_plan.md abcd1234`
+- Python/Shell/YAML: `# Document preview startup fallback. docs/en/developer/plans/abcd1234/task_plan.md abcd1234`
+- Markdown: `{/* Explain why this section changed. docs/en/developer/plans/abcd1234/task_plan.md abcd1234 */}`
 
-1.  **Plan Before Act:** Never start a complex task without a session folder.
-2.  **The 2-Action Rule:** Save findings after every 2 information-gathering steps.
-3.  **Read Before Decide:** Always re-read the plan before making major architectural choices.
-4.  **Log All Errors:** Every failure and its resolution must be recorded.
+## Required Habits
+
+### Plan before acting
+
+Do not start complex work without a session folder and a filled `task_plan.md`.
+
+### The 2-action rule
+
+After every 2 information-gathering actions, write key discoveries to `findings.md`.
+
+### Read before deciding
+
+Before major architecture or implementation decisions, re-read `task_plan.md`.
+
+### Log every error
+
+Record failures and resolutions in `progress.md` and summarize important ones in `task_plan.md`.
+
+### Do not repeat failed actions blindly
+
+If the same approach failed once, change the method before retrying.
+
+## Minimal Session Checklist
+
+- `task_plan.md` exists and has goal + phases
+- `findings.md` captures current discoveries
+- `progress.md` records implementation and test status
+- changed areas include the session hash
+- changelog updated before handoff
+
+## Resources
+
+- `scripts/init-session.sh`
+- `scripts/sync-docs-json-plans.sh`
+- `scripts/check-complete.sh`
+- `scripts/append-changelog.sh`
+- `templates/task_plan.md`
+- `templates/findings.md`
+- `templates/progress.md`
+- `reference.md`

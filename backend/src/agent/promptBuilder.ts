@@ -94,6 +94,42 @@ const normalizeGithubIssue = (issue: GithubIssue): NormalizedIssue => ({
   url: issue.html_url ?? undefined
 });
 
+const toFiniteNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return undefined;
+};
+
+// Fall back to webhook payload issue fields so dry-run previews still render issue variables without provider API fetches. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+const normalizeGitlabIssueFromPayload = (payload: any, fallbackIssueNumber?: number): NormalizedIssue | null => {
+  const issue = payload?.issue ?? payload?.object_attributes;
+  const number = toFiniteNumber(issue?.iid ?? payload?.object_attributes?.iid ?? fallbackIssueNumber);
+  const title = typeof issue?.title === 'string' ? issue.title : '';
+  if (!number && !title.trim()) return null;
+  return {
+    id: toFiniteNumber(issue?.id),
+    number: number ?? 0,
+    title,
+    body: typeof issue?.description === 'string' ? issue.description : undefined,
+    url: typeof issue?.web_url === 'string' ? issue.web_url : undefined
+  };
+};
+
+// Fall back to webhook payload issue fields so dry-run previews still render issue variables without provider API fetches. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+const normalizeGithubIssueFromPayload = (payload: any, fallbackIssueNumber?: number): NormalizedIssue | null => {
+  const issue = payload?.issue;
+  const number = toFiniteNumber(issue?.number ?? fallbackIssueNumber);
+  const title = typeof issue?.title === 'string' ? issue.title : '';
+  if (!number && !title.trim()) return null;
+  return {
+    id: toFiniteNumber(issue?.id),
+    number: number ?? 0,
+    title,
+    body: typeof issue?.body === 'string' ? issue.body : undefined,
+    url: typeof issue?.html_url === 'string' ? issue.html_url : undefined
+  };
+};
+
 const normalizeGithubComments = (comments: GithubIssueComment[]): NormalizedNote[] =>
   comments.map((c) => ({
     id: String(c.id),
@@ -435,12 +471,6 @@ export const buildPrompt = async (input: BuildPromptInput): Promise<PromptContex
         const projectId = getGitlabProjectId(input.task, input.payload);
         const taskIssueId = input.task.issueId;
 
-        const toFiniteNumber = (value: unknown): number | undefined => {
-          if (typeof value === 'number' && Number.isFinite(value)) return value;
-          if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
-          return undefined;
-        };
-
         const noteableType = input.payload?.object_attributes?.noteable_type;
         const hasNoteBody = typeof input.payload?.object_attributes?.note === 'string';
         const isIssueNoteHook = noteableType === 'Issue' || (hasNoteBody && Boolean(input.payload?.issue));
@@ -496,6 +526,11 @@ export const buildPrompt = async (input: BuildPromptInput): Promise<PromptContex
       }
     } catch (_err) {
       issueFetchFailed = true;
+      // Preserve payload-provided issue metadata when provider lookups are unavailable during dry-run or degraded webhook processing. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+      issue =
+        provider === 'gitlab'
+          ? normalizeGitlabIssueFromPayload(input.payload, input.task.issueId)
+          : normalizeGithubIssueFromPayload(input.payload, input.task.issueId);
     }
   }
 

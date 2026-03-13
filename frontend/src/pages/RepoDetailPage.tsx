@@ -29,6 +29,8 @@ import type {
   ModelProviderModelsResponse,
   ProviderRoutingConfig,
   RepoAutomationConfig,
+  RepoRobotDryRunDraftRequest,
+  RepoRobotDryRunMode,
   RepoRobot,
   RepoPreviewEnvConfigPublic, // Track repo preview env config types for the env tab. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
   RepoScopedCredentialsPublic,
@@ -104,6 +106,7 @@ import { RepoTaskGroupsCard } from '../components/repos/RepoTaskGroupsCard'; // 
 import { ModelProviderModelsButton } from '../components/ModelProviderModelsButton';
 import { RepoDetailProviderActivityRow } from '../components/repos/RepoDetailProviderActivityRow';
 import { RepoEnvConfigPanel } from '../components/repos/RepoEnvConfigPanel'; // Render repo preview env editor panel. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
+import { RepoRobotDryRunDialog } from '../components/repos/RepoRobotDryRunDialog';
 import { TimeWindowPicker } from '../components/TimeWindowPicker';
 import { formatWorkerOptionLabel } from '../utils/workers';
 import { uuid as generateUuid } from '../components/repoAutomation/utils';
@@ -417,6 +420,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
   const [robotWorkflowTestingId, setRobotWorkflowTestingId] = useState<string | null>(null);
   const [robotTogglingId, setRobotTogglingId] = useState<string | null>(null);
   const [robotDeletingId, setRobotDeletingId] = useState<string | null>(null);
+  const [robotDryRunOpen, setRobotDryRunOpen] = useState(false);
+  const [robotDryRunMode, setRobotDryRunMode] = useState<RepoRobotDryRunMode>('render_only');
 
   const [userModelCredentials, setUserModelCredentials] = useState<UserModelCredentialsPublic | null>(null);
   const [userModelCredentialsLoading, setUserModelCredentialsLoading] = useState(false);
@@ -1758,6 +1763,108 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     [editingRobot, message, repo, repoReadOnly, robotForm, t]
   );
 
+  // Convert the current robot editor draft into the dry-run API shape so previews match unsaved form changes. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+  const buildRobotDryRunDraft = useCallback((): RepoRobotDryRunDraftRequest => {
+    const values = robotForm.getFieldsValue(true) as RobotFormValues;
+    const cfg = (values.modelProviderConfig ?? {}) as any;
+    const credentialSource = normalizeCredentialSource(cfg?.credentialSource);
+    const normalizedModelProvider = (() => {
+      const raw = String(values.modelProvider ?? '').trim();
+      if (raw === 'claude_code') return 'claude_code';
+      if (raw === 'gemini_cli') return 'gemini_cli';
+      return 'codex';
+    })();
+    const isCodex = normalizedModelProvider === 'codex';
+    const editingRobotHasApiKey = Boolean(
+      editingRobot &&
+        String(editingRobot.modelProvider ?? '').trim() === normalizedModelProvider &&
+        (editingRobot.modelProviderConfig as any)?.credential?.hasApiKey
+    );
+    const apiBaseUrl =
+      credentialSource === 'robot' && typeof cfg?.credential?.apiBaseUrl === 'string' ? cfg.credential.apiBaseUrl.trim() : '';
+    const modelCredentialRemark =
+      credentialSource === 'robot' && typeof cfg?.credential?.remark === 'string' ? cfg.credential.remark.trim() : '';
+    const apiKey =
+      credentialSource === 'robot' && typeof cfg?.credential?.apiKey === 'string' ? cfg.credential.apiKey.trim() : '';
+    const shouldSendModelApiKey =
+      credentialSource === 'robot' && (!editingRobot || robotChangingModelApiKey || !editingRobotHasApiKey);
+    const routingMode = normalizeRoutingMode(cfg?.routingConfig?.mode);
+    const fallbackProviderRaw = String(cfg?.routingConfig?.fallbackProvider ?? '').trim();
+    const fallbackProvider =
+      fallbackProviderRaw && fallbackProviderRaw !== normalizedModelProvider ? fallbackProviderRaw : undefined;
+    const failoverPolicy =
+      fallbackProvider && normalizeFailoverPolicy(cfg?.routingConfig?.failoverPolicy) === 'fallback_provider_once'
+        ? 'fallback_provider_once'
+        : 'disabled';
+
+    return {
+      name: typeof values.name === 'string' ? values.name.trim() : '',
+      promptDefault: typeof values.promptDefault === 'string' ? values.promptDefault : '',
+      language: typeof values.language === 'string' ? values.language.trim() : locale,
+      permission: editingRobot?.permission ?? 'read',
+      modelProvider: normalizedModelProvider,
+      modelProviderConfig: isCodex
+        ? {
+            credentialSource,
+            credentialProfileId:
+              credentialSource === 'robot'
+                ? undefined
+                : typeof cfg?.credentialProfileId === 'string' && cfg.credentialProfileId.trim()
+                  ? cfg.credentialProfileId.trim()
+                  : undefined,
+            credential:
+              credentialSource === 'robot'
+                ? {
+                    apiBaseUrl: apiBaseUrl || undefined,
+                    remark: modelCredentialRemark || undefined,
+                    ...(shouldSendModelApiKey ? { apiKey: apiKey || undefined } : {})
+                  }
+                : undefined,
+            model: cfg?.model,
+            sandbox: normalizeCodexSandbox(cfg?.sandbox),
+            model_reasoning_effort: normalizeCodexReasoningEffort(cfg?.model_reasoning_effort),
+            routingConfig: {
+              mode: routingMode,
+              fallbackProvider,
+              failoverPolicy
+            }
+          }
+        : {
+            credentialSource,
+            credentialProfileId:
+              credentialSource === 'robot'
+                ? undefined
+                : typeof cfg?.credentialProfileId === 'string' && cfg.credentialProfileId.trim()
+                  ? cfg.credentialProfileId.trim()
+                  : undefined,
+            credential:
+              credentialSource === 'robot'
+                ? {
+                    apiBaseUrl: apiBaseUrl || undefined,
+                    remark: modelCredentialRemark || undefined,
+                    ...(shouldSendModelApiKey ? { apiKey: apiKey || undefined } : {})
+                  }
+                : undefined,
+            model: String(cfg?.model ?? '').trim(),
+            sandbox: normalizeCodexSandbox(cfg?.sandbox),
+            sandbox_workspace_write: {
+              network_access:
+                normalizeCodexSandbox(cfg?.sandbox) === 'workspace-write' && Boolean(cfg?.sandbox_workspace_write?.network_access)
+            },
+            routingConfig: {
+              mode: routingMode,
+              fallbackProvider,
+              failoverPolicy
+            }
+          }
+    };
+  }, [editingRobot, locale, robotChangingModelApiKey, robotForm]);
+
+  const openRobotDryRun = useCallback((nextMode: RepoRobotDryRunMode) => {
+    setRobotDryRunMode(nextMode);
+    setRobotDryRunOpen(true);
+  }, []);
+
   const handleToggleRobotEnabled = useCallback(
     async (robot: RepoRobot) => {
       if (!repo || repoReadOnly) return; // Block enable/disable mutations for read-only repos. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
@@ -2901,6 +3008,11 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
             >
               <TemplateEditor rows={10} placeholder={t('repos.robotForm.promptPlaceholder')} />
             </Form.Item>
+            <Space wrap>
+              {/* Open the robot playground from the prompt section so users can validate unsaved drafts in place. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313 */}
+              <Button onClick={() => openRobotDryRun('render_only')}>{t('repos.robotDryRun.openRender')}</Button>
+              <Button onClick={() => openRobotDryRun('execute_no_side_effect')}>{t('repos.robotDryRun.openExecute')}</Button>
+            </Space>
           </Card>
 
           <div style={{ height: 12 }} />
@@ -3503,6 +3615,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
           </Card>
         </Form>
       </ResponsiveDialog>
+
+      <RepoRobotDryRunDialog
+        open={robotDryRunOpen}
+        repoId={repoId}
+        robotId={editingRobot?.id ?? null}
+        defaultMode={robotDryRunMode}
+        onCancel={() => setRobotDryRunOpen(false)}
+        buildDraft={buildRobotDryRunDraft}
+      />
     </>
   );
 };

@@ -37,11 +37,11 @@
   - Added settings log UI tab, types, and API client.
   - Updated AGENTS.md logging rule and API docs.
   - Added backend/frontend tests for logs.
-  <!-- Record added business-event logging work. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+  {/* Record added business-event logging work. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
   - Added repo/user business event logging (repos, robots, invites, automation, account/token events).
   - Extended log API docs with schema + common event codes.
   - Updated unit/integration tests to inject LogWriterService and assert audit log calls.
-  <!-- Record audit follow-up fixes. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+  {/* Record audit follow-up fixes. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
   - Fixed `.gitignore` to include logs module files in version control.
   - Added throttled error reporting in LogWriterService and failure-only audit logging.
   - Added retention batch deletion and configurable `LOG_RETENTION_DAYS`.
@@ -84,7 +84,7 @@
   - `docs/en/api-reference/index.md`
   - `docs/en/api-reference/logs.md`
   - `docs/docs.json`
-  <!-- Track additional files touched for business-event logging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+  {/* Track additional files touched for business-event logging. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
   - `.gitignore`
   - `backend/src/modules/logs/log-writer.service.ts`
   - `backend/src/modules/logs/audit-log.interceptor.ts`
@@ -113,14 +113,14 @@
 ### Phase 5: Delivery
 - **Status:** complete
 - Actions taken:
-  <!-- Record delivery completion details. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+  {/* Record delivery completion details. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
   - Updated changelog entry and finalized summary.
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | Full test suite | `pnpm test` | All tests pass | Backend: 91 suites / 371 tests pass; Frontend: 30 files / 151 tests pass | ✓ |
-<!-- Record post-change test status. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+{/* Record post-change test status. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
 | Post-change verification | Not run (changes after previous run) | N/A | Not run | ⚠ |
 
 ## Error Log
