@@ -10,6 +10,7 @@ import { NotificationRecipientService } from '../notifications/notification-reci
 import { TASK_MANUAL_STOP_MESSAGE } from './task-control.constants';
 import { WorkersConnectionService } from '../workers/workers-connection.service';
 import { WorkersService } from '../workers/workers.service';
+import { normalizeBudgetExecutionOverride } from '../../costGovernance/types';
 
 export interface TaskRunnerFinishInfo {
   status: TaskStatus;
@@ -31,7 +32,8 @@ export interface TaskRunnerHooks {
  */
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-type TaskAbortReason = 'manual_stop' | 'deleted';
+type TaskAbortReason = 'manual_stop' | 'deleted' | 'runtime_limit';
+const TASK_RUNTIME_LIMIT_MESSAGE = 'Task stopped after reaching the configured runtime limit.';
 
 // Poll task control state so workers can stop running tasks without a resumable paused state. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
 const TASK_CONTROL_POLL_INTERVAL_MS = 2000;
@@ -372,6 +374,7 @@ export class TaskRunner {
 
     let abortReason: TaskAbortReason | null = null;
     const abortController = new AbortController();
+    let runtimeLimitTimer: NodeJS.Timeout | null = null;
     const requestAbort = (reason: TaskAbortReason) => {
       if (abortController.signal.aborted) return;
       abortReason = reason;
@@ -390,6 +393,11 @@ export class TaskRunner {
         });
       } catch (err) {
         console.warn('[taskRunner] pre-run outputText reset failed', task.id, err);
+      }
+
+      const executionOverride = normalizeBudgetExecutionOverride(task.result?.costGovernance?.executionOverride);
+      if (executionOverride?.maxRuntimeSeconds && executionOverride.maxRuntimeSeconds > 0) {
+        runtimeLimitTimer = setTimeout(() => requestAbort('runtime_limit'), executionOverride.maxRuntimeSeconds * 1000);
       }
 
       // Persist git status alongside logs/output so the UI can display change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
@@ -433,7 +441,41 @@ export class TaskRunner {
         abortReason = 'manual_stop';
       }
 
-      if (abortReason === 'manual_stop') {
+      const resolvedAbortReason = String(abortReason ?? '') as TaskAbortReason | '';
+
+      if (resolvedAbortReason === 'runtime_limit') {
+        await this.finalizeWithRetry(task.id, 'failed', {
+          message: TASK_RUNTIME_LIMIT_MESSAGE,
+          providerCommentUrl,
+          gitStatus,
+          providerRouting
+        });
+        void this.logWriter.logExecution({
+          level: 'warn',
+          message: TASK_RUNTIME_LIMIT_MESSAGE,
+          code: 'TASK_RUNTIME_LIMIT',
+          repoId: task.repoId,
+          taskId: task.id,
+          taskGroupId: task.groupId,
+          meta: { durationMs: Date.now() - startedAt, retries: task.retries }
+        });
+        void this.emitTaskNotification(task, {
+          type: 'TASK_FAILED',
+          level: 'warn',
+          message: `Task failed: ${buildTaskLabel(task)}`,
+          code: 'TASK_RUNTIME_LIMIT',
+          meta: { durationMs: Date.now() - startedAt, retries: task.retries }
+        });
+        await this.runHookFinish(task, {
+          status: 'failed',
+          message: TASK_RUNTIME_LIMIT_MESSAGE,
+          providerCommentUrl,
+          durationMs: Date.now() - startedAt
+        });
+        return;
+      }
+
+      if (resolvedAbortReason === 'manual_stop') {
         // Finalize manual stops as failures so the queue has no resumable paused branch. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
         await this.finalizeWithRetry(task.id, 'failed', {
           message: TASK_MANUAL_STOP_MESSAGE,
@@ -468,7 +510,7 @@ export class TaskRunner {
         return;
       }
 
-      if (abortReason === 'deleted') {
+      if (resolvedAbortReason === 'deleted') {
         console.warn('[taskRunner] task removed during execution; skip finalize', task.id);
         // Capture delete interruptions as error-level execution logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
         void this.logWriter.logExecution({
@@ -525,6 +567,7 @@ export class TaskRunner {
         durationMs: Date.now() - startedAt
       });
     } finally {
+      if (runtimeLimitTimer) clearTimeout(runtimeLimitTimer);
       stopControlPolling();
     }
   }

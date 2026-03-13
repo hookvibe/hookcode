@@ -142,6 +142,7 @@ export const zhCNRepos = {
   'repos.detail.tabs.overview': '概览',
   'repos.detail.tabs.skills': '技能',
   'repos.detail.tabs.members': '成员',
+  'repos.detail.tabs.costs': '成本治理',
   // Add sidebar label for task-group API tokens tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
   'repos.detail.tabs.taskGroupTokens': '任务组 API 令牌',
   'repos.detail.tabs.settings': '设置',
@@ -161,6 +162,9 @@ export const zhCNRepos = {
   'repos.detail.credentials.modelProviderStatus': '状态',
   'repos.detail.credentials.codexApiKeyRequired': '请输入 API Key',
   'repos.detail.credentials.claudeCodeApiKeyRequired': '请输入 API Key',
+  'repos.costs.summaryTitle': '仓库成本汇总',
+  'repos.costs.summaryDesc': '查看最近 30 天的仓库用量、机器人成本排行、预算策略和配额事件。',
+  'repos.costs.robotRankingTitle': '机器人成本排行',
 
   // --- Repo detail (preview env tab) ---
   // Preview env injection copy. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302

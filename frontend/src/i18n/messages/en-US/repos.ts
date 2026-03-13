@@ -143,6 +143,7 @@ export const enUSRepos = {
   'repos.detail.tabs.overview': 'Overview',
   'repos.detail.tabs.skills': 'Skills',
   'repos.detail.tabs.members': 'Members',
+  'repos.detail.tabs.costs': 'Costs',
   // Add sidebar label for task-group API tokens tab. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
   'repos.detail.tabs.taskGroupTokens': 'Task-group API tokens',
   'repos.detail.tabs.settings': 'Settings',
@@ -162,6 +163,9 @@ export const enUSRepos = {
   'repos.detail.credentials.modelProviderStatus': 'Status',
   'repos.detail.credentials.codexApiKeyRequired': 'Please enter API key',
   'repos.detail.credentials.claudeCodeApiKeyRequired': 'Please enter API key',
+  'repos.costs.summaryTitle': 'Repository cost summary',
+  'repos.costs.summaryDesc': 'Inspect the last 30 days of repository usage, robot ranking, budget policy, and quota events.',
+  'repos.costs.robotRankingTitle': 'Robot cost ranking',
 
   // --- Repo detail (preview env tab) ---
   // Copy for preview env injection UI. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302

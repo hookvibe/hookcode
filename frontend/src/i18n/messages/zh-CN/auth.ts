@@ -136,6 +136,8 @@ export const zhCNAuth = {
   'toast.apiTokens.saveFailed': '保存 API 令牌失败',
   'toast.apiTokens.copySuccess': '令牌已复制',
   'toast.apiTokens.copyFailed': '复制失败',
+  'toast.budgets.saved': '预算策略已保存',
+  'toast.budgets.saveFailed': '保存预算策略失败',
 
   // Add repo URL create fields + onboarding wizard copy. 58w1q3n5nr58flmempxe
 } as const;

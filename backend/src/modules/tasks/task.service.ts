@@ -25,6 +25,9 @@ import { WorkersService } from '../workers/workers.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
 import { ApprovalQueueService } from '../../policyEngine/approvalQueue.service';
 import { PolicyEngineService } from '../../policyEngine/policyEngine.service';
+import { QuotaEnforcerService } from '../../costGovernance/quotaEnforcer.service';
+import { UsageAggregationService } from '../../costGovernance/usageAggregation.service';
+import { BudgetService } from '../../costGovernance/budget.service';
 import {
   TASK_MANUAL_STOP_MESSAGE,
   TASK_MANUAL_STOP_REASON,
@@ -267,6 +270,8 @@ type TaskGroupBinding = {
 type TaskGroupEventReason = 'created' | 'status';
 
 const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 // Define the SSE event name for task-group timeline refresh pushes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
 const TASK_GROUP_EVENT_NAME = 'task-group.refresh';
@@ -371,7 +376,10 @@ export class TaskService {
     private readonly notificationRecipients?: NotificationRecipientService,
     private readonly workersService?: WorkersService,
     private readonly policyEngine?: PolicyEngineService,
-    private readonly approvalQueue?: ApprovalQueueService
+    private readonly approvalQueue?: ApprovalQueueService,
+    private readonly quotaEnforcer?: QuotaEnforcerService,
+    private readonly usageAggregationService?: UsageAggregationService,
+    private readonly budgetService?: BudgetService
   ) {}
 
   private runningTaskGroupLogState = { lastLogAt: 0, lastCount: -1 }; // Throttle running-task group audit logs to avoid sidebar poll spam. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
@@ -732,6 +740,107 @@ export class TaskService {
     return task;
   }
 
+  private async applyCostGovernanceGate(task: Task): Promise<Task> {
+    if (!this.quotaEnforcer) return task;
+    const evaluation = await this.quotaEnforcer.evaluateTask(task);
+    if (!evaluation) return task;
+
+    const currentGovernance = isRecord(task.result) ? task.result.costGovernance : undefined;
+    const unchanged = JSON.stringify(currentGovernance ?? null) === JSON.stringify(evaluation);
+    const basePatch: Partial<TaskResult> = { costGovernance: evaluation };
+
+    const recordQuotaEvent = async (eventType: 'warning' | 'blocked' | 'approval_required' | 'degrade_applied') => {
+      if (!this.budgetService || unchanged) return;
+      try {
+        await this.budgetService.recordQuotaEvent({
+          budgetPolicyId: evaluation.matchedPolicyId,
+          taskId: task.id,
+          repoId: task.repoId,
+          robotId: task.robotId,
+          actorUserId: task.actorUserId,
+          scopeType: evaluation.matchedScopeType,
+          scopeId: evaluation.matchedScopeId,
+          eventType,
+          decision: evaluation.decision,
+          message: evaluation.summary || '',
+          details: {
+            exceeded: evaluation.exceeded,
+            warnings: evaluation.warnings,
+            executionOverride: evaluation.executionOverride
+          }
+        });
+      } catch (err) {
+        console.warn('[tasks] record quota event failed (ignored)', { taskId: task.id, error: err });
+      }
+    };
+
+    if (evaluation.decision === 'deny') {
+      await recordQuotaEvent('blocked');
+      return (
+        (await this.patchResult(
+          task.id,
+          {
+            ...basePatch,
+            message: evaluation.summary
+          },
+          'failed'
+        )) ?? {
+          ...task,
+          status: 'failed',
+          result: { ...task.result, ...basePatch, message: evaluation.summary }
+        }
+      );
+    }
+
+    if (evaluation.decision === 'require_approval' && this.approvalQueue) {
+      await recordQuotaEvent('approval_required');
+      await this.approvalQueue.enqueueApproval({
+        taskId: task.id,
+        repoId: task.repoId,
+        robotId: task.robotId,
+        actorUserId: task.actorUserId,
+        evaluation: await this.quotaEnforcer.toApprovalEvaluation(task, evaluation)
+      });
+      return (
+        (await this.getTask(task.id)) ?? {
+          ...task,
+          status: 'waiting_approval',
+          result: { ...task.result, ...basePatch, message: evaluation.summary }
+        }
+      );
+    }
+
+    if (evaluation.decision === 'degrade') {
+      await recordQuotaEvent('degrade_applied');
+      return (
+        (await this.patchResult(task.id, {
+          ...basePatch,
+          message: evaluation.summary
+        })) ?? { ...task, result: { ...task.result, ...basePatch, message: evaluation.summary } }
+      );
+    }
+
+    if (evaluation.decision === 'allow_with_warning') {
+      await recordQuotaEvent('warning');
+      return (
+        (await this.patchResult(task.id, {
+          ...basePatch,
+          message: evaluation.summary
+        })) ?? { ...task, result: { ...task.result, ...basePatch, message: evaluation.summary } }
+      );
+    }
+
+    return (
+      (await this.patchResult(task.id, basePatch)) ?? { ...task, result: { ...task.result, ...basePatch } }
+    );
+  }
+
+  private async applyTaskGuards(task: Task): Promise<Task> {
+    const costGoverned = await this.applyCostGovernanceGate(task);
+    if (costGoverned.status !== 'queued') return costGoverned;
+    return this.applyPolicyGate(costGoverned);
+  }
+
   private async attachGroupMeta(groups: TaskGroupWithMeta[]): Promise<TaskGroupWithMeta[]> {
     type RepoMetaRow = { id: string; provider: string; name: string; enabled: boolean };
     type RobotMetaRow = { id: string; repoId: string; name: string; permission: string; enabled: boolean };
@@ -869,7 +978,7 @@ export class TaskService {
         updatedAt: now
       }
     });
-    const task = await this.applyPolicyGate(taskRecordToTask(created));
+    const task = await this.applyTaskGuards(taskRecordToTask(created));
     // Push task-group refresh events for new tasks. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
     void this.emitTaskGroupUpdate(task, 'created');
     return task;
@@ -953,7 +1062,7 @@ export class TaskService {
         updatedAt: now
       }
     });
-    const task = await this.applyPolicyGate(taskRecordToTask(created));
+    const task = await this.applyTaskGuards(taskRecordToTask(created));
     // Push task-group refresh events for group-bound tasks. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
     void this.emitTaskGroupUpdate(task, 'created');
     return task;
@@ -1701,6 +1810,15 @@ export class TaskService {
     `;
 
     const task = rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+    if (task && status && this.usageAggregationService) {
+      if (status === 'succeeded' || status === 'failed' || status === 'commented') {
+        try {
+          await this.usageAggregationService.syncTaskRollups(task.id);
+        } catch (err) {
+          console.warn('[tasks] sync usage rollups failed (ignored)', { taskId: task.id, error: err });
+        }
+      }
+    }
     if (task && status) {
       // Broadcast status-driven task-group updates to active chat sessions. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
       void this.emitTaskGroupUpdate(task, 'status');
@@ -1737,7 +1855,14 @@ export class TaskService {
         WHERE id = ${id}
         RETURNING *;
       `;
-      const task = rows?.[0] ? await this.applyPolicyGate(rowToTaskFromSql(rows[0])) : undefined;
+      if (rows?.[0] && this.usageAggregationService) {
+        try {
+          await this.usageAggregationService.clearTaskRollups(String(rows[0].id));
+        } catch (err) {
+          console.warn('[tasks] clear usage rollups failed (ignored)', { taskId: String(rows[0].id), error: err });
+        }
+      }
+      const task = rows?.[0] ? await this.applyTaskGuards(rowToTaskFromSql(rows[0])) : undefined;
       if (!task) return undefined;
       // Notify chat clients about retry status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
       void this.emitTaskGroupUpdate(task, 'status');
@@ -1820,7 +1945,7 @@ export class TaskService {
         updatedAt: new Date()
       }
     });
-    const task = await this.applyPolicyGate(taskRecordToTask(row));
+    const task = await this.applyTaskGuards(taskRecordToTask(row));
     void this.emitTaskGroupUpdate(task, 'status');
     return task;
   }
@@ -1941,7 +2066,9 @@ export class TaskService {
     const now = new Date();
     for (const row of candidates) {
       const task = rowToTaskFromSql(row);
-      const scheduleState = resolveScheduleState(task.payload, now);
+      const guardedTask = await this.applyTaskGuards(task);
+      if (guardedTask.status !== 'queued') continue;
+      const scheduleState = resolveScheduleState(guardedTask.payload, now);
       if (scheduleState.blocked) continue;
 
       try {

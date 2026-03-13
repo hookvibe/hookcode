@@ -32,6 +32,7 @@ import {
   BellOutlined,
   EyeOutlined,
   DeploymentUnitOutlined,
+  DollarOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useT } from '../../i18n';
@@ -75,6 +76,7 @@ const SETTINGS_NAV_GROUPS: NavGroup[] = [
     titleKey: 'panel.nav.group.preferences',
     items: [
       { key: 'approvals', icon: <SafetyCertificateOutlined />, labelKey: 'panel.tabs.approvals' },
+      { key: 'costs', icon: <DollarOutlined />, labelKey: 'panel.tabs.costs' },
       // Add notifications tab next to logs in settings navigation. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
       { key: 'notifications', icon: <BellOutlined />, labelKey: 'panel.tabs.notifications' },
       // Add preview management navigation for admin users in settings. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303

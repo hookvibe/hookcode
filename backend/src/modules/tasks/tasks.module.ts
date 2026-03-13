@@ -23,6 +23,7 @@ import { PreviewHostProxyService } from './preview-host-proxy.service';
 import { PreviewHighlightService } from './preview-highlight.service';
 import { ApprovalQueueService } from '../../policyEngine/approvalQueue.service';
 import { PolicyEngineService } from '../../policyEngine/policyEngine.service';
+import { CostGovernanceModule } from '../../costGovernance/costGovernance.module';
 
 @Module({
   // Import AuthModule so PreviewWsProxyService can validate tokens. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -42,7 +43,9 @@ import { PolicyEngineService } from '../../policyEngine/policyEngine.service';
     // Resolve worker registry/services while routing queued tasks to external executors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     WorkersModule,
     // Wire the policy engine so task creation can require approval before execution. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
-    PolicyEngineModule
+    PolicyEngineModule,
+    // Wire cost governance so task creation/start can enforce budgets and sync usage rollups. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+    CostGovernanceModule
   ],
   // Register git push service for task-level push actions. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   providers: [

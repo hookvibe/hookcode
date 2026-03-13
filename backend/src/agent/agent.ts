@@ -34,6 +34,8 @@ import {
   normalizeGeminiCliRobotProviderConfig,
   runGeminiCliExecWithCli
 } from '../modelProviders/geminiCli';
+import { applyBudgetExecutionOverride } from '../costGovernance/executionOverride';
+import { normalizeBudgetExecutionOverride } from '../costGovernance/types';
 import { isTaskLogsDbEnabled } from '../config/features';
 import { isTruthy } from '../utils/env';
 import type { UserModelCredentials } from '../modules/users/user.service';
@@ -1782,7 +1784,14 @@ exit 0
       await appendLog(`Unsupported model provider: ${modelProvider || '<empty>'}`);
       throw new Error(`unsupported model provider: ${modelProvider || '<empty>'}`);
     }
-    const primaryProvider = modelProvider as RoutedProviderKey;
+    const taskExecutionOverride = normalizeBudgetExecutionOverride(task.result?.costGovernance?.executionOverride);
+    const resolvedExecutionPlan = applyBudgetExecutionOverride({
+      primaryProvider: modelProvider as RoutedProviderKey,
+      primaryConfigRaw: execution.robot.modelProviderConfigRaw,
+      override: taskExecutionOverride
+    });
+    const primaryProvider = resolvedExecutionPlan.provider;
+    const primaryConfigRaw = resolvedExecutionPlan.configRaw;
 
     const persistProviderRouting = async () => {
       if (!providerRouting) return;
@@ -1808,9 +1817,22 @@ exit 0
     // Prepend enabled skill prompt text before the main task prompt. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
     const skillPromptPrefix = await buildSkillPromptPrefix(appendLog, taskGroupId);
     const promptBase = `${skillPromptPrefix}${promptCtx.body}`;
+    if (taskExecutionOverride) {
+      const overrideParts = [
+        taskExecutionOverride.provider ? `provider=${taskExecutionOverride.provider}` : '',
+        taskExecutionOverride.model ? `model=${taskExecutionOverride.model}` : '',
+        taskExecutionOverride.forceReadOnly ? 'sandbox=read-only' : '',
+        taskExecutionOverride.maxRuntimeSeconds ? `maxRuntimeSeconds=${taskExecutionOverride.maxRuntimeSeconds}` : ''
+      ]
+        .filter(Boolean)
+        .join(', ');
+      if (overrideParts) {
+        await appendLog(`Applying cost-governance execution override: ${overrideParts}`);
+      }
+    }
     const routingPlan = await buildProviderRoutingPlan({
       primaryProvider,
-      primaryConfigRaw: execution.robot.modelProviderConfigRaw,
+      primaryConfigRaw,
       userCredentials: execution.userCredentials,
       repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
     });

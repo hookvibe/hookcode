@@ -84,6 +84,7 @@ import { NotificationsPopover } from '../components/notifications/NotificationsP
 import { SettingsPreviewPanel } from '../components/settings/SettingsPreviewPanel';
 import { SettingsWebhookDebugPanel } from '../components/settings/SettingsWebhookDebugPanel';
 import { SettingsWorkersPanel } from '../components/settings/SettingsWorkersPanel';
+import { CostGovernanceDashboard } from '../components/costs/CostGovernanceDashboard';
 // Keep both notifications and preview settings components available after branch sync. docs/en/developer/plans/sync-main-dev-20260303/task_plan.md sync-main-dev-20260303
 import { buildHomeHash, type SettingsTab } from '../router';
 
@@ -177,6 +178,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
   const [runtimesLoading, setRuntimesLoading] = useState(false);
   const [runtimesDetectedAt, setRuntimesDetectedAt] = useState<string | null>(null);
+  const [costsReloadToken, setCostsReloadToken] = useState(0);
 
   const [repoProfileFormOpen, setRepoProfileFormOpen] = useState(false);
   const [repoProfileProvider, setRepoProfileProvider] = useState<ProviderKey>('gitlab');
@@ -203,6 +205,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const canUseAccountApis = Boolean(token);
   // Gate admin-only settings tabs (logs) using stored user roles. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
   const isAdmin = Boolean(user?.roles?.includes('admin'));
+  const currentUserId = user?.id ?? getStoredUser()?.id ?? '';
 
   // Feature toggle: allow CI/staging to disable display-name/password editing. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
   const accountEditDisabled = getBooleanEnv('VITE_DISABLE_ACCOUNT_EDIT', false);
@@ -215,6 +218,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         tools: 'panel.tabs.tools',
         environment: 'panel.tabs.environment',
         approvals: 'panel.tabs.approvals',
+        costs: 'panel.tabs.costs',
         settings: 'panel.tabs.settings',
         // Add admin log tab label mapping for settings. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
         logs: 'panel.tabs.logs',
@@ -410,6 +414,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     }
     if (activeTab === 'tools') await refreshToolsMeta();
     if (activeTab === 'environment') await refreshRuntimes();
+    if (activeTab === 'costs') setCostsReloadToken((prev) => prev + 1);
   }, [activeTab, canUseAccountApis, refreshApiTokens, refreshCredentials, refreshProviderRuntime, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   const toolCards = useMemo(
@@ -1083,6 +1088,19 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           <div className="hc-panel-section">
             <div className="hc-panel-section-title">{t('panel.tabs.approvals')}</div>
             <SettingsApprovalsPanel />
+          </div>
+        );
+
+      case 'costs':
+        return (
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.tabs.costs')}</div>
+            <CostGovernanceDashboard
+              mode="user"
+              currentUserId={currentUserId}
+              isAdmin={isAdmin}
+              reloadToken={costsReloadToken}
+            />
           </div>
         );
 

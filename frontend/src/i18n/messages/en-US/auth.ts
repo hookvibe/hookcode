@@ -136,6 +136,8 @@ export const enUSAuth = {
   'toast.apiTokens.saveFailed': 'Failed to save API token',
   'toast.apiTokens.copySuccess': 'Token copied',
   'toast.apiTokens.copyFailed': 'Copy failed',
+  'toast.budgets.saved': 'Budget policy saved',
+  'toast.budgets.saveFailed': 'Failed to save budget policy',
 
   // Add repo URL create fields + onboarding wizard copy. 58w1q3n5nr58flmempxe
 } as const;

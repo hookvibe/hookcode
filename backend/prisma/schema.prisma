@@ -135,6 +135,115 @@ model PolicyRule {
   @@index([enabled, priority, createdAt], map: "policy_rules_enabled_priority_created_at_idx")
 }
 
+/// Store budget and quota policies for user/repo/robot scopes. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+model BudgetPolicy {
+  id                           String   @id @db.Uuid
+  scopeType                    String   @map("scope_type")
+  scopeId                      String   @map("scope_id") @db.Uuid
+  createdByUserId              String?  @map("created_by_user_id") @db.Uuid
+  updatedByUserId              String?  @map("updated_by_user_id") @db.Uuid
+  name                         String?
+  enabled                      Boolean  @default(true)
+  overageAction                String   @default("soft_limit") @map("overage_action")
+  dailyTaskCountLimit          Int?     @map("daily_task_count_limit")
+  monthlyTaskCountLimit        Int?     @map("monthly_task_count_limit")
+  dailyTokenLimit              Int?     @map("daily_token_limit")
+  monthlyTokenLimit            Int?     @map("monthly_token_limit")
+  dailyEstimatedCostMicroUsd   BigInt?  @map("daily_estimated_cost_micro_usd")
+  monthlyEstimatedCostMicroUsd BigInt?  @map("monthly_estimated_cost_micro_usd")
+  maxRuntimeSeconds            Int?     @map("max_runtime_seconds")
+  maxStepCount                 Int?     @map("max_step_count")
+  degradeProvider              String?  @map("degrade_provider")
+  degradeModel                 String?  @map("degrade_model")
+  forceReadOnlyOnOverage       Boolean  @default(false) @map("force_read_only_on_overage")
+  createdAt                    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("budget_policies")
+  @@unique([scopeType, scopeId], map: "budget_policies_scope_type_scope_id_unique")
+  @@index([scopeType, enabled, updatedAt], map: "budget_policies_scope_enabled_updated_at_idx")
+}
+
+/// Persist daily task-usage rollups to accelerate cost dashboards and quota summaries. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+model UsageDailyRollup {
+  id                    String   @id @db.Uuid
+  taskId                String   @unique @map("task_id") @db.Uuid
+  bucketDate            DateTime @map("bucket_date") @db.Date
+  repoId                String?  @map("repo_id") @db.Uuid
+  robotId               String?  @map("robot_id") @db.Uuid
+  actorUserId           String?  @map("actor_user_id") @db.Uuid
+  provider              String?
+  model                 String?
+  status                String
+  taskCount             Int      @default(1) @map("task_count")
+  inputTokens           Int      @default(0) @map("input_tokens")
+  outputTokens          Int      @default(0) @map("output_tokens")
+  totalTokens           Int      @default(0) @map("total_tokens")
+  estimatedCostMicroUsd BigInt   @default(0) @map("estimated_cost_micro_usd")
+  durationMs            Int?     @map("duration_ms")
+  failed                Boolean  @default(false)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("usage_daily_rollup")
+  @@index([bucketDate, repoId], map: "usage_daily_rollup_bucket_repo_idx")
+  @@index([bucketDate, robotId], map: "usage_daily_rollup_bucket_robot_idx")
+  @@index([bucketDate, actorUserId], map: "usage_daily_rollup_bucket_actor_idx")
+  @@index([bucketDate, provider], map: "usage_daily_rollup_bucket_provider_idx")
+}
+
+/// Persist monthly task-usage rollups to support longer-range dashboards without scanning task logs. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+model UsageMonthlyRollup {
+  id                    String   @id @db.Uuid
+  taskId                String   @unique @map("task_id") @db.Uuid
+  bucketMonth           DateTime @map("bucket_month") @db.Date
+  repoId                String?  @map("repo_id") @db.Uuid
+  robotId               String?  @map("robot_id") @db.Uuid
+  actorUserId           String?  @map("actor_user_id") @db.Uuid
+  provider              String?
+  model                 String?
+  status                String
+  taskCount             Int      @default(1) @map("task_count")
+  inputTokens           Int      @default(0) @map("input_tokens")
+  outputTokens          Int      @default(0) @map("output_tokens")
+  totalTokens           Int      @default(0) @map("total_tokens")
+  estimatedCostMicroUsd BigInt   @default(0) @map("estimated_cost_micro_usd")
+  durationMs            Int?     @map("duration_ms")
+  failed                Boolean  @default(false)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("usage_monthly_rollup")
+  @@index([bucketMonth, repoId], map: "usage_monthly_rollup_bucket_repo_idx")
+  @@index([bucketMonth, robotId], map: "usage_monthly_rollup_bucket_robot_idx")
+  @@index([bucketMonth, actorUserId], map: "usage_monthly_rollup_bucket_actor_idx")
+  @@index([bucketMonth, provider], map: "usage_monthly_rollup_bucket_provider_idx")
+}
+
+/// Audit quota hits, warnings, degradations, and manual approval events. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+model QuotaEvent {
+  id            String   @id @db.Uuid
+  budgetPolicyId String? @map("budget_policy_id") @db.Uuid
+  taskId        String?  @map("task_id") @db.Uuid
+  repoId        String?  @map("repo_id") @db.Uuid
+  robotId       String?  @map("robot_id") @db.Uuid
+  actorUserId   String?  @map("actor_user_id") @db.Uuid
+  scopeType     String?  @map("scope_type")
+  scopeId       String?  @map("scope_id") @db.Uuid
+  eventType     String   @map("event_type")
+  decision      String
+  message       String   @db.Text
+  details       Json?    @map("details_json") @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("quota_events")
+  @@index([createdAt], map: "quota_events_created_at_idx")
+  @@index([taskId, createdAt], map: "quota_events_task_created_at_idx")
+  @@index([repoId, createdAt], map: "quota_events_repo_created_at_idx")
+  @@index([actorUserId, createdAt], map: "quota_events_actor_created_at_idx")
+  @@index([eventType, createdAt], map: "quota_events_event_type_created_at_idx")
+}
+
 model TaskGroup {
   id           String   @id @db.Uuid
   repoProvider String?  @map("repo_provider")

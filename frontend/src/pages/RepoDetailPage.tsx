@@ -113,6 +113,7 @@ import { uuid as generateUuid } from '../components/repoAutomation/utils';
 import { useRepoWebhookDeliveries } from '../hooks/useRepoWebhookDeliveries';
 import { SkillSelectionPanel } from '../components/skills/SkillSelectionPanel';
 import { useSkillsCatalog } from '../hooks/useSkillsCatalog';
+import { CostGovernanceDashboard } from '../components/costs/CostGovernanceDashboard';
 
 /**
  * RepoDetailPage:
@@ -306,6 +307,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
   // Track preview config availability for repo detail UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   const [previewConfig, setPreviewConfig] = useState<RepoPreviewConfigResponse | null>(null);
   const [previewConfigLoading, setPreviewConfigLoading] = useState(false);
+  const [costsReloadToken, setCostsReloadToken] = useState(0);
   const { skills: skillsCatalog, loading: skillsCatalogLoading, refresh: refreshSkillsCatalog } = useSkillsCatalog();
   // Track repo-level skill selections for default task-group behavior. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   const [skillSelection, setSkillSelection] = useState<SkillSelectionState | null>(null);
@@ -1948,8 +1950,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     );
   }
 
-  // UX: keep PageNav actions minimal; section-level actions (save/test/create) should live inside each dashboard card. u55e45ffi8jng44erdzp
-  const headerActions = undefined;
+  // Keep costs refresh discoverable without restoring global header actions on every tab.
+  const headerActions =
+    activeTab === 'costs' ? (
+      <Button
+        type="text"
+        icon={<ReloadOutlined />}
+        onClick={() => setCostsReloadToken((prev) => prev + 1)}
+        title={t('common.refresh')}
+      />
+    ) : undefined;
 
   // Only show PageNav back arrow when navigated from TaskDetail; sidebar handles normal "back to repos". docs/en/developer/plans/repo-detail-subnav-20260228/task_plan.md repo-detail-subnav-20260228
   const headerBack = useMemo(() => {
@@ -2625,6 +2635,16 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                   ) : (
                     <div className="hc-empty"><Empty description={t('repos.members.empty')} /></div>
                   )
+                )}
+
+                {/* ---------- COSTS TAB ---------- */}
+                {activeTab === 'costs' && (
+                  <CostGovernanceDashboard
+                    mode="repo"
+                    repoId={repo.id}
+                    readOnly={repoReadOnly}
+                    reloadToken={costsReloadToken}
+                  />
                 )}
 
                 {/* ---------- TASK-GROUP TOKENS TAB ---------- */}
