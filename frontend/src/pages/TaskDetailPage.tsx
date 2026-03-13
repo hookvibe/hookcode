@@ -25,6 +25,7 @@ import { TaskLogViewer } from '../components/TaskLogViewer';
 import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
 import { TaskProviderRoutingPanel } from '../components/tasks/TaskProviderRoutingPanel';
 import { WorkerSummaryTag } from '../components/workers/WorkerSummaryTag';
+import { ApprovalRequestPanel } from '../components/approvals/ApprovalRequestPanel';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { getPrevHashForBack, isInAppHash } from '../navHistory';
 import {
@@ -948,6 +949,16 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
       ) : null}
 
       <div className="hc-page__body">
+        {task?.approvalRequest ? (
+          <div style={{ marginBottom: 12 }}>
+            <ApprovalRequestPanel
+              approval={task.approvalRequest}
+              task={task}
+              canManage={canManageTask}
+              onUpdated={() => void refresh()}
+            />
+          </div>
+        ) : null}
         {task?.status === 'queued' && queueHint ? (
           /* Display queue diagnosis so the detail page is not silent while waiting. f3a9c2d8e1b7f4a0c6d1 */
           <Alert type="info" showIcon title={t('tasks.queue.hintTitle')} description={queueHint} style={{ marginBottom: 12 }} />

@@ -42,6 +42,8 @@ model Task {
   worker       Worker? @relation(fields: [workerId], references: [id], onDelete: SetNull)
   /// Access task log rows stored in task_logs for pagination. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   logs         TaskLog[]
+  /// Track approval-gate requests so high-risk tasks can pause before execution. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+  approvalRequests ApprovalRequest[]
 
   @@map("tasks")
   @@index([status, createdAt], map: "tasks_status_created_at_idx")
@@ -70,6 +72,67 @@ model TaskLog {
   @@unique([taskId, seq], map: "task_logs_task_id_seq_unique")
   @@index([taskId, seq], map: "task_logs_task_id_seq_idx")
   @@index([taskId, createdAt], map: "task_logs_task_id_created_at_idx")
+}
+
+/// Persist approval-gate requests for high-risk task executions. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+model ApprovalRequest {
+  id               String   @id @db.Uuid
+  taskId           String   @map("task_id") @db.Uuid
+  repoId           String?  @map("repo_id") @db.Uuid
+  robotId          String?  @map("robot_id") @db.Uuid
+  requestedByUserId String? @map("requested_by_user_id") @db.Uuid
+  resolvedByUserId String?  @map("resolved_by_user_id") @db.Uuid
+  status           String
+  decision         String
+  riskLevel        String   @map("risk_level")
+  summary          String   @db.Text
+  details          Json?    @map("details_json") @db.JsonB
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  task             Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actions          ApprovalAction[]
+
+  @@map("approval_requests")
+  @@index([taskId, createdAt], map: "approval_requests_task_id_created_at_idx")
+  @@index([status, createdAt], map: "approval_requests_status_created_at_idx")
+  @@index([repoId, status, createdAt], map: "approval_requests_repo_status_created_at_idx")
+}
+
+/// Persist approval actions for audit history and queue transitions. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+model ApprovalAction {
+  id                String   @id @db.Uuid
+  approvalRequestId String   @map("approval_request_id") @db.Uuid
+  actorUserId       String?  @map("actor_user_id") @db.Uuid
+  action            String
+  note              String?  @db.Text
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  approvalRequest   ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+
+  @@map("approval_actions")
+  @@index([approvalRequestId, createdAt], map: "approval_actions_request_created_at_idx")
+}
+
+/// Store repo/robot scoped policy rules for approval gates and deny lists. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+model PolicyRule {
+  id              String   @id @db.Uuid
+  repoId          String?  @map("repo_id") @db.Uuid
+  robotId         String?  @map("robot_id") @db.Uuid
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  name            String
+  enabled         Boolean  @default(true)
+  priority        Int      @default(100)
+  action          String
+  conditions      Json?    @map("conditions_json") @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("policy_rules")
+  @@index([repoId, robotId, enabled, priority], map: "policy_rules_scope_enabled_priority_idx")
+  @@index([enabled, priority, createdAt], map: "policy_rules_enabled_priority_created_at_idx")
 }
 
 model TaskGroup {

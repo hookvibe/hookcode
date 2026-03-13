@@ -82,6 +82,82 @@ vi.mock('../api', () => {
       result: { stopReason: 'manual_stop' }
     })),
     deleteTask: vi.fn(async () => undefined),
+    approveApprovalRequest: vi.fn(async () => ({
+      id: 'approval_1',
+      taskId: 't_wait',
+      status: 'approved',
+      decision: 'require_approval',
+      riskLevel: 'high',
+      summary: 'Needs approval',
+      details: {
+        taskSource: 'chat',
+        sandbox: 'workspace-write',
+        networkAccess: false,
+        reasons: ['workspace-write requested'],
+        warnings: [],
+        matchedRules: [],
+        commands: ['pnpm install'],
+        targetFiles: ['package.json']
+      },
+      actions: []
+    })),
+    approveApprovalAlways: vi.fn(async () => ({
+      id: 'approval_1',
+      taskId: 't_wait',
+      status: 'approved',
+      decision: 'require_approval',
+      riskLevel: 'high',
+      summary: 'Needs approval',
+      details: {
+        taskSource: 'chat',
+        sandbox: 'workspace-write',
+        networkAccess: false,
+        reasons: ['workspace-write requested'],
+        warnings: [],
+        matchedRules: [],
+        commands: ['pnpm install'],
+        targetFiles: ['package.json']
+      },
+      actions: []
+    })),
+    rejectApprovalRequest: vi.fn(async () => ({
+      id: 'approval_1',
+      taskId: 't_wait',
+      status: 'rejected',
+      decision: 'require_approval',
+      riskLevel: 'high',
+      summary: 'Needs approval',
+      details: {
+        taskSource: 'chat',
+        sandbox: 'workspace-write',
+        networkAccess: false,
+        reasons: ['workspace-write requested'],
+        warnings: [],
+        matchedRules: [],
+        commands: ['pnpm install'],
+        targetFiles: ['package.json']
+      },
+      actions: []
+    })),
+    requestApprovalChanges: vi.fn(async () => ({
+      id: 'approval_1',
+      taskId: 't_wait',
+      status: 'changes_requested',
+      decision: 'require_approval',
+      riskLevel: 'high',
+      summary: 'Needs approval',
+      details: {
+        taskSource: 'chat',
+        sandbox: 'workspace-write',
+        networkAccess: false,
+        reasons: ['workspace-write requested'],
+        warnings: [],
+        matchedRules: [],
+        commands: ['pnpm install'],
+        targetFiles: ['package.json']
+      },
+      actions: []
+    })),
     // Provide robot provider lookup for task detail provider labels. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
     listRepoRobots: vi.fn(async () => [
       { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true, modelProvider: 'codex' }
@@ -311,5 +387,61 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     expect(screen.getByText('Rendered')).toBeInTheDocument();
     expect(screen.getByText('Issue={{issue.number}} Repo={{repo.name}} Robot={{robot.name}}')).toBeInTheDocument();
     expect(screen.getByText('Issue=42 Repo=Repo r1 Robot=Robot bot1')).toBeInTheDocument();
+  });
+
+  test('renders approval details and approves waiting tasks', async () => {
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchTask).mockResolvedValueOnce({
+      id: 't_wait',
+      eventType: 'chat',
+      title: 'Task waiting approval',
+      status: 'waiting_approval',
+      retries: 0,
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+      permissions: { canManage: true },
+      repoId: 'r1',
+      repoProvider: 'gitlab',
+      repo: { id: 'r1', provider: 'gitlab', name: 'Repo r1', enabled: true },
+      robotId: 'bot1',
+      robot: { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true },
+      payload: { user_name: 'Alice', user_username: 'alice' },
+      approvalRequest: {
+        id: 'approval_1',
+        taskId: 't_wait',
+        status: 'pending',
+        decision: 'require_approval',
+        riskLevel: 'high',
+        summary: 'This task wants to modify package.json and run pnpm install.',
+        details: {
+          taskSource: 'chat',
+          provider: 'codex',
+          sandbox: 'workspace-write',
+          networkAccess: false,
+          reasons: ['workspace-write requested', 'dependency files will change'],
+          warnings: ['Lockfile updates may affect CI'],
+          matchedRules: [{ id: 'rule_1', name: 'Workspace write gate', action: 'require_approval', source: 'policy_rule' }],
+          commands: ['pnpm install --frozen-lockfile'],
+          targetFiles: ['package.json', 'pnpm-lock.yaml']
+        },
+        actions: [],
+        createdAt: '2026-01-11T00:00:00.000Z',
+        updatedAt: '2026-01-11T00:00:00.000Z'
+      }
+    } as any);
+
+    renderPage({ taskId: 't_wait' });
+
+    expect(await screen.findByText('Approval gate')).toBeInTheDocument();
+    expect(screen.getAllByText('Waiting approval').length).toBeGreaterThan(0);
+    expect(screen.getByText('This task wants to modify package.json and run pnpm install.')).toBeInTheDocument();
+    expect(screen.getByText('Why approval is required')).toBeInTheDocument();
+    expect(screen.getAllByText('Rule: Workspace write gate').length).toBeGreaterThan(0);
+
+    await ui.click(screen.getByRole('button', { name: /check Approve/i }));
+
+    await waitFor(() =>
+      expect(api.approveApprovalRequest).toHaveBeenCalledWith('approval_1', { note: '' })
+    );
   });
 });

@@ -82,6 +82,7 @@ export class TasksController {
     if (raw === 'success') return 'success';
     if (
       raw === 'queued' ||
+      raw === 'waiting_approval' ||
       raw === 'processing' ||
       raw === 'succeeded' ||
       raw === 'failed' ||
@@ -647,7 +648,7 @@ export class TasksController {
       if (existing.archivedAt) {
         throw new ConflictException({ error: 'Task is archived; stop is blocked' });
       }
-      if (existing.status !== 'processing' && existing.status !== 'queued') {
+      if (existing.status !== 'processing' && existing.status !== 'queued' && existing.status !== 'waiting_approval') {
         const [decorated] = await this.attachTaskPermissions([existing] as any[], req.user);
         return { task: decorated };
       }

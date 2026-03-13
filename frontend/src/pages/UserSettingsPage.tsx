@@ -79,6 +79,7 @@ import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { UserSettingsSidebar } from '../components/settings/UserSettingsSidebar';
 import { SettingsLogsPanel } from '../components/settings/SettingsLogsPanel';
 import { SettingsNotificationsPanel } from '../components/settings/SettingsNotificationsPanel';
+import { SettingsApprovalsPanel } from '../components/settings/SettingsApprovalsPanel';
 import { NotificationsPopover } from '../components/notifications/NotificationsPopover';
 import { SettingsPreviewPanel } from '../components/settings/SettingsPreviewPanel';
 import { SettingsWorkersPanel } from '../components/settings/SettingsWorkersPanel';
@@ -212,6 +213,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         credentials: 'panel.tabs.credentials',
         tools: 'panel.tabs.tools',
         environment: 'panel.tabs.environment',
+        approvals: 'panel.tabs.approvals',
         settings: 'panel.tabs.settings',
         // Add admin log tab label mapping for settings. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
         logs: 'panel.tabs.logs',
@@ -1073,6 +1075,14 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           </div>
         );
 
+      case 'approvals':
+        return (
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.tabs.approvals')}</div>
+            <SettingsApprovalsPanel />
+          </div>
+        );
+
       case 'preview':
         // Render admin preview management dashboard inside settings. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
         if (!isAdmin) {
@@ -1146,7 +1156,12 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
             title={t(tabTitleKey[activeTab] as any)}
             actions={
               // Avoid showing the global refresh button on the log tab (it has its own controls). docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-              activeTab !== 'settings' && activeTab !== 'logs' && activeTab !== 'notifications' && activeTab !== 'preview' && activeTab !== 'workers' ? (
+              activeTab !== 'settings' &&
+              activeTab !== 'logs' &&
+              activeTab !== 'notifications' &&
+              activeTab !== 'approvals' &&
+              activeTab !== 'preview' &&
+              activeTab !== 'workers' ? (
                 <Button
                   type="text"
                   icon={<ReloadOutlined />}

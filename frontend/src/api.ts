@@ -11,3 +11,4 @@ export * from './api/skills'; // Expose skills API helpers for the Skills page. 
 export * from './api/logs'; // Expose system log API helpers for admin log UI. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 export * from './api/notifications'; // Expose notification API helpers for user alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
 export * from './api/workers'; // Expose worker registry API helpers for admin panels and executor selectors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+export * from './api/approvals'; // Expose approval inbox and task approval actions for the policy-gated workflow. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313

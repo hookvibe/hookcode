@@ -26,6 +26,7 @@ export const enUSUi = {
   'panel.tabs.credentials': 'Credentials',
   'panel.tabs.tools': 'Tools',
   'panel.tabs.environment': 'Environment',
+  'panel.tabs.approvals': 'Approval Inbox',
   'panel.tabs.settings': 'Settings',
   // Admin log tab label. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
   'panel.tabs.logs': 'Logs',

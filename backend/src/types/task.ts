@@ -4,9 +4,10 @@ import type { DependencyResult } from './dependency';
 import type { TimeWindowSource } from './timeWindow';
 import type { WorkerSummary } from './worker';
 import type { ProviderRoutingResult } from '../providerRouting/providerRouting.types';
+import type { ApprovalRequestRecord, PolicyDecision, PolicyRiskLevel } from '../policyEngine/types';
 
 // Keep a narrow task-status union while replacing pause/resume execution control with manual-stop failures. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
-export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
+export type TaskStatus = 'queued' | 'waiting_approval' | 'processing' | 'succeeded' | 'failed' | 'commented';
 export type TaskEventType =
   | 'issue'
   | 'commit'
@@ -150,6 +151,9 @@ export interface TaskResult {
   providerCommentUrl?: string;
   // Persist provider routing/failover decisions for task detail and task-group diagnostics. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
   providerRouting?: ProviderRoutingResult;
+  // Persist policy metadata so approval-gated tasks explain why they were blocked. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+  policyDecision?: PolicyDecision;
+  policyRiskLevel?: PolicyRiskLevel;
   /**
    * Repository workflow metadata for UI/debugging (direct clone vs fork-based PR/MR). 24yz61mdik7tqdgaa152
    */
@@ -226,4 +230,6 @@ export type TaskWithMeta = Task & {
   robot?: TaskRobotSummary;
   // Return compact worker metadata with task payloads so lists/details can show execution ownership. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
   workerSummary?: WorkerSummary;
+  // Attach the latest approval request so approval inbox/detail UIs can render inline context. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+  approvalRequest?: ApprovalRequestRecord;
 };

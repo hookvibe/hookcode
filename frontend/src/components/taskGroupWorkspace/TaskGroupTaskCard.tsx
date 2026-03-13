@@ -30,6 +30,7 @@ import { TaskGitStatusPanel } from '../tasks/TaskGitStatusPanel';
 import { TaskProviderRoutingPanel } from '../tasks/TaskProviderRoutingPanel';
 import { MarkdownViewer } from '../MarkdownViewer';
 import { WorkerSummaryTag } from '../workers/WorkerSummaryTag';
+import { ApprovalRequestPanel } from '../approvals/ApprovalRequestPanel';
 
 interface TaskGroupTaskCardProps {
   task: Task;
@@ -39,6 +40,7 @@ interface TaskGroupTaskCardProps {
   onDelete: (task: Task) => void;
   onReorder: (task: Task, action: 'move_earlier' | 'move_later' | 'insert_next') => void;
   onSaveEdit: (task: Task, text: string) => Promise<void>;
+  onApprovalUpdated: (task: Task) => Promise<void>;
   actionLoading?: string | null;
 }
 
@@ -50,6 +52,7 @@ export const TaskGroupTaskCard = ({
   onDelete,
   onReorder,
   onSaveEdit,
+  onApprovalUpdated,
   actionLoading
 }: TaskGroupTaskCardProps) => {
   const locale = useLocale();
@@ -160,6 +163,17 @@ export const TaskGroupTaskCard = ({
 
           {queueHint ? <Alert type="info" showIcon message={queueHint} /> : null}
           {manuallyStopped ? <Alert type="warning" showIcon message={t('taskGroup.workspace.manualStop')} /> : null}
+          {task.approvalRequest ? (
+            <div onClick={stopCardClick}>
+              <ApprovalRequestPanel
+                approval={task.approvalRequest}
+                task={task}
+                variant="compact"
+                canManage={canManage}
+                onUpdated={() => onApprovalUpdated(task)}
+              />
+            </div>
+          ) : null}
 
           <div className="hc-task-workspace-card__content" onClick={editing ? stopCardClick : undefined}>
             <Typography.Text type="secondary">{t('taskGroup.workspace.request')}</Typography.Text>

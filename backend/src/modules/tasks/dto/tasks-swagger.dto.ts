@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApprovalRequestDto } from './approvals-swagger.dto';
 
 export class TaskTokenUsageDto {
   @ApiProperty()
@@ -246,6 +247,12 @@ export class TaskResultDto {
   // Expose provider routing decisions in task result responses for failover visibility. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
   providerRouting?: TaskProviderRoutingDto;
 
+  @ApiPropertyOptional({ enum: ['allow', 'allow_with_warning', 'require_approval', 'deny'] })
+  policyDecision?: 'allow' | 'allow_with_warning' | 'require_approval' | 'deny';
+
+  @ApiPropertyOptional({ enum: ['low', 'medium', 'high', 'critical'] })
+  policyRiskLevel?: 'low' | 'medium' | 'high' | 'critical';
+
   // Expose git status payload in task result responses. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   @ApiPropertyOptional({ type: TaskGitStatusDto })
   gitStatus?: TaskGitStatusDto;
@@ -406,8 +413,8 @@ export class TaskWithMetaDto {
   eventType!: string;
 
   // Keep task status enums aligned with the stop-only execution model. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
-  @ApiProperty({ enum: ['queued', 'processing', 'succeeded', 'failed', 'commented'] })
-  status!: 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented';
+  @ApiProperty({ enum: ['queued', 'waiting_approval', 'processing', 'succeeded', 'failed', 'commented'] })
+  status!: 'queued' | 'waiting_approval' | 'processing' | 'succeeded' | 'failed' | 'commented';
 
   @ApiPropertyOptional({ nullable: true, format: 'date-time' })
   archivedAt?: string | null;
@@ -477,6 +484,9 @@ export class TaskWithMetaDto {
 
   @ApiPropertyOptional({ type: TaskPermissionsDto })
   permissions?: TaskPermissionsDto;
+
+  @ApiPropertyOptional({ type: ApprovalRequestDto })
+  approvalRequest?: ApprovalRequestDto;
 }
 
 export class ListTasksResponseDto {

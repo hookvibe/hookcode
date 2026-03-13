@@ -15,6 +15,7 @@ describe('UserSettingsSidebar (notifications tab)', () => {
     render(<UserSettingsSidebar activeTab="account" />);
 
     expect(screen.getByText('Notifications')).toBeInTheDocument();
+    expect(screen.getByText('Approval Inbox')).toBeInTheDocument();
   });
 
   test('shows notifications tab for admin users', () => {
@@ -22,5 +23,6 @@ describe('UserSettingsSidebar (notifications tab)', () => {
     render(<UserSettingsSidebar activeTab="account" />);
 
     expect(screen.getByText('Notifications')).toBeInTheDocument();
+    expect(screen.getByText('Approval Inbox')).toBeInTheDocument();
   });
 });

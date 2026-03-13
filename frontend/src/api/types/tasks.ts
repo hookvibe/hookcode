@@ -1,6 +1,15 @@
 // Group task-related API types into a dedicated module. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
-import type { DependencyResult, TaskEventType, TaskQueueDiagnosis, TaskStatus } from './common';
+import type {
+  ApprovalActionType,
+  ApprovalRequestStatus,
+  DependencyResult,
+  PolicyDecision,
+  PolicyRiskLevel,
+  TaskEventType,
+  TaskQueueDiagnosis,
+  TaskStatus
+} from './common';
 import type { ModelProvider } from './models';
 import type { RepoProvider, RobotPermission } from './repos';
 import type { WorkerSummary } from './workers';
@@ -20,6 +29,79 @@ export interface TaskRobotSummary {
   // Expose robot model provider on task summaries for UI display. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
   modelProvider?: ModelProvider;
   enabled: boolean;
+}
+
+export interface PolicyEvaluationContext {
+  repoId?: string;
+  repoProvider?: string;
+  robotId?: string;
+  taskId?: string;
+  taskGroupId?: string;
+  eventType?: string;
+  taskSource: string;
+  provider?: string;
+  sandbox?: string;
+  networkAccess: boolean;
+  commands: string[];
+  targetFiles: string[];
+}
+
+export interface ApprovalActionRecord {
+  id: string;
+  approvalRequestId: string;
+  actorUserId?: string;
+  action: ApprovalActionType;
+  note?: string;
+  createdAt: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface ApprovalMatchedRule {
+  id?: string;
+  name: string;
+  action: PolicyDecision;
+  source: 'policy_rule' | 'builtin';
+}
+
+export interface ApprovalRequestDetails {
+  taskSource: string;
+  provider?: string;
+  sandbox: string;
+  networkAccess: boolean;
+  targetFiles: string[];
+  commands: string[];
+  reasons: string[];
+  warnings?: string[];
+  matchedRules: ApprovalMatchedRule[];
+}
+
+export interface ApprovalRequest {
+  id: string;
+  taskId: string;
+  repoId?: string;
+  robotId?: string;
+  requestedByUserId?: string;
+  resolvedByUserId?: string;
+  status: ApprovalRequestStatus;
+  decision: PolicyDecision;
+  riskLevel: PolicyRiskLevel;
+  summary: string;
+  details?: ApprovalRequestDetails;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  actions: ApprovalActionRecord[];
+  taskSummary?: {
+    id: string;
+    title?: string;
+    status: string;
+    repoId?: string;
+    repoName?: string;
+    robotId?: string;
+    robotName?: string;
+    createdAt: string;
+    updatedAt: string;
+  };
 }
 
 export interface Task {
@@ -56,6 +138,7 @@ export interface Task {
   repo?: TaskRepoSummary;
   robot?: TaskRobotSummary;
   workerSummary?: WorkerSummary;
+  approvalRequest?: ApprovalRequest;
   permissions?: { canManage: boolean };
 }
 
@@ -164,6 +247,8 @@ export interface TaskResult {
   providerCommentUrl?: string;
   providerRouting?: TaskProviderRouting;
   tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+  policyDecision?: PolicyDecision;
+  policyRiskLevel?: PolicyRiskLevel;
   // Surface backend git status in task result payloads for UI reuse. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   gitStatus?: TaskGitStatus;
   [key: string]: unknown;

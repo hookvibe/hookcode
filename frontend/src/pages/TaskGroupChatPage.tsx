@@ -178,7 +178,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     handleRetryTask,
     handleDeleteQueuedTask,
     handleSaveQueuedTask,
-    handleReorderQueuedTask
+    handleReorderQueuedTask,
+    handleTaskMetaChanged
   } = useTaskGroupTaskActions({
     taskGroupId,
     message,
@@ -380,13 +381,14 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                     {orderedTasks.map((task) => (
                       <TaskGroupTaskCard
                         key={task.id}
-                        task={task}
+                        task={taskDetailsById[task.id] ?? task}
                         onOpenLogs={handleOpenTaskLogs}
                         onRetry={handleRetryTask}
                         onStop={handleStopTask}
                         onDelete={handleDeleteQueuedTask}
                         onReorder={handleReorderQueuedTask}
                         onSaveEdit={handleSaveQueuedTask}
+                        onApprovalUpdated={handleTaskMetaChanged}
                         actionLoading={taskActionLoadingKey}
                       />
                     ))}

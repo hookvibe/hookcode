@@ -2,7 +2,20 @@
 
 export type ArchiveScope = 'active' | 'archived' | 'all'; // Keep archive filtering consistent with backend query params. qnp1mtxhzikhbi0xspbc
 
-export type TaskStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'commented'; // Align frontend task statuses with the stop-only execution flow. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+export type TaskStatus = 'queued' | 'waiting_approval' | 'processing' | 'succeeded' | 'failed' | 'commented'; // Align frontend task statuses with the stop-only execution flow and approval gating. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+export type PolicyDecision = 'allow' | 'allow_with_warning' | 'require_approval' | 'deny';
+export type PolicyRiskLevel = 'low' | 'medium' | 'high' | 'critical';
+export type ApprovalRequestStatus = 'pending' | 'approved' | 'rejected' | 'changes_requested';
+export type ApprovalActionType =
+  | 'requested'
+  | 'approve'
+  | 'reject'
+  | 'request_changes'
+  | 'approve_once'
+  | 'approve_always'
+  | 'approve_always_robot'
+  | 'approve_always_rule';
+export type ApprovalDecisionMode = 'once' | 'always';
 export type TaskQueueReasonCode =
   | 'queue_backlog'
   | 'no_active_worker'

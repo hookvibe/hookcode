@@ -23,6 +23,8 @@ import { EventStreamService } from '../events/event-stream.service';
 import { LogWriterService } from '../logs/log-writer.service';
 import { WorkersService } from '../workers/workers.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
+import { ApprovalQueueService } from '../../policyEngine/approvalQueue.service';
+import { PolicyEngineService } from '../../policyEngine/policyEngine.service';
 import {
   TASK_MANUAL_STOP_MESSAGE,
   TASK_MANUAL_STOP_REASON,
@@ -367,7 +369,9 @@ export class TaskService {
     private readonly eventStream?: EventStreamService,
     private readonly logWriter?: LogWriterService,
     private readonly notificationRecipients?: NotificationRecipientService,
-    private readonly workersService?: WorkersService
+    private readonly workersService?: WorkersService,
+    private readonly policyEngine?: PolicyEngineService,
+    private readonly approvalQueue?: ApprovalQueueService
   ) {}
 
   private runningTaskGroupLogState = { lastLogAt: 0, lastCount: -1 }; // Throttle running-task group audit logs to avoid sidebar poll spam. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
@@ -487,7 +491,7 @@ export class TaskService {
     const repoIds = Array.from(new Set(tasks.map((t) => t.repoId).filter(Boolean))) as string[];
     const robotIds = Array.from(new Set(tasks.map((t) => t.robotId).filter(Boolean))) as string[];
 
-    const [repos, robots, withWorkers] = await Promise.all([
+    const [repos, robots, withWorkers, approvalMap] = await Promise.all([
       repoIds.length
         ? db.repository.findMany({
             where: { id: { in: repoIds } },
@@ -500,7 +504,8 @@ export class TaskService {
             select: { id: true, repoId: true, name: true, permission: true, enabled: true }
           })
         : Promise.resolve<RobotMetaRow[]>([]),
-      this.workersService ? this.workersService.attachWorkerSummaries(tasks) : Promise.resolve(tasks)
+      this.workersService ? this.workersService.attachWorkerSummaries(tasks) : Promise.resolve(tasks),
+      this.approvalQueue ? this.approvalQueue.getLatestApprovalsForTaskIds(tasks.map((task) => task.id)) : Promise.resolve(new Map())
     ] as const);
 
     const repoMap = new Map<string, TaskRepoSummary>(
@@ -531,6 +536,7 @@ export class TaskService {
       const next: TaskWithMeta = { ...task };
       if (task.repoId && repoMap.has(task.repoId)) next.repo = repoMap.get(task.repoId);
       if (task.robotId && robotMap.has(task.robotId)) next.robot = robotMap.get(task.robotId);
+      if (approvalMap.has(task.id)) next.approvalRequest = approvalMap.get(task.id);
       return next;
     });
   }
@@ -684,6 +690,48 @@ export class TaskService {
     });
   }
 
+  private async applyPolicyGate(task: Task): Promise<Task> {
+    if (!this.policyEngine) return task;
+    const evaluation = await this.policyEngine.evaluateTask(task);
+
+    if (evaluation.decision === 'require_approval' && this.approvalQueue) {
+      await this.approvalQueue.enqueueApproval({
+        taskId: task.id,
+        repoId: task.repoId,
+        robotId: task.robotId,
+        actorUserId: task.actorUserId,
+        evaluation
+      });
+      return (await this.getTask(task.id)) ?? { ...task, status: 'waiting_approval', result: { ...task.result, message: evaluation.summary } };
+    }
+
+    if (evaluation.decision === 'deny') {
+      return (
+        (await this.patchResult(
+          task.id,
+          {
+            message: evaluation.summary,
+            policyDecision: evaluation.decision,
+            policyRiskLevel: evaluation.riskLevel
+          },
+          'failed'
+        )) ?? { ...task, status: 'failed', result: { ...task.result, message: evaluation.summary } }
+      );
+    }
+
+    if (evaluation.decision === 'allow_with_warning') {
+      return (
+        (await this.patchResult(task.id, {
+          message: evaluation.summary,
+          policyDecision: evaluation.decision,
+          policyRiskLevel: evaluation.riskLevel
+        })) ?? task
+      );
+    }
+
+    return task;
+  }
+
   private async attachGroupMeta(groups: TaskGroupWithMeta[]): Promise<TaskGroupWithMeta[]> {
     type RepoMetaRow = { id: string; provider: string; name: string; enabled: boolean };
     type RobotMetaRow = { id: string; repoId: string; name: string; permission: string; enabled: boolean };
@@ -821,7 +869,7 @@ export class TaskService {
         updatedAt: now
       }
     });
-    const task = taskRecordToTask(created);
+    const task = await this.applyPolicyGate(taskRecordToTask(created));
     // Push task-group refresh events for new tasks. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
     void this.emitTaskGroupUpdate(task, 'created');
     return task;
@@ -905,7 +953,7 @@ export class TaskService {
         updatedAt: now
       }
     });
-    const task = taskRecordToTask(created);
+    const task = await this.applyPolicyGate(taskRecordToTask(created));
     // Push task-group refresh events for group-bound tasks. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
     void this.emitTaskGroupUpdate(task, 'created');
     return task;
@@ -1294,6 +1342,26 @@ export class TaskService {
              AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
              AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
              AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
+             AND status = 'waiting_approval'
+           ORDER BY updated_at DESC, id DESC
+           LIMIT ${take})
+          UNION ALL
+          (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+                  jsonb_strip_nulls(jsonb_build_object(
+                    'message', NULLIF(result_json->>'message', ''),
+                    'summary', NULLIF(result_json->>'summary', ''),
+                    'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
+                    'tokenUsage', result_json->'tokenUsage',
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
+                  )) AS result_json
+           FROM tasks
+           WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
+             AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
+             AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+             AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
+             AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
+             AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
              AND status = 'processing'
            ORDER BY updated_at DESC, id DESC
            LIMIT ${take})
@@ -1480,7 +1548,7 @@ export class TaskService {
       stats.total += count;
 
       const status = String((row as any)?.status ?? '');
-      if (status === 'queued') stats.queued += count;
+      if (status === 'queued' || status === 'waiting_approval') stats.queued += count;
       else if (status === 'processing') stats.processing += count;
       else if (status === 'failed') stats.failed += count;
       else if (status === 'succeeded' || status === 'commented') stats.success += count;
@@ -1669,7 +1737,7 @@ export class TaskService {
         WHERE id = ${id}
         RETURNING *;
       `;
-      const task = rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+      const task = rows?.[0] ? await this.applyPolicyGate(rowToTaskFromSql(rows[0])) : undefined;
       if (!task) return undefined;
       // Notify chat clients about retry status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
       void this.emitTaskGroupUpdate(task, 'status');
@@ -1687,7 +1755,7 @@ export class TaskService {
     try {
       const existing = await db.task.findUnique({ where: { id: taskId } });
       if (!existing) return undefined;
-      if (existing.status === 'queued') {
+      if (existing.status === 'queued' || existing.status === 'waiting_approval') {
         const row = await db.task.update({
           where: { id: taskId },
           data: {
@@ -1752,7 +1820,7 @@ export class TaskService {
         updatedAt: new Date()
       }
     });
-    const task = taskRecordToTask(row);
+    const task = await this.applyPolicyGate(taskRecordToTask(row));
     void this.emitTaskGroupUpdate(task, 'status');
     return task;
   }

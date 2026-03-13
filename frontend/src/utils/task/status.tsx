@@ -11,6 +11,7 @@ export const isTerminalStatus = (status: TaskStatus): boolean =>
 export const statusTag = (t: TFunction, status: TaskStatus | string | null | undefined) => {
   const map: Record<string, { color: string; text: string }> = {
     queued: { color: 'blue', text: t('task.status.queued') },
+    waiting_approval: { color: 'orange', text: t('task.status.waiting_approval') },
     processing: { color: 'gold', text: t('task.status.processing') },
     paused: { color: 'default', text: t('task.status.paused') },
     succeeded: { color: 'green', text: t('task.status.succeeded') },
