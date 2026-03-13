@@ -34,8 +34,10 @@ import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
 import { PatchMeResponseDto } from './dto/patch-me-response.dto';
 import { ModelCredentialsResponseDto } from './dto/model-credentials.dto';
+import { ProviderRuntimeStatusesResponseDto } from './dto/provider-runtime.dto';
 import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
 import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
+import { listLocalProviderAuthStatuses, resolveProviderExecutionCredential } from '../../modelProviders/providerCredentialResolver';
 import { CreateUserApiTokenDto, CreateUserApiTokenResponseDto, ListUserApiTokensResponseDto, UpdateUserApiTokenDto, UserApiTokenResponseDto } from './dto/api-tokens.dto';
 import { UserApiTokenService } from './user-api-token.service';
 import { LogWriterService } from '../logs/log-writer.service'; // Emit user account operation logs for admins. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
@@ -159,6 +161,29 @@ export class UsersController {
     }
   }
 
+  // Expose local provider runtime detection so the account settings page can show ClaudeCodeUI-style auth status. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  @Get('me/model-providers/status')
+  @ApiOperation({
+    summary: 'Get my local model provider runtime status',
+    description: 'Returns ClaudeCodeUI-style local auth detection results for Codex, Claude Code, and Gemini.',
+    operationId: 'users_get_model_provider_runtime_status'
+  })
+  @ApiOkResponse({ description: 'OK', type: ProviderRuntimeStatusesResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  async getMyModelProviderRuntimeStatus(@Req() req: Request) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      return {
+        precedence: ['local', 'robot', 'repo', 'user'],
+        providers: await listLocalProviderAuthStatuses()
+      };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[users] get model provider runtime status failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch model provider runtime status' });
+    }
+  }
+
   @Patch('me/model-credentials')
   @ApiOperation({
     summary: 'Update my model/provider credentials',
@@ -223,8 +248,8 @@ export class UsersController {
       const overrideApiBaseUrl = typeof body?.credential?.apiBaseUrl === 'string' ? body.credential.apiBaseUrl.trim() : '';
       const inlineApiKey = typeof body?.credential?.apiKey === 'string' ? body.credential.apiKey.trim() : '';
 
-      const storedCredentials = profileId ? await this.userService.getModelCredentialsRaw(req.user.id) : null;
-      if (profileId && !storedCredentials) throw new NotFoundException({ error: 'User not found' });
+      const storedCredentials = await this.userService.getModelCredentialsRaw(req.user.id);
+      if (!storedCredentials) throw new NotFoundException({ error: 'User not found' });
 
       const providerProfiles = profileId ? ((storedCredentials as any)?.[provider]?.profiles ?? []) : [];
       const storedProfile = profileId ? providerProfiles.find((p: any) => p && String(p.id ?? '').trim() === profileId) : null;
@@ -232,12 +257,28 @@ export class UsersController {
         throw new BadRequestException({ error: 'profileId does not exist in your account credentials', code: 'MODEL_PROFILE_NOT_FOUND' });
       }
 
-      const apiKey = inlineApiKey || String(storedProfile?.apiKey ?? '').trim();
+      // Reuse the execution resolver so account model listing follows the same local-first precedence. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+      const resolvedCredential =
+        !profileId && !inlineApiKey
+          ? await resolveProviderExecutionCredential({
+              provider,
+              userCredentials: storedCredentials
+            })
+          : null;
+
+      const apiKey = inlineApiKey || String(storedProfile?.apiKey ?? '').trim() || String(resolvedCredential?.apiKey ?? '').trim();
       if (!apiKey) {
+        if (resolvedCredential?.resolvedLayer === 'local' && resolvedCredential.canExecute) {
+          throw new BadRequestException({
+            error: 'Local provider auth is available, but it does not expose an API key for model listing',
+            code: 'MODEL_API_KEY_UNAVAILABLE'
+          });
+        }
         throw new BadRequestException({ error: 'credential.apiKey is required', code: 'MODEL_API_KEY_REQUIRED' });
       }
 
-      const apiBaseUrl = overrideApiBaseUrl || String(storedProfile?.apiBaseUrl ?? '').trim() || undefined;
+      const apiBaseUrl =
+        overrideApiBaseUrl || String(storedProfile?.apiBaseUrl ?? '').trim() || String(resolvedCredential?.apiBaseUrl ?? '').trim() || undefined;
 
       const result = await listModelProviderModels({
         provider,

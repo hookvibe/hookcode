@@ -1,5 +1,8 @@
 import { FC, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { List } from 'react-window'; // Add virtual scrolling for long log lists. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+
+// Bridge the current react-window usage to the installed type surface until the raw log viewer is fully refactored. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+const VirtualList = List as any;
 import { clearTaskLogs, fetchTaskLogsPage } from '../api';
 import { useT } from '../i18n';
 import { createAuthedEventSource } from '../utils/sse';
@@ -243,7 +246,7 @@ export const TaskLogViewer: FC<Props> = ({
     const findScrollTarget = (node: HTMLElement): HTMLElement | Window => {
       let current: HTMLElement | null = node;
       while (current?.parentElement) {
-        const parent = current.parentElement;
+        const parent: HTMLElement = current.parentElement;
         if (isScrollableY(parent)) return parent;
         current = parent;
       }
@@ -387,13 +390,8 @@ export const TaskLogViewer: FC<Props> = ({
           const startSeq = Number.isFinite(payload.startSeq) ? payload.startSeq : next.length ? 1 : 0;
           const endSeq = Number.isFinite(payload.endSeq) ? payload.endSeq : startSeq ? startSeq + next.length - 1 : 0;
           const normalized = normalizeLogWindow(next, startSeq, endSeq);
-          commitLogWindow(
-            normalized.logs,
-            normalized.startSeq,
-            normalized.endSeq,
-            Number.isFinite(payload.nextBefore) ? payload.nextBefore : null,
-            { reset: true }
-          );
+          const nextBefore = typeof payload.nextBefore === 'number' && Number.isFinite(payload.nextBefore) ? payload.nextBefore : null;
+          commitLogWindow(normalized.logs, normalized.startSeq, normalized.endSeq, nextBefore, { reset: true });
           historyInitializedRef.current = true;
           setHistoryInitialized(true);
         } catch (err) {
@@ -532,11 +530,11 @@ export const TaskLogViewer: FC<Props> = ({
           logs.length ? (
             // Use virtual scrolling for long log lists to prevent render lag. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
             logs.length > 100 ? (
-              <List
+              <VirtualList
                 height={600}
                 rowCount={logs.length}
                 rowHeight={20}
-                rowComponent={({ index, style }) => (
+                rowComponent={({ index, style }: { index: number; style: React.CSSProperties }) => (
                   <div style={style} id={buildLineId(index)} className="log-viewer__virtual-line">
                     {logs[index]}
                   </div>

@@ -92,6 +92,7 @@ import { SkillSelectionPatchDto, SkillSelectionResponseDto } from '../skills/dto
 import { ModelProviderModelsRequestDto, ModelProviderModelsResponseDto } from '../common/dto/model-provider-models.dto';
 import { LogWriterService } from '../logs/log-writer.service'; // Record repo business events in system logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
 import { listModelProviderModels, ModelProviderModelsFetchError, normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
+import { resolveProviderExecutionCredential } from '../../modelProviders/providerCredentialResolver';
 import {
   ensureGithubForkRepo,
   ensureGitlabForkProject,
@@ -1240,8 +1241,8 @@ export class RepositoriesController {
       const overrideApiBaseUrl = typeof body?.credential?.apiBaseUrl === 'string' ? body.credential.apiBaseUrl.trim() : '';
       const inlineApiKey = typeof body?.credential?.apiKey === 'string' ? body.credential.apiKey.trim() : '';
 
-      const repoScopedCredentials = profileId ? await this.repositoryService.getRepoScopedCredentials(repoId) : null;
-      if (profileId && !repoScopedCredentials) throw new NotFoundException({ error: 'Repo not found' });
+      const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+      if (!repoScopedCredentials) throw new NotFoundException({ error: 'Repo not found' });
 
       const providerProfiles = profileId ? ((repoScopedCredentials as any)?.modelProvider?.[provider]?.profiles ?? []) : [];
       const storedProfile = profileId ? providerProfiles.find((p: any) => p && String(p.id ?? '').trim() === profileId) : null;
@@ -1249,12 +1250,31 @@ export class RepositoriesController {
         throw new BadRequestException({ error: 'profileId does not exist in repo-scoped credentials', code: 'MODEL_PROFILE_NOT_FOUND' });
       }
 
-      const apiKey = inlineApiKey || String(storedProfile?.apiKey ?? '').trim();
+      // Keep repo-side model discovery aligned with execution precedence (local -> robot/repo/user) even when no profile is chosen. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+      const resolvedCredential =
+        !profileId && !inlineApiKey
+          ? await resolveProviderExecutionCredential({
+              provider,
+              userCredentials: await this.userService.getModelCredentialsRaw(user.id),
+              repoScopedCredentials: repoScopedCredentials.modelProvider,
+              // Start repo-scoped model discovery from repo credentials when the caller did not choose a profile explicitly. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+              defaultStoredSource: 'repo'
+            })
+          : null;
+
+      const apiKey = inlineApiKey || String(storedProfile?.apiKey ?? '').trim() || String(resolvedCredential?.apiKey ?? '').trim();
       if (!apiKey) {
+        if (resolvedCredential?.resolvedLayer === 'local' && resolvedCredential.canExecute) {
+          throw new BadRequestException({
+            error: 'Local provider auth is available, but it does not expose an API key for model listing',
+            code: 'MODEL_API_KEY_UNAVAILABLE'
+          });
+        }
         throw new BadRequestException({ error: 'credential.apiKey is required', code: 'MODEL_API_KEY_REQUIRED' });
       }
 
-      const apiBaseUrl = overrideApiBaseUrl || String(storedProfile?.apiBaseUrl ?? '').trim() || undefined;
+      const apiBaseUrl =
+        overrideApiBaseUrl || String(storedProfile?.apiBaseUrl ?? '').trim() || String(resolvedCredential?.apiBaseUrl ?? '').trim() || undefined;
 
       const result = await listModelProviderModels({
         provider,

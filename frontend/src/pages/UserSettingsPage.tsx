@@ -28,6 +28,7 @@ import {
   Modal,
   Radio,
   Select,
+  Skeleton,
   Space,
   Switch,
   Tag,
@@ -52,6 +53,7 @@ import {
   fetchMe,
   fetchMyApiTokens,
   fetchMyModelCredentials,
+  fetchMyProviderRuntimeStatuses,
   listMyModelProviderModels,
   revokeMyApiToken,
   updateMe,
@@ -61,6 +63,8 @@ import {
   type ApiTokenScopeLevel,
   type UserApiTokenPublic,
   type RuntimeInfo,
+  type ProviderRuntimeMethod,
+  type ProviderRuntimeStatusesResponse,
   type UserModelCredentialsPublic,
   type UserModelProviderCredentialProfilePublic,
   type UserRepoProviderCredentialProfilePublic
@@ -104,6 +108,11 @@ const modelProviderLabel = (provider: ModelProviderKey, t: ReturnType<typeof use
   return t('panel.credentials.geminiCliTitle');
 };
 
+const providerRuntimeMethodLabel = (method: ProviderRuntimeMethod | undefined, t: ReturnType<typeof useT>) => {
+  if (!method || method === 'none') return t('panel.credentials.runtimeMethod.none');
+  return t(`panel.credentials.runtimeMethod.${method}` as const);
+};
+
 const buildToolUrl = (params: { port: number; token: string }): string => {
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
   const base = origin || 'http://localhost';
@@ -145,7 +154,9 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const [userLoading, setUserLoading] = useState(false);
 
   const [credLoading, setCredLoading] = useState(false);
+  const [providerRuntimeLoading, setProviderRuntimeLoading] = useState(false);
   const [credentials, setCredentials] = useState<UserModelCredentialsPublic | null>(null);
+  const [providerRuntime, setProviderRuntime] = useState<ProviderRuntimeStatusesResponse | null>(null);
   const [savingCred, setSavingCred] = useState(false);
 
   // Manage PAT list + modal state inside the credentials panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
@@ -158,7 +169,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const [apiTokenRevealOpen, setApiTokenRevealOpen] = useState(false);
   const [apiTokenRevealValue, setApiTokenRevealValue] = useState<string | null>(null);
 
-  const [toolsPorts, setToolsPorts] = useState(DEFAULT_PORTS);
+  const [toolsPorts, setToolsPorts] = useState<{ prisma: number; swagger: number }>(DEFAULT_PORTS);
   const [toolsLoading, setToolsLoading] = useState(false);
   // Track detected runtimes for the environment panel. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
@@ -302,6 +313,21 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     }
   }, [canUseAccountApis, message, t, token]);
 
+  // Refresh local provider runtime cards alongside stored profiles so the settings page mirrors local-first execution. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  const refreshProviderRuntime = useCallback(async () => {
+    if (!canUseAccountApis) return;
+    setProviderRuntimeLoading(true);
+    try {
+      const data = await fetchMyProviderRuntimeStatuses();
+      setProviderRuntime(data);
+    } catch (err) {
+      console.error(err);
+      setProviderRuntime(null);
+    } finally {
+      setProviderRuntimeLoading(false);
+    }
+  }, [canUseAccountApis]);
+
   const refreshApiTokens = useCallback(async () => {
     if (!canUseAccountApis) return;
     setApiTokensLoading(true);
@@ -360,11 +386,12 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     void refreshUser();
     if (activeTab === 'credentials') {
       void refreshCredentials();
+      void refreshProviderRuntime();
       void refreshApiTokens();
     }
     if (activeTab === 'tools') void refreshToolsMeta();
     if (activeTab === 'environment') void refreshRuntimes();
-  }, [activeTab, refreshApiTokens, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
+  }, [activeTab, refreshApiTokens, refreshCredentials, refreshProviderRuntime, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   // ---- Action callbacks ----
 
@@ -373,11 +400,12 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     if (activeTab === 'account') await refreshUser();
     if (activeTab === 'credentials') {
       await refreshCredentials();
+      await refreshProviderRuntime();
       await refreshApiTokens();
     }
     if (activeTab === 'tools') await refreshToolsMeta();
     if (activeTab === 'environment') await refreshRuntimes();
-  }, [activeTab, canUseAccountApis, refreshApiTokens, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
+  }, [activeTab, canUseAccountApis, refreshApiTokens, refreshCredentials, refreshProviderRuntime, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   const toolCards = useMemo(
     () => [
@@ -437,6 +465,16 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     const geminiProfiles = normalizeModelProfiles(credentials?.gemini_cli?.profiles);
     return { codex: codexProfiles, claude_code: claudeProfiles, gemini_cli: geminiProfiles };
   }, [credentials?.claude_code?.profiles, credentials?.codex?.profiles, credentials?.gemini_cli?.profiles]);
+
+  const providerStatusItems = useMemo(
+    () =>
+      (['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => ({
+        provider,
+        status: providerRuntime?.providers?.[provider],
+        profileCount: normalizeModelProfiles((credentials as any)?.[provider]?.profiles).length
+      })),
+    [credentials, providerRuntime]
+  );
 
   const repoProviderProfileItems = useMemo(
     () =>
@@ -784,6 +822,48 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       case 'credentials':
         return (
           <>
+            <div className="hc-panel-section">
+              <div className="hc-panel-section-title">
+                <Space size={8}><ApiOutlined /><span>{t('panel.credentials.runtimeTitle')}</span></Space>
+              </div>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>{t('panel.credentials.runtimeTip')}</Typography.Paragraph>
+              <Alert type="info" showIcon style={{ marginBottom: 16 }} message={t('panel.credentials.runtimePrecedence')} />
+              {providerRuntimeLoading ? (
+                <Skeleton active paragraph={{ rows: 4 }} />
+              ) : (
+                <div className="hc-credential-grid">
+                  {providerStatusItems.map(({ provider, status, profileCount }) => {
+                    const authenticated = Boolean(status?.authenticated);
+                    const methodLabel = providerRuntimeMethodLabel(status?.method, t);
+                    return (
+                      <div key={`runtime-${provider}`} className="hc-credential-card">
+                        <div className="hc-credential-header">
+                          <div className="hc-credential-info">
+                            <div className="hc-credential-name">{modelProviderLabel(provider, t)}</div>
+                            <div className="hc-credential-detail">{status?.displayName || methodLabel}</div>
+                          </div>
+                          <Tag color={authenticated ? 'green' : 'default'} style={{ margin: 0 }}>
+                            {authenticated ? t('panel.credentials.runtimeStatus.authenticated') : t('panel.credentials.runtimeStatus.notAuthenticated')}
+                          </Tag>
+                        </div>
+                        <div className="hc-credential-tags">
+                          <Tag color={status?.supportsModelListing ? 'blue' : 'default'} style={{ margin: 0 }}>
+                            {status?.supportsModelListing ? t('panel.credentials.runtimeStatus.modelListReady') : t('panel.credentials.runtimeStatus.executionOnly')}
+                          </Tag>
+                          <Tag color={profileCount > 0 ? 'geekblue' : 'default'} style={{ margin: 0 }}>
+                            {t('panel.credentials.runtimeStatus.savedProfiles', { count: profileCount })}
+                          </Tag>
+                        </div>
+                        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                          {authenticated ? methodLabel : t('panel.credentials.runtimeFallbackTip')}
+                        </Typography.Paragraph>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <Divider style={{ margin: '24px 0' }} />
             <div className="hc-panel-section">
               <div className="hc-panel-section-title">
                 <Space size={8}><KeyOutlined /><span>{t('panel.credentials.modelProviderTitle')}</span></Space>

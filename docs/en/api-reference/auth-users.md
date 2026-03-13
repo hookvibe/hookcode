@@ -30,6 +30,8 @@ These endpoints cover:
 - `PATCH /api/users/me/password` — Change the current user password.
 - `GET /api/users/me/model-credentials` — Fetch stored model credentials (redacted).
 - `PATCH /api/users/me/model-credentials` — Update model credentials for the current user.
+<!-- Document the local provider runtime-status endpoint added for ClaudeCodeUI-style auth detection. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313 -->
+- `GET /api/users/me/model-providers/status` — Fetch local provider runtime/auth status for Codex, Claude Code, and Gemini.
 - `POST /api/users/me/model-credentials/models` — List available models for a provider.
 
 ## Notes

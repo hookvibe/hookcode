@@ -1,6 +1,6 @@
 // Centralize AppShell sidebar constants to keep components focused. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
-import type { ReactNode } from 'react';
+import { createElement, type ReactNode } from 'react';
 import { CheckCircleFilled, CloseCircleFilled, HourglassOutlined, LoadingOutlined } from '@ant-design/icons';
 import type { Task } from '../../api';
 
@@ -13,11 +13,12 @@ export type SidebarTaskSection = {
   icon: ReactNode;
 };
 
+// Build sidebar icons without JSX so this shared constants module can stay in `.ts`. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
 export const TASK_SECTIONS: SidebarTaskSection[] = [
-  { key: 'queued', statusFilter: 'queued', labelKey: 'sidebar.tasks.queued', icon: <HourglassOutlined /> },
-  { key: 'processing', statusFilter: 'processing', labelKey: 'sidebar.tasks.processing', icon: <LoadingOutlined /> },
-  { key: 'success', statusFilter: 'success', labelKey: 'sidebar.tasks.completed', icon: <CheckCircleFilled /> },
-  { key: 'failed', statusFilter: 'failed', labelKey: 'sidebar.tasks.failed', icon: <CloseCircleFilled /> }
+  { key: 'queued', statusFilter: 'queued', labelKey: 'sidebar.tasks.queued', icon: createElement(HourglassOutlined) },
+  { key: 'processing', statusFilter: 'processing', labelKey: 'sidebar.tasks.processing', icon: createElement(LoadingOutlined) },
+  { key: 'success', statusFilter: 'success', labelKey: 'sidebar.tasks.completed', icon: createElement(CheckCircleFilled) },
+  { key: 'failed', statusFilter: 'failed', labelKey: 'sidebar.tasks.failed', icon: createElement(CloseCircleFilled) }
 ];
 
 export const defaultExpanded: Record<SidebarTaskSectionKey, boolean> = {

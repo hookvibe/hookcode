@@ -83,6 +83,9 @@ Robots can choose credentials from:
 - User account-level profiles
 - Repo-scoped profiles
 
+<!-- Clarify that local provider auth is checked first while repo-scoped profiles remain available as explicit overrides. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313 -->
+HookCode checks local provider auth before stored model credentials. Repo-scoped profiles remain useful when a worker does not have local CLI auth, when a repository needs a dedicated override, or when repo-scoped model discovery should fall back to the account-level profile.
+
 See [Robot configuration](./robots) for details.
 
 {/* Document repo-level default worker routing for robot execution. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}

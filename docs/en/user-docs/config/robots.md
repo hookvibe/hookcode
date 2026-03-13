@@ -42,11 +42,14 @@ Choose the minimal permissions required for your use case:
 
 ## Model provider configuration (Codex / Claude Code / Gemini CLI)
 
-Each robot selects a model provider and a credential source:
+<!-- Document local-first execution while preserving robot/repo/user credential-source choices. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313 -->
+HookCode checks local machine provider auth first during execution. If no local CLI login or environment key is available, the robot falls back to its configured stored credential source:
 
 - **robot**: store the API key directly on the robot configuration.
-- **user**: select an account-level model credential profile.
 - **repo**: select a repo-scoped model credential profile.
+- **user**: select an account-level model credential profile.
+
+If a robot is configured for **repo** but the repo-scoped profile is unavailable, HookCode falls back to the user-scoped profile.
 
 Depending on the provider, you may also configure:
 
