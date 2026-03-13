@@ -34,6 +34,8 @@ export const enUSUi = {
   'panel.tabs.notifications': 'Notifications',
   // Admin preview tab label for preview runtime management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
   'panel.tabs.preview': 'Preview',
+  // Admin webhook replay/debug center tab label. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
+  'panel.tabs.webhooks': 'Webhooks',
 
   // Add worker management copy for the external executor settings page. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
   'panel.tabs.workers': 'Workers',
@@ -90,6 +92,24 @@ export const enUSUi = {
   'workers.toast.runtimeRequested': 'Runtime preparation requested',
   'workers.toast.runtimeRequestFailed': 'Failed to request runtime preparation',
   'workers.guard.adminRequired': 'Admin access is required to view worker management.',
+  'panel.webhooks.guard.adminRequired': 'Admin access is required to view webhook debug center.',
+  'panel.webhooks.filters.repoId': 'Repo ID',
+  'panel.webhooks.filters.replayOfEventId': 'Source event ID',
+  'panel.webhooks.filters.query': 'Search event, code, payload hash',
+  'panel.webhooks.filters.allProviders': 'All providers',
+  'panel.webhooks.filters.allResults': 'All results',
+  'panel.webhooks.filters.allErrorLayers': 'All error layers',
+  'panel.webhooks.filters.apply': 'Apply filters',
+  'panel.webhooks.summary.totalLoaded': 'Loaded events',
+  'panel.webhooks.summary.failed': 'Failures',
+  'panel.webhooks.summary.replays': 'Replays',
+  'panel.webhooks.summary.dryRuns': 'Dry runs',
+  'panel.webhooks.summary.topErrors': 'Top error layers',
+  'panel.webhooks.summary.none': 'No error layers yet',
+  'panel.webhooks.column.repo': 'Repository',
+  'panel.webhooks.column.diagnosis': 'Diagnosis',
+  'panel.webhooks.empty': 'No webhook events found',
+  'panel.webhooks.error.loadFailed': 'Failed to load webhook events.',
   'panel.notifications.title': 'Notifications',
   'panel.notifications.readAll': 'Mark all read',
   'panel.notifications.viewAll': 'View all',

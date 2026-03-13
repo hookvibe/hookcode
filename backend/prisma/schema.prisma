@@ -385,13 +385,28 @@ model RepoWebhookDelivery {
   provider   String
   eventName  String?  @map("event_name")
   deliveryId String?  @map("delivery_id")
+  /// Persist the normalized HookCode event type so replay/debug views do not need to re-parse payloads. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
+  mappedEventType String? @map("mapped_event_type")
   result     String
   httpStatus Int      @map("http_status")
   code       String?
   message    String?
+  /// Store payload hashes and verification outcomes for replay/debug filtering without reading full payload JSON. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
+  payloadHash String?  @map("payload_hash")
+  signatureVerified Boolean? @map("signature_verified")
+  errorLayer String? @map("error_layer")
+  /// Persist matched rule/robot/task-group ids so debug center summaries can link automation decisions and replay results. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
+  matchedRuleIds String[] @default([]) @map("matched_rule_ids")
+  matchedRobotIds String[] @default([]) @map("matched_robot_ids")
   taskIds    String[] @default([]) @map("task_ids")
+  taskGroupIds String[] @default([]) @map("task_group_ids")
+  /// Link replay/dry-run events back to the original webhook event while keeping history append-only. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
+  replayOfEventId String? @map("replay_of_event_id") @db.Uuid
+  replayMode String? @map("replay_mode")
   payload    Json?    @map("payload_json") @db.JsonB
   response   Json?    @map("response_json") @db.JsonB
+  debugTrace Json?    @map("debug_trace_json") @db.JsonB
+  dryRunResult Json?  @map("dry_run_result_json") @db.JsonB
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   repo Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
@@ -400,6 +415,11 @@ model RepoWebhookDelivery {
   @@index([repoId, createdAt], map: "repo_webhook_deliveries_repo_id_created_at_idx")
   /// Support cursor pagination for repo webhook delivery lists. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   @@index([repoId, createdAt, id], map: "repo_webhook_deliveries_repo_created_id_idx")
+  /// Accelerate global replay/debug center filters by failure layer and replay lineage. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
+  @@index([result, createdAt], map: "repo_webhook_deliveries_result_created_at_idx")
+  @@index([errorLayer, createdAt], map: "repo_webhook_deliveries_error_layer_created_at_idx")
+  @@index([replayOfEventId, createdAt], map: "repo_webhook_deliveries_replay_of_event_created_at_idx")
+  @@index([payloadHash], map: "repo_webhook_deliveries_payload_hash_idx")
 }
 
 model RepoRobot {

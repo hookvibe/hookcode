@@ -82,6 +82,7 @@ import { SettingsNotificationsPanel } from '../components/settings/SettingsNotif
 import { SettingsApprovalsPanel } from '../components/settings/SettingsApprovalsPanel';
 import { NotificationsPopover } from '../components/notifications/NotificationsPopover';
 import { SettingsPreviewPanel } from '../components/settings/SettingsPreviewPanel';
+import { SettingsWebhookDebugPanel } from '../components/settings/SettingsWebhookDebugPanel';
 import { SettingsWorkersPanel } from '../components/settings/SettingsWorkersPanel';
 // Keep both notifications and preview settings components available after branch sync. docs/en/developer/plans/sync-main-dev-20260303/task_plan.md sync-main-dev-20260303
 import { buildHomeHash, type SettingsTab } from '../router';
@@ -221,6 +222,8 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         notifications: 'panel.tabs.notifications',
         // Add preview tab title mapping for admin preview management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
         preview: 'panel.tabs.preview',
+        // Route the global webhook replay/debug center through the settings page. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
+        webhooks: 'panel.tabs.webhooks',
         // Add worker tab title mapping for the executor registry panel. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
         workers: 'panel.tabs.workers'
       }) as const,
@@ -1095,6 +1098,17 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           </div>
         );
 
+      case 'webhooks':
+        if (!isAdmin) {
+          return <Alert type="warning" showIcon message={t('panel.webhooks.guard.adminRequired')} />;
+        }
+        return (
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.tabs.webhooks')}</div>
+            <SettingsWebhookDebugPanel />
+          </div>
+        );
+
       case 'workers':
         // Render the admin worker registry inside settings so executor bootstrap stays out of repo pages. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
         if (!isAdmin) {
@@ -1161,6 +1175,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
               activeTab !== 'notifications' &&
               activeTab !== 'approvals' &&
               activeTab !== 'preview' &&
+              activeTab !== 'webhooks' &&
               activeTab !== 'workers' ? (
                 <Button
                   type="text"

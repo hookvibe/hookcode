@@ -34,6 +34,8 @@ export const zhCNUi = {
   'panel.tabs.notifications': '通知',
   // Admin preview tab label for preview runtime management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
   'panel.tabs.preview': '预览管理',
+  // Admin webhook replay/debug center tab label. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
+  'panel.tabs.webhooks': 'Webhook 调试',
 
   // Add worker management copy for the external executor settings page. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
   'panel.tabs.workers': '执行器',
@@ -90,6 +92,24 @@ export const zhCNUi = {
   'workers.toast.runtimeRequested': '已请求准备运行时',
   'workers.toast.runtimeRequestFailed': '请求准备运行时失败',
   'workers.guard.adminRequired': '查看执行器管理需要管理员权限。',
+  'panel.webhooks.guard.adminRequired': '查看 Webhook 调试中心需要管理员权限。',
+  'panel.webhooks.filters.repoId': '仓库 ID',
+  'panel.webhooks.filters.replayOfEventId': '源事件 ID',
+  'panel.webhooks.filters.query': '搜索事件名、错误码、payload 哈希',
+  'panel.webhooks.filters.allProviders': '全部平台',
+  'panel.webhooks.filters.allResults': '全部结果',
+  'panel.webhooks.filters.allErrorLayers': '全部错误层',
+  'panel.webhooks.filters.apply': '应用筛选',
+  'panel.webhooks.summary.totalLoaded': '已加载事件',
+  'panel.webhooks.summary.failed': '失败数',
+  'panel.webhooks.summary.replays': '重放数',
+  'panel.webhooks.summary.dryRuns': 'Dry-run 数',
+  'panel.webhooks.summary.topErrors': '高频错误层',
+  'panel.webhooks.summary.none': '暂无错误层数据',
+  'panel.webhooks.column.repo': '仓库',
+  'panel.webhooks.column.diagnosis': '诊断',
+  'panel.webhooks.empty': '暂无 Webhook 事件',
+  'panel.webhooks.error.loadFailed': '加载 Webhook 事件失败。',
   'panel.notifications.title': '通知',
   'panel.notifications.readAll': '全部标记已读',
   'panel.notifications.viewAll': '查看全部',

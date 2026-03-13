@@ -2509,6 +2509,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                           loading={webhookDeliveriesLoading}
                           loadFailed={webhookDeliveriesFailed}
                           onRefresh={refreshWebhookDeliveries}
+                          canManage={canManageRepo}
                         />
                       </div>
                     </div>

@@ -1,7 +1,6 @@
 // Extract automation and webhook delivery types for reuse across repo automation UI. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
 import type { TimeWindow } from './common';
-import type { RepoProvider } from './repos';
 
 export type AutomationEventKey = 'issue' | 'commit' | 'merge_request' | (string & {});
 
@@ -54,24 +53,3 @@ export interface RepoAutomationConfigV2 {
 }
 
 export type RepoAutomationConfig = RepoAutomationConfigV1 | RepoAutomationConfigV2;
-
-export type RepoWebhookDeliveryResult = 'accepted' | 'skipped' | 'rejected' | 'error';
-
-export interface RepoWebhookDeliverySummary {
-  id: string;
-  repoId: string;
-  provider: RepoProvider;
-  eventName?: string;
-  deliveryId?: string;
-  result: RepoWebhookDeliveryResult;
-  httpStatus: number;
-  code?: string;
-  message?: string;
-  taskIds: string[];
-  createdAt: string;
-}
-
-export interface RepoWebhookDeliveryDetail extends RepoWebhookDeliverySummary {
-  payload?: unknown;
-  response?: unknown;
-}

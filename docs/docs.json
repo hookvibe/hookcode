@@ -145,6 +145,15 @@
                     "expanded": false
                   },
                   {
+                    "group": "Webhook replay and debug center (webhook-replay-debug-20260313)",
+                    "pages": [
+                      "en/developer/plans/webhook-replay-debug-20260313/task_plan",
+                      "en/developer/plans/webhook-replay-debug-20260313/findings",
+                      "en/developer/plans/webhook-replay-debug-20260313/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
                     "group": "Convert user panel popover to standalone page (user-panel-page-20260301)",
                     "pages": [
                       "en/developer/plans/user-panel-page-20260301/task_plan",
