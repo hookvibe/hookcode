@@ -33,10 +33,21 @@ export const xpSpawnOpts = <T extends SpawnOptions>(opts: T): T => {
  * Spawn a shell command string (`sh -c "..."` on POSIX, `cmd /c "..."` on Windows).
  * Use this when the caller passes a full command string that needs shell interpretation.
  */
-// Cross-platform shell command spawner for POSIX sh/Windows cmd. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+// Cross-platform shell command spawner for POSIX sh / Windows cmd.
+// On Windows, use /d /s /c "<command>" + windowsVerbatimArguments to match
+// Node.js shell:true behaviour and prevent double-escaping by CreateProcessW.
+// docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
 export const xSpawnShell = (command: string, opts?: SpawnOptions): ChildProcess => {
   if (IS_WIN) {
-    return spawn(process.env.COMSPEC || 'cmd.exe', ['/c', command], { ...(opts ?? {}), shell: false });
+    const comspec = process.env.COMSPEC || 'cmd.exe';
+    // /d  — skip AutoRun registry commands
+    // /s  — strip the first and last " around the string after /c
+    // windowsVerbatimArguments — bypass Node.js arg escaping for CreateProcessW
+    return spawn(comspec, ['/d', '/s', '/c', `"${command}"`], {
+      ...(opts ?? {}),
+      shell: false,
+      windowsVerbatimArguments: true
+    });
   }
   return spawn('sh', ['-c', command], opts ?? {});
 };

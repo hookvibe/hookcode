@@ -700,13 +700,23 @@ const toErrorSummary = (err: unknown): Record<string, unknown> => {
   }
   return { message: String(err) };
 };
-// Export shell-escape helper for shared git commands. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-export const shDoubleQuote = (value: string) =>
-  `"${String(value)
+// Shell-escape helper for shared git commands — platform-aware so cmd.exe
+// does not double backslashes or mis-handle POSIX escape sequences.
+// docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+export const shDoubleQuote = (value: string): string => {
+  const s = String(value);
+  if (process.platform === 'win32') {
+    // Windows cmd.exe: backslash is a literal path separator, not an escape char.
+    // Only " needs special handling — use "" which cmd.exe interprets as a single quote.
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  // POSIX sh: escape shell metacharacters inside double quotes.
+  return `"${s
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
     .replace(/`/g, '\\`')
     .replace(/\$/g, '\\$')}"`;
+};
 
 /**
  * Build git proxy flags from GIT_HTTP_PROXY env var.
@@ -719,8 +729,12 @@ export const buildGitProxyFlags = (): string => {
   return `-c http.proxy=${shDoubleQuote(proxy)} -c https.proxy=${shDoubleQuote(proxy)}`;
 };
 
+// Detect transient git/curl network failures for clone retry decisions.
+// Keep patterns broad enough to cover platform-specific curl messages
+// (e.g. "Connection was reset" on Windows vs "Connection reset by peer" on Linux).
+// docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
 const GIT_TRANSIENT_NETWORK_ERROR_PATTERN =
-  /(openssl ssl_read|unexpected eof while reading|recv failure: connection reset by peer|rpc failed; curl|http\/2 stream|gnutls_handshake|failed to connect|connection timed out|operation timed out|connection reset by peer|could not resolve host|tlsv1 alert)/i;
+  /(openssl ssl_read|unexpected eof while reading|recv failure|rpc failed; curl|http\/2 stream|gnutls_handshake|failed to connect|connection timed out|operation timed out|connection reset|connection was reset|could not resolve host|tlsv1 alert)/i;
 
 const isRetryableGitTransportError = (message: string): boolean => {
   // Detect transient git transport errors so clone can retry with safer HTTP transport settings. docs/en/developer/plans/gitclone128-20260304/task_plan.md gitclone128-20260304
@@ -1356,6 +1370,8 @@ async function callAgent(
           const branchMessage = String(err?.message || err);
           if (isRetryableGitTransportError(branchMessage)) {
             await appendLog('Branch clone hit a transient git transport error; retrying with HTTP/1.1');
+            // Remove partial clone directory before retrying so git accepts the target path. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+            try { await rm(repoDir, { recursive: true, force: true }); } catch { /* best-effort cleanup */ }
             try {
               await runCloneCommand({ branch: checkoutRef, forceHttp11: true });
               return;
@@ -1364,19 +1380,27 @@ async function callAgent(
             }
           }
           await appendLog(`Branch clone failed; falling back to default clone: ${branchError?.message || branchError}`);
+          // Clean up partial directory left by the failed branch clone before fallback attempt. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+          try { await rm(repoDir, { recursive: true, force: true }); } catch { /* best-effort cleanup */ }
         }
       }
 
       await appendLog(`Cloning repository ${injected.displayUrl}`);
-      // Use gitProxyFlags to pass proxy config to git commands. gitproxyfix20260127
-      await streamTaskCommand(
-        `git ${gitProxyFlags} clone ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
-        appendRawLog,
-        {
-          env: { GIT_TERMINAL_PROMPT: '0' },
-          redact: redactSensitiveText
+      // Default (no-branch) clone with HTTP/1.1 retry on transient network errors.
+      // Clean up partial clone directory between attempts so git does not refuse to re-clone.
+      // docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+      try {
+        await runCloneCommand({});
+      } catch (defaultErr: any) {
+        const defaultMessage = String(defaultErr?.message || defaultErr);
+        if (isRetryableGitTransportError(defaultMessage)) {
+          await appendLog('Default clone hit a transient git transport error; retrying with HTTP/1.1');
+          try { await rm(repoDir, { recursive: true, force: true }); } catch { /* best-effort cleanup */ }
+          await runCloneCommand({ forceHttp11: true });
+        } else {
+          throw defaultErr;
         }
-      );
+      }
     };
 
     const repoCredentialSource = inferRobotRepoProviderCredentialSource(execution.robot);
