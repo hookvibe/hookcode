@@ -62,9 +62,11 @@ export class LocalWorkerSupervisorService {
     };
 
     // Spawn the colocated worker package automatically so each backend keeps one local executor online. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    // Use shell on Windows so `pnpm.cmd` is resolved correctly (Node.js v24+ ENOENT fix). docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    const spawnOpts: import('child_process').SpawnOptions = { cwd: repoRoot, env, stdio: 'inherit', shell: process.platform === 'win32' };
     this.child = isBuiltWorkerAvailable
-      ? spawn(process.execPath, [workerEntry], { cwd: repoRoot, env, stdio: 'inherit' })
-      : spawn('pnpm', ['--filter', 'hookcode-worker', 'dev'], { cwd: repoRoot, env, stdio: 'inherit' });
+      ? spawn(process.execPath, [workerEntry], spawnOpts)
+      : spawn('pnpm', ['--filter', 'hookcode-worker', 'dev'], spawnOpts);
 
     this.child.on('exit', (code, signal) => {
       console.warn('[workers] local worker exited', { code, signal });

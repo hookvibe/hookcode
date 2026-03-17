@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import { type ChildProcessWithoutNullStreams } from 'child_process';
+import { xSpawnShell } from '../../utils/crossPlatformSpawn';
 import { constants } from 'fs';
 import { access, readdir, stat } from 'fs/promises';
 import fs from 'fs';
@@ -421,11 +422,12 @@ export class PreviewService implements OnModuleDestroy {
       logs: []
     };
 
-    const child = spawn('sh', ['-c', command], {
+    // Cross-platform shell command for preview dev server (sh -c on POSIX, cmd /c on Windows). docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    const child = xSpawnShell(command, {
       cwd: workdir,
       env,
       stdio: ['pipe', 'pipe', 'pipe']
-    });
+    }) as ChildProcessWithoutNullStreams;
     instance.process = child;
     // Close stdin explicitly while keeping non-null streams for typing and logging. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     child.stdin.end();

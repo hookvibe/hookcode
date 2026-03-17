@@ -47,13 +47,14 @@ const resolvedSchemaPath = schemaFromEnv
   : null;
 const argsWithSchema = resolvedSchemaPath && !hasSchemaArg ? [...args, '--schema', resolvedSchemaPath] : args;
 
-const prismaBin = process.platform === 'win32'
-  ? path.join(__dirname, '..', 'node_modules', '.bin', 'prisma.cmd')
-  : path.join(__dirname, '..', 'node_modules', '.bin', 'prisma');
+// Use the prisma CLI entry point directly to avoid .cmd shim issues on Windows
+// with Node.js v24+ (EINVAL from spawnSync on .cmd files without shell: true).
+const prismaBin = path.join(__dirname, '..', 'node_modules', '.bin', 'prisma');
 
 const result = spawnSync(prismaBin, argsWithSchema, {
   stdio: 'inherit',
-  env: process.env
+  env: process.env,
+  shell: process.platform === 'win32'
 });
 
 process.exit(typeof result.status === 'number' ? result.status : 1);

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+// Use cross-platform command resolution instead of Unix-only `sh -lc "command -v ..."`. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+import { resolveCommandPath as xResolveCommandPath } from '../utils/crossPlatformSpawn';
 
 const execFileAsync = promisify(execFile);
 
@@ -32,14 +34,8 @@ const extractVersion = (output: string): string => {
 };
 
 const resolveCommandPath = async (cmd: string): Promise<string | null> => {
-  // Resolve runtime binary paths so the API reports usable executables. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
-  try {
-    const { stdout } = await execFileAsync('sh', ['-lc', `command -v ${cmd}`], { timeout: 2000 });
-    const resolved = stdout.trim();
-    return resolved ? resolved : null;
-  } catch {
-    return null;
-  }
+  // Cross-platform command resolution (works on both POSIX and Windows). docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+  return xResolveCommandPath(cmd);
 };
 
 @Injectable()

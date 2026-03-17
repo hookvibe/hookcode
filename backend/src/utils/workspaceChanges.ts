@@ -1,5 +1,7 @@
 import { createHash } from 'crypto';
+// Use cross-platform spawn options to handle .cmd shims on Windows. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
 import { spawn } from 'child_process';
+import { xpSpawnOpts } from './crossPlatformSpawn';
 import path from 'path';
 import { readFile } from 'fs/promises';
 import type { TaskWorkspaceChange, TaskWorkspaceChangeKind, TaskWorkspaceChanges } from '../types/task';
@@ -56,19 +58,19 @@ const readUtf8BestEffort = async (targetPath: string): Promise<string | undefine
 
 const runGit = async (repoDir: string, args: string[]): Promise<GitCommandResult> =>
   await new Promise((resolve) => {
-    const child = spawn('git', args, {
+    const child = spawn('git', args, xpSpawnOpts({
       cwd: repoDir,
       stdio: ['ignore', 'pipe', 'pipe']
-    });
+    }));
 
     let stdout = '';
     let stderr = '';
 
-    child.stdout.on('data', (chunk: Buffer) => {
+    child.stdout!.on('data', (chunk: Buffer) => {
       stdout += chunk.toString('utf8');
       if (stdout.length > MAX_WORKSPACE_DIFF_CHARS) stdout = stdout.slice(0, MAX_WORKSPACE_DIFF_CHARS);
     });
-    child.stderr.on('data', (chunk: Buffer) => {
+    child.stderr!.on('data', (chunk: Buffer) => {
       stderr += chunk.toString('utf8');
       if (stderr.length > 8000) stderr = stderr.slice(0, 8000);
     });

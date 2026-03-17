@@ -1,5 +1,7 @@
 import { readFile, writeFile } from 'fs/promises';
+// Use cross-platform spawn for git commands on Windows. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
 import { spawn } from 'child_process';
+import { xpSpawnOpts } from '../utils/crossPlatformSpawn';
 import path from 'path';
 import type {
   ThreadEvent as CodexSdkThreadEvent,
@@ -101,13 +103,13 @@ const runGit = async (
   const maxStdoutChars = typeof options?.maxStdoutChars === 'number' && options.maxStdoutChars > 0 ? options.maxStdoutChars : 0;
 
   return await new Promise((resolve) => {
-    const child = spawn('git', args, {
+    const child = spawn('git', args, xpSpawnOpts({
       cwd: repoDir,
       stdio: ['ignore', 'pipe', 'pipe']
-    });
+    }));
 
     let stdout = '';
-    child.stdout.on('data', (chunk: Buffer) => {
+    child.stdout!.on('data', (chunk: Buffer) => {
       if (maxStdoutChars > 0 && stdout.length >= maxStdoutChars) return;
       stdout += chunk.toString('utf8');
       if (maxStdoutChars > 0 && stdout.length > maxStdoutChars) stdout = stdout.slice(0, maxStdoutChars);

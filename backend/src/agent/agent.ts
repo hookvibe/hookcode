@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { xSpawnShell, xExecSync } from '../utils/crossPlatformSpawn';
 import { existsSync } from 'fs';
 import { mkdir, rm, writeFile, stat, readFile, chmod, rename, copyFile, cp, readdir } from 'fs/promises';
 import path from 'path';
@@ -748,10 +749,10 @@ export const configureRepoLocalGitProxy = async (repoDir: string): Promise<void>
   // Set repo-local http.proxy and https.proxy to override ~/.gitconfig settings.
   // Repo-local config (.git/config) has higher priority than user global (~/.gitconfig).
   // gitproxyfix20260127
-  const { execSync } = await import('child_process');
+  // Use cross-platform execSync so git.cmd resolves on Windows. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
   try {
-    execSync(`git config --local http.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
-    execSync(`git config --local https.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
+    xExecSync(`git config --local http.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
+    xExecSync(`git config --local https.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
   } catch (err) {
     // Best-effort: log warning but don't fail the task if proxy config fails
     console.warn('[agent] Failed to configure repo-local git proxy:', err);
@@ -2247,8 +2248,8 @@ export const runCommandWithLogs = async (
     return { exitCode: -1, output: '' };
   }
   return await new Promise((resolve, reject) => {
-    // Spawn detached shell commands on POSIX so stop requests can terminate the whole process group, not only the parent shell. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
-    const child = spawn('sh', ['-c', command], {
+    // Spawn a cross-platform shell command; detached on POSIX so stop requests can terminate the whole process group. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    const child = xSpawnShell(command, {
       env: { ...process.env, ...(options.env ?? {}) },
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -2312,8 +2313,8 @@ export const runCommandWithLogs = async (
     const stdoutBuffer = createLineBuffer();
     const stderrBuffer = createLineBuffer();
 
-    child.stdout.on('data', (data: Buffer) => stdoutBuffer.push(data));
-    child.stderr.on('data', (data: Buffer) => stderrBuffer.push(data));
+    child.stdout!.on('data', (data: Buffer) => stdoutBuffer.push(data));
+    child.stderr!.on('data', (data: Buffer) => stderrBuffer.push(data));
 
     child.on('error', (err) => {
       if (timer) clearTimeout(timer);
@@ -2439,7 +2440,8 @@ export const runCommandCapture = async (
   }
   return await new Promise((resolve, reject) => {
     // Keep capture commands abortable too so future task-stop flows do not hang in silent git probes. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
-    const child = spawn('sh', ['-c', command], {
+    // Cross-platform shell command spawner for capture mode. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    const child = xSpawnShell(command, {
       env: { ...process.env, ...(options.env ?? {}) },
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -2463,10 +2465,10 @@ export const runCommandCapture = async (
       else options.signal.addEventListener('abort', handleAbort, { once: true });
     }
 
-    child.stdout.on('data', (data: Buffer) => {
+    child.stdout!.on('data', (data: Buffer) => {
       stdout += data.toString();
     });
-    child.stderr.on('data', (data: Buffer) => {
+    child.stderr!.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
 

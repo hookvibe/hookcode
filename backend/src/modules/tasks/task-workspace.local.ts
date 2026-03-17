@@ -1,5 +1,7 @@
 import { createHash } from 'crypto';
+// Use cross-platform spawn for git on Windows. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
 import { spawn } from 'child_process';
+import { xpSpawnOpts } from '../../utils/crossPlatformSpawn';
 import { access, readFile } from 'fs/promises';
 import path from 'path';
 import type { TaskWorkspaceChangeKind, TaskGitStatusWorkingTree } from '../../types/task';
@@ -101,7 +103,7 @@ const ensureWorkspaceExists = async (repoDir: string): Promise<void> => {
 
 const runGit = async (repoDir: string, args: string[], options?: { env?: Record<string, string> }): Promise<GitResult> =>
   await new Promise((resolve) => {
-    const child = spawn('git', args, {
+    const child = spawn('git', args, xpSpawnOpts({
       cwd: repoDir,
       env: {
         ...process.env,
@@ -109,14 +111,14 @@ const runGit = async (repoDir: string, args: string[], options?: { env?: Record<
         ...(options?.env ?? {})
       },
       stdio: ['ignore', 'pipe', 'pipe']
-    });
+    }));
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (chunk: Buffer) => {
+    child.stdout!.on('data', (chunk: Buffer) => {
       stdout += chunk.toString('utf8');
       if (stdout.length > MAX_DIFF_CHARS) stdout = stdout.slice(0, MAX_DIFF_CHARS);
     });
-    child.stderr.on('data', (chunk: Buffer) => {
+    child.stderr!.on('data', (chunk: Buffer) => {
       stderr += chunk.toString('utf8');
       if (stderr.length > 32_000) stderr = stderr.slice(0, 32_000);
     });

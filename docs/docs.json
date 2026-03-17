@@ -82,6 +82,15 @@
                 "group": "Plans",
                 "pages": [
                   {
+                    "group": "Make root package scripts work on Windows and macOS (package-json-cross-platform-20260318)",
+                    "pages": [
+                      "en/developer/plans/package-json-cross-platform-20260318/task_plan",
+                      "en/developer/plans/package-json-cross-platform-20260318/findings",
+                      "en/developer/plans/package-json-cross-platform-20260318/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
                     "group": "Legacy Docs: Split docs into 4 navbar categories (z91bv632ewan7oocdkb4)",
                     "pages": [
                       "en/developer/plans/z91bv632ewan7oocdkb4/task_plan",

@@ -1,11 +1,12 @@
-import { execFileSync } from 'child_process';
+// Use cross-platform execFileSync for git commands in tests. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+import { xExecFileSync } from '../runtime/crossPlatformSpawn';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 import { RepoChangeTracker } from '../runtime/repoChangeTracker';
 
 const runGit = (repoDir: string, args: string[]) => {
-  execFileSync('git', args, { cwd: repoDir, stdio: 'pipe' });
+  xExecFileSync('git', args, { cwd: repoDir, stdio: 'pipe' });
 };
 
 describe('RepoChangeTracker', () => {
