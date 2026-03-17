@@ -53,6 +53,31 @@
   border-color: color-mix(in srgb, #ea580c 20%, var(--hc-border));
 }
 
+.chat-bubble.kind-command_execution.tool-search .chat-bubble__avatar {
+  color: #475569;
+  background: color-mix(in srgb, #475569 8%, var(--hc-surface));
+  border-color: color-mix(in srgb, #475569 20%, var(--hc-border));
+}
+
+.chat-bubble.kind-command_execution.tool-bash .chat-bubble__avatar {
+  color: #15803d;
+  background: color-mix(in srgb, #15803d 8%, var(--hc-surface));
+  border-color: color-mix(in srgb, #15803d 20%, var(--hc-border));
+}
+
+.chat-bubble.kind-command_execution.tool-agent .chat-bubble__avatar,
+.chat-bubble.kind-command_execution.tool-plan .chat-bubble__avatar {
+  color: #7c3aed;
+  background: color-mix(in srgb, #7c3aed 8%, var(--hc-surface));
+  border-color: color-mix(in srgb, #7c3aed 20%, var(--hc-border));
+}
+
+.chat-bubble.kind-command_execution.tool-question .chat-bubble__avatar {
+  color: #2563eb;
+  background: color-mix(in srgb, #2563eb 8%, var(--hc-surface));
+  border-color: color-mix(in srgb, #2563eb 20%, var(--hc-border));
+}
+
 .chat-bubble.kind-file_change .chat-bubble__avatar {
   color: #059669;
   background: color-mix(in srgb, #059669 8%, var(--hc-surface));
@@ -69,6 +94,12 @@
   color: #14b8a6; /* Teal */
   background: color-mix(in srgb, #14b8a6 8%, var(--hc-surface));
   border-color: color-mix(in srgb, #14b8a6 20%, var(--hc-border));
+}
+
+.chat-bubble.kind-subagent_container .chat-bubble__avatar {
+  color: #7c3aed;
+  background: color-mix(in srgb, #7c3aed 8%, var(--hc-surface));
+  border-color: color-mix(in srgb, #7c3aed 20%, var(--hc-border));
 }
 
 /* Status Overrides for Avatar (Running/Failed take precedence) */
@@ -127,6 +158,23 @@
   background: color-mix(in srgb, #ea580c 72%, transparent);
 }
 
+.chat-bubble.kind-command_execution.tool-search .chat-bubble__content::before {
+  background: color-mix(in srgb, #475569 72%, transparent);
+}
+
+.chat-bubble.kind-command_execution.tool-bash .chat-bubble__content::before {
+  background: color-mix(in srgb, #15803d 72%, transparent);
+}
+
+.chat-bubble.kind-command_execution.tool-agent .chat-bubble__content::before,
+.chat-bubble.kind-command_execution.tool-plan .chat-bubble__content::before {
+  background: color-mix(in srgb, #7c3aed 72%, transparent);
+}
+
+.chat-bubble.kind-command_execution.tool-question .chat-bubble__content::before {
+  background: color-mix(in srgb, #2563eb 72%, transparent);
+}
+
 .chat-bubble.kind-file_change .chat-bubble__content::before {
   background: color-mix(in srgb, #059669 72%, transparent);
 }
@@ -141,6 +189,10 @@
 
 .chat-bubble.kind-todo_list .chat-bubble__content::before {
   background: color-mix(in srgb, #0d9488 72%, transparent);
+}
+
+.chat-bubble.kind-subagent_container .chat-bubble__content::before {
+  background: color-mix(in srgb, #7c3aed 72%, transparent);
 }
 
 .chat-bubble__header {
@@ -162,15 +214,27 @@
 /* Kind-specific Role Colors */
 .chat-bubble.kind-agent_message .chat-bubble__role { color: #2563eb; }
 .chat-bubble.kind-command_execution .chat-bubble__role { color: #c2410c; }
+.chat-bubble.kind-command_execution.tool-search .chat-bubble__role { color: #475569; }
+.chat-bubble.kind-command_execution.tool-bash .chat-bubble__role { color: #15803d; }
+.chat-bubble.kind-command_execution.tool-agent .chat-bubble__role,
+.chat-bubble.kind-command_execution.tool-plan .chat-bubble__role { color: #7c3aed; }
+.chat-bubble.kind-command_execution.tool-question .chat-bubble__role { color: #2563eb; }
 .chat-bubble.kind-file_change .chat-bubble__role { color: #047857; }
 .chat-bubble.kind-reasoning .chat-bubble__role { color: #475569; }
 .chat-bubble.kind-todo_list .chat-bubble__role { color: #0d9488; }
+.chat-bubble.kind-subagent_container .chat-bubble__role { color: #7c3aed; }
 /* Dark mode adjustments for readability */
 html[data-theme='dark'] .chat-bubble.kind-agent_message .chat-bubble__role { color: #60a5fa; }
 html[data-theme='dark'] .chat-bubble.kind-command_execution .chat-bubble__role { color: #fdba74; }
+html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-search .chat-bubble__role { color: #cbd5e1; }
+html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-bash .chat-bubble__role { color: #86efac; }
+html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-agent .chat-bubble__role,
+html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-plan .chat-bubble__role { color: #c4b5fd; }
+html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-question .chat-bubble__role { color: #93c5fd; }
 html[data-theme='dark'] .chat-bubble.kind-file_change .chat-bubble__role { color: #6ee7b7; }
 html[data-theme='dark'] .chat-bubble.kind-reasoning .chat-bubble__role { color: #94a3b8; }
 html[data-theme='dark'] .chat-bubble.kind-todo_list .chat-bubble__role { color: #2dd4bf; }
+html[data-theme='dark'] .chat-bubble.kind-subagent_container .chat-bubble__role { color: #c4b5fd; }
 
 .chat-bubble__kind {
   display: inline-flex;
@@ -369,13 +433,18 @@ html[data-theme='dark'] .chat-work__mono { background: #0c0c0c; border-color: #1
 }
 
 .chat-file {
+  appearance: none;
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 7px 8px;
   border: 1px solid color-mix(in srgb, var(--hc-border) 80%, transparent);
   border-radius: 10px;
   background: color-mix(in srgb, var(--hc-code-bg) 56%, transparent);
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
   font-size: 12px;
   transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
 }
@@ -384,6 +453,17 @@ html[data-theme='dark'] .chat-work__mono { background: #0c0c0c; border-color: #1
   border-color: color-mix(in srgb, var(--hc-accent-border) 48%, var(--hc-border));
   background: color-mix(in srgb, var(--hc-accent-soft) 58%, var(--hc-surface));
   transform: translateY(-1px);
+}
+
+.chat-file:disabled {
+  cursor: default;
+  opacity: 0.92;
+}
+
+.chat-file.is-active {
+  border-color: color-mix(in srgb, var(--hc-accent-border) 68%, var(--hc-border));
+  background: color-mix(in srgb, var(--hc-accent-soft) 68%, var(--hc-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hc-accent-border) 12%, transparent);
 }
 
 .chat-file__badge {
@@ -492,6 +572,36 @@ html[data-theme='dark'] .chat-file__metric--remove {
   margin-top: 4px;
 }
 
+.chat-diff-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chat-diff-tabs__tab {
+  appearance: none;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 82%, transparent);
+  background: color-mix(in srgb, var(--hc-code-bg) 66%, transparent);
+  font-family: "Fira Code", monospace;
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.chat-diff-tabs__tab:hover {
+  border-color: color-mix(in srgb, var(--hc-accent-border) 44%, var(--hc-border));
+  color: var(--text);
+}
+
+.chat-diff-tabs__tab.is-active {
+  border-color: color-mix(in srgb, var(--hc-accent-border) 68%, var(--hc-border));
+  background: color-mix(in srgb, var(--hc-accent-soft) 72%, var(--hc-surface));
+  color: var(--text);
+}
+
 .chat-diff {
   display: flex;
   flex-direction: column;
@@ -527,31 +637,229 @@ html[data-theme='dark'] .chat-file__metric--remove {
 .chat-todo {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-top: 6px;
+}
+
+.chat-todo__summarybar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chat-todo__summary-pill,
+.chat-todo__toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 84%, transparent);
+  background: color-mix(in srgb, var(--hc-code-bg) 72%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chat-todo__summary-pill--active {
+  border-color: rgba(59, 130, 246, 0.18);
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.chat-todo__toggle {
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.chat-todo__toggle:hover {
+  border-color: var(--hc-accent-border);
+  background: color-mix(in srgb, var(--hc-accent-soft) 72%, transparent);
+  color: var(--text);
+}
+
+.chat-todo__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .chat-todo__item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 80%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-surface) 88%, transparent);
   font-size: 13px;
 }
 
 .chat-todo__item.is-complete {
   color: var(--muted);
+}
+
+.chat-todo__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--text-secondary);
+}
+
+.chat-todo__icon--completed svg {
+  color: #16a34a;
+}
+
+.chat-todo__icon--in_progress svg {
+  color: #2563eb;
+}
+
+.chat-todo__icon--pending svg {
+  color: var(--text-tertiary);
+}
+
+.chat-todo__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.chat-todo__text {
+  color: var(--text);
+}
+
+.chat-todo__item.is-complete .chat-todo__text {
   text-decoration: line-through;
 }
 
-.chat-todo__marker {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--hc-border);
+.chat-todo__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.chat-todo__item.is-complete .chat-todo__marker {
-  background: #16a34a;
+.chat-todo__badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.chat-todo__badge--completed {
+  border-color: rgba(34, 197, 94, 0.18);
+  background: rgba(34, 197, 94, 0.1);
+  color: #15803d;
+}
+
+.chat-todo__badge--progress {
+  border-color: rgba(59, 130, 246, 0.18);
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.chat-todo__badge--pending {
+  border-color: color-mix(in srgb, var(--hc-border) 82%, transparent);
+  background: color-mix(in srgb, var(--hc-code-bg) 70%, transparent);
+  color: var(--text-secondary);
+}
+
+.chat-todo__badge--high {
+  border-color: rgba(239, 68, 68, 0.18);
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.chat-todo__badge--medium {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.1);
+  color: #b45309;
+}
+
+.chat-todo__badge--low {
+  border-color: color-mix(in srgb, var(--hc-border) 82%, transparent);
+  background: color-mix(in srgb, var(--hc-code-bg) 70%, transparent);
+  color: var(--text-secondary);
+}
+
+/* Subagent */
+.chat-subagent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 82%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-code-bg) 42%, transparent);
+}
+
+.chat-subagent__prompt,
+.chat-subagent__result {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-subagent__current,
+.chat-subagent__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.chat-subagent__pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #7c3aed;
+  animation: pulse 1.4s infinite ease-in-out both;
+}
+
+.chat-subagent__tool {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.chat-subagent__summary {
+  color: var(--text-secondary);
+}
+
+.chat-subagent__history summary {
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.chat-subagent__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 2px;
+}
+
+.chat-subagent__index {
+  color: var(--text-tertiary);
+}
+
+.chat-subagent__error {
+  color: #dc2626;
 }
 
 /* Loading / Running */

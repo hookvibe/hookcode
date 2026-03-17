@@ -1,10 +1,11 @@
 import { FC, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { List } from 'react-window'; // Add virtual scrolling for long log lists. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+import '../styles/log-viewer.css';
 
 // Bridge the current react-window usage to the installed type surface until the raw log viewer is fully refactored. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
 const VirtualList = List as any;
 import { clearTaskLogs, fetchTaskLogsPage } from '../api';
-import type { TaskWorkspaceChanges } from '../api';
+import type { Task, TaskWorkspaceChanges } from '../api';
 import { useT } from '../i18n';
 import { createAuthedEventSource } from '../utils/sse';
 import { ExecutionTimeline } from './execution/ExecutionTimeline';
@@ -17,6 +18,7 @@ import type { StreamInitPayload, StreamLogPayload } from './taskLogViewer/types'
 import { LogViewerSkeleton } from './skeletons/LogViewerSkeleton'; // Show skeleton during initial log load. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
 import { TaskWorkspaceChangesPanel } from './tasks/TaskWorkspaceChangesPanel';
 import { extractLatestWorkspaceChangesFromLogs, parseWorkspaceSnapshotLogLine } from '../utils/workspaceChanges';
+import { ExecutionApprovalBanner } from './approvals/ExecutionApprovalBanner';
 
 interface Props {
   taskId: string;
@@ -28,6 +30,9 @@ interface Props {
   };
   emptyMessage?: string;
   emptyHint?: string;
+  task?: Task | null;
+  onTaskUpdated?: (task: Task) => void | Promise<void>;
+  showApprovalBanner?: boolean;
   // Accept persisted worker workspace snapshots so the log viewer can show file diffs before or between SSE updates. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
   workspaceChanges?: TaskWorkspaceChanges | null;
   reconnectKey?: number;
@@ -47,6 +52,9 @@ export const TaskLogViewer: FC<Props> = ({
   controls,
   emptyMessage,
   emptyHint,
+  task,
+  onTaskUpdated,
+  showApprovalBanner = true,
   workspaceChanges,
   reconnectKey,
   focusText,
@@ -99,6 +107,10 @@ export const TaskLogViewer: FC<Props> = ({
   const lines = useMemo(() => visibleLogs.join('\n'), [visibleLogs]);
   // Prefer live snapshot logs when present, otherwise fall back to the latest persisted task-result snapshot. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
   const resolvedWorkspaceChanges = liveWorkspaceChanges !== undefined ? liveWorkspaceChanges : workspaceChanges ?? null;
+  const approvalBanner = useMemo(() => {
+    if (!showApprovalBanner || !task?.approvalRequest) return null;
+    return <ExecutionApprovalBanner task={task} onUpdated={onTaskUpdated} />;
+  }, [onTaskUpdated, showApprovalBanner, task]);
   const buildLineId = useCallback((idx: number) => `task-log-${taskId}-${idx}`, [taskId]);
   const pageSize = Math.min(Math.max(tail, 1), MAX_LOG_LINES);
   const historyExhausted = historyInitialized && !nextBefore;
@@ -485,6 +497,7 @@ export const TaskLogViewer: FC<Props> = ({
           />
         )}
         <div className="log-viewer__body">
+          {approvalBanner}
           <LogViewerSkeleton lines={8} ariaLabel={t('logViewer.loading')} />
         </div>
       </div>
@@ -505,6 +518,7 @@ export const TaskLogViewer: FC<Props> = ({
         onLoadEarlier={() => void loadEarlier()}
         emptyMessage={resolvedEmptyMessage}
         emptyHint={emptyHint}
+        approvalBanner={approvalBanner}
         workspaceChanges={resolvedWorkspaceChanges}
         rootRef={rootRef}
         endRef={endRef}
@@ -553,6 +567,7 @@ export const TaskLogViewer: FC<Props> = ({
 
       <div className="log-viewer__body">
         <div className="log-viewer__stack">
+          {approvalBanner}
           <TaskWorkspaceChangesPanel changes={resolvedWorkspaceChanges} />
           <section className="log-viewer__section">
             <div className="log-viewer__section-bar">

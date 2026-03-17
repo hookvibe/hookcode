@@ -281,7 +281,18 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
             </span>
           </span>
         ),
-        children: <TaskGroupLogPanel task={task} taskDetail={taskDetailsById[task.id] ?? null} />
+        children: (
+          <TaskGroupLogPanel
+            task={task}
+            taskDetail={taskDetailsById[task.id] ?? null}
+            onTaskUpdated={async () => {
+              await ensureTaskDetail(task.id);
+              if (taskGroupId) {
+                await refreshGroupDetail(taskGroupId, { mode: 'refreshing' });
+              }
+            }}
+          />
+        )
       }))
   ];
 

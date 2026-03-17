@@ -19,6 +19,8 @@ import {
   resolveTaskProvidersFromContext
 } from './runtime/prepareRuntime';
 import { runTaskExecution } from './runtime/taskExecution';
+import { executeTaskWorkspaceOperation, TaskWorkspaceError } from './runtime/taskWorkspace';
+import { resolveTaskWorkspaceDir } from './runtime/taskCommand';
 
 interface ActiveTaskEntry {
   abortController: AbortController;
@@ -188,6 +190,10 @@ export class WorkerProcess {
     }
     if (message.type === 'ping') {
       this.sendHello();
+      return;
+    }
+    if (message.type === 'workspaceRequest') {
+      await this.handleWorkspaceRequest(message);
     }
   }
 
@@ -244,6 +250,43 @@ export class WorkerProcess {
     })();
 
     return this.preparingRuntimePromise;
+  }
+
+  private async handleWorkspaceRequest(message: Extract<BackendToWorkerMessage, { type: 'workspaceRequest' }>): Promise<void> {
+    try {
+      const context = await this.client.getTaskContext(message.taskId);
+      const task = (context.task ?? {}) as Record<string, unknown>;
+      const taskGroupId =
+        (typeof task.taskGroupId === 'string' ? task.taskGroupId.trim() : '') ||
+        (typeof task.groupId === 'string' ? task.groupId.trim() : '');
+      const ensuredGroupId = taskGroupId ? taskGroupId : (await this.client.ensureGroupId(message.taskId)).groupId ?? undefined;
+      const workspaceDir = resolveTaskWorkspaceDir(this.config.workspaceRootDir, task, { groupId: ensuredGroupId ?? undefined });
+      const result = await executeTaskWorkspaceOperation({
+        repoDir: workspaceDir,
+        action: message.action,
+        paths: message.payload?.paths,
+        message: message.payload?.message
+      });
+      this.send({
+        type: 'workspaceResponse',
+        requestId: message.requestId,
+        taskId: message.taskId,
+        success: true,
+        result: result as Record<string, unknown>
+      });
+    } catch (error) {
+      const workspaceError = error instanceof TaskWorkspaceError ? error : null;
+      this.send({
+        type: 'workspaceResponse',
+        requestId: message.requestId,
+        taskId: message.taskId,
+        success: false,
+        error: {
+          code: workspaceError?.code ?? 'WORKSPACE_REQUEST_FAILED',
+          message: workspaceError?.message ?? getErrorMessage(error)
+        }
+      });
+    }
   }
 
   private startTaskControlPolling(taskId: string, activeTask: ActiveTaskEntry): void {

@@ -1,5 +1,16 @@
 import { api, getCached, invalidateTaskCaches } from './client';
-import type { ArchiveScope, DashboardSidebarSnapshot, Task, TaskLogsPage, TaskStatus, TaskStatusStats, TaskVolumePoint } from './types';
+import type {
+  ArchiveScope,
+  DashboardSidebarSnapshot,
+  Task,
+  TaskLogsPage,
+  TaskStatus,
+  TaskStatusStats,
+  TaskVolumePoint,
+  TaskWorkspaceOperation,
+  TaskWorkspaceOperationResult,
+  TaskWorkspaceState
+} from './types';
 
 // Split task list/stat/actions APIs into a dedicated module for clearer ownership. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
 export const fetchTasks = async (options?: {
@@ -105,6 +116,21 @@ export const pushTaskGitChanges = async (taskId: string): Promise<Task> => {
   const { data } = await api.post<{ task: Task }>(`/tasks/${taskId}/git/push`);
   invalidateTaskCaches();
   return data.task;
+};
+
+export const fetchTaskWorkspace = async (taskId: string): Promise<TaskWorkspaceState> => {
+  const { data } = await api.get<{ workspace: TaskWorkspaceState }>(`/tasks/${taskId}/workspace`);
+  return data.workspace;
+};
+
+export const runTaskWorkspaceOperation = async (
+  taskId: string,
+  action: TaskWorkspaceOperation,
+  input?: { paths?: string[]; message?: string }
+): Promise<TaskWorkspaceOperationResult> => {
+  const { data } = await api.post<{ result: TaskWorkspaceOperationResult }>(`/tasks/${taskId}/workspace/${action}`, input ?? {});
+  invalidateTaskCaches();
+  return data.result;
 };
 
 export const deleteTask = async (taskId: string): Promise<void> => {

@@ -48,12 +48,25 @@ export type WorkerRuntimePrepareFinishedMessage = {
   error?: string;
 };
 
+export type WorkerWorkspaceResponseMessage = {
+  type: 'workspaceResponse';
+  requestId: string;
+  taskId: string;
+  success: boolean;
+  result?: Record<string, unknown>;
+  error?: {
+    code?: string;
+    message?: string;
+  };
+};
+
 export type WorkerToBackendMessage =
   | WorkerHelloMessage
   | WorkerHeartbeatMessage
   | WorkerTaskAcceptedMessage
   | WorkerRuntimePrepareStartedMessage
-  | WorkerRuntimePrepareFinishedMessage;
+  | WorkerRuntimePrepareFinishedMessage
+  | WorkerWorkspaceResponseMessage;
 
 export type WorkerAssignTaskMessage = {
   type: 'assignTask';
@@ -74,15 +87,33 @@ export type WorkerPingMessage = {
   type: 'ping';
 };
 
+export type WorkerWorkspaceRequestMessage = {
+  type: 'workspaceRequest';
+  requestId: string;
+  taskId: string;
+  action: 'snapshot' | 'stage' | 'unstage' | 'discard' | 'delete_untracked' | 'commit';
+  payload?: {
+    paths?: string[];
+    message?: string;
+  };
+};
+
 export type BackendToWorkerMessage =
   | WorkerAssignTaskMessage
   | WorkerPrepareRuntimeMessage
   | WorkerCancelTaskMessage
-  | WorkerPingMessage;
+  | WorkerPingMessage
+  | WorkerWorkspaceRequestMessage;
 
 export const isBackendToWorkerMessage = (value: unknown): value is BackendToWorkerMessage => {
   // Parse only the small worker control protocol so reconnects stay resilient to malformed backend frames. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
   if (!value || typeof value !== 'object') return false;
   const type = String((value as { type?: unknown }).type ?? '');
-  return type === 'assignTask' || type === 'prepareRuntime' || type === 'cancelTask' || type === 'ping';
+  return (
+    type === 'assignTask' ||
+    type === 'prepareRuntime' ||
+    type === 'cancelTask' ||
+    type === 'ping' ||
+    type === 'workspaceRequest'
+  );
 };

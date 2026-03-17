@@ -50,7 +50,7 @@ describe('TaskWorkspaceChangesPanel', () => {
     expect(screen.getByText(/工作区变更|Workspace changes/i)).toBeInTheDocument();
     expect(screen.getAllByText('src/first.ts').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/修改|Edited/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/新增|New/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/新增|New/i).length).toBeGreaterThan(0);
     expect(
       screen.getByText((_content, node) => node?.textContent === 'const value = 2;')
     ).toBeInTheDocument();
@@ -83,6 +83,19 @@ describe('TaskWorkspaceChangesPanel', () => {
     expect(
       screen.getAllByText((_content, node) => node?.textContent === 'export const second = true;').length
     ).toBeGreaterThan(0);
+  });
+
+  test('filters files by search and status while keeping the diff viewer in sync', () => {
+    render(<TaskWorkspaceChangesPanel changes={snapshot} />);
+
+    fireEvent.change(screen.getByRole('searchbox', { name: /搜索文件|Search files/i }), {
+      target: { value: 'second' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: /新增|New/i }));
+
+    expect(screen.getByRole('button', { name: 'src/second.ts' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: 'src/first.ts' })).toBeNull();
+    expect(screen.getAllByText(/当前展示 1 \/ 2|Showing 1 of 2/i).length).toBeGreaterThan(0);
   });
 
   test('keeps full paths accessible while rendering compact trailing path segments', () => {

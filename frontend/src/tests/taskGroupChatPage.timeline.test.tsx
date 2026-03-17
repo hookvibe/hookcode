@@ -109,8 +109,8 @@ describe('TaskGroupChatPage workspace', () => {
     expect(api.fetchTaskGroupTasks.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
 
-  test('expands compact git details without bubbling into the log tab click', async () => {
-    // Keep compact git toggles local to the task card so users do not accidentally open the right-side log tab. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  test('opens the workspace tab from the summary card and loads the full workspace panel', async () => {
+    // Keep task cards lightweight while still providing a direct entry into the full Claude-style workspace tab. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
     const ui = userEvent.setup();
     const now = '2026-01-11T00:00:00.000Z';
 
@@ -140,18 +140,93 @@ describe('TaskGroupChatPage workspace', () => {
             delta: { headChanged: true, branchChanged: true },
             push: { status: 'unpushed' },
             workingTree: { staged: ['src/a.ts'], unstaged: ['src/b.ts'], untracked: ['src/c.ts'] }
+          },
+          workspaceChanges: {
+            capturedAt: now,
+            files: [
+              {
+                path: 'src/a.ts',
+                kind: 'update',
+                diffHash: 'hash-a',
+                unifiedDiff: '@@ -1,1 +1,1 @@\n-console.log("old")\n+console.log("new")\n',
+                oldText: 'console.log("old")\n',
+                newText: 'console.log("new")\n',
+                updatedAt: now
+              }
+            ]
           }
         }
       } as any
     ]);
+    vi.mocked(api.fetchTask).mockResolvedValue({
+      id: 't_git',
+      eventType: 'chat',
+      title: 'Git task',
+      status: 'succeeded',
+      retries: 0,
+      groupOrder: 1,
+      sequence: { order: 1 },
+      permissions: { canManage: true },
+      createdAt: now,
+      updatedAt: now,
+      result: {
+        gitStatus: {
+          enabled: true,
+          final: { branch: 'feature/git-panel', headSha: '1234567890abcdef1234567890abcdef12345678', ahead: 2, behind: 1 },
+          baseline: { branch: 'main', headSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+          delta: { headChanged: true, branchChanged: true },
+          push: { status: 'unpushed' },
+          workingTree: { staged: ['src/a.ts'], unstaged: ['src/b.ts'], untracked: ['src/c.ts'] }
+        },
+        workspaceChanges: {
+          capturedAt: now,
+          files: [
+            {
+              path: 'src/a.ts',
+              kind: 'update',
+              diffHash: 'hash-a',
+              unifiedDiff: '@@ -1,1 +1,1 @@\n-console.log("old")\n+console.log("new")\n',
+              oldText: 'console.log("old")\n',
+              newText: 'console.log("new")\n',
+              updatedAt: now
+            }
+          ]
+        }
+      }
+    } as any);
+    vi.mocked(api.fetchTaskWorkspace).mockResolvedValue({
+      source: 'snapshot',
+      live: false,
+      readOnly: true,
+      capturedAt: now,
+      branch: 'feature/git-panel',
+      headSha: '1234567890abcdef1234567890abcdef12345678',
+      workingTree: { staged: ['src/a.ts'], unstaged: ['src/b.ts'], untracked: ['src/c.ts'] },
+      summary: { total: 3, staged: 1, unstaged: 1, untracked: 1, additions: 1, deletions: 1, hasChanges: true },
+      files: [
+        {
+          path: 'src/a.ts',
+          kind: 'update',
+          sections: ['staged'],
+          diffHash: 'hash-a',
+          unifiedDiff: '@@ -1,1 +1,1 @@\n-console.log("old")\n+console.log("new")\n',
+          oldText: 'console.log("old")\n',
+          newText: 'console.log("new")\n',
+          updatedAt: now
+        }
+      ],
+      canCommit: false
+    } as any);
 
     renderTaskGroupChatPage({ taskGroupId: 'g1' });
 
-    const expandButton = await screen.findByRole('button', { name: /show details/i });
-    await ui.click(expandButton);
+    const openWorkspaceButton = await screen.findByRole('button', { name: /open workspace/i });
+    await ui.click(openWorkspaceButton);
 
-    expect(screen.getByText('Staged (1)')).toBeInTheDocument();
-    expect(api.fetchTask).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.fetchTask).toHaveBeenCalledWith('t_git'));
+    await waitFor(() => expect(api.fetchTaskWorkspace).toHaveBeenCalledWith('t_git'));
+    expect((await screen.findAllByText('feature/git-panel')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('src/a.ts').length).toBeGreaterThan(0);
   });
 
   test('renders task request and summary as Markdown inside the card', async () => {

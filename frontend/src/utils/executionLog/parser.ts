@@ -1,8 +1,32 @@
 // Extract execution log line parsing into a dedicated module. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
-import type { ExecutionFileChange, ExecutionFileChangeKind, ExecutionFileDiff, ExecutionItem, ExecutionItemStatus, ExecutionTodoItem, ParsedLine } from './types';
+import type {
+  ExecutionFileChange,
+  ExecutionFileChangeKind,
+  ExecutionFileDiff,
+  ExecutionItem,
+  ExecutionItemStatus,
+  ExecutionSubagentChildItem,
+  ExecutionTodoItem,
+  ExecutionTodoPriority,
+  ExecutionTodoStatus,
+  ParsedLine
+} from './types';
 import { asArray, asNumberOrNull, asString, isRecord, toInlineText } from './helpers';
 import { buildClaudeMessageItems, buildClaudeResultItem, buildClaudeSystemItem } from './claude';
+
+const normalizeTodoStatus = (value: unknown, completed: unknown): ExecutionTodoStatus => {
+  const status = asString(value).trim();
+  if (status === 'completed' || status === 'in_progress') return status;
+  if (status === 'pending') return 'pending';
+  return completed === true ? 'completed' : 'pending';
+};
+
+const normalizeTodoPriority = (value: unknown): ExecutionTodoPriority => {
+  const priority = asString(value).trim();
+  if (priority === 'high' || priority === 'medium') return priority;
+  return 'low';
+};
 
 /**
  * Parse a single task log line into an execution UI event. yjlphd6rbkrq521ny796
@@ -73,6 +97,48 @@ export const parseExecutionLogLine = (line: string): ParsedLine[] => {
     ];
   }
 
+  if (type === 'hookcode.subagent') {
+    const itemId = asString(parsed.id).trim() || asString(parsed.item_id).trim();
+    if (!itemId) return [];
+
+    const childItems: ExecutionSubagentChildItem[] = Array.isArray(parsed.child_tools)
+      ? parsed.child_tools
+          .map((entry: unknown, index: number) => {
+            if (!isRecord(entry)) return null;
+            const childId = asString(entry.id).trim() || `${itemId}_child_${index}`;
+            const toolName = asString(entry.tool_name).trim() || asString(entry.name).trim() || 'Tool';
+            return {
+              id: childId,
+              toolName,
+              summary: asString(entry.summary).trim() || undefined,
+              toolInput: entry.tool_input ?? entry.input,
+              output: asString(entry.output) || undefined,
+              status: (asString(entry.status).trim() || 'completed') as ExecutionItemStatus,
+              isError: entry.is_error === true
+            } satisfies ExecutionSubagentChildItem;
+          })
+          .filter((entry): entry is ExecutionSubagentChildItem => Boolean(entry))
+      : [];
+
+    return [
+      {
+        kind: 'item',
+        item: {
+          kind: 'subagent_container',
+          id: itemId,
+          status: (asString(parsed.status).trim() || 'completed') as ExecutionItemStatus,
+          title: asString(parsed.title).trim() || 'Subagent',
+          description: asString(parsed.description).trim() || asString(parsed.summary).trim() || 'Running task',
+          prompt: asString(parsed.prompt) || undefined,
+          currentToolIndex: Math.max(0, asNumberOrNull(parsed.current_tool_index) ?? childItems.length - 1),
+          isComplete: parsed.is_complete === true || asString(parsed.phase).trim() === 'completed',
+          childItems,
+          resultText: asString(parsed.result_text) || undefined
+        }
+      }
+    ];
+  }
+
   if (type !== 'item.started' && type !== 'item.updated' && type !== 'item.completed') return [];
   const itemRaw = (parsed as any).item;
   if (!isRecord(itemRaw)) return [];
@@ -86,7 +152,9 @@ export const parseExecutionLogLine = (line: string): ParsedLine[] => {
     const command = asString(itemRaw.command);
     const output = typeof itemRaw.aggregated_output === 'string' ? itemRaw.aggregated_output : undefined;
     const exitCode = asNumberOrNull(itemRaw.exit_code);
-    return [{ kind: 'item', item: { kind: 'command_execution', id: itemId, status, command, output, exitCode } }];
+    const toolName = asString(itemRaw.tool_name).trim() || undefined;
+    const toolInput = itemRaw.tool_input ?? itemRaw.input;
+    return [{ kind: 'item', item: { kind: 'command_execution', id: itemId, status, command, toolName, toolInput, output, exitCode } }];
   }
 
   if (itemType === 'file_change') {
@@ -120,13 +188,57 @@ export const parseExecutionLogLine = (line: string): ParsedLine[] => {
       ? itemRaw.items
           .map((entry: unknown) => {
             if (!isRecord(entry)) return null;
-            const text = asString(entry.text).trim();
-            if (!text) return null;
-            return { text, completed: entry.completed === true };
+            const content = asString(entry.content).trim() || asString(entry.text).trim();
+            if (!content) return null;
+            return {
+              id: asString(entry.id).trim() || undefined,
+              content,
+              status: normalizeTodoStatus(entry.status, entry.completed),
+              priority: normalizeTodoPriority(entry.priority)
+            };
           })
           .filter((entry): entry is ExecutionTodoItem => Boolean(entry))
       : [];
     return [{ kind: 'item', item: { kind: 'todo_list', id: itemId, status, items } }];
+  }
+
+  if (itemType === 'subagent_container') {
+    const childItems: ExecutionSubagentChildItem[] = Array.isArray(itemRaw.child_items)
+      ? itemRaw.child_items
+          .map((entry: unknown, index: number) => {
+            if (!isRecord(entry)) return null;
+            const childId = asString(entry.id).trim() || `${itemId}_child_${index}`;
+            const toolName = asString(entry.tool_name).trim() || asString(entry.name).trim() || 'Tool';
+            return {
+              id: childId,
+              toolName,
+              summary: asString(entry.summary).trim() || undefined,
+              toolInput: entry.tool_input ?? entry.input,
+              output: asString(entry.output) || undefined,
+              status: (asString(entry.status).trim() || 'completed') as ExecutionItemStatus,
+              isError: entry.is_error === true
+            } satisfies ExecutionSubagentChildItem;
+          })
+          .filter((entry): entry is ExecutionSubagentChildItem => Boolean(entry))
+      : [];
+
+    return [
+      {
+        kind: 'item',
+        item: {
+          kind: 'subagent_container',
+          id: itemId,
+          status,
+          title: asString(itemRaw.title).trim() || 'Subagent',
+          description: asString(itemRaw.description).trim() || asString(itemRaw.summary).trim() || 'Running task',
+          prompt: asString(itemRaw.prompt) || undefined,
+          currentToolIndex: Math.max(0, asNumberOrNull(itemRaw.current_tool_index) ?? childItems.length - 1),
+          isComplete: itemRaw.is_complete === true,
+          childItems,
+          resultText: asString(itemRaw.result_text) || undefined
+        }
+      }
+    ];
   }
 
   return [{ kind: 'item', item: { kind: 'unknown', id: itemId, status, itemType, raw: itemRaw } }];

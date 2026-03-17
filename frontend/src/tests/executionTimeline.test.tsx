@@ -90,8 +90,8 @@ describe('ExecutionTimeline', () => {
         id: 'todo_1',
         status: 'in_progress',
         items: [
-          { text: 'First task', completed: false },
-          { text: 'Second task', completed: true }
+          { id: 'todo_a', content: 'First task', status: 'in_progress', priority: 'high' },
+          { id: 'todo_b', content: 'Second task', status: 'completed', priority: 'low' }
         ]
       }
     ];
@@ -100,6 +100,8 @@ describe('ExecutionTimeline', () => {
 
     expect(screen.getByText('First task')).toBeInTheDocument();
     expect(screen.getByText('Second task')).toBeInTheDocument();
+    expect(screen.getByText('In progress')).toBeInTheDocument();
+    expect(screen.getByText('High')).toBeInTheDocument();
     // Verify the updated todo item class names in the refreshed execution UI. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     expect(container.querySelector('.chat-todo__item.is-complete')).toBeTruthy();
   });
@@ -196,5 +198,56 @@ describe('ExecutionTimeline', () => {
     await ui.click(screen.getByRole('button', { name: 'Show full content' }));
 
     expect(outputBlock).toHaveTextContent('output line 190');
+  });
+
+  test('renders raw tool input details for command tools', async () => {
+    const ui = userEvent.setup();
+    const items: ExecutionItem[] = [
+      {
+        kind: 'command_execution',
+        id: 'cmd_edit',
+        status: 'completed',
+        toolName: 'Edit',
+        toolInput: {
+          file_path: 'src/example.ts',
+          old_string: 'const value = 1;',
+          new_string: 'const value = 2;'
+        },
+        output: 'updated'
+      }
+    ];
+
+    const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    expect(container.querySelector('.chat-bubble.kind-command_execution.tool-edit')).toBeTruthy();
+    await ui.click(screen.getByRole('button', { name: 'Tool input' }));
+    expect(screen.getByText(/"file_path": "src\/example\.ts"/)).toBeInTheDocument();
+  });
+
+  test('switches between diff tabs for multi-file tool changes', async () => {
+    const ui = userEvent.setup();
+    const items: ExecutionItem[] = [
+      {
+        kind: 'file_change',
+        id: 'fc_tabs',
+        status: 'completed',
+        changes: [
+          { path: 'src/first.ts', kind: 'update' },
+          { path: 'src/second.ts', kind: 'update' }
+        ],
+        diffs: [
+          { path: 'src/first.ts', kind: 'update', unifiedDiff: 'first diff content' },
+          { path: 'src/second.ts', kind: 'update', unifiedDiff: 'second diff content' }
+        ]
+      }
+    ];
+
+    render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    await ui.click(screen.getByRole('button', { name: 'Diffs' }));
+    expect(screen.getByText('first diff content')).toBeInTheDocument();
+
+    await ui.click(screen.getByRole('tab', { name: 'src/second.ts' }));
+    expect(screen.getByText('second diff content')).toBeInTheDocument();
   });
 });

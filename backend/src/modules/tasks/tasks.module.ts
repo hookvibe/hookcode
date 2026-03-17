@@ -15,6 +15,7 @@ import { TaskLogStream } from './task-log-stream.service';
 import { TaskLogsService } from './task-logs.service';
 import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
+import { TaskWorkspaceService } from './task-workspace.service';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
 import { PreviewService } from './preview.service';
 import { PreviewLogStream } from './preview-log-stream.service';
@@ -64,6 +65,7 @@ import { CostGovernanceModule } from '../../costGovernance/costGovernance.module
     AgentService,
     TaskRunner,
     TaskGitPushService,
+    TaskWorkspaceService,
     // Provide `.hookcode.yml` parsing for dependency installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
     HookcodeConfigService,
     PolicyEngineService,
@@ -82,6 +84,7 @@ import { CostGovernanceModule } from '../../costGovernance/costGovernance.module
     AgentService,
     TaskRunner,
     TaskGitPushService,
+    TaskWorkspaceService,
     HookcodeConfigService,
     PolicyEngineService,
     ApprovalQueueService,

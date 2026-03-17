@@ -49,6 +49,17 @@ vi.mock('../api', () => {
         }
       }
     })),
+    fetchTaskWorkspace: vi.fn(async () => ({
+      source: 'snapshot',
+      live: false,
+      readOnly: true,
+      capturedAt: '2026-01-11T00:00:00.000Z',
+      workingTree: { staged: [], unstaged: [], untracked: [] },
+      summary: { total: 0, staged: 0, unstaged: 0, untracked: 0, additions: 0, deletions: 0, hasChanges: false },
+      files: [],
+      canCommit: false,
+      fallbackReason: 'snapshot'
+    })),
     retryTask: vi.fn(async () => ({
       id: 't1',
       eventType: 'chat',
@@ -82,6 +93,29 @@ vi.mock('../api', () => {
       result: { stopReason: 'manual_stop' }
     })),
     deleteTask: vi.fn(async () => undefined),
+    runTaskWorkspaceOperation: vi.fn(async () => ({
+      workspace: {
+        source: 'snapshot',
+        live: false,
+        readOnly: true,
+        capturedAt: '2026-01-11T00:00:00.000Z',
+        workingTree: { staged: [], unstaged: [], untracked: [] },
+        summary: { total: 0, staged: 0, unstaged: 0, untracked: 0, additions: 0, deletions: 0, hasChanges: false },
+        files: [],
+        canCommit: false,
+        fallbackReason: 'snapshot'
+      }
+    })),
+    pushTaskGitChanges: vi.fn(async () => ({
+      id: 't1',
+      eventType: 'chat',
+      title: 'Task t1',
+      status: 'failed',
+      retries: 0,
+      createdAt: '2026-01-11T00:00:00.000Z',
+      updatedAt: '2026-01-11T00:00:00.000Z',
+      permissions: { canManage: true }
+    })),
     approveApprovalRequest: vi.fn(async () => ({
       id: 'approval_1',
       taskId: 't_wait',
@@ -208,11 +242,12 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     const stepTitles = Array.from((switcher as HTMLElement).querySelectorAll('.hc-task-detail-step-label')).map((el) =>
       String(el.textContent || '').trim()
     );
-    expect(stepTitles).toEqual(['Raw webhook payload', 'Prompt patch (repo config)', 'Live logs', 'Result']);
+    expect(stepTitles).toEqual(['Raw webhook payload', 'Prompt patch (repo config)', 'Live logs', 'Workspace', 'Result']);
 
     // Default to Result panel for terminal tasks and allow switching to other panels. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z
     expect(await screen.findByText('No output')).toBeInTheDocument();
-    expect(screen.getByText('Git status')).toBeInTheDocument();
+    await ui.click(screen.getByText('Workspace'));
+    expect(await screen.findByText('No workspace changes yet')).toBeInTheDocument();
     await ui.click(screen.getByText('Raw webhook payload'));
     expect(await screen.findByText(/user_name/i)).toBeInTheDocument();
     // Ensure the structured JSON viewer wraps the payload panel. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128

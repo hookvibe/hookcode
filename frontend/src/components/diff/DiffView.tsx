@@ -3,6 +3,7 @@ import { useT } from '../../i18n';
 import { TextPreviewBlock } from '../TextPreviewBlock';
 import type { DiffToken } from './calculateDiff';
 import { calculateUnifiedDiff, parseUnifiedDiff } from './calculateDiff';
+import '../../styles/execution-diff.css';
 import {
   INLINE_DIFF_HARD_LIMITS,
   INLINE_DIFF_PREVIEW_LIMITS,

@@ -206,6 +206,10 @@
   gap: 8px;
 }
 
+.hc-task-workspace-log-panel__workspace {
+  width: 100%;
+}
+
 /* Keep Markdown task output aligned to the full workspace log width so lists and code blocks remain readable. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
 .hc-task-workspace-log-panel__output-markdown {
   width: 100%;

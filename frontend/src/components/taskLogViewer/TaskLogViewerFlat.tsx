@@ -19,6 +19,7 @@ export type TaskLogViewerFlatProps = {
   onLoadEarlier: () => void;
   emptyMessage: string;
   emptyHint?: string;
+  approvalBanner?: ReactNode;
   // Mirror the panel-mode workspace snapshot prop so flat log views can render the same worker diff chrome. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
   workspaceChanges?: TaskWorkspaceChanges | null;
   rootRef: RefObject<HTMLDivElement>;
@@ -38,6 +39,7 @@ export const TaskLogViewerFlat = ({
   onLoadEarlier,
   emptyMessage,
   emptyHint,
+  approvalBanner,
   workspaceChanges,
   rootRef,
   endRef,
@@ -64,6 +66,7 @@ export const TaskLogViewerFlat = ({
               <span>{error}</span>
             </div>
           ) : null}
+          {approvalBanner}
           {/* Keep the flat log variant feature-complete with the panel view by rendering the same workspace diff card stack. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316 */}
           <TaskWorkspaceChangesPanel changes={workspaceChanges} />
           <section className="log-viewer__section">

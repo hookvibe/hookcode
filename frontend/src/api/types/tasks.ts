@@ -206,6 +206,52 @@ export interface TaskWorkspaceChanges {
   files: TaskWorkspaceChange[];
 }
 
+export type TaskWorkspaceSource = 'worker' | 'backend' | 'snapshot';
+export type TaskWorkspaceFileSection = 'staged' | 'unstaged' | 'untracked';
+export type TaskWorkspaceOperation = 'stage' | 'unstage' | 'discard' | 'delete_untracked' | 'commit';
+
+export interface TaskWorkspaceFile extends TaskWorkspaceChange {
+  sections: TaskWorkspaceFileSection[];
+}
+
+export interface TaskWorkspaceSummary {
+  total: number;
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  additions: number;
+  deletions: number;
+  hasChanges: boolean;
+}
+
+export interface TaskWorkspaceState {
+  source: TaskWorkspaceSource;
+  live: boolean;
+  readOnly: boolean;
+  capturedAt: string;
+  branch?: string;
+  headSha?: string;
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+  workingTree: TaskGitStatusWorkingTree;
+  summary: TaskWorkspaceSummary;
+  files: TaskWorkspaceFile[];
+  canCommit: boolean;
+  fallbackReason?: string;
+}
+
+export interface TaskWorkspaceCommit {
+  sha: string;
+  message: string;
+  committedAt: string;
+}
+
+export interface TaskWorkspaceOperationResult {
+  workspace: TaskWorkspaceState;
+  commit?: TaskWorkspaceCommit;
+}
+
 export interface TaskProviderRoutingCredential {
   requestedStoredSource: 'robot' | 'repo' | 'user';
   resolvedLayer: 'local' | 'robot' | 'repo' | 'user' | 'none';

@@ -26,7 +26,7 @@ import {
 } from '../../utils/task';
 import { formatDateTime } from '../../utils/dateUtc';
 import { formatRobotLabelWithProvider } from '../../utils/robot';
-import { TaskGitStatusPanel } from '../tasks/TaskGitStatusPanel';
+import { TaskGitWorkspaceSummaryCard } from '../tasks/TaskGitWorkspaceSummaryCard';
 import { TaskProviderRoutingPanel } from '../tasks/TaskProviderRoutingPanel';
 import { MarkdownViewer } from '../MarkdownViewer';
 import { WorkerSummaryTag } from '../workers/WorkerSummaryTag';
@@ -202,7 +202,11 @@ export const TaskGroupTaskCard = ({
           ) : null}
 
           {task.result?.providerRouting ? <TaskProviderRoutingPanel task={task} variant="compact" /> : null}
-          {task.result?.gitStatus?.enabled ? <TaskGitStatusPanel task={task} variant="compact" /> : null}
+          <TaskGitWorkspaceSummaryCard
+            task={task}
+            onOpen={() => onOpenLogs(task)}
+            actionLabel={t('tasks.gitWorkspace.summary.open')}
+          />
 
           <div className="hc-task-workspace-card__actions" onClick={stopCardClick}>
             <Space size={8} wrap>

@@ -22,7 +22,7 @@ import { buildRepoHash, buildTaskGroupHash, buildTasksHash } from '../router';
 import { JsonViewer } from '../components/JsonViewer';
 import { MarkdownViewer } from '../components/MarkdownViewer';
 import { TaskLogViewer } from '../components/TaskLogViewer';
-import { TaskGitStatusPanel } from '../components/tasks/TaskGitStatusPanel';
+import { TaskGitWorkspacePanel } from '../components/tasks/TaskGitWorkspacePanel';
 import { TaskProviderRoutingPanel } from '../components/tasks/TaskProviderRoutingPanel';
 import { WorkerSummaryTag } from '../components/workers/WorkerSummaryTag';
 import { ApprovalRequestPanel } from '../components/approvals/ApprovalRequestPanel';
@@ -461,7 +461,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     return renderTemplate(promptPatch, buildTaskTemplateContext(task));
   }, [promptPatch, task]);
 
-  type WorkflowPanelKey = 'result' | 'logs' | 'prompt' | 'payload';
+  type WorkflowPanelKey = 'result' | 'logs' | 'prompt' | 'payload' | 'changes';
 
   const [activePanel, setActivePanel] = useState<WorkflowPanelKey>('logs');
   const defaultPanelKeyRef = useRef<string | null>(null);
@@ -471,7 +471,7 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
     if (!task?.id) return;
     if (defaultPanelKeyRef.current === task.id) return;
     defaultPanelKeyRef.current = task.id;
-    setActivePanel(isTerminalStatus(task.status) ? 'result' : 'logs');
+    setActivePanel(task.status === 'processing' ? 'changes' : isTerminalStatus(task.status) ? 'result' : 'logs');
   }, [task?.id, task?.status]);
 
   const workflowPanels = useMemo(
@@ -534,6 +534,9 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                     controls={{ reconnect: true }}
                     emptyMessage={emptyLogMessage}
                     emptyHint={emptyLogHint}
+                    task={task}
+                    onTaskUpdated={() => refresh()}
+                    showApprovalBanner={false}
                     // Rehydrate the task-detail diff panel from persisted worker snapshots before live SSE updates arrive. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
                     workspaceChanges={task.result?.workspaceChanges ?? null}
                   />
@@ -541,6 +544,11 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
               ) : null}
             </>
           )
+        },
+        {
+          key: 'changes' as const,
+          title: t('tasks.gitWorkspace.title'),
+          content: task ? <TaskGitWorkspacePanel task={task} onTaskUpdated={refresh} /> : null
         },
         {
           key: 'result' as const,
@@ -560,18 +568,12 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                 )}
               </Card>
               {task?.result?.providerRouting ? <TaskProviderRoutingPanel task={task} variant="full" /> : null}
-              {task?.result?.gitStatus?.enabled ? (
-                <div className="hc-task-detail-result-gitstatus">
-                  {/* Move git status into the Result panel after the main output. docs/en/developer/plans/nsdxp7gt9e14t1upz90z/task_plan.md nsdxp7gt9e14t1upz90z */}
-                  <TaskGitStatusPanel task={task} variant="full" />
-                </div>
-              ) : null}
             </Space>
           )
         }
       ] as const,
     // Keep the payload viewer memoized alongside task data updates. docs/en/developer/plans/payloadjsonui20260128/task_plan.md payloadjsonui20260128
-    [effectiveTaskLogsEnabled, promptPatch, promptPatchRendered, resultText, showResult, t, task]
+    [effectiveTaskLogsEnabled, promptPatch, promptPatchRendered, refresh, resultText, showResult, t, task]
   );
 
   const activePanelData = useMemo(() => {

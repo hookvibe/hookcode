@@ -20,12 +20,6 @@
 @import './styles/preview-logs.css';
 @import './styles/chat-timeline.css';
 @import './styles/task-group-workspace.css';
-@import './styles/task-group-workspace.css'; /* Task-group workspace cards + tabbed logs. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
-@import './styles/log-viewer.css';
-@import './styles/execution-dialog.css';
-@import './styles/execution-thoughtchain.css';
-@import './styles/execution-diff.css';
-@import './styles/workspace-changes.css'; /* Style the ClaudeCodeUI-inspired worker file/diff panel. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316 */
 @import './styles/markdown.css';
 @import './styles/login.css';
 @import './styles/user-panel.css';
