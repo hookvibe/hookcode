@@ -187,6 +187,25 @@ export interface TaskGitStatus {
   errors?: string[];
 }
 
+export type TaskWorkspaceChangeKind = 'create' | 'update' | 'delete' | (string & {});
+
+export interface TaskWorkspaceChange {
+  // Mirror backend workspace diff payloads so frontend diff panels can render task-scoped file changes. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  path: string;
+  kind?: TaskWorkspaceChangeKind;
+  unifiedDiff: string;
+  oldText?: string;
+  newText?: string;
+  diffHash: string;
+  updatedAt: string;
+}
+
+export interface TaskWorkspaceChanges {
+  // Surface the latest repo-relative workspace change snapshot for live and historical task views. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  capturedAt: string;
+  files: TaskWorkspaceChange[];
+}
+
 export interface TaskProviderRoutingCredential {
   requestedStoredSource: 'robot' | 'repo' | 'user';
   resolvedLayer: 'local' | 'robot' | 'repo' | 'user' | 'none';
@@ -251,6 +270,8 @@ export interface TaskResult {
   policyRiskLevel?: PolicyRiskLevel;
   // Surface backend git status in task result payloads for UI reuse. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   gitStatus?: TaskGitStatus;
+  // Surface persisted workspace diff snapshots so diff panels survive reloads and history views. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  workspaceChanges?: TaskWorkspaceChanges | null;
   [key: string]: unknown;
 }
 

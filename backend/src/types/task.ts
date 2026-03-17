@@ -66,6 +66,25 @@ export interface TaskGitStatus {
   errors?: string[];
 }
 
+export type TaskWorkspaceChangeKind = 'create' | 'update' | 'delete' | (string & {});
+
+export interface TaskWorkspaceChange {
+  // Persist repo-relative file diffs so worker/task views can render live and historical change details. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  path: string;
+  kind?: TaskWorkspaceChangeKind;
+  unifiedDiff: string;
+  oldText?: string;
+  newText?: string;
+  diffHash: string;
+  updatedAt: string;
+}
+
+export interface TaskWorkspaceChanges {
+  // Track the latest repo-only workspace change snapshot for task detail and task-group diff panels. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  capturedAt: string;
+  files: TaskWorkspaceChange[];
+}
+
 export interface TaskSequenceLink {
   // Expose backend-derived queue links so the workspace can draw the execution path clearly. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   order: number;
@@ -168,6 +187,8 @@ export interface TaskResult {
   };
   // Persist git change/push status for write-enabled robots. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   gitStatus?: TaskGitStatus;
+  // Persist the latest repo-relative file diff snapshot for live/history workspace change panels. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  workspaceChanges?: TaskWorkspaceChanges | null;
 }
 
 export interface Task {

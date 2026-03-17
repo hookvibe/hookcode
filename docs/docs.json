@@ -127,6 +127,15 @@
                     "expanded": false
                   },
                   {
+                    "group": "Refactor worker file diff visibility into HookCode (worker-file-diff-ui-20260316)",
+                    "pages": [
+                      "en/developer/plans/worker-file-diff-ui-20260316/task_plan",
+                      "en/developer/plans/worker-file-diff-ui-20260316/findings",
+                      "en/developer/plans/worker-file-diff-ui-20260316/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
                     "group": "External worker executor refactor (worker-executor-refactor-20260307)",
                     "pages": [
                       "en/developer/plans/worker-executor-refactor-20260307/task_plan",

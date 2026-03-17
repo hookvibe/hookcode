@@ -168,6 +168,9 @@ export const zhCNChat = {
   'execViewer.role.files': 'Files',
   'execViewer.role.plan': 'Plan',
   'execViewer.role.system': 'System',
+  'viewer.preview.limited': '为保证界面响应，仅展示 {{shownLines}}/{{totalLines}} 行、{{shownChars}}/{{totalChars}} 个字符。',
+  'viewer.preview.showFull': '显示完整内容',
+  'viewer.preview.showLess': '返回预览',
 
   // --- Log viewer ---
   'logViewer.title': '日志',
@@ -196,6 +199,20 @@ export const zhCNChat = {
   'logViewer.clearFailed': '清空日志失败',
   // Add loading indicator label for log pagination. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
   'logViewer.loading': '加载中…',
+  // Add file/diff panel labels for live worker workspace snapshots. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  'tasks.workspaceChanges.title': '工作区变更',
+  'tasks.workspaceChanges.count': '{{count}} 个文件',
+  'tasks.workspaceChanges.updatedAt': '更新于 {{value}}',
+  'tasks.workspaceChanges.badge.create': '新增',
+  'tasks.workspaceChanges.badge.update': '修改',
+  'tasks.workspaceChanges.badge.delete': '删除',
+  'tasks.workspaceChanges.diffUnavailable': '暂无可用 diff',
+  'tasks.workspaceChanges.actions.wrapLines': 'Diff 自动换行',
+  'tasks.workspaceChanges.actions.showFullDiff': '显示完整 diff',
+  'tasks.workspaceChanges.actions.showPreviewDiff': '返回预览',
+  'tasks.workspaceChanges.preview.inline': '当前为大 diff 预览模式，为保证页面响应已限制内联渲染范围。',
+  'tasks.workspaceChanges.preview.inlineLocked': '当前 diff 过大，已禁用完整内联渲染以避免页面卡顿。',
+  'tasks.workspaceChanges.preview.raw': '当前 diff 过大，无法安全进行内联渲染，已切换为原始 diff 预览。',
 
   // --- Agent Chat (static demo) ---
   'agentChat.brand': 'HookCode',

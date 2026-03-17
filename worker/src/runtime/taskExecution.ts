@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import { BackendInternalApiClient, WorkerTaskContextResponse } from '../backend/internalApiClient';
 import type { WorkerConfig } from '../config';
 import { TaskLogBatcher } from './logBatcher';
+import { RepoChangeTracker } from './repoChangeTracker';
 import {
   buildTaskEnvironment,
   HydratedTaskMetadata,
@@ -157,6 +158,9 @@ export const runTaskExecution = async (params: {
 }): Promise<TaskExecutionSuccess> => {
   const batcher = new TaskLogBatcher(params.client, params.taskId);
   const writeLine = createLineWriter(batcher);
+  // Mirror backend-inline execution by tracking repo-relative workspace diffs throughout standalone worker shell runs. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  let repoChangeTracker: RepoChangeTracker | null = null;
+  let repoChangeTrackerStopped = false;
 
   try {
     const task = params.context.task ?? {};
@@ -206,8 +210,17 @@ export const runTaskExecution = async (params: {
       },
       'processing'
     );
+    repoChangeTracker = new RepoChangeTracker({
+      repoDir: workspaceDir,
+      emitLine: writeLine,
+      patchSnapshot: async (snapshot) => {
+        // Persist worker-side repo snapshots with the same result field used by backend-inline execution so frontend panels share one contract. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+        await params.client.patchResult(params.taskId, { workspaceChanges: snapshot });
+      }
+    });
+    await repoChangeTracker.start();
 
-    return await executeShellCommand({
+    const result = await executeShellCommand({
       command: resolvedCommand.command,
       env,
       cwd: workspaceDir,
@@ -215,7 +228,14 @@ export const runTaskExecution = async (params: {
       killTimeoutMs: params.config.cancelKillTimeoutMs,
       writeLine
     });
+    await repoChangeTracker.stop();
+    repoChangeTrackerStopped = true;
+    return result;
   } catch (error) {
+    if (repoChangeTracker && !repoChangeTrackerStopped) {
+      await repoChangeTracker.stop();
+      repoChangeTrackerStopped = true;
+    }
     if (params.signal.aborted) {
       throw new Error(resolveAbortMessage(params.stopReason));
     }

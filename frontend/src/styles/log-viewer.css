@@ -1,8 +1,30 @@
-/* =============================================================================
- * Log viewer (Modern Chat Style)
- * ========================================================================== */
+/* Restyle the execution viewer into a compact Claude-style workspace shell shared by panel and flat variants. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316 */
 
-/* Add spinner animation for loading states. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */
+.log-viewer__body,
+.log-viewer__section-body {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--hc-border) 88%, transparent) transparent;
+}
+
+.log-viewer__body::-webkit-scrollbar,
+.log-viewer__section-body::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.log-viewer__body::-webkit-scrollbar-thumb,
+.log-viewer__section-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--hc-border) 88%, transparent);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.log-viewer__body::-webkit-scrollbar-track,
+.log-viewer__section-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 @keyframes log-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -12,210 +34,507 @@
   animation: log-spin 1s linear infinite;
 }
 
-/* Add fade-in animation for new log content (respect prefers-reduced-motion). docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */
 @media (prefers-reduced-motion: no-preference) {
   @keyframes log-fade-in {
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
-  .log-viewer__body > * {
-    animation: log-fade-in 0.2s ease-out;
+  .log-viewer__stack > * {
+    animation: log-fade-in 0.18s ease-out;
   }
 }
 
 .log-viewer {
   display: flex;
   flex-direction: column;
-  background: var(--hc-surface);
-  border-radius: 8px;
-  overflow: hidden; /* For header corners */
+  border: 1px solid color-mix(in srgb, var(--hc-border) 92%, transparent);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hc-surface) 98%, transparent) 0%, color-mix(in srgb, var(--hc-surface-elevated) 96%, transparent) 100%);
+  box-shadow: var(--hc-shadow-sm), inset 0 1px 0 color-mix(in srgb, #fff 30%, transparent);
+  overflow: hidden;
 }
 
-/* Header */
+.log-viewer--flat {
+  border-radius: 12px;
+}
+
 .log-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--hc-surface-elevated);
+  gap: 16px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--hc-border);
-  gap: 12px;
-  flex-wrap: wrap;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hc-surface-elevated) 98%, transparent) 0%, color-mix(in srgb, var(--hc-code-bg) 28%, transparent) 100%);
 }
 
-.log-header__left {
+.log-header__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-header__eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.log-header__summary {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.log-header__title {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--text);
+  flex-wrap: wrap;
 }
 
 .log-header__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.05em;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.log-header__status.is-connecting { background: var(--hc-surface-neutral); color: var(--muted); }
-.log-header__status.is-live { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
-.log-header__status.is-error { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.log-header__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.9;
+}
+
+.log-header__status.is-connecting {
+  border-color: color-mix(in srgb, var(--hc-border) 70%, transparent);
+  background: color-mix(in srgb, var(--hc-code-bg) 72%, transparent);
+  color: var(--text-secondary);
+}
+
+.log-header__status.is-live {
+  border-color: rgba(34, 197, 94, 0.22);
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+
+.log-header__status.is-error {
+  border-color: rgba(239, 68, 68, 0.22);
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+:root[data-theme='dark'] .log-header__status.is-live {
+  color: #86efac;
+}
+
+:root[data-theme='dark'] .log-header__status.is-error {
+  color: #fca5a5;
+}
 
 .log-header__count {
-  font-size: 11px;
-  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 84%, transparent);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--hc-code-bg) 72%, transparent);
 }
 
-.log-header__actions {
+.log-header__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.log-toolbar-group {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.log-header__sep {
-  width: 1px;
-  height: 16px;
-  background: var(--hc-border);
-  margin: 0 4px;
+.log-toolbar-group + .log-toolbar-group {
+  padding-left: 8px;
+  border-left: 1px solid var(--hc-border);
 }
 
-/* Buttons */
+.log-toolbar-group--segmented {
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--hc-border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--hc-code-bg) 76%, transparent);
+}
+
+.log-toolbar-group--segmented + .log-toolbar-group {
+  padding-left: 10px;
+}
+
 .log-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-width: 28px;
   height: 28px;
   padding: 0 8px;
-  border: 1px solid var(--hc-border);
-  background: var(--hc-surface);
-  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 90%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--hc-surface-elevated) 97%, transparent);
+  color: var(--text-secondary);
   cursor: pointer;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-/* Make disabled log viewer buttons obvious for paging controls. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306 */
-.log-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.log-btn--small {
-  height: 24px;
-  padding: 0 6px;
-  font-size: 11px;
-}
-
-.log-btn:hover {
-  background: var(--hc-surface-hover);
-  border-color: var(--hc-border-hover);
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
 .log-btn svg {
-  color: var(--muted);
+  color: currentColor;
 }
 
-.log-btn:hover svg {
+.log-btn:hover:not(:disabled) {
+  border-color: var(--hc-accent-border);
+  background: color-mix(in srgb, var(--hc-accent-soft) 75%, var(--hc-surface-elevated));
   color: var(--text);
+  transform: translateY(-1px);
+  box-shadow: var(--hc-shadow-xs);
 }
 
-.log-btn--danger:hover {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #ef4444;
-}
-.log-btn--danger:hover svg { color: #ef4444; }
-
-/* Toggles */
-.log-toggles {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 4px;
+.log-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
-.log-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  font-size: 11px;
-  color: var(--muted);
-  user-select: none;
-}
-
-.log-toggle:hover {
-  color: var(--text);
-}
-
-/* Body */
-.log-viewer__body {
-  padding: 16px;
-  /* Use outer scroll */
-}
-
-/* Virtual list styling for long logs. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */
-.log-viewer__virtual-list {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+.log-btn--labelled {
+  padding-inline: 10px;
   font-size: 12px;
-  line-height: 1.5;
+  font-weight: 600;
+}
+
+.log-btn--icon-only {
+  width: 28px;
+  padding: 0;
+}
+
+.log-btn.is-active,
+.log-btn--icon-only.is-active {
+  border-color: var(--hc-accent-border);
+  background: color-mix(in srgb, var(--hc-accent-soft) 90%, var(--hc-surface-elevated));
   color: var(--text);
 }
 
-.log-viewer__virtual-line {
-  white-space: pre-wrap;
-  word-break: break-all;
-  padding: 0 4px;
+.log-toolbar-group--segmented .log-btn {
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  transform: none;
+}
+
+.log-btn--danger:hover:not(:disabled) {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+:root[data-theme='dark'] .log-btn--danger:hover:not(:disabled) {
+  color: #fca5a5;
+}
+
+.log-viewer__body {
+  padding: 12px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hc-surface) 99%, transparent) 0%, color-mix(in srgb, var(--hc-code-bg) 14%, transparent) 100%);
+}
+
+.log-viewer__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.log-viewer__section {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 88%, transparent);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hc-surface-elevated) 98%, transparent) 0%, color-mix(in srgb, var(--hc-surface) 97%, transparent) 100%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 24%, transparent);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.log-viewer__section:hover {
+  border-color: color-mix(in srgb, var(--hc-accent-border) 55%, var(--hc-border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 24%, transparent),
+    0 10px 24px color-mix(in srgb, var(--hc-shadow-color, #000) 4%, transparent);
+}
+
+.log-viewer__section-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hc-border);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hc-code-bg) 70%, transparent) 0%, color-mix(in srgb, var(--hc-surface-elevated) 86%, transparent) 100%);
+}
+
+.log-viewer__section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.log-viewer__section-meta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 82%, transparent);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  background: color-mix(in srgb, var(--hc-surface) 88%, transparent);
+}
+
+.log-viewer__section-body {
+  min-width: 0;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hc-surface) 98%, transparent) 0%, color-mix(in srgb, var(--hc-code-bg) 18%, transparent) 100%);
+}
+
+.log-viewer__section-body .hc-task-code-block,
+.log-viewer__section-body .log-viewer__pre {
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.log-viewer__virtual-line,
+.log-viewer__pre {
+  padding: 0 12px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text);
 }
 
 .log-viewer__pre {
-  margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-all;
+  overflow: auto;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+  overscroll-behavior: contain;
 }
 
-.log-viewer__empty {
-  padding: 32px 0;
-  text-align: center;
+.log-viewer__pre::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.log-viewer__pre::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--hc-border) 88%, transparent);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.log-viewer__pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hc-preview-block {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.hc-preview-block__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hc-preview-block__meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.hc-preview-block__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 84%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hc-code-bg) 70%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.hc-preview-block__toggle:hover {
+  border-color: var(--hc-accent-border);
+  background: color-mix(in srgb, var(--hc-accent-soft) 76%, transparent);
+  transform: translateY(-1px);
+}
+
+.hc-preview-block__toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--hc-focus-ring);
+}
+
+.hc-preview-block__code--nowrap {
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.hc-preview-block__code--wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.log-viewer__raw-preview.is-nowrap .hc-task-code-block {
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.log-viewer__raw-preview.is-wrap .hc-task-code-block {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.log-viewer__virtual-line {
+  padding-block: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-viewer__empty {
+  padding: 24px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
 }
 
 .log-error {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  font-size: 13px;
-  border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 10px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.log-viewer > .log-error {
+  margin: 12px 12px 0;
 }
 
 .text-secondary {
-  color: var(--muted);
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
-/* Space out flat log view actions when paging earlier lines. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306 */
 .log-flat-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+}
+
+@media (max-width: 900px) {
+  .log-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .log-header__toolbar {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .log-viewer {
+    border-radius: 12px;
+  }
+
+  .log-viewer__body {
+    padding: 10px;
+  }
+
+  .log-toolbar-group + .log-toolbar-group {
+    padding-left: 0;
+    border-left: none;
+  }
+
+  .log-header__toolbar {
+    gap: 6px;
+  }
+
+  .log-toolbar-group {
+    flex-wrap: wrap;
+  }
+
+  .log-toolbar-group--segmented {
+    width: 100%;
+    order: -1;
+  }
+
+  .log-toolbar-group--segmented .log-btn {
+    flex: 1 1 0;
+    width: auto;
+  }
+
+  .log-btn--labelled {
+    flex: 1 1 auto;
+  }
+
+  .log-viewer__section-bar {
+    flex-wrap: wrap;
+  }
+
+  .log-viewer__pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .log-viewer__raw-preview.is-nowrap .hc-task-code-block {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
 }

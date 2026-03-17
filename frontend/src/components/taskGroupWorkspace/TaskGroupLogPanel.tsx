@@ -31,6 +31,8 @@ export const TaskGroupLogPanel = ({ task, taskDetail }: TaskGroupLogPanelProps) 
           controls={{ reconnect: true }}
           emptyMessage={task.status === 'queued' ? t('logViewer.empty.queued.title') : task.status === 'processing' ? t('logViewer.empty.processing.title') : undefined}
           emptyHint={task.status === 'queued' ? t('logViewer.empty.queued.hint') : task.status === 'processing' ? t('logViewer.empty.processing.hint') : undefined}
+          // Prefer task-detail snapshots when present so the workspace log panel rehydrates worker file diffs after refreshes. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+          workspaceChanges={detail?.result?.workspaceChanges ?? task.result?.workspaceChanges ?? null}
           variant="panel"
         />
 

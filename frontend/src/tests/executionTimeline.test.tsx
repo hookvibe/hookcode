@@ -126,6 +126,36 @@ describe('ExecutionTimeline', () => {
     }
   });
 
+  test('renders localized file pills and compact +/- summaries for file changes', async () => {
+    // Keep the compact timeline file rows aligned with the Claude-style workspace panel by showing localized change pills and derived +/- counts. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+    const ui = userEvent.setup();
+    const items: ExecutionItem[] = [
+      {
+        kind: 'file_change',
+        id: 'fc_stats',
+        status: 'completed',
+        changes: [{ path: 'src/example.ts', kind: 'update' }],
+        diffs: [
+          {
+            path: 'src/example.ts',
+            kind: 'update',
+            unifiedDiff: 'diff --git a/src/example.ts b/src/example.ts',
+            oldText: 'const ready = false;\n',
+            newText: 'const ready = true;\nconst extra = 1;\n'
+          }
+        ]
+      }
+    ];
+
+    render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    expect(screen.getByText('Edited')).toBeInTheDocument();
+    expect(screen.getByText('+2')).toBeInTheDocument();
+    expect(screen.getByText('-1')).toBeInTheDocument();
+    await ui.click(screen.getByRole('button', { name: 'Diffs' }));
+    expect(screen.getAllByText('+2').length).toBeGreaterThan(0);
+  });
+
   test('only shows status badges for failed items', () => {
     // Hide non-failure status badges to reduce chat noise while still surfacing failures. docs/en/developer/plans/chat-message-status-20260305/task_plan.md chat-message-status-20260305
     const items: ExecutionItem[] = [
@@ -139,5 +169,32 @@ describe('ExecutionTimeline', () => {
     const failedBadge = container.querySelector('.chat-bubble__status.is-failed');
     expect(failedBadge).toBeTruthy();
     expect(screen.getByText('Failed')).toBeInTheDocument();
+  });
+
+  test('caps oversized command output previews until the user expands them', async () => {
+    // Keep huge command outputs from flooding the dialog DOM on first open while still allowing an explicit full-content inspection path. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+    const ui = userEvent.setup();
+    const output = Array.from({ length: 190 }, (_, index) => `output line ${index + 1}`).join('\n');
+    const items: ExecutionItem[] = [
+      {
+        kind: 'command_execution',
+        id: 'cmd_big',
+        status: 'completed',
+        command: 'cat massive.log',
+        output
+      }
+    ];
+
+    const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    await ui.click(screen.getByRole('button', { name: 'Command output' }));
+    expect(screen.getByText(/Showing 180\/190 lines|仅展示 180\/190 行/i)).toBeInTheDocument();
+    const outputBlock = container.querySelector('.chat-work__mono');
+    expect(outputBlock).toBeTruthy();
+    expect(outputBlock).not.toHaveTextContent('output line 190');
+
+    await ui.click(screen.getByRole('button', { name: 'Show full content' }));
+
+    expect(outputBlock).toHaveTextContent('output line 190');
   });
 });

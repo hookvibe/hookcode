@@ -168,6 +168,9 @@ export const enUSChat = {
   'execViewer.role.files': 'Files',
   'execViewer.role.plan': 'Plan',
   'execViewer.role.system': 'System',
+  'viewer.preview.limited': 'Showing {{shownLines}}/{{totalLines}} lines and {{shownChars}}/{{totalChars}} chars to keep the view responsive.',
+  'viewer.preview.showFull': 'Show full content',
+  'viewer.preview.showLess': 'Show preview',
 
   // --- Log viewer ---
   'logViewer.title': 'Logs',
@@ -196,6 +199,20 @@ export const enUSChat = {
   'logViewer.clearFailed': 'Failed to clear logs',
   // Add loading indicator label for log pagination. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
   'logViewer.loading': 'Loading…',
+  // Add file/diff panel labels for live worker workspace snapshots. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  'tasks.workspaceChanges.title': 'Workspace changes',
+  'tasks.workspaceChanges.count': '{{count}} files',
+  'tasks.workspaceChanges.updatedAt': 'Updated {{value}}',
+  'tasks.workspaceChanges.badge.create': 'New',
+  'tasks.workspaceChanges.badge.update': 'Edited',
+  'tasks.workspaceChanges.badge.delete': 'Deleted',
+  'tasks.workspaceChanges.diffUnavailable': 'Diff unavailable',
+  'tasks.workspaceChanges.actions.wrapLines': 'Wrap lines',
+  'tasks.workspaceChanges.actions.showFullDiff': 'Show full diff',
+  'tasks.workspaceChanges.actions.showPreviewDiff': 'Show preview',
+  'tasks.workspaceChanges.preview.inline': 'Large diff preview: inline rendering is limited to keep the tab responsive.',
+  'tasks.workspaceChanges.preview.inlineLocked': 'Large diff preview only: full inline rendering is disabled to keep the tab responsive.',
+  'tasks.workspaceChanges.preview.raw': 'Diff is too large for inline rendering. Showing a raw diff preview instead.',
 
   // --- Agent Chat (static demo) ---
   'agentChat.brand': 'HookCode',

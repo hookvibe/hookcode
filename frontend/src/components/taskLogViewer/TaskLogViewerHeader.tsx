@@ -45,6 +45,15 @@ const IconList = () => (
 const IconCode = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
 );
+const IconSpark = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"></path></svg>
+);
+const IconWrap = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h10a4 4 0 1 1 0 8H9"></path><path d="M4 11h10"></path><path d="M9 15l-3 3-3-3"></path></svg>
+);
+const IconLines = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16"></path><path d="M4 12h16"></path><path d="M4 18h16"></path><path d="M9 4v16"></path></svg>
+);
 
 export const TaskLogViewerHeader = ({
   t,
@@ -69,60 +78,96 @@ export const TaskLogViewerHeader = ({
   clearing
 }: TaskLogViewerHeaderProps) => (
   <div className="log-header">
-    <div className="log-header__left">
-      <span className="log-header__title">{t('execViewer.title')}</span>
-      <span className={`log-header__status ${connecting ? 'is-connecting' : error ? 'is-error' : 'is-live'}`}>
-        {connecting ? t('logViewer.state.connecting') : error ? t('logViewer.state.error') : t('logViewer.state.live')}
-      </span>
-      <span className="log-header__count">{t('logViewer.lines', { count: logsCount })}</span>
+    <div className="log-header__meta">
+      <span className="log-header__eyebrow">{t('execViewer.title')}</span>
+      <div className="log-header__summary">
+        <span className={`log-header__status ${connecting ? 'is-connecting' : error ? 'is-error' : 'is-live'}`}>
+          <span className="log-header__status-dot" />
+          {connecting ? t('logViewer.state.connecting') : error ? t('logViewer.state.error') : t('logViewer.state.live')}
+        </span>
+        <span className="log-header__count">{t('logViewer.lines', { count: logsCount })}</span>
+      </div>
     </div>
 
-    <div className="log-header__actions">
+    <div className="log-header__toolbar">
       {/* Keep load-earlier visible for paged task log access in the tabbed workspace. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
       {showLoadEarlier && (
-        <button className="log-btn" onClick={onLoadEarlier} disabled={loadingEarlier} title={t('logViewer.actions.loadEarlier')}>
+        <button type="button" className="log-btn log-btn--labelled" onClick={onLoadEarlier} disabled={loadingEarlier} title={t('logViewer.actions.loadEarlier')}>
           {loadingEarlier ? <IconSpinner /> : <IconArrowUp />}
           <span>{loadingEarlier ? t('logViewer.loading') : t('logViewer.actions.loadEarlier')}</span>
         </button>
       )}
-      {showReconnectButton && (
-        <button className="log-btn" onClick={onReconnect} title={t('logViewer.actions.reconnect')}>
-          <IconRefresh />
+      <div className="log-toolbar-group">
+        {showReconnectButton && (
+          <button type="button" className="log-btn" onClick={onReconnect} aria-label={t('logViewer.actions.reconnect')} title={t('logViewer.actions.reconnect')}>
+            <IconRefresh />
+          </button>
+        )}
+      </div>
+
+      <div className="log-toolbar-group log-toolbar-group--segmented">
+        <button
+          type="button"
+          className={`log-btn log-btn--icon-only${mode === 'timeline' ? ' is-active' : ''}`}
+          onClick={mode === 'timeline' ? undefined : onToggleMode}
+          disabled={mode === 'timeline'}
+          aria-label={t('execViewer.actions.showTimeline')}
+          title={t('execViewer.actions.showTimeline')}
+        >
+          <IconList />
         </button>
-      )}
-
-      <div className="log-header__sep" />
-
-      <button className="log-btn" onClick={onToggleMode} title={mode === 'timeline' ? t('execViewer.actions.showRaw') : t('execViewer.actions.showTimeline')}>
-        {mode === 'timeline' ? <IconCode /> : <IconList />}
-        <span>{mode === 'timeline' ? 'Raw' : 'Timeline'}</span>
-      </button>
+        <button
+          type="button"
+          className={`log-btn log-btn--icon-only${mode === 'raw' ? ' is-active' : ''}`}
+          onClick={mode === 'raw' ? undefined : onToggleMode}
+          disabled={mode === 'raw'}
+          aria-label={t('execViewer.actions.showRaw')}
+          title={t('execViewer.actions.showRaw')}
+        >
+          <IconCode />
+        </button>
+      </div>
 
       {mode === 'timeline' && (
-        <div className="log-toggles">
-          <label className="log-toggle" title={t('execViewer.toggles.reasoning')}>
-            <input type="checkbox" checked={showReasoning} onChange={(e) => onToggleShowReasoning(e.target.checked)} />
-            <span>Reasoning</span>
-          </label>
-          <label className="log-toggle" title={t('execViewer.toggles.wrapDiff')}>
-            <input type="checkbox" checked={wrapDiffLines} onChange={(e) => onToggleWrapDiffLines(e.target.checked)} />
-            <span>Wrap</span>
-          </label>
-          <label className="log-toggle" title={t('execViewer.toggles.lineNumbers')}>
-            <input type="checkbox" checked={showLineNumbers} onChange={(e) => onToggleShowLineNumbers(e.target.checked)} />
-            <span>Lines</span>
-          </label>
+        <div className="log-toolbar-group">
+          <button
+            type="button"
+            className={`log-btn log-btn--icon-only${showReasoning ? ' is-active' : ''}`}
+            onClick={() => onToggleShowReasoning(!showReasoning)}
+            aria-label={t('execViewer.toggles.reasoning')}
+            title={t('execViewer.toggles.reasoning')}
+          >
+            <IconSpark />
+          </button>
+          <button
+            type="button"
+            className={`log-btn log-btn--icon-only${wrapDiffLines ? ' is-active' : ''}`}
+            onClick={() => onToggleWrapDiffLines(!wrapDiffLines)}
+            aria-label={t('execViewer.toggles.wrapDiff')}
+            title={t('execViewer.toggles.wrapDiff')}
+          >
+            <IconWrap />
+          </button>
+          <button
+            type="button"
+            className={`log-btn log-btn--icon-only${showLineNumbers ? ' is-active' : ''}`}
+            onClick={() => onToggleShowLineNumbers(!showLineNumbers)}
+            aria-label={t('execViewer.toggles.lineNumbers')}
+            title={t('execViewer.toggles.lineNumbers')}
+          >
+            <IconLines />
+          </button>
         </div>
       )}
 
-      <div className="log-header__sep" />
-
-      <button className="log-btn" onClick={onCopy} title={t('logViewer.actions.copy')}>
-        <IconCopy />
-      </button>
-      <button className="log-btn log-btn--danger" onClick={onClear} disabled={clearing} title={t('logViewer.actions.clear')}>
-        <IconTrash />
-      </button>
+      <div className="log-toolbar-group">
+        <button type="button" className="log-btn" onClick={onCopy} aria-label={t('logViewer.actions.copy')} title={t('logViewer.actions.copy')}>
+          <IconCopy />
+        </button>
+        <button type="button" className="log-btn log-btn--danger" onClick={onClear} disabled={clearing} aria-label={t('logViewer.actions.clear')} title={t('logViewer.actions.clear')}>
+          <IconTrash />
+        </button>
+      </div>
     </div>
   </div>
 );

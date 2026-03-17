@@ -102,6 +102,39 @@ export class TaskGitStatusDto {
   errors?: string[];
 }
 
+export class TaskWorkspaceChangeDto {
+  // Swagger DTO for repo-relative workspace diff records returned to task views. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  @ApiProperty()
+  path!: string;
+
+  @ApiPropertyOptional({ enum: ['create', 'update', 'delete'] })
+  kind?: 'create' | 'update' | 'delete';
+
+  @ApiProperty()
+  unifiedDiff!: string;
+
+  @ApiPropertyOptional()
+  oldText?: string;
+
+  @ApiPropertyOptional()
+  newText?: string;
+
+  @ApiProperty()
+  diffHash!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string;
+}
+
+export class TaskWorkspaceChangesDto {
+  // Swagger DTO for the latest task workspace change snapshot. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  @ApiProperty({ format: 'date-time' })
+  capturedAt!: string;
+
+  @ApiProperty({ type: TaskWorkspaceChangeDto, isArray: true })
+  files!: TaskWorkspaceChangeDto[];
+}
+
 export class TaskProviderRoutingCredentialDto {
   // Swagger DTO for provider credential routing metadata. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
   @ApiProperty({ enum: ['robot', 'repo', 'user'] })
@@ -256,6 +289,10 @@ export class TaskResultDto {
   // Expose git status payload in task result responses. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   @ApiPropertyOptional({ type: TaskGitStatusDto })
   gitStatus?: TaskGitStatusDto;
+
+  // Expose persisted workspace diff snapshots for live/history task views. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  @ApiPropertyOptional({ type: TaskWorkspaceChangesDto, nullable: true })
+  workspaceChanges?: TaskWorkspaceChangesDto | null;
 }
 
 export class DependencyInstallStepDto {

@@ -534,6 +534,8 @@ export const TaskDetailPage: FC<TaskDetailPageProps> = ({ taskId, userPanel, tas
                     controls={{ reconnect: true }}
                     emptyMessage={emptyLogMessage}
                     emptyHint={emptyLogHint}
+                    // Rehydrate the task-detail diff panel from persisted worker snapshots before live SSE updates arrive. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+                    workspaceChanges={task.result?.workspaceChanges ?? null}
                   />
                 </>
               ) : null}

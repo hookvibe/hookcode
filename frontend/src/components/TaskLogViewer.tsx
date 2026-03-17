@@ -4,6 +4,7 @@ import { List } from 'react-window'; // Add virtual scrolling for long log lists
 // Bridge the current react-window usage to the installed type surface until the raw log viewer is fully refactored. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
 const VirtualList = List as any;
 import { clearTaskLogs, fetchTaskLogsPage } from '../api';
+import type { TaskWorkspaceChanges } from '../api';
 import { useT } from '../i18n';
 import { createAuthedEventSource } from '../utils/sse';
 import { ExecutionTimeline } from './execution/ExecutionTimeline';
@@ -14,6 +15,8 @@ import { MAX_LOG_LINES } from './taskLogViewer/constants';
 import { timelineReducer, type ViewerMode } from './taskLogViewer/timeline';
 import type { StreamInitPayload, StreamLogPayload } from './taskLogViewer/types';
 import { LogViewerSkeleton } from './skeletons/LogViewerSkeleton'; // Show skeleton during initial log load. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+import { TaskWorkspaceChangesPanel } from './tasks/TaskWorkspaceChangesPanel';
+import { extractLatestWorkspaceChangesFromLogs, parseWorkspaceSnapshotLogLine } from '../utils/workspaceChanges';
 
 interface Props {
   taskId: string;
@@ -25,6 +28,8 @@ interface Props {
   };
   emptyMessage?: string;
   emptyHint?: string;
+  // Accept persisted worker workspace snapshots so the log viewer can show file diffs before or between SSE updates. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  workspaceChanges?: TaskWorkspaceChanges | null;
   reconnectKey?: number;
   focusText?: string;
   focusKey?: number;
@@ -42,6 +47,7 @@ export const TaskLogViewer: FC<Props> = ({
   controls,
   emptyMessage,
   emptyHint,
+  workspaceChanges,
   reconnectKey,
   focusText,
   focusKey,
@@ -72,6 +78,8 @@ export const TaskLogViewer: FC<Props> = ({
   const [wrapDiffLines, setWrapDiffLines] = useState(true);
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [timeline, dispatchTimeline] = useReducer(timelineReducer, undefined, () => createEmptyTimeline());
+  // Track live workspace snapshots separately from the persisted task result so SSE log events can update the file panel immediately. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  const [liveWorkspaceChanges, setLiveWorkspaceChanges] = useState<TaskWorkspaceChanges | null | undefined>(undefined);
   const logsRef = useRef<string[]>([]);
   const seqRangeRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const nextBeforeRef = useRef<number | null>(null);
@@ -86,7 +94,11 @@ export const TaskLogViewer: FC<Props> = ({
     nextBeforeRef.current = nextBefore;
   }, [logs, nextBefore, seqRange]);
 
-  const lines = useMemo(() => logs.join('\n'), [logs]);
+  // Hide internal workspace snapshot transport events from raw-log rendering because the file panel already visualizes them for users. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  const visibleLogs = useMemo(() => logs.filter((line) => parseWorkspaceSnapshotLogLine(line) === undefined), [logs]);
+  const lines = useMemo(() => visibleLogs.join('\n'), [visibleLogs]);
+  // Prefer live snapshot logs when present, otherwise fall back to the latest persisted task-result snapshot. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  const resolvedWorkspaceChanges = liveWorkspaceChanges !== undefined ? liveWorkspaceChanges : workspaceChanges ?? null;
   const buildLineId = useCallback((idx: number) => `task-log-${taskId}-${idx}`, [taskId]);
   const pageSize = Math.min(Math.max(tail, 1), MAX_LOG_LINES);
   const historyExhausted = historyInitialized && !nextBefore;
@@ -154,6 +166,7 @@ export const TaskLogViewer: FC<Props> = ({
       commitLogWindow(normalized.logs, normalized.startSeq, normalized.endSeq, page.nextBefore ?? null, {
         reset: true
       });
+      setLiveWorkspaceChanges(extractLatestWorkspaceChangesFromLogs(normalized.logs));
     } catch {
       // Ignore bootstrap fallback failures and let normal reconnect logic continue. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     } finally {
@@ -184,6 +197,7 @@ export const TaskLogViewer: FC<Props> = ({
       await clearTaskLogs(taskId);
       // Reset paging state after clearing logs on the backend. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       commitLogWindow([], 0, 0, null, { reset: true });
+      setLiveWorkspaceChanges(undefined);
       setSession((v) => v + 1);
       // messageApi.success(t('logViewer.clearSuccess'));
     } catch {
@@ -213,6 +227,7 @@ export const TaskLogViewer: FC<Props> = ({
       const merged = [...incoming, ...currentLogs];
       const normalized = normalizeLogWindow(merged, startSeq, endSeq);
       commitLogWindow(normalized.logs, normalized.startSeq, normalized.endSeq, page.nextBefore ?? null, { reset: true });
+      setLiveWorkspaceChanges(extractLatestWorkspaceChangesFromLogs(normalized.logs));
     } catch {
       setError(t('logViewer.error.autoReconnect'));
     } finally {
@@ -312,7 +327,7 @@ export const TaskLogViewer: FC<Props> = ({
         end.scrollIntoView();
       }
     });
-  }, [logs.length]);
+  }, [visibleLogs.length]);
 
   useEffect(() => {
     if (mode !== 'raw') return;
@@ -320,8 +335,8 @@ export const TaskLogViewer: FC<Props> = ({
     if (focusedKeyRef.current === focusKey) return;
 
     let idx = -1;
-    for (let i = logs.length - 1; i >= 0; i -= 1) {
-      if (logs[i]?.includes(focusText)) {
+    for (let i = visibleLogs.length - 1; i >= 0; i -= 1) {
+      if (visibleLogs[i]?.includes(focusText)) {
         idx = i;
         break;
       }
@@ -345,7 +360,7 @@ export const TaskLogViewer: FC<Props> = ({
         el.scrollIntoView();
       }
     });
-  }, [buildLineId, focusKey, focusText, logs, mode]);
+  }, [buildLineId, focusKey, focusText, mode, visibleLogs]);
 
   useEffect(() => {
     if (!taskId) return;
@@ -361,6 +376,7 @@ export const TaskLogViewer: FC<Props> = ({
     historyInitializedRef.current = false;
     historyBootstrapInFlightRef.current = false;
     dispatchTimeline({ type: 'clear' });
+    setLiveWorkspaceChanges(undefined);
     setConnecting(true);
     setError(null);
 
@@ -392,6 +408,7 @@ export const TaskLogViewer: FC<Props> = ({
           const normalized = normalizeLogWindow(next, startSeq, endSeq);
           const nextBefore = typeof payload.nextBefore === 'number' && Number.isFinite(payload.nextBefore) ? payload.nextBefore : null;
           commitLogWindow(normalized.logs, normalized.startSeq, normalized.endSeq, nextBefore, { reset: true });
+          setLiveWorkspaceChanges(extractLatestWorkspaceChangesFromLogs(normalized.logs));
           historyInitializedRef.current = true;
           setHistoryInitialized(true);
         } catch (err) {
@@ -415,6 +432,12 @@ export const TaskLogViewer: FC<Props> = ({
             reset: normalized.dropped > 0,
             appendLine: normalized.dropped > 0 ? undefined : payload.line
           });
+          const nextWorkspaceChanges = parseWorkspaceSnapshotLogLine(payload.line);
+          if (nextWorkspaceChanges !== undefined) {
+            setLiveWorkspaceChanges(nextWorkspaceChanges);
+          } else if (normalized.dropped > 0) {
+            setLiveWorkspaceChanges(extractLatestWorkspaceChangesFromLogs(normalized.logs));
+          }
         } catch (err) {
           console.warn('[log] parse failed', err);
         }
@@ -474,7 +497,7 @@ export const TaskLogViewer: FC<Props> = ({
         t={t}
         error={error}
         timeline={timeline}
-        logs={logs}
+        logs={visibleLogs}
         lines={lines}
         showReasoning={showReasoning}
         showLoadEarlier={canLoadEarlier} // Share pagination affordances with flat log view. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
@@ -482,6 +505,7 @@ export const TaskLogViewer: FC<Props> = ({
         onLoadEarlier={() => void loadEarlier()}
         emptyMessage={resolvedEmptyMessage}
         emptyHint={emptyHint}
+        workspaceChanges={resolvedWorkspaceChanges}
         rootRef={rootRef}
         endRef={endRef}
         messageContextHolder={null} // Removed message context
@@ -489,13 +513,15 @@ export const TaskLogViewer: FC<Props> = ({
     );
   }
 
+  const logSectionTitle = mode === 'raw' ? t('execViewer.actions.showRaw') : t('execViewer.actions.showTimeline');
+
   return (
     <div className="log-viewer" ref={rootRef}>
       <TaskLogViewerHeader
         t={t}
         connecting={connecting}
         error={error}
-        logsCount={logs.length}
+        logsCount={visibleLogs.length}
         showLoadEarlier={canLoadEarlier}
         loadingEarlier={loadingEarlier}
         onLoadEarlier={() => void loadEarlier()}
@@ -526,46 +552,57 @@ export const TaskLogViewer: FC<Props> = ({
       ) : null}
 
       <div className="log-viewer__body">
-        {mode === 'raw' ? (
-          logs.length ? (
-            // Use virtual scrolling for long log lists to prevent render lag. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
-            logs.length > 100 ? (
-              <VirtualList
-                height={600}
-                rowCount={logs.length}
-                rowHeight={20}
-                rowComponent={({ index, style }: { index: number; style: React.CSSProperties }) => (
-                  <div style={style} id={buildLineId(index)} className="log-viewer__virtual-line">
-                    {logs[index]}
-                  </div>
-                )}
-                rowProps={{}}
-              />
-            ) : (
-              <pre className="log-viewer__pre">
-                {logs.map((line, idx) => (
-                  <div key={idx} id={buildLineId(idx)}>
-                    {line}
-                  </div>
-                ))}
-              </pre>
-            )
-          ) : (
-            <div className="log-viewer__empty">
-              <span className="text-secondary">{resolvedEmptyMessage}</span>
-              {emptyHint ? <span className="text-secondary">{emptyHint}</span> : null}
+        <div className="log-viewer__stack">
+          <TaskWorkspaceChangesPanel changes={resolvedWorkspaceChanges} />
+          <section className="log-viewer__section">
+            <div className="log-viewer__section-bar">
+              <span className="log-viewer__section-title">{logSectionTitle}</span>
+              {visibleLogs.length ? <span className="log-viewer__section-meta">{t('logViewer.lines', { count: visibleLogs.length })}</span> : null}
             </div>
-          )
-        ) : (
-          <ExecutionTimeline
-            items={timeline.items}
-            showReasoning={showReasoning}
-            wrapDiffLines={wrapDiffLines}
-            showLineNumbers={showLineNumbers}
-            emptyMessage={resolvedEmptyMessage}
-            emptyHint={emptyHint}
-          />
-        )}
+            <div className="log-viewer__section-body">
+              {mode === 'raw' ? (
+                visibleLogs.length ? (
+                  // Use virtual scrolling for long log lists to prevent render lag. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
+                  visibleLogs.length > 100 ? (
+                    <VirtualList
+                      height={600}
+                      rowCount={visibleLogs.length}
+                      rowHeight={20}
+                      rowComponent={({ index, style }: { index: number; style: React.CSSProperties }) => (
+                        <div style={style} id={buildLineId(index)} className="log-viewer__virtual-line">
+                          {visibleLogs[index]}
+                        </div>
+                      )}
+                      rowProps={{}}
+                    />
+                  ) : (
+                    <pre className="log-viewer__pre">
+                      {visibleLogs.map((line, idx) => (
+                        <div key={idx} id={buildLineId(idx)}>
+                          {line}
+                        </div>
+                      ))}
+                    </pre>
+                  )
+                ) : (
+                  <div className="log-viewer__empty">
+                    <span className="text-secondary">{resolvedEmptyMessage}</span>
+                    {emptyHint ? <span className="text-secondary">{emptyHint}</span> : null}
+                  </div>
+                )
+              ) : (
+                <ExecutionTimeline
+                  items={timeline.items}
+                  showReasoning={showReasoning}
+                  wrapDiffLines={wrapDiffLines}
+                  showLineNumbers={showLineNumbers}
+                  emptyMessage={resolvedEmptyMessage}
+                  emptyHint={emptyHint}
+                />
+              )}
+            </div>
+          </section>
+        </div>
         <div ref={endRef} />
       </div>
     </div>

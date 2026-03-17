@@ -2,7 +2,10 @@ import { FC, type ReactNode, useMemo, useState } from 'react';
 import type { ExecutionFileDiff, ExecutionItem } from '../../utils/executionLog';
 import { useT } from '../../i18n';
 import { MarkdownViewer } from '../MarkdownViewer';
+import { TextPreviewBlock } from '../TextPreviewBlock';
 import { DiffView } from '../diff/DiffView';
+import { calculateUnifiedDiff, calculateUnifiedDiffStats } from '../diff/calculateDiff';
+import { buildTextPreview, COMMAND_OUTPUT_PREVIEW_LIMITS, INLINE_DIFF_PREVIEW_LIMITS, RAW_TEXT_PREVIEW_LIMITS } from '../../utils/textPreview';
 
 export interface ExecutionTimelineProps {
   items: ExecutionItem[];
@@ -62,6 +65,66 @@ type StatusTone = 'running' | 'failed' | 'completed' | 'neutral';
 type StatusMeta = {
   tone: StatusTone;
   label: string;
+};
+
+type FileChangeTone = 'default' | 'create' | 'delete';
+
+type FileDecoration = {
+  badge: string;
+  tone: FileChangeTone;
+  labelKey: string;
+  additions: number;
+  deletions: number;
+};
+
+const resolveFileTone = (kind?: string): { badge: string; tone: FileChangeTone; labelKey: string } => {
+  const normalizedKind = String(kind ?? '').trim().toLowerCase();
+  if (normalizedKind === 'create' || normalizedKind === 'add' || normalizedKind === 'new') {
+    return { badge: 'A', tone: 'create', labelKey: 'tasks.workspaceChanges.badge.create' };
+  }
+  if (normalizedKind === 'delete' || normalizedKind === 'remove') {
+    return { badge: 'D', tone: 'delete', labelKey: 'tasks.workspaceChanges.badge.delete' };
+  }
+  return { badge: 'M', tone: 'default', labelKey: 'tasks.workspaceChanges.badge.update' };
+};
+
+const resolveDiffStats = (diff?: Pick<ExecutionFileDiff, 'oldText' | 'newText' | 'unifiedDiff'>): { additions: number; deletions: number } => {
+  // Reuse the existing diff texts to derive compact git-style summaries so the execution timeline can mirror the dedicated workspace panel without new API fields. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  if (!diff) return { additions: 0, deletions: 0 };
+  if (String(diff.unifiedDiff ?? '').trim()) {
+    const stats = calculateUnifiedDiffStats(diff.unifiedDiff ?? '');
+    if (stats.additions > 0 || stats.deletions > 0 || (typeof diff.oldText !== 'string' && typeof diff.newText !== 'string')) {
+      return stats;
+    }
+  }
+  if (typeof diff.oldText === 'string' || typeof diff.newText === 'string') {
+    const oldPreview = buildTextPreview(diff.oldText ?? '', INLINE_DIFF_PREVIEW_LIMITS);
+    const newPreview = buildTextPreview(diff.newText ?? '', INLINE_DIFF_PREVIEW_LIMITS);
+    return calculateUnifiedDiff(oldPreview.text, newPreview.text, 0).stats;
+  }
+  return { additions: 0, deletions: 0 };
+};
+
+const buildFileDecorations = (item: Extract<ExecutionItem, { kind: 'file_change' }>): Map<string, FileDecoration> => {
+  const diffMap = new Map(item.diffs.map((entry) => [entry.path, entry] as const));
+  const knownPaths = new Set<string>();
+  const decorations = new Map<string, FileDecoration>();
+
+  item.changes.forEach((change) => {
+    knownPaths.add(change.path);
+    const tone = resolveFileTone(change.kind);
+    const stats = resolveDiffStats(diffMap.get(change.path));
+    decorations.set(change.path, { ...tone, ...stats });
+  });
+
+  item.diffs.forEach((diff) => {
+    if (knownPaths.has(diff.path)) return;
+    const tone = resolveFileTone(diff.kind);
+    const stats = resolveDiffStats(diff);
+    decorations.set(diff.path, { ...tone, ...stats });
+  });
+
+  return decorations;
 };
 
 // --- Sub-component for individual items ---
@@ -173,7 +236,14 @@ const ExecutionTimelineItem: FC<{
              {expanded ? <IconChevronDown /> : <IconChevronRight />}
              <span>{t('execViewer.section.commandOutput')}</span>
           </button>
-          {expanded && <pre className="chat-work__mono">{item.output}</pre>}
+          {expanded && (
+            <TextPreviewBlock
+              text={item.output}
+              limits={COMMAND_OUTPUT_PREVIEW_LIMITS}
+              className="chat-preview-block"
+              codeClassName="chat-work__mono"
+            />
+          )}
         </div>
       );
     }
@@ -181,6 +251,7 @@ const ExecutionTimelineItem: FC<{
     // File Change: Diffs are collapsible
     if (item.kind === 'file_change') {
       const diffs = item.diffs ?? [];
+      const fileDecorations = buildFileDecorations(item);
       
       // Use explicit changes if available, otherwise derive from diffs to ensure file list is visible
       const filesToShow = item.changes.length > 0 
@@ -197,10 +268,21 @@ const ExecutionTimelineItem: FC<{
               <div className="chat-files">
                 {filesToShow.map((change, idx) => (
                   <div key={`${idx}-${change.path}`} className="chat-file">
+                    <span className={`chat-file__badge chat-file__badge--${fileDecorations.get(change.path)?.tone ?? 'default'}`}>
+                      {fileDecorations.get(change.path)?.badge ?? resolveFileTone(change.kind).badge}
+                    </span>
                     <span className="chat-file__path" title={change.path}>
                       {formatPath(change.path)}
                     </span>
-                    {change.kind ? <span className="chat-pill">{change.kind}</span> : null}
+                    <span className="chat-file__meta">
+                      {change.kind ? <span className="chat-pill">{t(fileDecorations.get(change.path)?.labelKey ?? resolveFileTone(change.kind).labelKey)}</span> : null}
+                      {(fileDecorations.get(change.path)?.additions ?? 0) > 0 ? (
+                        <span className="chat-file__metric chat-file__metric--add">{`+${fileDecorations.get(change.path)?.additions}`}</span>
+                      ) : null}
+                      {(fileDecorations.get(change.path)?.deletions ?? 0) > 0 ? (
+                        <span className="chat-file__metric chat-file__metric--remove">{`-${fileDecorations.get(change.path)?.deletions}`}</span>
+                      ) : null}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -211,27 +293,44 @@ const ExecutionTimelineItem: FC<{
                <button className="chat-collapsible__toggle" onClick={() => setExpanded(!expanded)}>
                   {expanded ? <IconChevronDown /> : <IconChevronRight />}
                   <span>{t('execViewer.section.fileDiffs')}</span>
+                  <span className="chat-collapsible__count" aria-hidden="true">{diffs.length}</span>
                </button>
                {expanded && (
                  <div className="chat-diffs">
-                    {diffs.map((diff) => (
-                      <div key={diffKey(diff)} className="chat-diff">
-                        <span className="chat-diff__file" title={diff.path}>
-                          {formatPath(diff.path)}
-                        </span>
+                    {diffs.map((diff) => {
+                      const diffStats = resolveDiffStats(diff);
+                      return (
+                        <div key={diffKey(diff)} className="chat-diff">
+                        <div className="chat-diff__header">
+                          <span className="chat-diff__file" title={diff.path}>
+                            {formatPath(diff.path)}
+                          </span>
+                          <span className="chat-diff__meta">
+                            {diffStats.additions > 0 ? <span className="chat-file__metric chat-file__metric--add">{`+${diffStats.additions}`}</span> : null}
+                            {diffStats.deletions > 0 ? <span className="chat-file__metric chat-file__metric--remove">{`-${diffStats.deletions}`}</span> : null}
+                          </span>
+                        </div>
                         {diff.oldText !== undefined && diff.newText !== undefined ? (
                           <DiffView
                             oldText={diff.oldText}
                             newText={diff.newText}
+                            unifiedDiff={diff.unifiedDiff}
                             showLineNumbers={showLineNumbers}
                             showPlusMinusSymbols
                             wrapLines={wrapDiffLines}
                           />
                         ) : (
-                          <pre className="chat-work__mono">{diff.unifiedDiff}</pre>
+                          <TextPreviewBlock
+                            text={diff.unifiedDiff}
+                            emptyText={t('execViewer.diff.pending')}
+                            limits={RAW_TEXT_PREVIEW_LIMITS}
+                            className={`chat-preview-block ${wrapDiffLines ? 'is-wrap' : 'is-nowrap'}`}
+                            codeClassName="chat-work__mono"
+                          />
                         )}
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                  </div>
                )}
              </div>
@@ -274,7 +373,14 @@ const ExecutionTimelineItem: FC<{
            {expanded ? <IconChevronDown /> : <IconChevronRight />}
            <span>{t('execViewer.item.unknown')}</span>
         </button>
-        {expanded && <pre className="chat-work__mono">{JSON.stringify((item as any).raw ?? item, null, 2)}</pre>}
+        {expanded && (
+          <TextPreviewBlock
+            text={JSON.stringify((item as any).raw ?? item, null, 2)}
+            limits={RAW_TEXT_PREVIEW_LIMITS}
+            className="chat-preview-block"
+            codeClassName="chat-work__mono"
+          />
+        )}
       </div>
     );
   };

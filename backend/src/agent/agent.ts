@@ -72,6 +72,7 @@ import { resolveAgentExampleTemplateDir } from '../utils/agentTemplatePaths';
 import { ensureGithubForkRepo, ensureGitlabForkProject, resolveRepoWorkflowMode } from '../services/repoWorkflowMode';
 // Pull git status helpers to report repo changes after write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAheadBehind } from '../utils/gitStatus';
+import { WorkspaceChangeTracker } from '../utils/workspaceChangeTracker';
 import { installDependencies, DependencyInstallerError } from './dependencyInstaller';
 import { RuntimeService } from '../services/runtimeService';
 import { HookcodeConfigService } from '../services/hookcodeConfigService';
@@ -1058,6 +1059,9 @@ async function callAgent(
   let gitBaseline: TaskGitStatusSnapshot | undefined;
   // Store repo workspace path for post-run git status capture, even on failure. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   let repoDir = '';
+  // Keep backend-inline runs aligned with worker execution by tracking repo-relative workspace diffs for the active task. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  let workspaceChangeTracker: WorkspaceChangeTracker | null = null;
+  let workspaceChangeTrackerStopped = false;
   const taskLogsDbEnabled = isTaskLogsDbEnabled(); // Persist task logs based on DB toggle even when user visibility is disabled. nykx5svtlgh050cstyht
   let taskGroupId: string | null = typeof task.groupId === 'string' ? task.groupId.trim() : null;
   let pendingResumeThreadId: string | null = null;
@@ -1845,6 +1849,19 @@ exit 0
       runConfig: resolveProviderRunConfig(attempt.provider, attempt.providerConfigRaw)
     }));
     const requiresGitIdentity = attemptRunConfigs.some(({ runConfig }) => runConfig.sandbox === 'workspace-write');
+    if (requiresGitIdentity) {
+      // Stream repo-relative workspace change snapshots into task logs/results so task views can render live file diffs during worker execution. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+      workspaceChangeTracker = new WorkspaceChangeTracker({
+        taskId: task.id,
+        repoDir,
+        emitLine: appendRawLog,
+        persistSnapshot: async (snapshot) => {
+          await taskService.patchResult(task.id, { workspaceChanges: snapshot });
+        },
+        emitTimelineEvents: false
+      });
+      await workspaceChangeTracker.start();
+    }
 
     // Enforce a repo-local git identity for workspace-write runs to ensure commits match the token owner.
     const tokenUserName = safeTrim(execution.robot.repoTokenUserName);
@@ -2082,6 +2099,10 @@ exit 0
     if (providerRouting) {
       await appendLog(buildProviderRoutingCompletionLog(providerRouting));
     }
+    if (workspaceChangeTracker && !workspaceChangeTrackerStopped) {
+      await workspaceChangeTracker.stop('completed');
+      workspaceChangeTrackerStopped = true;
+    }
 
     if (writeEnabled) {
       // Capture final git status (files/commit/push) after the model run completes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
@@ -2140,6 +2161,10 @@ exit 0
 
     return { providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined, gitStatus, providerRouting };
   } catch (err: any) {
+    if (workspaceChangeTracker && !workspaceChangeTrackerStopped) {
+      await workspaceChangeTracker.stop('failed');
+      workspaceChangeTrackerStopped = true;
+    }
     // Short-circuit aborts so pause/stop does not post failure comments. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     if (abortSignal?.aborted) {
       await appendLog('Execution aborted by user request.');

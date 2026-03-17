@@ -25,6 +25,7 @@
 @import './styles/execution-dialog.css';
 @import './styles/execution-thoughtchain.css';
 @import './styles/execution-diff.css';
+@import './styles/workspace-changes.css'; /* Style the ClaudeCodeUI-inspired worker file/diff panel. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316 */
 @import './styles/markdown.css';
 @import './styles/login.css';
 @import './styles/user-panel.css';

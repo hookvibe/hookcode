@@ -246,6 +246,8 @@ export const TaskConversationItem: FC<Props> = ({
                 variant="flat"
                 emptyMessage={emptyLogMessage}
                 emptyHint={emptyLogHint}
+                // Keep inline task-group chat logs aligned with task-detail diff history by hydrating worker snapshots from task results. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+                workspaceChanges={task.result?.workspaceChanges ?? null}
                 // Bubble task-level paging status/events to TaskGroupChatPage for chained loading. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
                 onHistoryExhaustedChange={(exhausted) => onLogHistoryExhaustedChange?.(task.id, exhausted)}
                 onLoadingEarlierChange={(loading) => onLogLoadingEarlierChange?.(task.id, loading)}
