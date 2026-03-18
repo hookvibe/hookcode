@@ -699,10 +699,11 @@ const ExecutionTimelineItem: FC<{
   const hasExpandable = Boolean(renderer.hasDetails);
   const [expanded, setExpanded] = useState(defaultExpanded);
 
-  // Sync with parent-driven defaultExpanded when new items arrive. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+  // Sync with parent-driven defaultExpanded when new items arrive; file_change items stay expanded always. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
   useEffect(() => {
+    if (item.kind === 'file_change') return;
     setExpanded(defaultExpanded);
-  }, [defaultExpanded]);
+  }, [defaultExpanded, item.kind]);
 
   const bubbleClass = `chat-bubble chat-bubble--${item.kind === 'agent_message' ? 'message' : 'action'} kind-${item.kind}${toolCategoryClass} is-${status.tone}${expanded ? ' is-expanded' : ''}`;
   const showStatusBadge = status.tone === 'failed';
@@ -762,10 +763,14 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({
     return status === 'in_progress' || status === 'started' || status === 'updated' || status === 'running' || status === 'processing';
   });
 
-  // Build a Set of item IDs that should be auto-expanded (last N items). When new items arrive, only the freshest N stay expanded. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+  // Build a Set of item IDs that should be auto-expanded: last N items plus ALL file_change items (always open). docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
   const autoExpandIds = useMemo(() => {
     const tail = visibleItems.slice(-AUTO_EXPAND_TAIL);
-    return new Set(tail.map((item) => item.id));
+    const ids = new Set(tail.map((item) => item.id));
+    for (const item of visibleItems) {
+      if (item.kind === 'file_change') ids.add(item.id);
+    }
+    return ids;
   }, [visibleItems]);
 
   if (!visibleItems.length) {

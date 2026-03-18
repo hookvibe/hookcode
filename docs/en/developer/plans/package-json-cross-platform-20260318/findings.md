@@ -20,6 +20,10 @@
 - The concrete runtime failure reported by the user is not a path-parsing bug first; it is a shell-launch bug first, because the stack trace shows `syscall: 'spawn sh'` and `code: 'ENOENT'`.
 - [backend/src/utils/crossPlatformSpawn.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/utils/crossPlatformSpawn.ts) already provides `xSpawnShell()` that uses `cmd /c` on Windows and `sh -c` on POSIX, but backend runtime code is not using it yet.
 - Current native Windows-sensitive call sites include [backend/src/agent/agent.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/agent/agent.ts) for `runCommandWithLogs()` and `runCommandCapture()`, plus [backend/src/modules/tasks/preview.service.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/modules/tasks/preview.service.ts) for preview process startup.
+- The current generated Prisma client under `node_modules/.prisma/client` still reports `"engineType": "library"` and ships `query_engine-windows.dll.node`, which explains why Windows `prisma generate` keeps trying to replace a locked DLL.
+- The same generated client directory contains multiple stale `query_engine-windows.dll.node.tmp*` files from failed rename attempts, so the current failure mode is repeatable in this workspace.
+- Official Prisma docs say `engineType = "client"` on the generator block generates Prisma Client without downloading or shipping the Rust query engine binary, and that driver adapters are required in that mode.
+- HookCode already satisfies that adapter requirement because [backend/src/db.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/db.ts) instantiates `PrismaClient` with `new PrismaPg(pool)`.
 
 ## Technical Decisions
 | Decision | Rationale |
@@ -29,6 +33,7 @@
 | Export small pure helpers from the launcher and test them directly | That keeps tests deterministic and avoids launching long-running watch processes in CI. |
 | Switch runtime shell-command execution to the shared `xSpawnShell()` helper instead of duplicating platform logic | That fixes the reported `spawn sh ENOENT` failure at the source and keeps shell behavior centralized. |
 | Update command-execution tests to run Node-based commands instead of POSIX-only commands like `ls` | Tests should verify behavior, not silently depend on a Unix shell being present. |
+| Use Prisma's supported `engineType = "client"` setting instead of retrying locked DLL replacement | The DLL rename failure is Windows-specific operational friction, and the backend already uses the required PostgreSQL driver adapter. |
 
 ## Issues Encountered
 | Issue | Resolution |
@@ -37,6 +42,7 @@
 | The first full-suite verification attempt depended on Prisma engine downloads during `hookcode-backend` `pretest` | Logged the failure, then reran the suite after the current workspace's Prisma script update allowed generation to succeed. |
 | The rerun still failed in existing backend Windows-oriented gaps | Documented the failing suites as residual repo issues outside this package-script task. |
 | Backend runtime still hard-codes `spawn('sh', ['-c', ...])` in multiple places despite having a shared cross-platform helper | Fix the callers to use the helper and add tests around the Windows-safe path. |
+| Backend `pretest` now fails earlier with `EPERM` while Prisma tries to rename `query_engine-windows.dll.node.tmp*` over the active engine DLL | Shift Prisma generation away from Rust engine binaries so the Windows lock target disappears instead of adding brittle retries around `rename()`. |
 
 ## Resources
 - [package.json](/c:/Users/yuhe/Documents/github/hookcode/package.json)

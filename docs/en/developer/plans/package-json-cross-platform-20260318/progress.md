@@ -109,6 +109,18 @@
   - [docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md)
   - [docs/en/developer/plans/package-json-cross-platform-20260318/progress.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/progress.md)
 
+### Follow-up: Windows Prisma generate lock regression
+- **Status:** in_progress
+- Actions taken:
+  - Reused the existing `package-json-cross-platform-20260318` session because the new failure is a continuation of the same Windows portability task.
+  - Inspected [backend/scripts/prisma-run.js](/c:/Users/yuhe/Documents/github/hookcode/backend/scripts/prisma-run.js), [backend/prisma/schema.prisma](/c:/Users/yuhe/Documents/github/hookcode/backend/prisma/schema.prisma), and [backend/src/db.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/db.ts) to verify how Prisma Client is generated and instantiated.
+  - Confirmed the generated client still uses Rust `engineType: "library"` and that the workspace contains multiple stale `query_engine-windows.dll.node.tmp*` files from failed Windows rename attempts.
+  - Reviewed Prisma's official generator docs and captured the supported `engineType = "client"` path as the implementation direction because HookCode already uses `@prisma/adapter-pg`.
+- Files created/modified:
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md)
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/findings.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/findings.md)
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/progress.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/progress.md)
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
