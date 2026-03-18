@@ -1,6 +1,15 @@
 // Group task-related API types into a dedicated module. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
-import type { DependencyResult, TaskEventType, TaskQueueDiagnosis, TaskStatus } from './common';
+import type {
+  ApprovalActionType,
+  ApprovalRequestStatus,
+  DependencyResult,
+  PolicyDecision,
+  PolicyRiskLevel,
+  TaskEventType,
+  TaskQueueDiagnosis,
+  TaskStatus
+} from './common';
 import type { ModelProvider } from './models';
 import type { RepoProvider, RobotPermission } from './repos';
 import type { WorkerSummary } from './workers';
@@ -20,6 +29,79 @@ export interface TaskRobotSummary {
   // Expose robot model provider on task summaries for UI display. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
   modelProvider?: ModelProvider;
   enabled: boolean;
+}
+
+export interface PolicyEvaluationContext {
+  repoId?: string;
+  repoProvider?: string;
+  robotId?: string;
+  taskId?: string;
+  taskGroupId?: string;
+  eventType?: string;
+  taskSource: string;
+  provider?: string;
+  sandbox?: string;
+  networkAccess: boolean;
+  commands: string[];
+  targetFiles: string[];
+}
+
+export interface ApprovalActionRecord {
+  id: string;
+  approvalRequestId: string;
+  actorUserId?: string;
+  action: ApprovalActionType;
+  note?: string;
+  createdAt: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface ApprovalMatchedRule {
+  id?: string;
+  name: string;
+  action: PolicyDecision;
+  source: 'policy_rule' | 'builtin';
+}
+
+export interface ApprovalRequestDetails {
+  taskSource: string;
+  provider?: string;
+  sandbox: string;
+  networkAccess: boolean;
+  targetFiles: string[];
+  commands: string[];
+  reasons: string[];
+  warnings?: string[];
+  matchedRules: ApprovalMatchedRule[];
+}
+
+export interface ApprovalRequest {
+  id: string;
+  taskId: string;
+  repoId?: string;
+  robotId?: string;
+  requestedByUserId?: string;
+  resolvedByUserId?: string;
+  status: ApprovalRequestStatus;
+  decision: PolicyDecision;
+  riskLevel: PolicyRiskLevel;
+  summary: string;
+  details?: ApprovalRequestDetails;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  actions: ApprovalActionRecord[];
+  taskSummary?: {
+    id: string;
+    title?: string;
+    status: string;
+    repoId?: string;
+    repoName?: string;
+    robotId?: string;
+    robotName?: string;
+    createdAt: string;
+    updatedAt: string;
+  };
 }
 
 export interface Task {
@@ -56,6 +138,7 @@ export interface Task {
   repo?: TaskRepoSummary;
   robot?: TaskRobotSummary;
   workerSummary?: WorkerSummary;
+  approvalRequest?: ApprovalRequest;
   permissions?: { canManage: boolean };
 }
 
@@ -104,6 +187,113 @@ export interface TaskGitStatus {
   errors?: string[];
 }
 
+export type TaskWorkspaceChangeKind = 'create' | 'update' | 'delete' | (string & {});
+
+export interface TaskWorkspaceChange {
+  // Mirror backend workspace diff payloads so frontend diff panels can render task-scoped file changes. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  path: string;
+  kind?: TaskWorkspaceChangeKind;
+  unifiedDiff: string;
+  oldText?: string;
+  newText?: string;
+  diffHash: string;
+  updatedAt: string;
+}
+
+export interface TaskWorkspaceChanges {
+  // Surface the latest repo-relative workspace change snapshot for live and historical task views. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  capturedAt: string;
+  files: TaskWorkspaceChange[];
+}
+
+export type TaskWorkspaceSource = 'worker' | 'backend' | 'snapshot';
+export type TaskWorkspaceFileSection = 'staged' | 'unstaged' | 'untracked';
+export type TaskWorkspaceOperation = 'stage' | 'unstage' | 'discard' | 'delete_untracked' | 'commit';
+
+export interface TaskWorkspaceFile extends TaskWorkspaceChange {
+  sections: TaskWorkspaceFileSection[];
+}
+
+export interface TaskWorkspaceSummary {
+  total: number;
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  additions: number;
+  deletions: number;
+  hasChanges: boolean;
+}
+
+export interface TaskWorkspaceState {
+  source: TaskWorkspaceSource;
+  live: boolean;
+  readOnly: boolean;
+  capturedAt: string;
+  branch?: string;
+  headSha?: string;
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+  workingTree: TaskGitStatusWorkingTree;
+  summary: TaskWorkspaceSummary;
+  files: TaskWorkspaceFile[];
+  canCommit: boolean;
+  fallbackReason?: string;
+}
+
+export interface TaskWorkspaceCommit {
+  sha: string;
+  message: string;
+  committedAt: string;
+}
+
+export interface TaskWorkspaceOperationResult {
+  workspace: TaskWorkspaceState;
+  commit?: TaskWorkspaceCommit;
+}
+
+export interface TaskProviderRoutingCredential {
+  requestedStoredSource: 'robot' | 'repo' | 'user';
+  resolvedLayer: 'local' | 'robot' | 'repo' | 'user' | 'none';
+  resolvedMethod:
+    | 'env_api_key'
+    | 'credentials_file'
+    | 'auth_json_tokens'
+    | 'auth_json_api_key'
+    | 'oauth_creds'
+    | 'robot_embedded'
+    | 'repo_profile'
+    | 'user_profile'
+    | 'none';
+  canExecute: boolean;
+  profileId?: string;
+  fallbackUsed: boolean;
+  reason?: string;
+}
+
+export interface TaskProviderRoutingAttempt {
+  provider: ModelProvider;
+  role: 'primary' | 'fallback';
+  status: 'planned' | 'skipped' | 'running' | 'succeeded' | 'failed';
+  reason?: string;
+  error?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  credential: TaskProviderRoutingCredential;
+}
+
+export interface TaskProviderRouting {
+  mode: 'fixed' | 'availability_first';
+  failoverPolicy: 'disabled' | 'fallback_provider_once';
+  primaryProvider: ModelProvider;
+  fallbackProvider?: ModelProvider;
+  selectedProvider: ModelProvider;
+  finalProvider?: ModelProvider;
+  selectionReason: string;
+  failoverTriggered: boolean;
+  attempts: TaskProviderRoutingAttempt[];
+}
+
 export interface TaskSequenceLink {
   // Mirror backend-derived queue links so the workspace can render explicit execution connectors. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   order: number;
@@ -120,9 +310,14 @@ export interface TaskResult {
   logs?: string[];
   outputText?: string;
   providerCommentUrl?: string;
+  providerRouting?: TaskProviderRouting;
   tokenUsage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+  policyDecision?: PolicyDecision;
+  policyRiskLevel?: PolicyRiskLevel;
   // Surface backend git status in task result payloads for UI reuse. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   gitStatus?: TaskGitStatus;
+  // Surface persisted workspace diff snapshots so diff panels survive reloads and history views. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  workspaceChanges?: TaskWorkspaceChanges | null;
   [key: string]: unknown;
 }
 

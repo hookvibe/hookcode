@@ -16,6 +16,7 @@ import { SkillsHttpModule } from './modules/skills/skills-http.module';
 import { LogsHttpModule } from './modules/logs/logs-http.module';
 import { NotificationsHttpModule } from './modules/notifications/notifications-http.module';
 import { WorkersHttpModule } from './modules/workers/workers-http.module';
+import { CostGovernanceHttpModule } from './modules/cost-governance/cost-governance-http.module';
 
 @Module({
   imports: [
@@ -42,7 +43,9 @@ import { WorkersHttpModule } from './modules/workers/workers-http.module';
     // Expose user notification APIs for the header panel and settings tab. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
     NotificationsHttpModule,
     // Expose worker management APIs and internal worker runtime endpoints. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    WorkersHttpModule
+    WorkersHttpModule,
+    // Expose cost governance and budget APIs for dashboards and task guardrails. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+    CostGovernanceHttpModule
   ]
 })
 export class AppModule {}

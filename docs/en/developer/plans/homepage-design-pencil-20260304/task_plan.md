@@ -1,6 +1,5 @@
 ## Task Plan: Design frontend homepage in pencil
-<!-- Define the homepage recreation scope, phase flow, and traceability anchor for this design task. docs/en/developer/plans/homepage-design-pencil-20260304/task_plan.md homepage-design-pencil-20260304 -->
-
+{/* Define the homepage recreation scope, phase flow, and traceability anchor for this design task. docs/en/developer/plans/homepage-design-pencil-20260304/task_plan.md homepage-design-pencil-20260304 */}
 ## Session Metadata
 - **Session Hash:** homepage-design-pencil-20260304
 - **Created:** 2026-03-04

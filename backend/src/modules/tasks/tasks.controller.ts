@@ -35,6 +35,7 @@ import { TaskLogsService } from './task-logs.service';
 import { TaskGitPushService } from './task-git-push.service';
 import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
+import { TaskWorkspaceService, TaskWorkspaceServiceError } from './task-workspace.service';
 import type { TaskStatus } from '../../types/task';
 import { isTaskLogsEnabled } from '../../config/features';
 import { db } from '../../db';
@@ -71,6 +72,7 @@ export class TasksController {
     private readonly taskLogsService: TaskLogsService, // Serve paged task log reads from the log table. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     private readonly taskRunner: TaskRunner,
     private readonly taskGitPushService: TaskGitPushService,
+    private readonly taskWorkspaceService: TaskWorkspaceService,
     private readonly repoAccessService: RepoAccessService,
     private readonly logWriter: LogWriterService, // Emit audit events for log-clearing actions. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
     private readonly workersConnections: WorkersConnectionService
@@ -82,6 +84,7 @@ export class TasksController {
     if (raw === 'success') return 'success';
     if (
       raw === 'queued' ||
+      raw === 'waiting_approval' ||
       raw === 'processing' ||
       raw === 'succeeded' ||
       raw === 'failed' ||
@@ -647,7 +650,7 @@ export class TasksController {
       if (existing.archivedAt) {
         throw new ConflictException({ error: 'Task is archived; stop is blocked' });
       }
-      if (existing.status !== 'processing' && existing.status !== 'queued') {
+      if (existing.status !== 'processing' && existing.status !== 'queued' && existing.status !== 'waiting_approval') {
         const [decorated] = await this.attachTaskPermissions([existing] as any[], req.user);
         return { task: decorated };
       }
@@ -860,6 +863,84 @@ export class TasksController {
       if (err instanceof HttpException) throw err;
       console.error('[tasks] push failed', err);
       throw new InternalServerErrorException({ error: 'Failed to push changes' });
+    }
+  }
+
+  @Get(':id/workspace')
+  @ApiOperation({
+    summary: 'Get task workspace',
+    description: 'Get the current task workspace state, file list, and diffs.',
+    operationId: 'tasks_workspace_get'
+  })
+  @ApiOkResponse({ description: 'OK' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async getWorkspace(@Req() req: Request, @Param('id') id: string) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      const existing = await this.taskService.getTask(id);
+      if (!existing) throw new NotFoundException({ error: 'Task not found' });
+      await this.requireTaskRead(req.user, existing);
+      return { workspace: await this.taskWorkspaceService.getWorkspace(id) };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      if (err instanceof TaskWorkspaceServiceError) {
+        if (err.code === 'TASK_NOT_FOUND') throw new NotFoundException({ error: err.message, code: err.code });
+        throw new ConflictException({ error: err.message, code: err.code });
+      }
+      console.error('[tasks] get workspace failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch task workspace' });
+    }
+  }
+
+  @Post(':id/workspace/:action')
+  @ApiOperation({
+    summary: 'Run task workspace action',
+    description: 'Run a git/workspace action against the task workspace.',
+    operationId: 'tasks_workspace_action'
+  })
+  @ApiOkResponse({ description: 'OK' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
+  async runWorkspaceAction(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Param('action') action: string,
+    @Body() body: { paths?: string[]; message?: string }
+  ) {
+    try {
+      if (!req.user) throw new UnauthorizedException({ error: 'Unauthorized' });
+      const existing = await this.taskService.getTask(id);
+      if (!existing) throw new NotFoundException({ error: 'Task not found' });
+      await this.requireTaskManage(req.user, existing);
+
+      const normalizedAction =
+        action === 'stage' ||
+        action === 'unstage' ||
+        action === 'discard' ||
+        action === 'delete_untracked' ||
+        action === 'commit'
+          ? action
+          : '';
+      if (!normalizedAction) {
+        throw new BadRequestException({ error: 'Invalid workspace action' });
+      }
+
+      return {
+        result: await this.taskWorkspaceService.runOperation(id, normalizedAction, {
+          paths: Array.isArray(body?.paths) ? body.paths.map((entry) => String(entry)) : undefined,
+          message: typeof body?.message === 'string' ? body.message : undefined
+        })
+      };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      if (err instanceof TaskWorkspaceServiceError) {
+        if (err.code === 'TASK_NOT_FOUND') throw new NotFoundException({ error: err.message, code: err.code });
+        throw new ConflictException({ error: err.message, code: err.code });
+      }
+      console.error('[tasks] workspace action failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to update task workspace' });
     }
   }
 

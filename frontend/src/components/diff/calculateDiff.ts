@@ -33,6 +33,16 @@ interface PendingRemoval {
 }
 
 const MAX_COMMON_SUBSTRING_LEN = 3;
+const UNIFIED_DIFF_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+const splitLines = (value: string): string[] => {
+  const normalized = String(value ?? '').replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') {
+    lines.pop();
+  }
+  return lines;
+};
 
 /**
  * Calculate a unified diff (with inline tokens) between two full texts. yjlphd6rbkrq521ny796
@@ -49,9 +59,7 @@ export function calculateUnifiedDiff(oldText: string, newText: string, contextLi
   let pendingRemovals: PendingRemoval[] = [];
 
   for (const change of lineChanges) {
-    const lines = String(change.value ?? '')
-      .split('\n')
-      .filter((line, index, arr) => !(index === arr.length - 1 && line === ''));
+    const lines = splitLines(change.value ?? '');
 
     for (const line of lines) {
       if (change.removed) {
@@ -90,12 +98,123 @@ export function calculateUnifiedDiff(oldText: string, newText: string, contextLi
   return { hunks: createHunks(allLines, contextLines), stats: { additions, deletions } };
 }
 
+export function calculateUnifiedDiffStats(unifiedDiff: string): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+
+  for (const line of splitLines(unifiedDiff)) {
+    if (!line || line.startsWith('diff --git ') || line.startsWith('index ') || line.startsWith('@@') || line.startsWith('+++') || line.startsWith('---')) {
+      continue;
+    }
+    if (line.startsWith('+')) {
+      additions += 1;
+      continue;
+    }
+    if (line.startsWith('-')) {
+      deletions += 1;
+    }
+  }
+
+  return { additions, deletions };
+}
+
+export function parseUnifiedDiff(unifiedDiff: string): DiffResult | null {
+  const rawLines = splitLines(unifiedDiff);
+  const hunks: DiffHunk[] = [];
+  let currentHunk: DiffHunk | null = null;
+  let oldLineNumber = 0;
+  let newLineNumber = 0;
+  let additions = 0;
+  let deletions = 0;
+
+  const flushHunk = () => {
+    if (!currentHunk) return;
+    decorateInlineTokens(currentHunk.lines);
+    hunks.push(currentHunk);
+    currentHunk = null;
+  };
+
+  for (const line of rawLines) {
+    const headerMatch = line.match(UNIFIED_DIFF_HEADER);
+    if (headerMatch) {
+      flushHunk();
+      currentHunk = {
+        oldStart: Number.parseInt(headerMatch[1] ?? '1', 10),
+        oldLines: Number.parseInt(headerMatch[2] ?? '1', 10),
+        newStart: Number.parseInt(headerMatch[3] ?? '1', 10),
+        newLines: Number.parseInt(headerMatch[4] ?? '1', 10),
+        lines: []
+      };
+      oldLineNumber = currentHunk.oldStart;
+      newLineNumber = currentHunk.newStart;
+      continue;
+    }
+
+    if (!currentHunk) continue;
+
+    if (line.startsWith('+') && !line.startsWith('+++')) {
+      currentHunk.lines.push({ type: 'add', content: line.slice(1), newLineNumber });
+      newLineNumber += 1;
+      additions += 1;
+      continue;
+    }
+
+    if (line.startsWith('-') && !line.startsWith('---')) {
+      currentHunk.lines.push({ type: 'remove', content: line.slice(1), oldLineNumber });
+      oldLineNumber += 1;
+      deletions += 1;
+      continue;
+    }
+
+    if (line.startsWith(' ')) {
+      currentHunk.lines.push({ type: 'normal', content: line.slice(1), oldLineNumber, newLineNumber });
+      oldLineNumber += 1;
+      newLineNumber += 1;
+      continue;
+    }
+
+    currentHunk.lines.push({ type: 'normal', content: line });
+  }
+
+  flushHunk();
+
+  if (!hunks.length) return null;
+  return { hunks, stats: { additions, deletions } };
+}
+
 const calculateInlineDiff = (oldLine: string, newLine: string): DiffToken[] =>
   diffWordsWithSpace(oldLine, newLine).map((part) => ({
     value: part.value,
     added: part.added,
     removed: part.removed
   }));
+
+const decorateInlineTokens = (lines: DiffLine[]): void => {
+  let pendingRemovals: PendingRemoval[] = [];
+
+  lines.forEach((line, index) => {
+    if (line.type === 'remove') {
+      pendingRemovals.push({ line: line.content, index });
+      return;
+    }
+
+    if (line.type === 'add') {
+      if (pendingRemovals.length > 0) {
+        const bestIndex = findBestMatch(line.content, pendingRemovals.map((entry) => entry.line));
+        if (bestIndex !== -1) {
+          const removal = pendingRemovals[bestIndex];
+          pendingRemovals.splice(bestIndex, 1);
+          const tokens = calculateInlineDiff(removal.line, line.content);
+          lines[removal.index] = { ...lines[removal.index], tokens: tokens.filter((token) => !token.added) };
+          lines[index] = { ...line, tokens: tokens.filter((token) => !token.removed) };
+        }
+      }
+      return;
+    }
+
+    pendingRemovals = [];
+  });
+};
 
 const findBestMatch = (target: string, candidates: string[]): number => {
   if (candidates.length === 0) return -1;
@@ -208,4 +327,3 @@ const createHunks = (lines: DiffLine[], contextLines: number): DiffHunk[] => {
 
   return hunks;
 };
-

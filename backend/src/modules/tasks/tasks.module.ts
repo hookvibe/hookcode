@@ -8,18 +8,23 @@ import { SkillsModule } from '../skills/skills.module';
 import { LogsModule } from '../logs/logs.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { WorkersModule } from '../workers/workers.module';
+import { PolicyEngineModule } from '../../policyEngine/policyEngine.module';
 import { AgentService } from './agent.service';
 import { TaskGitPushService } from './task-git-push.service';
 import { TaskLogStream } from './task-log-stream.service';
 import { TaskLogsService } from './task-logs.service';
 import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
+import { TaskWorkspaceService } from './task-workspace.service';
 import { HookcodeConfigService } from '../../services/hookcodeConfigService';
 import { PreviewService } from './preview.service';
 import { PreviewLogStream } from './preview-log-stream.service';
 import { PreviewWsProxyService } from './preview-ws-proxy.service';
 import { PreviewHostProxyService } from './preview-host-proxy.service';
 import { PreviewHighlightService } from './preview-highlight.service';
+import { ApprovalQueueService } from '../../policyEngine/approvalQueue.service';
+import { PolicyEngineService } from '../../policyEngine/policyEngine.service';
+import { CostGovernanceModule } from '../../costGovernance/costGovernance.module';
 
 @Module({
   // Import AuthModule so PreviewWsProxyService can validate tokens. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
@@ -37,7 +42,11 @@ import { PreviewHighlightService } from './preview-highlight.service';
     // Provide notification services for task result alerts. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
     NotificationsModule,
     // Resolve worker registry/services while routing queued tasks to external executors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    WorkersModule
+    WorkersModule,
+    // Wire the policy engine so task creation can require approval before execution. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+    PolicyEngineModule,
+    // Wire cost governance so task creation/start can enforce budgets and sync usage rollups. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+    CostGovernanceModule
   ],
   // Register git push service for task-level push actions. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   providers: [
@@ -56,8 +65,11 @@ import { PreviewHighlightService } from './preview-highlight.service';
     AgentService,
     TaskRunner,
     TaskGitPushService,
+    TaskWorkspaceService,
     // Provide `.hookcode.yml` parsing for dependency installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
     HookcodeConfigService,
+    PolicyEngineService,
+    ApprovalQueueService,
     // Provide TaskGroup preview orchestration for dev servers. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     PreviewService
   ],
@@ -72,7 +84,10 @@ import { PreviewHighlightService } from './preview-highlight.service';
     AgentService,
     TaskRunner,
     TaskGitPushService,
+    TaskWorkspaceService,
     HookcodeConfigService,
+    PolicyEngineService,
+    ApprovalQueueService,
     PreviewService
   ]
 })

@@ -17,10 +17,26 @@ export type ExecutionFileDiff = {
   newText?: string;
 };
 
+export type ExecutionTodoStatus = 'completed' | 'in_progress' | 'pending';
+
+export type ExecutionTodoPriority = 'high' | 'medium' | 'low';
+
 // Represent todo_list entries so the exec viewer can render task progress instead of "unknown". docs/en/developer/plans/todoeventlog20260123/task_plan.md todoeventlog20260123
 export type ExecutionTodoItem = {
-  text: string;
-  completed: boolean;
+  id?: string;
+  content: string;
+  status: ExecutionTodoStatus;
+  priority: ExecutionTodoPriority;
+};
+
+export type ExecutionSubagentChildItem = {
+  id: string;
+  toolName: string;
+  summary?: string;
+  toolInput?: unknown;
+  output?: string;
+  status: ExecutionItemStatus;
+  isError?: boolean;
 };
 
 export type ExecutionItem =
@@ -29,6 +45,8 @@ export type ExecutionItem =
       id: string;
       status: ExecutionItemStatus;
       command: string;
+      toolName?: string;
+      toolInput?: unknown;
       exitCode?: number | null;
       output?: string;
     }
@@ -56,6 +74,18 @@ export type ExecutionItem =
       id: string;
       status: ExecutionItemStatus;
       items: ExecutionTodoItem[];
+    }
+  | {
+      kind: 'subagent_container';
+      id: string;
+      status: ExecutionItemStatus;
+      title: string;
+      description: string;
+      prompt?: string;
+      currentToolIndex: number;
+      isComplete: boolean;
+      childItems: ExecutionSubagentChildItem[];
+      resultText?: string;
     }
   | {
       kind: 'unknown';

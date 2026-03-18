@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "npx mintlify dev",
-    "build": "npx mintlify build",
+    "build": "npx mintlify validate",
     "preview": "npx mintlify dev"
   },
   "engines": {

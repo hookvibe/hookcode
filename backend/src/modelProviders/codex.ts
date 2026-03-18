@@ -1,5 +1,7 @@
 import { readFile, writeFile } from 'fs/promises';
+// Use cross-platform spawn for git commands on Windows. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
 import { spawn } from 'child_process';
+import { xpSpawnOpts } from '../utils/crossPlatformSpawn';
 import path from 'path';
 import type {
   ThreadEvent as CodexSdkThreadEvent,
@@ -8,6 +10,10 @@ import type {
 } from '@openai/codex-sdk';
 import { buildMergedProcessEnv, createAsyncLineLogger } from '../utils/providerRuntime';
 import { normalizeHttpBaseUrl } from '../utils/url';
+import {
+  normalizeProviderRoutingConfig,
+  type ProviderRoutingConfig
+} from '../providerRouting/providerRouting.types';
 
 export const CODEX_PROVIDER_KEY = 'codex' as const;
 export type ModelProviderKey = typeof CODEX_PROVIDER_KEY | (string & {});
@@ -43,6 +49,8 @@ export interface CodexRobotProviderConfig {
   model: CodexModel;
   sandbox: 'workspace-write' | 'read-only';
   model_reasoning_effort: CodexReasoningEffort;
+  // Persist provider failover choices inside the existing config blob for the Phase-A MVP. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  routingConfig: ProviderRoutingConfig;
   // Codex execution always enables network access; the robot config no longer binds this setting. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
 }
 
@@ -95,13 +103,13 @@ const runGit = async (
   const maxStdoutChars = typeof options?.maxStdoutChars === 'number' && options.maxStdoutChars > 0 ? options.maxStdoutChars : 0;
 
   return await new Promise((resolve) => {
-    const child = spawn('git', args, {
+    const child = spawn('git', args, xpSpawnOpts({
       cwd: repoDir,
       stdio: ['ignore', 'pipe', 'pipe']
-    });
+    }));
 
     let stdout = '';
-    child.stdout.on('data', (chunk: Buffer) => {
+    child.stdout!.on('data', (chunk: Buffer) => {
       if (maxStdoutChars > 0 && stdout.length >= maxStdoutChars) return;
       stdout += chunk.toString('utf8');
       if (maxStdoutChars > 0 && stdout.length > maxStdoutChars) stdout = stdout.slice(0, maxStdoutChars);
@@ -207,7 +215,8 @@ export const getDefaultCodexRobotProviderConfig = (): CodexRobotProviderConfig =
   credential: undefined,
   model: 'gpt-5.1-codex-max',
   sandbox: 'read-only',
-  model_reasoning_effort: 'medium'
+  model_reasoning_effort: 'medium',
+  routingConfig: normalizeProviderRoutingConfig(undefined, CODEX_PROVIDER_KEY)
 });
 
 export const normalizeCodexRobotProviderConfig = (raw: unknown): CodexRobotProviderConfig => {
@@ -234,7 +243,8 @@ export const normalizeCodexRobotProviderConfig = (raw: unknown): CodexRobotProvi
         : undefined,
     model: normalizeCodexModel(raw.model),
     sandbox: normalizeCodexSandbox(raw.sandbox),
-    model_reasoning_effort: normalizeReasoningEffort(raw.model_reasoning_effort)
+    model_reasoning_effort: normalizeReasoningEffort(raw.model_reasoning_effort),
+    routingConfig: normalizeProviderRoutingConfig(raw.routingConfig, CODEX_PROVIDER_KEY)
   };
 
   // Ignore legacy sandbox_workspace_write.network_access because Codex now always allows network access. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
@@ -288,7 +298,8 @@ export const toPublicCodexRobotProviderConfig = (raw: unknown): CodexRobotProvid
         : undefined,
     model: normalized.model,
     sandbox: normalized.sandbox,
-    model_reasoning_effort: normalized.model_reasoning_effort
+    model_reasoning_effort: normalized.model_reasoning_effort,
+    routingConfig: normalized.routingConfig
   };
 };
 
@@ -333,14 +344,28 @@ export const buildCodexSdkThreadOptions = (params: {
 
 const UNKNOWN_REASONING_PARAM_PATTERN =
   /unknown parameter:\s*['"]reasoning['"]|["']param["']\s*:\s*["']reasoning["']/i;
+const INVALID_REASONING_VALUE_PATTERN =
+  /reasoning.*(invalid|unsupported|not supported|must be one of|invalid enum|expected one of)|invalid.*reasoning/i;
 
 const isUnknownReasoningParamError = (message: string): boolean => {
   // Detect OpenAI-compatible gateway rejections for unsupported `reasoning` fields. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
   return UNKNOWN_REASONING_PARAM_PATTERN.test(message);
 };
 
+const isUnsupportedReasoningEffortError = (message: string): boolean => {
+  // Detect gateways that accept `reasoning` but reject a specific effort value such as `xhigh`. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  return INVALID_REASONING_VALUE_PATTERN.test(message);
+};
+
+const getNextReasoningEffortFallback = (value: CodexReasoningEffort): CodexReasoningEffort | null => {
+  if (value === 'xhigh') return 'high';
+  if (value === 'high') return 'medium';
+  return null;
+};
+
 // Export reasoning-parameter detector for unit tests around compatibility fallback behavior. docs/en/developer/plans/worker-stuck-reasoning-20260304/task_plan.md worker-stuck-reasoning-20260304
 export const __test__isUnknownReasoningParamError = (message: string): boolean => isUnknownReasoningParamError(message);
+export const __test__isUnsupportedReasoningEffortError = (message: string): boolean => isUnsupportedReasoningEffortError(message);
 
 export const runCodexExecWithSdk = async (params: {
   repoDir: string;
@@ -350,7 +375,7 @@ export const runCodexExecWithSdk = async (params: {
   sandbox: 'read-only' | 'workspace-write';
   modelReasoningEffort: CodexReasoningEffort;
   resumeThreadId?: string;
-  apiKey: string;
+  apiKey?: string;
   apiBaseUrl?: string;
   outputSchema?: unknown;
   outputLastMessageFile: string;
@@ -368,16 +393,20 @@ export const runCodexExecWithSdk = async (params: {
   const { Codex } = await (params.__internal?.importCodexSdk ? params.__internal.importCodexSdk() : importCodexSdk());
   const prompt = await readFile(params.promptFile, 'utf8');
 
-  const codex = new Codex({
-    apiKey: params.apiKey,
+  // Allow Codex SDK to reuse local CLI auth when no runtime API key override is resolved. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  const codexInitOptions: Record<string, unknown> = {
     baseUrl: normalizeCodexApiBaseUrl(params.apiBaseUrl ?? ''),
     // Change record: use shared env merger to keep providers consistent.
     env: buildMergedProcessEnv(params.env)
-  });
+  };
+  if ((params.apiKey ?? '').trim()) codexInitOptions.apiKey = params.apiKey;
+
+  const codex = new Codex(codexInitOptions as any);
 
   const runOnce = async (options: {
     resumeThreadId?: string;
     includeModelReasoningEffort: boolean;
+    modelReasoningEffort: CodexReasoningEffort;
   }): Promise<{ threadId: string | null; finalResponse: string }> => {
     const threadOptions = buildCodexSdkThreadOptions({
       repoDir: params.repoDir,
@@ -385,7 +414,7 @@ export const runCodexExecWithSdk = async (params: {
       model: params.model,
       sandbox: params.sandbox,
       // Thread options now always enable network access for Codex runs. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
-      modelReasoningEffort: params.modelReasoningEffort,
+      modelReasoningEffort: options.modelReasoningEffort,
       includeModelReasoningEffort: options.includeModelReasoningEffort
     });
     console.log('codex threadOptions', threadOptions);
@@ -539,23 +568,47 @@ export const runCodexExecWithSdk = async (params: {
   };
 
   const runWithReasoningFallback = async (resumeId?: string): Promise<{ threadId: string | null; finalResponse: string }> => {
-    try {
-      return await runOnce({ resumeThreadId: resumeId, includeModelReasoningEffort: true });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (!isUnknownReasoningParamError(message)) throw err;
-      if (params.logLine) {
-        await params.logLine('[codex] remote API rejected reasoning parameter; retrying without modelReasoningEffort.');
-      }
+    let reasoningEffort: CodexReasoningEffort = params.modelReasoningEffort;
 
+    while (true) {
       try {
-        return await runOnce({ resumeThreadId: resumeId, includeModelReasoningEffort: false });
-      } catch (retryErr) {
-        if (!resumeId) throw retryErr;
-        if (params.logLine) {
-          await params.logLine('[codex] reasoning-disabled resume failed; starting a new thread.');
+        return await runOnce({
+          resumeThreadId: resumeId,
+          includeModelReasoningEffort: true,
+          modelReasoningEffort: reasoningEffort
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (isUnsupportedReasoningEffortError(message)) {
+          const nextReasoningEffort = getNextReasoningEffortFallback(reasoningEffort);
+          if (nextReasoningEffort) {
+            if (params.logLine) {
+              await params.logLine(
+                `[codex] remote API rejected reasoning effort ${reasoningEffort}; retrying with ${nextReasoningEffort}.`
+              );
+            }
+            reasoningEffort = nextReasoningEffort;
+            continue;
+          }
         }
-        return await runOnce({ includeModelReasoningEffort: false });
+        if (!isUnknownReasoningParamError(message)) throw err;
+        if (params.logLine) {
+          await params.logLine('[codex] remote API rejected reasoning parameter; retrying without modelReasoningEffort.');
+        }
+
+        try {
+          return await runOnce({
+            resumeThreadId: resumeId,
+            includeModelReasoningEffort: false,
+            modelReasoningEffort: reasoningEffort
+          });
+        } catch (retryErr) {
+          if (!resumeId) throw retryErr;
+          if (params.logLine) {
+            await params.logLine('[codex] reasoning-disabled resume failed; starting a new thread.');
+          }
+          return await runOnce({ includeModelReasoningEffort: false, modelReasoningEffort: reasoningEffort });
+        }
       }
     }
   };

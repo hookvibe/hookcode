@@ -9,6 +9,14 @@ import { WorkersService } from './workers.service';
 const WORKER_CONNECT_PATH = '/api/workers/connect';
 const WORKER_HEARTBEAT_INTERVAL_MS = parsePositiveInt(process.env.WORKER_HEARTBEAT_INTERVAL_MS, 10_000);
 const WORKER_HEARTBEAT_TIMEOUT_MS = parsePositiveInt(process.env.WORKER_HEARTBEAT_TIMEOUT_MS, 30_000);
+const WORKER_REQUEST_TIMEOUT_MS = parsePositiveInt(process.env.WORKER_REQUEST_TIMEOUT_MS, 20_000);
+
+type PendingWorkerRequest = {
+  workerId: string;
+  resolve: (value: Record<string, unknown>) => void;
+  reject: (error: Error) => void;
+  timer: NodeJS.Timeout;
+};
 
 @Injectable()
 export class WorkersConnectionService {
@@ -16,6 +24,7 @@ export class WorkersConnectionService {
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private readonly sockets = new Map<string, WebSocket>();
   private readonly lastSeenAt = new Map<string, number>();
+  private readonly pendingRequests = new Map<string, PendingWorkerRequest>();
 
   constructor(private readonly workersService: WorkersService) {}
 
@@ -75,6 +84,57 @@ export class WorkersConnectionService {
     return this.send(workerId, { type: 'cancelTask', taskId });
   }
 
+  async requestWorkspaceOperation(
+    workerId: string,
+    params: {
+      taskId: string;
+      action: 'snapshot' | 'stage' | 'unstage' | 'discard' | 'delete_untracked' | 'commit';
+      payload?: { paths?: string[]; message?: string };
+    }
+  ): Promise<Record<string, unknown>> {
+    const requestId = `${workerId}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+    return await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRequests.delete(requestId);
+        reject(new Error('Worker workspace request timed out'));
+      }, WORKER_REQUEST_TIMEOUT_MS);
+
+      this.pendingRequests.set(requestId, { workerId, resolve, reject, timer });
+      const sent = this.send(workerId, {
+        type: 'workspaceRequest',
+        requestId,
+        taskId: params.taskId,
+        action: params.action,
+        payload: params.payload
+      });
+      if (sent) return;
+      clearTimeout(timer);
+      this.pendingRequests.delete(requestId);
+      reject(new Error('Worker is not connected'));
+    });
+  }
+
+  private rejectPendingRequestsForWorker(workerId: string, message: string): void {
+    for (const [requestId, pending] of this.pendingRequests.entries()) {
+      if (pending.workerId !== workerId) continue;
+      clearTimeout(pending.timer);
+      this.pendingRequests.delete(requestId);
+      pending.reject(new Error(message));
+    }
+  }
+
+  private resolveWorkspaceResponse(message: Extract<WorkerInboundMessage, { type: 'workspaceResponse' }>): void {
+    const pending = this.pendingRequests.get(message.requestId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingRequests.delete(message.requestId);
+    if (message.success) {
+      pending.resolve((message.result ?? {}) as Record<string, unknown>);
+      return;
+    }
+    pending.reject(new Error(String(message.error?.message ?? 'Worker workspace request failed')));
+  }
+
   private touchWorker(workerId: string): void {
     this.lastSeenAt.set(workerId, Date.now());
   }
@@ -86,6 +146,7 @@ export class WorkersConnectionService {
       if (now - lastSeenAt <= WORKER_HEARTBEAT_TIMEOUT_MS) continue;
       this.sockets.delete(workerId);
       this.lastSeenAt.delete(workerId);
+      this.rejectPendingRequestsForWorker(workerId, 'Worker heartbeat timed out');
       try {
         socket.terminate();
       } catch {
@@ -135,6 +196,11 @@ export class WorkersConnectionService {
         if (message.type === 'runtimePrepareFinished') {
           this.lastSeenAt.set(workerId, Date.now());
           await this.workersService.markRuntimePrepared(workerId, message);
+          return;
+        }
+        if (message.type === 'workspaceResponse') {
+          this.lastSeenAt.set(workerId, Date.now());
+          this.resolveWorkspaceResponse(message);
         }
       } catch (err) {
         console.error('[workers] ws message failed', err);
@@ -145,6 +211,7 @@ export class WorkersConnectionService {
       if (this.sockets.get(workerId) === ws) {
         this.sockets.delete(workerId);
         this.lastSeenAt.delete(workerId);
+        this.rejectPendingRequestsForWorker(workerId, 'Worker connection closed');
         void this.workersService.markWorkerOffline(workerId, 'socket_closed');
       }
     });

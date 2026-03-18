@@ -88,7 +88,7 @@ Complete
 - Runtime follow-up hardens task status badges against unknown payloads and updates current Ant Design API usage for tooltip/popover teardown plus Space stacks.
 
 ## Runtime Follow-up: 2026-03-06 21:10 CST
-<!-- Record the post-refactor runtime stabilization work for preview empty states and sidebar polling. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
+{/* Record the post-refactor runtime stabilization work for preview empty states and sidebar polling. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 - Normalize `GET /api/task-groups/:id/preview/status` so missing workspaces/no-task groups return `200` with `available=false` instead of an expected `409` conflict.
 - Finish the current task-page cleanup by moving `TaskGitStatusPanel` to Ant Design `Space.orientation`, which removes the remaining task-page deprecation warning.
 - Reduce sidebar polling noise by backing off to the idle interval after failed refreshes and keeping those background failures out of the browser console.
@@ -96,14 +96,14 @@ Complete
 
 
 ## Frontend Cleanup Follow-up: 2026-03-06 21:42 CST
-<!-- Record the post-delivery cleanup that extracted task-group data orchestration from the page shell. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
+{/* Record the post-delivery cleanup that extracted task-group data orchestration from the page shell. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 - Extract the remaining group/task data orchestration from `TaskGroupChatPage.tsx` into a dedicated hook so the page becomes a thin workspace shell.
 - Remove the retired `taskLogsEnabled` prop from the task-group workspace route/test helpers because the new page no longer gates logs through that feature flag.
 - Eager-load task-group skill selection when entering an existing workspace so the composer hint and skill modal are ready without a manual refresh.
 - Re-run the focused frontend build/tests after the cleanup because the task-group page route and test helpers both change.
 
 ## Workspace Detail Polish: 2026-03-06 22:22 CST
-<!-- Record the final queue-card/log-panel polish applied after the main workspace refactor. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
+{/* Record the final queue-card/log-panel polish applied after the main workspace refactor. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 - Preserve Markdown formatting in task cards and right-side output panels instead of flattening execution text to plain paragraphs.
 - Keep compact git-detail toggles local to the card and reopen wide-screen right panels at a fresh 50% split.
 

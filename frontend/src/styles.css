@@ -20,11 +20,6 @@
 @import './styles/preview-logs.css';
 @import './styles/chat-timeline.css';
 @import './styles/task-group-workspace.css';
-@import './styles/task-group-workspace.css'; /* Task-group workspace cards + tabbed logs. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
-@import './styles/log-viewer.css';
-@import './styles/execution-dialog.css';
-@import './styles/execution-thoughtchain.css';
-@import './styles/execution-diff.css';
 @import './styles/markdown.css';
 @import './styles/login.css';
 @import './styles/user-panel.css';
@@ -40,3 +35,4 @@
 @import './styles/settings-layout.css'; /* Settings page sidebar + content layout. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */
 @import './styles/archive-sidebar.css'; /* Archive page sidebar + content layout. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301 */
 @import './styles/skills-sidebar.css'; /* Skills page sidebar + content layout. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301 */
+@import './styles/repo-robot-dry-run.css'; /* Style the repo robot playground dialog without growing RepoDetailPage inline CSS. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313 */

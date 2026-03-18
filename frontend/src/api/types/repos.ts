@@ -150,6 +150,132 @@ export interface RepoRobot {
   defaultWorker?: WorkerSummary;
 }
 
+// Mirror the repo robot playground API so the editor can preview prompt/provider resolution before saving. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+export type RepoRobotDryRunMode = 'render_only' | 'execute_no_side_effect';
+export type RepoRobotDryRunSimulationType = 'manual_chat' | 'issue' | 'merge_request' | 'push' | 'custom';
+
+export interface RepoRobotDryRunSimulationRequest {
+  type?: RepoRobotDryRunSimulationType | null;
+  title?: string | null;
+  body?: string | null;
+  number?: number | string | null;
+  branch?: string | null;
+  sha?: string | null;
+  sourceBranch?: string | null;
+  targetBranch?: string | null;
+  payload?: unknown;
+  eventType?: string | null;
+}
+
+export interface RepoRobotDryRunDraftRequest {
+  name?: string | null;
+  promptDefault?: string | null;
+  language?: string | null;
+  permission?: 'read' | 'write' | string | null;
+  modelProvider?: ModelProvider | null;
+  modelProviderConfig?: unknown;
+}
+
+export interface RepoRobotDryRunRequest {
+  mode?: RepoRobotDryRunMode | null;
+  simulation?: RepoRobotDryRunSimulationRequest | null;
+  draft?: RepoRobotDryRunDraftRequest | null;
+}
+
+export interface RepoRobotDryRunCredentialSummary {
+  provider: ModelProvider;
+  requestedStoredSource: 'robot' | 'repo' | 'user';
+  resolvedLayer: 'local' | 'robot' | 'repo' | 'user' | 'none';
+  resolvedMethod:
+    | 'env_api_key'
+    | 'credentials_file'
+    | 'auth_json_tokens'
+    | 'auth_json_api_key'
+    | 'oauth_creds'
+    | 'robot_embedded'
+    | 'repo_profile'
+    | 'user_profile'
+    | 'none';
+  canExecute: boolean;
+  displayName?: string;
+  profileId?: string;
+  apiBaseUrl?: string;
+  supportsModelListing: boolean;
+  fallbackUsed: boolean;
+  reason?: string;
+}
+
+export interface RepoRobotDryRunRoutingAttempt {
+  provider: ModelProvider;
+  role: 'primary' | 'fallback';
+  status: 'planned' | 'skipped' | 'running' | 'succeeded' | 'failed';
+  reason?: string;
+  error?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  credential: {
+    requestedStoredSource: 'robot' | 'repo' | 'user';
+    resolvedLayer: 'local' | 'robot' | 'repo' | 'user' | 'none';
+    resolvedMethod:
+      | 'env_api_key'
+      | 'credentials_file'
+      | 'auth_json_tokens'
+      | 'auth_json_api_key'
+      | 'oauth_creds'
+      | 'robot_embedded'
+      | 'repo_profile'
+      | 'user_profile'
+      | 'none';
+    canExecute: boolean;
+    profileId?: string;
+    fallbackUsed: boolean;
+    reason?: string;
+  };
+}
+
+export interface RepoRobotDryRunRouting {
+  mode: 'fixed' | 'availability_first';
+  failoverPolicy: 'disabled' | 'fallback_provider_once';
+  primaryProvider: ModelProvider;
+  fallbackProvider?: ModelProvider;
+  selectedProvider: ModelProvider;
+  finalProvider?: ModelProvider;
+  selectionReason: string;
+  failoverTriggered: boolean;
+  attempts: RepoRobotDryRunRoutingAttempt[];
+}
+
+export interface RepoRobotDryRunResolvedProvider {
+  provider: ModelProvider;
+  model: string;
+  sandbox: 'read-only' | 'workspace-write';
+  networkAccess: boolean;
+  routing: RepoRobotDryRunRouting;
+}
+
+export interface RepoRobotDryRunExecutionPlan {
+  mode: RepoRobotDryRunMode;
+  workspaceStrategy: 'isolated_temp';
+  outputFileName: string;
+  sideEffectProtection: string[];
+}
+
+export interface RepoRobotDryRunAction {
+  type: 'provider_execute' | 'temp_workspace_write' | 'repo_write_blocked' | 'provider_failover';
+  summary: string;
+}
+
+export interface RepoRobotDryRunResponse {
+  renderedPrompt: string;
+  resolvedProvider: RepoRobotDryRunResolvedProvider;
+  resolvedCredentialSummary: RepoRobotDryRunCredentialSummary;
+  executionPlan: RepoRobotDryRunExecutionPlan;
+  simulatedActions: RepoRobotDryRunAction[];
+  modelOutput?: string;
+  modelError?: string;
+  warnings: string[];
+}
+
 export type RepoProviderVisibility = 'public' | 'private' | 'internal' | 'unknown';
 
 export interface RepoProviderActivityItem {

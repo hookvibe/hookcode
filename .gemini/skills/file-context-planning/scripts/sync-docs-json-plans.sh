@@ -2,11 +2,12 @@
 # Sync docs/docs.json navigation entries for planning session files. docsjsonindex20260121
 #
 # Usage:
-#   bash .codex/skills/file-context-planning/scripts/sync-docs-json-plans.sh
+#   bash .gemini/skills/file-context-planning/scripts/sync-docs-json-plans.sh
 #
 # Behavior:
 # - Scans: docs/en/developer/plans/<session-hash>/{task_plan,findings,progress}.md
 # - Updates: docs/docs.json -> Developer Docs -> group "plans" -> pages[]
+# - Supports both legacy navigation.tabs and navigation.languages[].tabs[] docs.json layouts.
 # - Skips missing files to avoid broken navigation links.
 
 set -euo pipefail
@@ -36,10 +37,20 @@ plans_dir = Path(sys.argv[2])
 
 data = json.loads(docs_json_path.read_text(encoding="utf-8"))
 
-nav = data.get("navigation") or {}
+nav = data.get("navigation")
+if not isinstance(nav, dict):
+    nav = {}
+    data["navigation"] = nav
+
 languages = nav.get("languages")
 if not isinstance(languages, list) or not languages:
-    raise SystemExit("ERROR: docs.json missing navigation.languages[]")
+    legacy_tabs = nav.get("tabs")
+    if isinstance(legacy_tabs, list):
+        languages = [{"language": "en", "default": True, "tabs": legacy_tabs}]
+        nav["languages"] = languages
+        nav.pop("tabs", None)
+    else:
+        raise SystemExit("ERROR: docs.json missing navigation.languages[] and legacy navigation.tabs[]")
 
 lang = next((l for l in languages if isinstance(l, dict) and l.get("language") == "en"), None)
 if lang is None:
@@ -49,10 +60,21 @@ tabs = lang.get("tabs")
 if not isinstance(tabs, list):
     raise SystemExit("ERROR: docs.json missing navigation.languages[].tabs[]")
 
-dev_tab = next((t for t in tabs if isinstance(t, dict) and t.get("tab") == "Developer Docs"), None)
+dev_tab = next(
+    (
+        t
+        for t in tabs
+        if isinstance(t, dict)
+        and isinstance(t.get("tab"), str)
+        and t.get("tab").strip().lower() in {"developer docs", "developer"}
+    ),
+    None,
+)
 if dev_tab is None:
     dev_tab = {"tab": "Developer Docs", "groups": []}
     tabs.append(dev_tab)
+else:
+    dev_tab["tab"] = "Developer Docs"
 
 groups = dev_tab.get("groups")
 if not isinstance(groups, list):

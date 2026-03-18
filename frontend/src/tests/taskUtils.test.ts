@@ -15,11 +15,15 @@ describe('task utils', () => {
   test('statusTag falls back gracefully for missing or legacy statuses', () => {
     // Guard task status badges against partial runtime payloads so task cards never crash during early schema changes. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     const t = ((key: string) => ({
-      'task.status.paused': 'Paused'
+      'task.status.paused': 'Paused',
+      'task.status.waiting_approval': 'Waiting approval'
     }[key] ?? key)) as any;
 
     const { rerender } = render(statusTag(t, 'paused'));
     expect(screen.getByText('Paused')).toBeInTheDocument();
+
+    rerender(statusTag(t, 'waiting_approval'));
+    expect(screen.getByText('Waiting approval')).toBeInTheDocument();
 
     rerender(statusTag(t, undefined));
     expect(screen.getByText('unknown')).toBeInTheDocument();

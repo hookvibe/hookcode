@@ -28,6 +28,7 @@ import {
   Modal,
   Radio,
   Select,
+  Skeleton,
   Space,
   Switch,
   Tag,
@@ -52,6 +53,7 @@ import {
   fetchMe,
   fetchMyApiTokens,
   fetchMyModelCredentials,
+  fetchMyProviderRuntimeStatuses,
   listMyModelProviderModels,
   revokeMyApiToken,
   updateMe,
@@ -61,6 +63,8 @@ import {
   type ApiTokenScopeLevel,
   type UserApiTokenPublic,
   type RuntimeInfo,
+  type ProviderRuntimeMethod,
+  type ProviderRuntimeStatusesResponse,
   type UserModelCredentialsPublic,
   type UserModelProviderCredentialProfilePublic,
   type UserRepoProviderCredentialProfilePublic
@@ -75,6 +79,7 @@ import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { UserSettingsSidebar } from '../components/settings/UserSettingsSidebar';
 import { SettingsLogsPanel } from '../components/settings/SettingsLogsPanel';
 import { SettingsNotificationsPanel } from '../components/settings/SettingsNotificationsPanel';
+import { SettingsApprovalsPanel } from '../components/settings/SettingsApprovalsPanel';
 import { NotificationsPopover } from '../components/notifications/NotificationsPopover';
 import {
   getSettingsPanelSectionClassName,
@@ -83,7 +88,9 @@ import {
   SETTINGS_SIDEBAR_EXPANDED_WIDTH
 } from '../components/settings/layout';
 import { SettingsPreviewPanel } from '../components/settings/SettingsPreviewPanel';
+import { SettingsWebhookDebugPanel } from '../components/settings/SettingsWebhookDebugPanel';
 import { SettingsWorkersPanel } from '../components/settings/SettingsWorkersPanel';
+import { CostGovernanceDashboard } from '../components/costs/CostGovernanceDashboard';
 // Keep both notifications and preview settings components available after branch sync. docs/en/developer/plans/sync-main-dev-20260303/task_plan.md sync-main-dev-20260303
 import { buildHomeHash, type SettingsTab } from '../router';
 
@@ -108,6 +115,11 @@ const modelProviderLabel = (provider: ModelProviderKey, t: ReturnType<typeof use
   if (provider === 'codex') return t('panel.credentials.codexTitle');
   if (provider === 'claude_code') return t('panel.credentials.claudeCodeTitle');
   return t('panel.credentials.geminiCliTitle');
+};
+
+const providerRuntimeMethodLabel = (method: ProviderRuntimeMethod | undefined, t: ReturnType<typeof useT>) => {
+  if (!method || method === 'none') return t('panel.credentials.runtimeMethod.none');
+  return t(`panel.credentials.runtimeMethod.${method}` as const);
 };
 
 const buildToolUrl = (params: { port: number; token: string }): string => {
@@ -158,7 +170,9 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const [userLoading, setUserLoading] = useState(false);
 
   const [credLoading, setCredLoading] = useState(false);
+  const [providerRuntimeLoading, setProviderRuntimeLoading] = useState(false);
   const [credentials, setCredentials] = useState<UserModelCredentialsPublic | null>(null);
+  const [providerRuntime, setProviderRuntime] = useState<ProviderRuntimeStatusesResponse | null>(null);
   const [savingCred, setSavingCred] = useState(false);
 
   // Manage PAT list + modal state inside the credentials panel. docs/en/developer/plans/open-api-pat-design/task_plan.md open-api-pat-design
@@ -171,12 +185,13 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const [apiTokenRevealOpen, setApiTokenRevealOpen] = useState(false);
   const [apiTokenRevealValue, setApiTokenRevealValue] = useState<string | null>(null);
 
-  const [toolsPorts, setToolsPorts] = useState(DEFAULT_PORTS);
+  const [toolsPorts, setToolsPorts] = useState<{ prisma: number; swagger: number }>(DEFAULT_PORTS);
   const [toolsLoading, setToolsLoading] = useState(false);
   // Track detected runtimes for the environment panel. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
   const [runtimes, setRuntimes] = useState<RuntimeInfo[]>([]);
   const [runtimesLoading, setRuntimesLoading] = useState(false);
   const [runtimesDetectedAt, setRuntimesDetectedAt] = useState<string | null>(null);
+  const [costsReloadToken, setCostsReloadToken] = useState(0);
 
   const [repoProfileFormOpen, setRepoProfileFormOpen] = useState(false);
   const [repoProfileProvider, setRepoProfileProvider] = useState<ProviderKey>('gitlab');
@@ -203,6 +218,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const canUseAccountApis = Boolean(token);
   // Gate admin-only settings tabs (logs) using stored user roles. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
   const isAdmin = Boolean(user?.roles?.includes('admin'));
+  const currentUserId = user?.id ?? getStoredUser()?.id ?? '';
 
   // Feature toggle: allow CI/staging to disable display-name/password editing. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
   const accountEditDisabled = getBooleanEnv('VITE_DISABLE_ACCOUNT_EDIT', false);
@@ -214,6 +230,8 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         credentials: 'panel.tabs.credentials',
         tools: 'panel.tabs.tools',
         environment: 'panel.tabs.environment',
+        approvals: 'panel.tabs.approvals',
+        costs: 'panel.tabs.costs',
         settings: 'panel.tabs.settings',
         // Add admin log tab label mapping for settings. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
         logs: 'panel.tabs.logs',
@@ -221,6 +239,8 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         notifications: 'panel.tabs.notifications',
         // Add preview tab title mapping for admin preview management. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
         preview: 'panel.tabs.preview',
+        // Route the global webhook replay/debug center through the settings page. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
+        webhooks: 'panel.tabs.webhooks',
         // Add worker tab title mapping for the executor registry panel. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
         workers: 'panel.tabs.workers'
       }) as const,
@@ -315,6 +335,21 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     }
   }, [canUseAccountApis, message, t, token]);
 
+  // Refresh local provider runtime cards alongside stored profiles so the settings page mirrors local-first execution. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  const refreshProviderRuntime = useCallback(async () => {
+    if (!canUseAccountApis) return;
+    setProviderRuntimeLoading(true);
+    try {
+      const data = await fetchMyProviderRuntimeStatuses();
+      setProviderRuntime(data);
+    } catch (err) {
+      console.error(err);
+      setProviderRuntime(null);
+    } finally {
+      setProviderRuntimeLoading(false);
+    }
+  }, [canUseAccountApis]);
+
   const refreshApiTokens = useCallback(async () => {
     if (!canUseAccountApis) return;
     setApiTokensLoading(true);
@@ -373,11 +408,12 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     void refreshUser();
     if (activeTab === 'credentials') {
       void refreshCredentials();
+      void refreshProviderRuntime();
       void refreshApiTokens();
     }
     if (activeTab === 'tools') void refreshToolsMeta();
     if (activeTab === 'environment') void refreshRuntimes();
-  }, [activeTab, refreshApiTokens, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
+  }, [activeTab, refreshApiTokens, refreshCredentials, refreshProviderRuntime, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   // ---- Action callbacks ----
 
@@ -386,11 +422,13 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     if (activeTab === 'account') await refreshUser();
     if (activeTab === 'credentials') {
       await refreshCredentials();
+      await refreshProviderRuntime();
       await refreshApiTokens();
     }
     if (activeTab === 'tools') await refreshToolsMeta();
     if (activeTab === 'environment') await refreshRuntimes();
-  }, [activeTab, canUseAccountApis, refreshApiTokens, refreshCredentials, refreshRuntimes, refreshToolsMeta, refreshUser]);
+    if (activeTab === 'costs') setCostsReloadToken((prev) => prev + 1);
+  }, [activeTab, canUseAccountApis, refreshApiTokens, refreshCredentials, refreshProviderRuntime, refreshRuntimes, refreshToolsMeta, refreshUser]);
 
   const toolCards = useMemo(
     () => [
@@ -450,6 +488,16 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     const geminiProfiles = normalizeModelProfiles(credentials?.gemini_cli?.profiles);
     return { codex: codexProfiles, claude_code: claudeProfiles, gemini_cli: geminiProfiles };
   }, [credentials?.claude_code?.profiles, credentials?.codex?.profiles, credentials?.gemini_cli?.profiles]);
+
+  const providerStatusItems = useMemo(
+    () =>
+      (['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).map((provider) => ({
+        provider,
+        status: providerRuntime?.providers?.[provider],
+        profileCount: normalizeModelProfiles((credentials as any)?.[provider]?.profiles).length
+      })),
+    [credentials, providerRuntime]
+  );
 
   const repoProviderProfileItems = useMemo(
     () =>
@@ -799,6 +847,48 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           <>
             <div className="hc-panel-section">
               <div className="hc-panel-section-title">
+                <Space size={8}><ApiOutlined /><span>{t('panel.credentials.runtimeTitle')}</span></Space>
+              </div>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>{t('panel.credentials.runtimeTip')}</Typography.Paragraph>
+              <Alert type="info" showIcon style={{ marginBottom: 16 }} message={t('panel.credentials.runtimePrecedence')} />
+              {providerRuntimeLoading ? (
+                <Skeleton active paragraph={{ rows: 4 }} />
+              ) : (
+                <div className="hc-credential-grid">
+                  {providerStatusItems.map(({ provider, status, profileCount }) => {
+                    const authenticated = Boolean(status?.authenticated);
+                    const methodLabel = providerRuntimeMethodLabel(status?.method, t);
+                    return (
+                      <div key={`runtime-${provider}`} className="hc-credential-card">
+                        <div className="hc-credential-header">
+                          <div className="hc-credential-info">
+                            <div className="hc-credential-name">{modelProviderLabel(provider, t)}</div>
+                            <div className="hc-credential-detail">{status?.displayName || methodLabel}</div>
+                          </div>
+                          <Tag color={authenticated ? 'green' : 'default'} style={{ margin: 0 }}>
+                            {authenticated ? t('panel.credentials.runtimeStatus.authenticated') : t('panel.credentials.runtimeStatus.notAuthenticated')}
+                          </Tag>
+                        </div>
+                        <div className="hc-credential-tags">
+                          <Tag color={status?.supportsModelListing ? 'blue' : 'default'} style={{ margin: 0 }}>
+                            {status?.supportsModelListing ? t('panel.credentials.runtimeStatus.modelListReady') : t('panel.credentials.runtimeStatus.executionOnly')}
+                          </Tag>
+                          <Tag color={profileCount > 0 ? 'geekblue' : 'default'} style={{ margin: 0 }}>
+                            {t('panel.credentials.runtimeStatus.savedProfiles', { count: profileCount })}
+                          </Tag>
+                        </div>
+                        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                          {authenticated ? methodLabel : t('panel.credentials.runtimeFallbackTip')}
+                        </Typography.Paragraph>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <Divider style={{ margin: '24px 0' }} />
+            <div className="hc-panel-section">
+              <div className="hc-panel-section-title">
                 <Space size={8}><KeyOutlined /><span>{t('panel.credentials.modelProviderTitle')}</span></Space>
                 <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>{t('panel.credentials.profile.add')}</Button>
               </div>
@@ -1006,6 +1096,27 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           </div>
         );
 
+      case 'approvals':
+        return (
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.tabs.approvals')}</div>
+            <SettingsApprovalsPanel />
+          </div>
+        );
+
+      case 'costs':
+        return (
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.tabs.costs')}</div>
+            <CostGovernanceDashboard
+              mode="user"
+              currentUserId={currentUserId}
+              isAdmin={isAdmin}
+              reloadToken={costsReloadToken}
+            />
+          </div>
+        );
+
       case 'preview':
         // Render admin preview management dashboard inside settings. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
         if (!isAdmin) {
@@ -1015,6 +1126,17 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           <div className="hc-panel-section">
             <div className="hc-panel-section-title">{t('panel.tabs.preview')}</div>
             <SettingsPreviewPanel />
+          </div>
+        );
+
+      case 'webhooks':
+        if (!isAdmin) {
+          return <Alert type="warning" showIcon message={t('panel.webhooks.guard.adminRequired')} />;
+        }
+        return (
+          <div className="hc-panel-section">
+            <div className="hc-panel-section-title">{t('panel.tabs.webhooks')}</div>
+            <SettingsWebhookDebugPanel />
           </div>
         );
 
@@ -1079,7 +1201,13 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
             title={t(tabTitleKey[activeTab] as any)}
             actions={
               // Avoid showing the global refresh button on the log tab (it has its own controls). docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
-              activeTab !== 'settings' && activeTab !== 'logs' && activeTab !== 'notifications' && activeTab !== 'preview' && activeTab !== 'workers' ? (
+              activeTab !== 'settings' &&
+              activeTab !== 'logs' &&
+              activeTab !== 'notifications' &&
+              activeTab !== 'approvals' &&
+              activeTab !== 'preview' &&
+              activeTab !== 'webhooks' &&
+              activeTab !== 'workers' ? (
                 <Button
                   type="text"
                   icon={<ReloadOutlined />}

@@ -1,4 +1,4 @@
-<!-- Capture feasibility findings and design constraints for preview terminal-mode planning. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
+{/* Capture feasibility findings and design constraints for preview terminal-mode planning. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
 # Findings & Decisions: Preview terminal mode via `.hookcode.yml` flag
 
 ## Session Metadata
@@ -56,7 +56,7 @@
 ## Visual/Browser Findings
 - Terminal-mode instances now hide iframe navigation controls and show inline log stream with status/count metadata.
 
-<!-- Capture the follow-up documentation drift findings discovered during the deep sync audit. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
+{/* Capture the follow-up documentation drift findings discovered during the deep sync audit. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
 ## Documentation Sync Findings (2026-03-03 Follow-up)
 - User-docs had drift in two places before this pass:
   - The `.hookcode.yml` env placeholder wording was stricter than runtime behavior (docs said "any port values", runtime enforces loopback and `*PORT` keys).
@@ -66,7 +66,7 @@
   - named placeholder validation (`{{PORT:<instance>}}` must target defined instances)
   - startup readiness/timeout behavior and preview management visibility surfaces.
 
-<!-- Capture full hookcode-yml-generator bundle sync findings after auditing all provider copies. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
+{/* Capture full hookcode-yml-generator bundle sync findings after auditing all provider copies. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
 ## Hookcode-yml-generator Sync Findings (2026-03-03 Follow-up)
 - The project had five source variants of `hookcode-yml-generator`:
   - `.codex/skills/hookcode-yml-generator`

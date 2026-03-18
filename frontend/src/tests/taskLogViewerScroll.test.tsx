@@ -115,3 +115,50 @@ describe('TaskLogViewer pagination', () => {
     );
   });
 });
+
+describe('TaskLogViewer workspace snapshots', () => {
+  test('renders workspace change panels from live SSE snapshot logs', async () => {
+    // Verify SSE snapshot events update the dedicated worker diff panel without waiting for a task-detail refetch. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+    render(
+      <AntdApp>
+        <TaskLogViewer taskId="t_workspace" tail={2} variant="flat" />
+      </AntdApp>
+    );
+
+    await waitFor(() => expect((globalThis as any).__eventSourceInstances?.length ?? 0).toBe(1));
+
+    const es = (globalThis as any).__eventSourceInstances[0];
+    es.emit('init', {
+      data: JSON.stringify({ logs: [], startSeq: 0, endSeq: 0 })
+    });
+    es.emit('log', {
+      data: JSON.stringify({
+        seq: 1,
+        line: JSON.stringify({
+          type: 'hookcode.workspace.snapshot',
+          snapshot: {
+            capturedAt: '2026-03-16T09:45:00.000Z',
+            files: [
+              {
+                path: 'src/live.ts',
+                kind: 'update',
+                unifiedDiff: 'diff --git a/src/live.ts b/src/live.ts',
+                oldText: 'const ready = false;\n',
+                newText: 'const ready = true;\n',
+                diffHash: 'live-hash',
+                updatedAt: '2026-03-16T09:45:00.000Z'
+              }
+            ]
+          }
+        })
+      })
+    });
+
+    expect(await screen.findByText(/工作区变更|Workspace changes/i)).toBeInTheDocument();
+    expect((await screen.findAllByText('src/live.ts')).length).toBeGreaterThan(0);
+    expect(
+      await screen.findByText((_content, node) => node?.textContent === 'const ready = true;')
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/hookcode\.workspace\.snapshot/i)).toBeNull();
+  });
+});

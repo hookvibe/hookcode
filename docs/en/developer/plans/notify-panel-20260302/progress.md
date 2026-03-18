@@ -25,7 +25,7 @@
   - `docs/en/developer/plans/notify-panel-20260302/task_plan.md`
 
 ### Phase 3: Implementation
-<!-- Record implementation completion details. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Record implementation completion details. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 - **Status:** complete
 - Actions taken:
   - Added notification persistence (Prisma model + migration) and task actor attribution.
@@ -77,7 +77,7 @@
   - `docs/en/change-log/0.0.0.md`
 
 ### Phase 4: Testing & Verification
-<!-- Log test coverage and execution results for the notification feature. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Log test coverage and execution results for the notification feature. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 - **Status:** complete
 - Actions taken:
   - Added backend unit tests for notifications API + task runner finalize.
@@ -94,7 +94,7 @@
   - `frontend/src/tests/appShell.test.tsx`
 
 ### Phase 5: Delivery
-<!-- Record delivery checklist completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Record delivery checklist completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 - **Status:** complete
 - Actions taken:
   - Updated changelog and API reference entries.
@@ -104,7 +104,7 @@
   - `docs/en/api-reference/notifications.md`
 
 ## Test Results
-<!-- Capture full test suite execution results. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Capture full test suite execution results. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | `pnpm test` | Full suite | All tests pass | Backend: 93 suites / 376 tests pass. Frontend: 31 files / 153 tests pass. Backend logs include audit log registration warning and console output, but exit code was 0. | ✅ |
@@ -115,7 +115,7 @@
 | 2026-03-02 17:29 | init-session.sh failed: docs.json missing navigation.languages[] | 1 | Logged error; proceeded with plan files creation. |
 
 ## 5-Question Reboot Check
-<!-- Refresh reboot answers after delivery completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Refresh reboot answers after delivery completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 | Question | Answer |
 |----------|--------|
 | Where am I? | Complete (Phases 1-5 done) |

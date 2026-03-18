@@ -40,29 +40,101 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
+.hc-diff-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hc-diff__preview-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 82%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--hc-code-bg) 68%, transparent);
+}
+
+.hc-diff__preview-copy {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.hc-diff__preview-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--hc-border) 84%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hc-surface) 82%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.hc-diff__preview-action:hover {
+  border-color: var(--hc-accent-border);
+  background: color-mix(in srgb, var(--hc-accent-soft) 74%, transparent);
+  transform: translateY(-1px);
+}
+
+.hc-diff__raw-preview.is-nowrap .hc-task-code-block {
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.hc-diff__raw-preview.is-wrap .hc-task-code-block {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
 .hc-diff {
+  --hc-diff-ln-offset: 0px;
   border: none;
   border-radius: 0;
   background: transparent;
   overflow: visible;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 11.5px;
+  line-height: 1.45;
   color: var(--text);
 }
 
+.hc-diff[data-line-numbers='true'] {
+  --hc-diff-ln-offset: 38px;
+}
+
 .hc-diff__hunk-header {
-  padding: 6px 12px;
-  background: transparent;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--hc-code-bg) 74%, transparent);
   border: none;
   font-weight: 700;
-  color: var(--muted);
+  color: var(--text-tertiary);
+  backdrop-filter: blur(10px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent),
+    0 8px 16px color-mix(in srgb, var(--hc-shadow-color, #000) 4%, transparent);
 }
 
 .hc-diff__line {
   display: flex;
-  gap: 10px;
-  padding: 0 12px;
+  gap: 8px;
+  padding: 0 10px;
+  border-left: 2px solid transparent;
 }
 
 .hc-diff--wrap .hc-diff__line {
@@ -74,27 +146,61 @@
   white-space: pre;
 }
 
+.hc-diff--nowrap .hc-diff__content {
+  min-width: max-content;
+}
+
 .hc-diff__line--add {
-  background: var(--hc-diff-added-bg);
+  background: color-mix(in srgb, var(--hc-diff-added-bg) 72%, transparent);
+  border-left-color: color-mix(in srgb, #22c55e 72%, transparent);
 }
 
 .hc-diff__line--remove {
-  background: var(--hc-diff-removed-bg);
+  background: color-mix(in srgb, var(--hc-diff-removed-bg) 72%, transparent);
+  border-left-color: color-mix(in srgb, #ef4444 72%, transparent);
 }
 
 .hc-diff__ln {
-  width: 48px;
+  width: 38px;
   flex: none;
+  position: sticky;
+  left: 0;
+  z-index: 2;
   text-align: right;
-  color: var(--muted);
+  color: var(--text-tertiary);
   user-select: none;
+  opacity: 0.82;
+  background: inherit;
+  box-shadow: 1px 0 0 color-mix(in srgb, var(--hc-border) 72%, transparent);
 }
 
 .hc-diff__pm {
-  width: 16px;
+  width: 14px;
   flex: none;
-  color: var(--muted);
+  position: sticky;
+  left: var(--hc-diff-ln-offset);
+  z-index: 2;
+  color: var(--text-tertiary);
   user-select: none;
+  font-weight: 700;
+  background: inherit;
+  box-shadow: 1px 0 0 color-mix(in srgb, var(--hc-border) 52%, transparent);
+}
+
+.hc-diff__line--add .hc-diff__pm {
+  color: #15803d;
+}
+
+.hc-diff__line--remove .hc-diff__pm {
+  color: #dc2626;
+}
+
+:root[data-theme='dark'] .hc-diff__line--add .hc-diff__pm {
+  color: #86efac;
+}
+
+:root[data-theme='dark'] .hc-diff__line--remove .hc-diff__pm {
+  color: #fca5a5;
 }
 
 /* Keep diff lines wrapping inside the ThoughtChain content box. docs/en/developer/plans/c3ytvybx46880dhfqk7t/task_plan.md c3ytvybx46880dhfqk7t */
@@ -121,3 +227,14 @@
   padding: 0 1px;
 }
 
+@media (max-width: 640px) {
+  .hc-diff__preview-banner {
+    align-items: flex-start;
+  }
+
+  .hc-diff__raw-preview.is-nowrap .hc-task-code-block {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+}

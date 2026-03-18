@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useRef, useState } from 'react';
+import { FC, Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { Drawer } from 'antd';
 import { fetchAuthMe } from '../api';
 import { AUTH_CHANGED_EVENT, getToken } from '../auth';
@@ -15,15 +15,16 @@ import { LoginPage } from './LoginPage';
 import { RegisterPage } from './RegisterPage';
 import { VerifyEmailPage } from './VerifyEmailPage';
 import { AcceptInvitePage } from './AcceptInvitePage';
-import { RepoDetailPage } from './RepoDetailPage';
-import { ReposPage } from './ReposPage';
-import { TaskDetailPage } from './TaskDetailPage';
-import { TaskGroupChatPage } from './TaskGroupChatPage';
-import { TaskGroupsPage } from './TaskGroupsPage';
-import { TasksPage } from './TasksPage';
-import { ArchivePage } from './ArchivePage';
-import { SkillsPage } from './SkillsPage';
-import { UserSettingsPage } from './UserSettingsPage'; // Standalone user settings page replacing modal panel. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
+// Lazy-load route pages so the chat shell does not pull every dashboard/settings/task page into the initial bundle. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+const RepoDetailPage = lazy(() => import('./RepoDetailPage').then((module) => ({ default: module.RepoDetailPage })));
+const ReposPage = lazy(() => import('./ReposPage').then((module) => ({ default: module.ReposPage })));
+const TaskDetailPage = lazy(() => import('./TaskDetailPage').then((module) => ({ default: module.TaskDetailPage })));
+const TaskGroupChatPage = lazy(() => import('./TaskGroupChatPage').then((module) => ({ default: module.TaskGroupChatPage })));
+const TaskGroupsPage = lazy(() => import('./TaskGroupsPage').then((module) => ({ default: module.TaskGroupsPage })));
+const TasksPage = lazy(() => import('./TasksPage').then((module) => ({ default: module.TasksPage })));
+const ArchivePage = lazy(() => import('./ArchivePage').then((module) => ({ default: module.ArchivePage })));
+const SkillsPage = lazy(() => import('./SkillsPage').then((module) => ({ default: module.SkillsPage })));
+const UserSettingsPage = lazy(() => import('./UserSettingsPage').then((module) => ({ default: module.UserSettingsPage }))); // Standalone user settings page replacing modal panel. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -162,6 +163,11 @@ export const AppShell: FC<AppShellProps> = ({
 
   const openMobileNav = () => setMobileNavOpen(true);
   const closeMobileNav = () => setMobileNavOpen(false);
+  const pageFallback = (
+    <div className="hc-page hc-page--loading" aria-busy="true" aria-live="polite">
+      <LoginCardSkeleton testId="hc-page-skeleton" ariaLabel={t('common.loading')} />
+    </div>
+  );
 
   const navToggle = isMobileLayout
     ? {
@@ -205,34 +211,36 @@ export const AppShell: FC<AppShellProps> = ({
 
       {/* Main Content Area */}
       <main className="hc-content-modern">
-        {route.page === 'repos' ? <ReposPage userPanel={userPanel} navToggle={navToggle} /> : null}
-        {route.page === 'repo' && route.repoId ? (
-          <RepoDetailPage repoId={route.repoId} repoTab={route.repoTab} userPanel={userPanel} navToggle={navToggle} />
-        ) : null}
-        {route.page === 'skills' ? (
-          <SkillsPage skillsTab={route.skillsTab} userPanel={userPanel} navToggle={navToggle} />
-        ) : null /* Render the skills registry page with sidebar sub-navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301 */}
-        {/* Render standalone user settings page with its own sidebar. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */}
-        {route.page === 'settings' ? (
-          <UserSettingsPage settingsTab={route.settingsTab} themePreference={themePreference} onThemePreferenceChange={onThemePreferenceChange} navToggle={navToggle} />
-        ) : null}
-        {route.page === 'archive' ? <ArchivePage archiveTab={route.archiveTab} userPanel={userPanel} navToggle={navToggle} /> : null}
-        {route.page === 'tasks' ? (
-          <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} navToggle={navToggle} />
-        ) : null}
-        {/* Pass optional repo scope so repo dashboards can link to filtered task-group lists. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5 */}
-        {route.page === 'taskGroups' ? <TaskGroupsPage repoId={route.taskGroupsRepoId} userPanel={userPanel} navToggle={navToggle} /> : null}
-        {route.page === 'task' && route.taskId ? (
-          <TaskDetailPage taskId={route.taskId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} navToggle={navToggle} />
-        ) : null}
-        {(route.page === 'home' || route.page === 'taskGroup') ? (
-          // Render the task-group workspace without the retired task-log feature flag prop after the workspace rewrite. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
-          <TaskGroupChatPage
-            taskGroupId={route.page === 'taskGroup' ? route.taskGroupId : undefined}
-            userPanel={userPanel}
-            navToggle={navToggle}
-          />
-        ) : null}
+        <Suspense fallback={pageFallback}>
+          {route.page === 'repos' ? <ReposPage userPanel={userPanel} navToggle={navToggle} /> : null}
+          {route.page === 'repo' && route.repoId ? (
+            <RepoDetailPage repoId={route.repoId} repoTab={route.repoTab} userPanel={userPanel} navToggle={navToggle} />
+          ) : null}
+          {route.page === 'skills' ? (
+            <SkillsPage skillsTab={route.skillsTab} userPanel={userPanel} navToggle={navToggle} />
+          ) : null /* Render the skills registry page with sidebar sub-navigation. docs/en/developer/plans/sidebar-pages-20260301/task_plan.md sidebar-pages-20260301 */}
+          {/* Render standalone user settings page with its own sidebar. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */}
+          {route.page === 'settings' ? (
+            <UserSettingsPage settingsTab={route.settingsTab} themePreference={themePreference} onThemePreferenceChange={onThemePreferenceChange} navToggle={navToggle} />
+          ) : null}
+          {route.page === 'archive' ? <ArchivePage archiveTab={route.archiveTab} userPanel={userPanel} navToggle={navToggle} /> : null}
+          {route.page === 'tasks' ? (
+            <TasksPage status={route.tasksStatus} repoId={route.tasksRepoId} userPanel={userPanel} navToggle={navToggle} />
+          ) : null}
+          {/* Pass optional repo scope so repo dashboards can link to filtered task-group lists. docs/en/developer/plans/jmdhqw70p9m32onz45v5/task_plan.md jmdhqw70p9m32onz45v5 */}
+          {route.page === 'taskGroups' ? <TaskGroupsPage repoId={route.taskGroupsRepoId} userPanel={userPanel} navToggle={navToggle} /> : null}
+          {route.page === 'task' && route.taskId ? (
+            <TaskDetailPage taskId={route.taskId} userPanel={userPanel} taskLogsEnabled={taskLogsEnabled} navToggle={navToggle} />
+          ) : null}
+          {(route.page === 'home' || route.page === 'taskGroup') ? (
+            // Render the task-group workspace without the retired task-log feature flag prop after the workspace rewrite. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+            <TaskGroupChatPage
+              taskGroupId={route.page === 'taskGroup' ? route.taskGroupId : undefined}
+              userPanel={userPanel}
+              navToggle={navToggle}
+            />
+          ) : null}
+        </Suspense>
       </main>
     </div>
   );

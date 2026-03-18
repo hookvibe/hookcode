@@ -36,20 +36,55 @@ create_min_docs_json() {
 JSON
 }
 
-assert_pages_equal() {
+create_legacy_docs_json() {
+  local target="$1"
+  mkdir -p "$(dirname "${target}")"
+  cat > "${target}" <<'JSON'
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Legacy Test Docs",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "developer",
+        "groups": [
+          { "group": "Developer", "pages": ["en/developer/index"] },
+          { "group": "plans", "pages": ["en/developer/plans/stale"] }
+        ]
+      }
+    ]
+  }
+}
+JSON
+}
+
+assert_plans_group_entries() {
   local docs_json="$1"
-  shift
-  python3 - "${docs_json}" "$@" <<'PY'
+  local expected_json="$2"
+  python3 - "${docs_json}" "${expected_json}" <<'PY'
 import json
 import sys
 
 docs_json_path = sys.argv[1]
-expected = sys.argv[2:]
+expected = json.loads(sys.argv[2])
 
 data = json.loads(open(docs_json_path, encoding="utf-8").read())
-pages = (
-    data["navigation"]["languages"][0]["tabs"][0]["groups"][1]["pages"]
+nav = data["navigation"]
+
+languages = nav.get("languages")
+if isinstance(languages, list) and languages:
+    tabs = languages[0]["tabs"]
+else:
+    tabs = nav["tabs"]
+
+dev_tab = next(
+    t for t in tabs if isinstance(t, dict) and str(t.get("tab", "")).strip().lower() in {"developer docs", "developer"}
 )
+plans_group = next(
+    g for g in dev_tab["groups"] if isinstance(g, dict) and str(g.get("group", "")).strip().lower() == "plans"
+)
+pages = plans_group["pages"]
 
 if pages != expected:
     raise SystemExit(
@@ -57,6 +92,22 @@ if pages != expected:
         f"Expected: {expected}\n"
         f"Actual:   {pages}\n"
     )
+PY
+}
+
+assert_migrated_to_languages() {
+  local docs_json="$1"
+  python3 - "${docs_json}" <<'PY'
+import json
+import sys
+
+data = json.loads(open(sys.argv[1], encoding="utf-8").read())
+nav = data["navigation"]
+languages = nav.get("languages")
+if not isinstance(languages, list) or not languages:
+    raise SystemExit("FAIL: navigation.languages[] missing after sync")
+if "tabs" in nav:
+    raise SystemExit("FAIL: legacy navigation.tabs[] should be removed after sync")
 PY
 }
 
@@ -79,45 +130,25 @@ touch docs/en/developer/plans/bbbb/task_plan.md
 
 bash "${SYNCER}" >/dev/null
 
-assert_pages_equal \
+assert_plans_group_entries \
   "docs/docs.json" \
-  "en/developer/plans/aaaa/task_plan" \
-  "en/developer/plans/aaaa/findings" \
-  "en/developer/plans/aaaa/progress" \
-  "en/developer/plans/bbbb/task_plan"
+  '[{"group":"bbbb (bbbb)","pages":["en/developer/plans/bbbb/task_plan"],"expanded":false},{"group":"aaaa (aaaa)","pages":["en/developer/plans/aaaa/task_plan","en/developer/plans/aaaa/findings","en/developer/plans/aaaa/progress"],"expanded":false}]'
 
 TMP_DIR_2="$(mktemp -d)"
 cd "${TMP_DIR_2}"
 git init -q
 
 mkdir -p docs/en/developer/plans
-create_min_docs_json "docs/docs.json"
+create_legacy_docs_json "docs/docs.json"
 
 SESSION_HASH="testsessionhash00000001"
 SESSION_TITLE="Test session"
 
 bash "${INIT_SESSION}" "${SESSION_HASH}" "${SESSION_TITLE}" >/dev/null
 
-python3 - "docs/docs.json" "${SESSION_HASH}" <<'PY'
-import json
-import sys
-
-docs_json_path = sys.argv[1]
-session_hash = sys.argv[2]
-
-data = json.loads(open(docs_json_path, encoding="utf-8").read())
-pages = data["navigation"]["languages"][0]["tabs"][0]["groups"][1]["pages"]
-
-expected = [
-    f"en/developer/plans/{session_hash}/task_plan",
-    f"en/developer/plans/{session_hash}/findings",
-    f"en/developer/plans/{session_hash}/progress",
-]
-
-missing = [p for p in expected if p not in pages]
-if missing:
-    raise SystemExit(f"FAIL: init-session did not sync expected pages: {missing}")
-PY
+assert_migrated_to_languages "docs/docs.json"
+assert_plans_group_entries \
+  "docs/docs.json" \
+  "[{\"group\":\"${SESSION_TITLE} (${SESSION_HASH})\",\"pages\":[\"en/developer/plans/${SESSION_HASH}/task_plan\",\"en/developer/plans/${SESSION_HASH}/findings\",\"en/developer/plans/${SESSION_HASH}/progress\"],\"expanded\":false}]"
 
 echo "PASS"
-

@@ -2,6 +2,10 @@ import { readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import { buildMergedProcessEnv, createAsyncLineLogger } from '../utils/providerRuntime';
 import { normalizeHttpBaseUrl } from '../utils/url';
+import {
+  normalizeProviderRoutingConfig,
+  type ProviderRoutingConfig
+} from '../providerRouting/providerRouting.types';
 
 export const CLAUDE_CODE_PROVIDER_KEY = 'claude_code' as const;
 
@@ -48,6 +52,8 @@ export interface ClaudeCodeRobotProviderConfig {
    */
   sandbox: 'workspace-write' | 'read-only';
   sandbox_workspace_write: { network_access: boolean };
+  // Persist provider failover choices inside the existing config blob for the Phase-A MVP. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  routingConfig: ProviderRoutingConfig;
 }
 
 export interface ClaudeCodeCredentialPublic {
@@ -97,7 +103,8 @@ export const getDefaultClaudeCodeRobotProviderConfig = (): ClaudeCodeRobotProvid
   credential: undefined,
   model: 'claude-sonnet-4-5-20250929',
   sandbox: 'read-only',
-  sandbox_workspace_write: { network_access: false }
+  sandbox_workspace_write: { network_access: false },
+  routingConfig: normalizeProviderRoutingConfig(undefined, CLAUDE_CODE_PROVIDER_KEY)
 });
 
 export const normalizeClaudeCodeRobotProviderConfig = (raw: unknown): ClaudeCodeRobotProviderConfig => {
@@ -112,6 +119,7 @@ export const normalizeClaudeCodeRobotProviderConfig = (raw: unknown): ClaudeCode
   const remark = credentialRaw ? asString(credentialRaw.remark).trim() : '';
 
   const sandboxWorkspaceWriteRaw = isRecord(raw.sandbox_workspace_write) ? raw.sandbox_workspace_write : null;
+  const sandbox = normalizeSandbox(raw.sandbox);
 
   const next: ClaudeCodeRobotProviderConfig = {
     credentialSource,
@@ -126,10 +134,12 @@ export const normalizeClaudeCodeRobotProviderConfig = (raw: unknown): ClaudeCode
           }
         : undefined,
     model: normalizeClaudeModel(raw.model),
-    sandbox: normalizeSandbox(raw.sandbox),
+    sandbox,
     sandbox_workspace_write: {
-      network_access: asBoolean(sandboxWorkspaceWriteRaw?.network_access, false)
-    }
+      // Drop stale network-access flags outside workspace-write so read-only runs stay isolated. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+      network_access: sandbox === 'workspace-write' && asBoolean(sandboxWorkspaceWriteRaw?.network_access, false)
+    },
+    routingConfig: normalizeProviderRoutingConfig(raw.routingConfig, CLAUDE_CODE_PROVIDER_KEY)
   };
 
   return next;
@@ -185,7 +195,8 @@ export const toPublicClaudeCodeRobotProviderConfig = (raw: unknown): ClaudeCodeR
         : undefined,
     model: normalized.model,
     sandbox: normalized.sandbox,
-    sandbox_workspace_write: normalized.sandbox_workspace_write
+    sandbox_workspace_write: normalized.sandbox_workspace_write,
+    routingConfig: normalized.routingConfig
   };
 };
 
@@ -219,7 +230,7 @@ export const runClaudeCodeExecWithSdk = async (params: {
   sandbox: 'read-only' | 'workspace-write';
   networkAccess: boolean;
   resumeSessionId?: string;
-  apiKey: string;
+  apiKey?: string;
   apiBaseUrl?: string;
   outputLastMessageFile: string;
   env?: Record<string, string | undefined>;
@@ -246,10 +257,8 @@ export const runClaudeCodeExecWithSdk = async (params: {
   if (params.networkAccess) baseTools.push('WebFetch', 'WebSearch');
 
   const apiBaseUrl = normalizeHttpBaseUrl(params.apiBaseUrl);
-  const mergedEnv = buildMergedProcessEnv({
+  const runtimeEnvOverrides: Record<string, string | undefined> = {
     ...params.env,
-    // Business intent: allow selecting Claude credentials at runtime without mutating process.env.
-    ANTHROPIC_API_KEY: params.apiKey,
     ...(apiBaseUrl
       ? {
           // Business intent: allow routing Claude requests through a proxy by overriding the Anthropic API base URL.
@@ -261,7 +270,10 @@ export const runClaudeCodeExecWithSdk = async (params: {
           ANTHROPIC_API_URL: apiBaseUrl
         }
       : {})
-  });
+  };
+  // Allow Claude Code SDK to reuse local CLI auth when no runtime API key override is resolved. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  if ((params.apiKey ?? '').trim()) runtimeEnvOverrides.ANTHROPIC_API_KEY = params.apiKey;
+  const mergedEnv = buildMergedProcessEnv(runtimeEnvOverrides);
 
   // Use the task-group root as the Claude Code working directory boundary when provided. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
   const workspaceRoot = params.workspaceDir ?? params.repoDir;

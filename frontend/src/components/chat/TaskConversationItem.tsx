@@ -18,9 +18,10 @@ import {
   statusTag
 } from '../../utils/task';
 import { LogViewerSkeleton } from '../skeletons/LogViewerSkeleton';
-import { TaskGitStatusPanel } from '../tasks/TaskGitStatusPanel';
+import { TaskGitWorkspaceSummaryCard } from '../tasks/TaskGitWorkspaceSummaryCard';
 import { formatDateTime } from '../../utils/dateUtc';
 import { formatRobotLabelWithProvider } from '../../utils/robot';
+import { ExecutionApprovalBanner } from '../approvals/ExecutionApprovalBanner';
 
 /**
  * TaskConversationItem:
@@ -45,6 +46,7 @@ interface Props {
   onLogHistoryExhaustedChange?: (taskId: string, exhausted: boolean) => void;
   onLogLoadingEarlierChange?: (taskId: string, loading: boolean) => void;
   logLoadEarlierSignal?: number;
+  onTaskUpdated?: (task: Task) => void | Promise<void>;
   // Mark the newest chat item so it can animate in-place during task-group creation. docs/en/developer/plans/taskgrouptransition20260123/task_plan.md taskgrouptransition20260123
   entering?: boolean;
 }
@@ -58,6 +60,7 @@ export const TaskConversationItem: FC<Props> = ({
   onLogHistoryExhaustedChange,
   onLogLoadingEarlierChange,
   logLoadEarlierSignal,
+  onTaskUpdated,
   entering
 }) => {
   const locale = useLocale();
@@ -212,6 +215,12 @@ export const TaskConversationItem: FC<Props> = ({
         </Card>
       </div>
 
+      {mergedTask.approvalRequest ? (
+        <div className="hc-chat-item__assistant">
+          <ExecutionApprovalBanner task={mergedTask} context="chat" onUpdated={() => onTaskUpdated?.(task)} />
+        </div>
+      ) : null}
+
       {/* 3) Dialog-style execution logs (non-bubble work area). docs/en/developer/plans/tasklogdialog20260128/task_plan.md tasklogdialog20260128 */}
       <div className="hc-chat-item__assistant hc-chat-item__assistant_margin">
         {/* Add collapse/expand button for logs to prevent blocking task navigation. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */}
@@ -246,6 +255,10 @@ export const TaskConversationItem: FC<Props> = ({
                 variant="flat"
                 emptyMessage={emptyLogMessage}
                 emptyHint={emptyLogHint}
+                task={mergedTask}
+                onTaskUpdated={() => onTaskUpdated?.(task)}
+                // Keep inline task-group chat logs aligned with task-detail diff history by hydrating worker snapshots from task results. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+                workspaceChanges={task.result?.workspaceChanges ?? null}
                 // Bubble task-level paging status/events to TaskGroupChatPage for chained loading. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
                 onHistoryExhaustedChange={(exhausted) => onLogHistoryExhaustedChange?.(task.id, exhausted)}
                 onLoadingEarlierChange={(loading) => onLogLoadingEarlierChange?.(task.id, loading)}
@@ -285,10 +298,10 @@ export const TaskConversationItem: FC<Props> = ({
         </div>
       ) : null}
 
-      {mergedTask?.result?.gitStatus?.enabled ? (
+      {mergedTask?.result?.gitStatus?.enabled || mergedTask?.result?.workspaceChanges?.files?.length ? (
         <div className="hc-chat-item__assistant">
-          {/* Place git status at the bottom of each chat item with full width. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj */}
-          <TaskGitStatusPanel task={mergedTask} variant="compact" />
+          {/* Keep chat timeline cards lightweight by showing a snapshot summary instead of the full live workspace panel. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316 */}
+          <TaskGitWorkspaceSummaryCard task={mergedTask} onOpen={() => onOpenTask?.(task)} actionLabel={t('tasks.gitWorkspace.summary.open')} />
         </div>
       ) : null}
     </div>

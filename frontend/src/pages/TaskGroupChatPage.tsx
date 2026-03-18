@@ -178,7 +178,8 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
     handleRetryTask,
     handleDeleteQueuedTask,
     handleSaveQueuedTask,
-    handleReorderQueuedTask
+    handleReorderQueuedTask,
+    handleTaskMetaChanged
   } = useTaskGroupTaskActions({
     taskGroupId,
     message,
@@ -280,7 +281,18 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
             </span>
           </span>
         ),
-        children: <TaskGroupLogPanel task={task} taskDetail={taskDetailsById[task.id] ?? null} />
+        children: (
+          <TaskGroupLogPanel
+            task={task}
+            taskDetail={taskDetailsById[task.id] ?? null}
+            onTaskUpdated={async () => {
+              await ensureTaskDetail(task.id);
+              if (taskGroupId) {
+                await refreshGroupDetail(taskGroupId, { mode: 'refreshing' });
+              }
+            }}
+          />
+        )
       }))
   ];
 
@@ -380,13 +392,14 @@ export const TaskGroupChatPage: FC<TaskGroupChatPageProps> = ({ taskGroupId, use
                     {orderedTasks.map((task) => (
                       <TaskGroupTaskCard
                         key={task.id}
-                        task={task}
+                        task={taskDetailsById[task.id] ?? task}
                         onOpenLogs={handleOpenTaskLogs}
                         onRetry={handleRetryTask}
                         onStop={handleStopTask}
                         onDelete={handleDeleteQueuedTask}
                         onReorder={handleReorderQueuedTask}
                         onSaveEdit={handleSaveQueuedTask}
+                        onApprovalUpdated={handleTaskMetaChanged}
                         actionLoading={taskActionLoadingKey}
                       />
                     ))}

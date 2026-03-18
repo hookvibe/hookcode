@@ -1,6 +1,5 @@
 ## Findings & Decisions: Design frontend homepage in pencil
-<!-- Capture discovered homepage routing, structure sources, and execution constraints for this session. docs/en/developer/plans/homepage-design-pencil-20260304/task_plan.md homepage-design-pencil-20260304 -->
-
+{/* Capture discovered homepage routing, structure sources, and execution constraints for this session. docs/en/developer/plans/homepage-design-pencil-20260304/task_plan.md homepage-design-pencil-20260304 */}
 ## Session Metadata
 - **Session Hash:** homepage-design-pencil-20260304
 - **Created:** 2026-03-04

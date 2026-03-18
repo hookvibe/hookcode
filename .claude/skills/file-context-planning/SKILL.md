@@ -1,18 +1,18 @@
 ---
 name: file-context-planning
 version: "4.0.0"
-description: "Manus-style file-based planning for Codex CLI. Stores task_plan.md/findings.md/progress.md under docs/en/developer/plans/<session-hash>/ for durable planning + traceability."
+description: "Manus-style file-based planning for Claude CLI. Stores task_plan.md/findings.md/progress.md under docs/en/developer/plans/<session-hash>/ for durable planning + traceability."
 ---
 
-# Planning with Files (Codex)
+# Planning with Files (Claude)
 
 {/* Align this Claude skill's path examples with the .claude directory layout. docs/en/developer/plans/claude-skills-audit-20260227/task_plan.md claude-skills-audit-20260227 */}
 Work like Manus: Use persistent markdown files as your "working memory on disk."
 {/* Refactor planning files to live under docs/en/developer/plans/<hash> for traceability. sddsa89612jk4hbwas678 */}
 
-## What This Skill Does (Codex-Compatible)
+## What This Skill Does (Claude-Compatible)
 
-Codex skills are instruction-only. There are **no automatic hooks** (e.g., "PreToolUse", "Stop").
+Claude skill instructions are manual in this repo. There are **no automatic hooks** (e.g., "PreToolUse", "Stop").
 
 To get the benefits, you must **manually**:
 - Create a **session folder** under `docs/en/developer/plans/<session-hash>/`

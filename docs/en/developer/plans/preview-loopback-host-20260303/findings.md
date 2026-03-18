@@ -1,6 +1,5 @@
 # Findings & Decisions: Investigate 127.0.0.1 preview access issue
-<!-- Capture discovery notes for preview loopback mismatch. docs/en/developer/plans/preview-loopback-host-20260303/task_plan.md preview-loopback-host-20260303 -->
-
+{/* Capture discovery notes for preview loopback mismatch. docs/en/developer/plans/preview-loopback-host-20260303/task_plan.md preview-loopback-host-20260303 */}
 ## Session Metadata
 - **Session Hash:** preview-loopback-host-20260303
 - **Created:** 2026-03-03

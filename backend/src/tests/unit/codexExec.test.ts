@@ -1,7 +1,11 @@
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
-import { __test__isUnknownReasoningParamError, runCodexExecWithSdk } from '../../modelProviders/codex';
+import {
+  __test__isUnknownReasoningParamError,
+  __test__isUnsupportedReasoningEffortError,
+  runCodexExecWithSdk
+} from '../../modelProviders/codex';
 
 describe('codex exec', () => {
   const makeTempDir = async () => await fs.mkdtemp(path.join(os.tmpdir(), 'hookcode-codex-'));
@@ -211,6 +215,79 @@ describe('codex exec', () => {
       )
     ).toBe(true);
     expect(__test__isUnknownReasoningParamError('network timeout')).toBe(false);
+  });
+
+  test('runCodexExecWithSdk detects unsupported reasoning-effort value errors', () => {
+    // Detect gateway errors that reject a specific reasoning effort such as `xhigh`. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+    expect(__test__isUnsupportedReasoningEffortError('reasoning value xhigh is invalid; expected one of low, medium, high')).toBe(true);
+    expect(__test__isUnsupportedReasoningEffortError('network timeout')).toBe(false);
+  });
+
+  test('runCodexExecWithSdk downgrades reasoning effort when the gateway rejects xhigh', async () => {
+    const repoDir = await makeTempDir();
+    try {
+      const promptFile = path.join(repoDir, 'prompt.txt');
+      await fs.writeFile(promptFile, 'hello', 'utf8');
+
+      async function* failingEvents() {
+        yield { type: 'thread.started', thread_id: 't_fail' } as any;
+        yield {
+          type: 'error',
+          message: 'remote API error: reasoning value xhigh is invalid; expected one of low, medium, high'
+        } as any;
+      }
+
+      async function* successEvents() {
+        yield { type: 'thread.started', thread_id: 't_ok' } as any;
+        yield { type: 'item.completed', item: { type: 'agent_message', text: 'recovered-high' } } as any;
+        yield { type: 'turn.completed', usage: { input_tokens: 1, output_tokens: 2 } } as any;
+      }
+
+      const runStreamedFirst = jest.fn(async () => ({ events: failingEvents() }));
+      const runStreamedSecond = jest.fn(async () => ({ events: successEvents() }));
+
+      let startCall = 0;
+      const startThreadMock = jest.fn((options: any) => {
+        const callIndex = startCall++;
+        if (callIndex === 0) return { id: 'thread-first', runStreamed: runStreamedFirst } as any;
+        return { id: 'thread-second', runStreamed: runStreamedSecond } as any;
+      });
+
+      class FakeCodex {
+        constructor(_options: any) {}
+        startThread(options: any) {
+          return startThreadMock(options);
+        }
+        resumeThread(_threadId: string, options: any) {
+          return startThreadMock(options);
+        }
+      }
+
+      const logged: string[] = [];
+      const result = await runCodexExecWithSdk({
+        repoDir,
+        promptFile,
+        model: 'gpt-5.2',
+        sandbox: 'read-only',
+        modelReasoningEffort: 'xhigh',
+        apiKey: 'test-key',
+        outputLastMessageFile: 'codex-output.txt',
+        logLine: async (line) => {
+          logged.push(line);
+        },
+        __internal: {
+          importCodexSdk: async () => ({ Codex: FakeCodex } as any)
+        }
+      });
+
+      expect(result.finalResponse).toBe('recovered-high');
+      expect(startThreadMock).toHaveBeenCalledTimes(2);
+      expect(startThreadMock.mock.calls[0][0].modelReasoningEffort).toBe('xhigh');
+      expect(startThreadMock.mock.calls[1][0].modelReasoningEffort).toBe('high');
+      expect(logged.some((line) => line.includes('retrying with high'))).toBe(true);
+    } finally {
+      await fs.rm(repoDir, { recursive: true, force: true });
+    }
   });
 
   test('runCodexExecWithSdk retries without reasoning effort when gateway rejects reasoning parameter', async () => {

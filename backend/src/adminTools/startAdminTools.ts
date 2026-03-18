@@ -7,6 +7,7 @@ import { loadAdminToolsConfig } from './config';
 import type { AdminToolsAuthDeps } from './auth';
 import { createSwaggerApp } from './swaggerApp';
 import { createPrismaStudioProxyServer, spawnPrismaStudio } from './prismaStudioProxy';
+import { stopChildProcessTree } from '../utils/crossPlatformSpawn';
 
 const canListen = (params: { host: string; port: number }): Promise<boolean> =>
   new Promise((resolve) => {
@@ -41,14 +42,15 @@ const killProcess = async (proc: any): Promise<void> => {
   if (!proc) return;
   if (proc.killed) return;
   try {
-    proc.kill('SIGTERM');
+    // Stop Prisma Studio through the process tree so Windows shutdown also reaches the Prisma child spawned under prisma-run.js. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+    stopChildProcessTree(proc, 'SIGTERM');
   } catch {
     // ignore
   }
   await new Promise((resolve) => setTimeout(resolve, 800));
   if (!proc.killed) {
     try {
-      proc.kill('SIGKILL');
+      stopChildProcessTree(proc, 'SIGKILL');
     } catch {
       // ignore
     }

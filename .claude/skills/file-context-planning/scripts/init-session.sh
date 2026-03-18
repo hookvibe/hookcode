@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Initialize planning files for a new session (Codex-compatible).
+# Initialize planning files for a new session (Claude-compatible).
 # Refactor planning session storage to hash directories for traceability. sddsa89612jk4hbwas678
 #
 # Usage:
@@ -97,7 +97,9 @@ hydrate_template "${SESSION_DIR}/progress.md"
 # Docusaurus does not require an explicit sync when using sidebar autogeneration. docs/en/developer/plans/dsim8xybp9oa18nz1gfq/task_plan.md dsim8xybp9oa18nz1gfq
 if [ "${HC_SKIP_DOCS_JSON_SYNC:-}" != "1" ]; then
     if [ -f "${REPO_ROOT}/docs/docs.json" ]; then
-        bash "${SCRIPT_DIR}/sync-docs-json-plans.sh"
+        if ! bash "${SCRIPT_DIR}/sync-docs-json-plans.sh"; then
+            echo "WARNING: docs navigation sync failed; planning files were still created."
+        fi
     else
         echo "Skipping docs navigation sync: docs/docs.json not found (likely using Docusaurus)."
     fi

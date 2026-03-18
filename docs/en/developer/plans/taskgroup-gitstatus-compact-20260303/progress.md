@@ -1,7 +1,6 @@
 # Progress Log
 
-<!-- Track implementation timeline, touched files, and verification for compact git status cards. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303 -->
-
+{/* Track implementation timeline, touched files, and verification for compact git status cards. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303 */}
 ## Session Metadata
 - **Session Title:** Compact git status card in task group dialog
 - **Session Hash:** taskgroup-gitstatus-compact-20260303

@@ -1,4 +1,5 @@
-import { spawn } from 'child_process';
+import { execFileSync, spawn } from 'child_process';
+import { xSpawnShell, xExecSync } from '../utils/crossPlatformSpawn';
 import { existsSync } from 'fs';
 import { mkdir, rm, writeFile, stat, readFile, chmod, rename, copyFile, cp, readdir } from 'fs/promises';
 import path from 'path';
@@ -15,6 +16,7 @@ import {
   type TaskTokenUsage
 } from '../services/taskTokenUsage';
 import { buildPrompt } from './promptBuilder';
+import { resolveProviderExecutionCredential } from '../modelProviders/providerCredentialResolver';
 import { postToProvider } from './reporter';
 import type { RepoRobotWithToken } from '../modules/repositories/repo-robot.service';
 import type { RepoProvider, Repository } from '../types/repository';
@@ -33,6 +35,8 @@ import {
   normalizeGeminiCliRobotProviderConfig,
   runGeminiCliExecWithCli
 } from '../modelProviders/geminiCli';
+import { applyBudgetExecutionOverride } from '../costGovernance/executionOverride';
+import { normalizeBudgetExecutionOverride } from '../costGovernance/types';
 import { isTaskLogsDbEnabled } from '../config/features';
 import { isTruthy } from '../utils/env';
 import type { UserModelCredentials } from '../modules/users/user.service';
@@ -69,11 +73,26 @@ import { resolveAgentExampleTemplateDir } from '../utils/agentTemplatePaths';
 import { ensureGithubForkRepo, ensureGitlabForkProject, resolveRepoWorkflowMode } from '../services/repoWorkflowMode';
 // Pull git status helpers to report repo changes after write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 import { buildWorkingTree, computeGitPushState, computeGitStatusDelta, parseAheadBehind } from '../utils/gitStatus';
+import { WorkspaceChangeTracker } from '../utils/workspaceChangeTracker';
 import { installDependencies, DependencyInstallerError } from './dependencyInstaller';
 import { RuntimeService } from '../services/runtimeService';
 import { HookcodeConfigService } from '../services/hookcodeConfigService';
 import type { DependencyResult, HookcodeConfig, RobotDependencyConfig } from '../types/dependency';
 import { resolveBuildRoot, resolveTaskGroupWorkspaceRoot } from '../utils/workDir';
+import { resolveProviderRunConfig } from '../utils/providerRunConfig';
+import {
+  buildProviderRoutingAttemptFailureLog,
+  buildProviderRoutingAttemptStartLog,
+  buildProviderRoutingCompletionLog,
+  buildProviderRoutingPlanLog
+} from '../providerRouting/providerRoutingLogger';
+import {
+  buildProviderRoutingPlan,
+  toProviderRoutingResult,
+  updateProviderRoutingAttempt,
+  type ProviderRoutingAttemptPlan
+} from '../providerRouting/providerRouting.service';
+import type { ProviderRoutingResult, RoutedProviderKey } from '../providerRouting/providerRouting.types';
 
 /**
  * Core task execution (callAgent):
@@ -681,13 +700,23 @@ const toErrorSummary = (err: unknown): Record<string, unknown> => {
   }
   return { message: String(err) };
 };
-// Export shell-escape helper for shared git commands. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-export const shDoubleQuote = (value: string) =>
-  `"${String(value)
+// Shell-escape helper for shared git commands — platform-aware so cmd.exe
+// does not double backslashes or mis-handle POSIX escape sequences.
+// docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+export const shDoubleQuote = (value: string): string => {
+  const s = String(value);
+  if (process.platform === 'win32') {
+    // Windows cmd.exe: backslash is a literal path separator, not an escape char.
+    // Only " needs special handling — use "" which cmd.exe interprets as a single quote.
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  // POSIX sh: escape shell metacharacters inside double quotes.
+  return `"${s
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
     .replace(/`/g, '\\`')
     .replace(/\$/g, '\\$')}"`;
+};
 
 /**
  * Build git proxy flags from GIT_HTTP_PROXY env var.
@@ -700,8 +729,12 @@ export const buildGitProxyFlags = (): string => {
   return `-c http.proxy=${shDoubleQuote(proxy)} -c https.proxy=${shDoubleQuote(proxy)}`;
 };
 
+// Detect transient git/curl network failures for clone retry decisions.
+// Keep patterns broad enough to cover platform-specific curl messages
+// (e.g. "Connection was reset" on Windows vs "Connection reset by peer" on Linux).
+// docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
 const GIT_TRANSIENT_NETWORK_ERROR_PATTERN =
-  /(openssl ssl_read|unexpected eof while reading|recv failure: connection reset by peer|rpc failed; curl|http\/2 stream|gnutls_handshake|failed to connect|connection timed out|operation timed out|connection reset by peer|could not resolve host|tlsv1 alert)/i;
+  /(openssl ssl_read|unexpected eof while reading|recv failure|rpc failed; curl|http\/2 stream|gnutls_handshake|failed to connect|connection timed out|operation timed out|connection reset|connection was reset|could not resolve host|tlsv1 alert)/i;
 
 const isRetryableGitTransportError = (message: string): boolean => {
   // Detect transient git transport errors so clone can retry with safer HTTP transport settings. docs/en/developer/plans/gitclone128-20260304/task_plan.md gitclone128-20260304
@@ -730,10 +763,10 @@ export const configureRepoLocalGitProxy = async (repoDir: string): Promise<void>
   // Set repo-local http.proxy and https.proxy to override ~/.gitconfig settings.
   // Repo-local config (.git/config) has higher priority than user global (~/.gitconfig).
   // gitproxyfix20260127
-  const { execSync } = await import('child_process');
+  // Use cross-platform execSync so git.cmd resolves on Windows. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
   try {
-    execSync(`git config --local http.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
-    execSync(`git config --local https.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
+    xExecSync(`git config --local http.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
+    xExecSync(`git config --local https.proxy ${shDoubleQuote(proxy)}`, { cwd: repoDir, stdio: 'pipe' });
   } catch (err) {
     // Best-effort: log warning but don't fail the task if proxy config fails
     console.warn('[agent] Failed to configure repo-local git proxy:', err);
@@ -906,12 +939,15 @@ export class AgentExecutionError extends Error {
   readonly aborted?: boolean; // Flag abort-driven exits for pause/stop handling. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   // Attach git status snapshot for failed tasks to preserve change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   readonly gitStatus?: TaskResult['gitStatus'];
+  // Bubble provider routing decisions into failed task results for failover diagnostics. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  readonly providerRouting?: ProviderRoutingResult;
 
   constructor(
     message: string,
     params: {
       providerCommentUrl?: string;
       gitStatus?: TaskResult['gitStatus'];
+      providerRouting?: ProviderRoutingResult;
       cause?: unknown;
       aborted?: boolean;
     }
@@ -921,6 +957,7 @@ export class AgentExecutionError extends Error {
     this.providerCommentUrl = params.providerCommentUrl;
     this.aborted = params.aborted;
     this.gitStatus = params.gitStatus;
+    this.providerRouting = params.providerRouting;
     if (params.cause !== undefined) {
       (this as any).cause = params.cause;
     }
@@ -1015,7 +1052,12 @@ export const resolveExecution = async (
 async function callAgent(
   task: Task,
   options?: { signal?: AbortSignal }
-): Promise<{ providerCommentUrl?: string; outputText?: string; gitStatus?: TaskResult['gitStatus'] }> {
+): Promise<{
+  providerCommentUrl?: string;
+  outputText?: string;
+  gitStatus?: TaskResult['gitStatus'];
+  providerRouting?: ProviderRoutingResult;
+}> {
   assertAgentServicesReady();
 
   let logsSeq = 0;
@@ -1027,12 +1069,17 @@ async function callAgent(
   let repoWorkflow: TaskResult['repoWorkflow'] | undefined; // Surface direct-vs-fork workflow to UI/logs. 24yz61mdik7tqdgaa152
   // Track git status snapshots for write-enabled runs. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   let gitStatus: TaskResult['gitStatus'] | undefined;
+  // Persist provider routing/failover state alongside token usage while the task is still running. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+  let providerRouting: ProviderRoutingResult | undefined;
   let gitBaseline: TaskGitStatusSnapshot | undefined;
   // Store repo workspace path for post-run git status capture, even on failure. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   let repoDir = '';
+  // Keep backend-inline runs aligned with worker execution by tracking repo-relative workspace diffs for the active task. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+  let workspaceChangeTracker: WorkspaceChangeTracker | null = null;
+  let workspaceChangeTrackerStopped = false;
   const taskLogsDbEnabled = isTaskLogsDbEnabled(); // Persist task logs based on DB toggle even when user visibility is disabled. nykx5svtlgh050cstyht
   let taskGroupId: string | null = typeof task.groupId === 'string' ? task.groupId.trim() : null;
-  let threadIdBound = false;
+  let pendingResumeThreadId: string | null = null;
   // Track whether this run is allowed to mutate repos before collecting git status. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   let writeEnabled = false;
   // Honor pause/stop signals from the task runner. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
@@ -1040,6 +1087,9 @@ async function callAgent(
   // Route task abort signals into every workspace shell command so clone/pull/install stages stop with the task. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   const streamTaskCommand = (command: string, log: (msg: string) => Promise<void>, commandOptions: StreamOptions = {}) =>
     streamCommand(command, log, { ...commandOptions, signal: abortSignal });
+  // Run repo-scoped git commands via `cwd` so Windows and space-containing paths do not depend on fragile `cd ... &&` shell wrappers. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+  const streamRepoCommand = (command: string, commandOptions: StreamOptions = {}) =>
+    streamTaskCommand(command, appendRawLog, { ...commandOptions, cwd: repoDir });
 
   let persistLogsDisabled = false;
   let lastPersistErrorAt = 0;
@@ -1062,6 +1112,7 @@ async function callAgent(
       // Persist token usage metadata without embedding log arrays in result_json. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       const patch: any = { tokenUsage };
       if (repoWorkflow) patch.repoWorkflow = repoWorkflow;
+      if (providerRouting) patch.providerRouting = providerRouting;
       await taskService.patchResult(task.id, patch);
     } catch (err) {
       lastPersistErrorAt = now;
@@ -1106,15 +1157,7 @@ async function callAgent(
       extractCodexExecThreadIdFromLine(line) ??
       extractClaudeCodeExecThreadIdFromLine(line) ??
       extractGeminiCliExecThreadIdFromLine(line);
-    if (threadId && !threadIdBound) {
-      if (!taskGroupId) {
-        taskGroupId = await taskService.ensureTaskGroupId(task);
-      }
-      if (taskGroupId) {
-        threadIdBound = true;
-        await taskService.bindTaskGroupThreadId(taskGroupId, threadId);
-      }
-    }
+    if (threadId) pendingResumeThreadId = threadId;
 
     const delta =
       extractCodexExecTokenUsageDeltaFromLine(line) ??
@@ -1330,6 +1373,8 @@ async function callAgent(
           const branchMessage = String(err?.message || err);
           if (isRetryableGitTransportError(branchMessage)) {
             await appendLog('Branch clone hit a transient git transport error; retrying with HTTP/1.1');
+            // Remove partial clone directory before retrying so git accepts the target path. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+            try { await rm(repoDir, { recursive: true, force: true }); } catch { /* best-effort cleanup */ }
             try {
               await runCloneCommand({ branch: checkoutRef, forceHttp11: true });
               return;
@@ -1338,19 +1383,27 @@ async function callAgent(
             }
           }
           await appendLog(`Branch clone failed; falling back to default clone: ${branchError?.message || branchError}`);
+          // Clean up partial directory left by the failed branch clone before fallback attempt. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+          try { await rm(repoDir, { recursive: true, force: true }); } catch { /* best-effort cleanup */ }
         }
       }
 
       await appendLog(`Cloning repository ${injected.displayUrl}`);
-      // Use gitProxyFlags to pass proxy config to git commands. gitproxyfix20260127
-      await streamTaskCommand(
-        `git ${gitProxyFlags} clone ${shDoubleQuote(injected.execUrl)} ${shDoubleQuote(repoDir)}`,
-        appendRawLog,
-        {
-          env: { GIT_TERMINAL_PROMPT: '0' },
-          redact: redactSensitiveText
+      // Default (no-branch) clone with HTTP/1.1 retry on transient network errors.
+      // Clean up partial clone directory between attempts so git does not refuse to re-clone.
+      // docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+      try {
+        await runCloneCommand({});
+      } catch (defaultErr: any) {
+        const defaultMessage = String(defaultErr?.message || defaultErr);
+        if (isRetryableGitTransportError(defaultMessage)) {
+          await appendLog('Default clone hit a transient git transport error; retrying with HTTP/1.1');
+          try { await rm(repoDir, { recursive: true, force: true }); } catch { /* best-effort cleanup */ }
+          await runCloneCommand({ forceHttp11: true });
+        } else {
+          throw defaultErr;
         }
-      );
+      }
     };
 
     const repoCredentialSource = inferRobotRepoProviderCredentialSource(execution.robot);
@@ -1397,20 +1450,16 @@ async function callAgent(
     if (checkoutRef) {
       try {
         await appendLog(`Checking out branch ${checkoutRef}`);
-        await streamTaskCommand(`cd ${repoDir} && git checkout ${shDoubleQuote(checkoutRef)}`, appendRawLog, {
+        await streamRepoCommand(`git checkout ${shDoubleQuote(checkoutRef)}`, {
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
         });
         if (allowNetworkPull) {
           // Use gitProxyFlags to pass proxy config to git pull. gitproxyfix20260127
-          await streamTaskCommand(
-            `cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`,
-            appendRawLog,
-            {
-              env: { GIT_TERMINAL_PROMPT: '0' },
-              redact: redactSensitiveText
-            }
-          );
+          await streamRepoCommand(`git ${gitProxyFlags} pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`, {
+            env: { GIT_TERMINAL_PROMPT: '0' },
+            redact: redactSensitiveText
+          });
         } else {
           // Keep logs explicit when skipping network pulls for existing task-group workspaces. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
           await appendLog(`Skipping git pull for existing ${workspaceLabel} workspace`);
@@ -1422,7 +1471,7 @@ async function callAgent(
       try {
         await appendLog('Updating default branch');
         // Use gitProxyFlags to pass proxy config to git pull. gitproxyfix20260127
-        await streamTaskCommand(`cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase`, appendRawLog, {
+        await streamRepoCommand(`git ${gitProxyFlags} pull --no-rebase`, {
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
         });
@@ -1487,9 +1536,8 @@ exit 0
       // Persist expected remotes under valid git config keys for the pre-push guard. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
       const expectedUpstream = normalizeGitRemoteUrl(params.expectedUpstream);
       const expectedPush = normalizeGitRemoteUrl(params.expectedPush);
-      await streamTaskCommand(
-        `cd ${repoDir} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.upstream)} ${shDoubleQuote(expectedUpstream)} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.push)} ${shDoubleQuote(expectedPush)}`,
-        appendRawLog,
+      await streamRepoCommand(
+        `git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.upstream)} ${shDoubleQuote(expectedUpstream)} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.push)} ${shDoubleQuote(expectedPush)}`,
         { redact: redactSensitiveText }
       );
     };
@@ -1540,11 +1588,10 @@ exit 0
       })();
 
       const upstreamInjected = injectBasicAuth(repoUrl, auth);
-      await streamTaskCommand(
-        `cd ${repoDir} && git remote set-url origin ${shDoubleQuote(upstreamInjected.execUrl)}`,
-        appendRawLog,
-        { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-      );
+      await streamRepoCommand(`git remote set-url origin ${shDoubleQuote(upstreamInjected.execUrl)}`, {
+        env: { GIT_TERMINAL_PROMPT: '0' },
+        redact: redactSensitiveText
+      });
 
       const expectedUpstreamUrl = upstream.cloneUrl || repoUrl;
       // Resolve the robot-configured workflow mode (auto/direct/fork) for this run. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
@@ -1553,11 +1600,10 @@ exit 0
       const upstreamCanPush = canTokenPushToUpstream(execution!.provider, execution!.robot.repoTokenRepoRole);
 
       // Always reset origin push URL first to avoid stale fork pushUrl when workflow changes. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
-      await streamTaskCommand(
-        `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(upstreamInjected.execUrl)}`,
-        appendRawLog,
-        { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-      );
+      await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(upstreamInjected.execUrl)}`, {
+        env: { GIT_TERMINAL_PROMPT: '0' },
+        redact: redactSensitiveText
+      });
       await installGitPrePushGuard({ expectedUpstream: expectedUpstreamUrl, expectedPush: expectedUpstreamUrl });
 
       if (workflowMode === 'direct') {
@@ -1581,11 +1627,10 @@ exit 0
           }
 
           const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-          await streamTaskCommand(
-            `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
-            appendRawLog,
-            { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-          );
+          await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`, {
+            env: { GIT_TERMINAL_PROMPT: '0' },
+            redact: redactSensitiveText
+          });
           await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
           repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
           await appendLog(`Repo workflow mode: fork (upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug})`);
@@ -1601,11 +1646,10 @@ exit 0
           }
 
           const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-          await streamTaskCommand(
-            `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
-            appendRawLog,
-            { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-          );
+          await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`, {
+            env: { GIT_TERMINAL_PROMPT: '0' },
+            redact: redactSensitiveText
+          });
           await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
           repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
           await appendLog(`Repo workflow mode: fork (upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug})`);
@@ -1640,11 +1684,10 @@ exit 0
         }
 
         const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-        await streamTaskCommand(
-          `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
-          appendRawLog,
-          { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-        );
+        await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`, {
+          env: { GIT_TERMINAL_PROMPT: '0' },
+          redact: redactSensitiveText
+        });
         await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
         repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
         await appendLog(`Fork workflow enabled: upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug}`);
@@ -1663,11 +1706,10 @@ exit 0
         }
 
         const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-        await streamTaskCommand(
-          `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
-          appendRawLog,
-          { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-        );
+        await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`, {
+          env: { GIT_TERMINAL_PROMPT: '0' },
+          redact: redactSensitiveText
+        });
         await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
         repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
         await appendLog(`Fork workflow enabled: upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug}`);
@@ -1757,15 +1799,29 @@ exit 0
       }
     }
 
-    // Resolve provider selection before building prompts to allow provider-specific context. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
-    const modelProvider = safeTrim(execution.robot.modelProvider).toLowerCase() || CODEX_PROVIDER_KEY;
-    const isCodexProvider = modelProvider === CODEX_PROVIDER_KEY;
-    const isClaudeCodeProvider = modelProvider === CLAUDE_CODE_PROVIDER_KEY;
-    const isGeminiCliProvider = modelProvider === GEMINI_CLI_PROVIDER_KEY;
-    if (!isCodexProvider && !isClaudeCodeProvider && !isGeminiCliProvider) {
-      await appendLog(`Unsupported model provider: ${modelProvider}`);
-      throw new Error(`unsupported model provider: ${modelProvider}`);
+    // Resolve provider routing after repo/prompt preparation so failover can reuse the same workspace state. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+    const modelProvider = safeTrim(execution.robot.modelProvider).toLowerCase();
+    if (modelProvider !== CODEX_PROVIDER_KEY && modelProvider !== CLAUDE_CODE_PROVIDER_KEY && modelProvider !== GEMINI_CLI_PROVIDER_KEY) {
+      await appendLog(`Unsupported model provider: ${modelProvider || '<empty>'}`);
+      throw new Error(`unsupported model provider: ${modelProvider || '<empty>'}`);
     }
+    const taskExecutionOverride = normalizeBudgetExecutionOverride(task.result?.costGovernance?.executionOverride);
+    const resolvedExecutionPlan = applyBudgetExecutionOverride({
+      primaryProvider: modelProvider as RoutedProviderKey,
+      primaryConfigRaw: execution.robot.modelProviderConfigRaw,
+      override: taskExecutionOverride
+    });
+    const primaryProvider = resolvedExecutionPlan.provider;
+    const primaryConfigRaw = resolvedExecutionPlan.configRaw;
+
+    const persistProviderRouting = async () => {
+      if (!providerRouting) return;
+      try {
+        await taskService.patchResult(task.id, { providerRouting });
+      } catch (err) {
+        console.warn('[agent] provider routing persist failed (ignored)', { taskId: task.id, error: toErrorSummary(err) });
+      }
+    };
 
     // Build prompt based on robot type.
     const promptCtx = await buildPrompt({
@@ -1782,39 +1838,47 @@ exit 0
     // Prepend enabled skill prompt text before the main task prompt. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
     const skillPromptPrefix = await buildSkillPromptPrefix(appendLog, taskGroupId);
     const promptBase = `${skillPromptPrefix}${promptCtx.body}`;
-    // Prepend workspace-root guidance for Claude Code so cwd expectations are explicit. docs/en/developer/plans/gemini-claude-agents-20260205/task_plan.md gemini-claude-agents-20260205
-    const promptBody = isClaudeCodeProvider
-      ? `${buildTaskGroupWorkspacePromptPrefix({ taskGroupDir, repoFolderName })}${promptBase}`
-      : promptBase;
-    await writeFile(promptFile, promptBody, 'utf8');
+    if (taskExecutionOverride) {
+      const overrideParts = [
+        taskExecutionOverride.provider ? `provider=${taskExecutionOverride.provider}` : '',
+        taskExecutionOverride.model ? `model=${taskExecutionOverride.model}` : '',
+        taskExecutionOverride.forceReadOnly ? 'sandbox=read-only' : '',
+        taskExecutionOverride.maxRuntimeSeconds ? `maxRuntimeSeconds=${taskExecutionOverride.maxRuntimeSeconds}` : ''
+      ]
+        .filter(Boolean)
+        .join(', ');
+      if (overrideParts) {
+        await appendLog(`Applying cost-governance execution override: ${overrideParts}`);
+      }
+    }
+    const routingPlan = await buildProviderRoutingPlan({
+      primaryProvider,
+      primaryConfigRaw,
+      userCredentials: execution.userCredentials,
+      repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
+    });
+    providerRouting = toProviderRoutingResult(routingPlan);
+    await appendLog(buildProviderRoutingPlanLog(routingPlan));
+    await persistProviderRouting();
 
-    // Run the selected model provider (default: codex).
-
-    const outputLastMessageFileName = isClaudeCodeProvider
-      ? 'claude-output.txt'
-      : isGeminiCliProvider
-        ? 'gemini-output.txt'
-        : 'codex-output.txt';
-    // Store provider outputs in the task-group root to keep artifacts alongside the group workspace. docs/en/developer/plans/codexoutputdir20260124/task_plan.md codexoutputdir20260124
-    const outputSelection = buildTaskOutputFilePath({ taskGroupDir, fileName: outputLastMessageFileName });
-    const outputLastMessageFile = outputSelection.filePath;
-    await mkdir(outputSelection.dir, { recursive: true });
-    await rm(outputLastMessageFile, { force: true });
-
-    const codexCfg = isCodexProvider ? normalizeCodexRobotProviderConfig(execution.robot.modelProviderConfigRaw) : null;
-    const claudeCfg = isClaudeCodeProvider ? normalizeClaudeCodeRobotProviderConfig(execution.robot.modelProviderConfigRaw) : null;
-    const geminiCfg = isGeminiCliProvider ? normalizeGeminiCliRobotProviderConfig(execution.robot.modelProviderConfigRaw) : null;
-    const sandboxMode = isCodexProvider
-      ? codexCfg!.sandbox
-      : isClaudeCodeProvider
-        ? claudeCfg!.sandbox
-        : geminiCfg!.sandbox;
-    // Codex network access is always enabled; only non-Codex providers read robot config. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
-    const networkAccess = isCodexProvider
-      ? true
-      : isClaudeCodeProvider
-        ? claudeCfg!.sandbox_workspace_write.network_access
-        : geminiCfg!.sandbox_workspace_write.network_access;
+    const attemptRunConfigs = routingPlan.attempts.map((attempt) => ({
+      attempt,
+      runConfig: resolveProviderRunConfig(attempt.provider, attempt.providerConfigRaw)
+    }));
+    const requiresGitIdentity = attemptRunConfigs.some(({ runConfig }) => runConfig.sandbox === 'workspace-write');
+    if (requiresGitIdentity) {
+      // Stream repo-relative workspace change snapshots into task logs/results so task views can render live file diffs during worker execution. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+      workspaceChangeTracker = new WorkspaceChangeTracker({
+        taskId: task.id,
+        repoDir,
+        emitLine: appendRawLog,
+        persistSnapshot: async (snapshot) => {
+          await taskService.patchResult(task.id, { workspaceChanges: snapshot });
+        },
+        emitTimelineEvents: false
+      });
+      await workspaceChangeTracker.start();
+    }
 
     // Enforce a repo-local git identity for workspace-write runs to ensure commits match the token owner.
     const tokenUserName = safeTrim(execution.robot.repoTokenUserName);
@@ -1822,7 +1886,7 @@ exit 0
     let gitUserName = '';
     let gitUserEmail = '';
 
-    if (sandboxMode === 'workspace-write') {
+    if (requiresGitIdentity) {
       gitUserName = tokenUserName;
       gitUserEmail = tokenUserEmail;
       if (!gitUserName || !gitUserEmail) {
@@ -1833,9 +1897,8 @@ exit 0
       }
       try {
         await appendLog(`Configuring git identity: ${gitUserName} <${gitUserEmail}>`);
-        await streamTaskCommand(
-          `cd ${repoDir} && git config --local user.name ${shDoubleQuote(gitUserName)} && git config --local user.email ${shDoubleQuote(gitUserEmail)}`,
-          appendRawLog,
+        await streamRepoCommand(
+          `git config --local user.name ${shDoubleQuote(gitUserName)} && git config --local user.email ${shDoubleQuote(gitUserEmail)}`,
           { redact: redactSensitiveText }
         );
       } catch (err: any) {
@@ -1846,221 +1909,215 @@ exit 0
 
     let threadId: string | null = null;
     let finalResponse = '';
+    let outputLastMessageFileName = '';
+    let providerRunSucceeded = false;
 
-    if (isCodexProvider) {
-      const credentialSource = codexCfg!.credentialSource;
-      const robotApiKey = (codexCfg!.credential?.apiKey ?? '').trim();
-      const robotApiBaseUrl = (codexCfg!.credential?.apiBaseUrl ?? '').trim();
+    const selectedAttempt = routingPlan.attempts.find((attempt) => attempt.provider === routingPlan.selectedProvider) ?? routingPlan.attempts[0];
+    const fallbackAttempt =
+      routingPlan.selectedProvider === routingPlan.primaryProvider && routingPlan.failoverPolicy === 'fallback_provider_once'
+        ? routingPlan.attempts.find((attempt) => attempt.role === 'fallback')
+        : undefined;
+    const attemptQueue: ProviderRoutingAttemptPlan[] = fallbackAttempt ? [selectedAttempt, fallbackAttempt] : [selectedAttempt];
+    let lastAttemptError: unknown = null;
 
-      const userProfile =
-        credentialSource === 'user' ? pickCredentialProfile(execution.userCredentials?.codex, codexCfg!.credentialProfileId) : null;
-      const repoProfile =
-        credentialSource === 'repo'
-          ? pickCredentialProfile(execution.repoScopedCredentials?.modelProvider?.codex, codexCfg!.credentialProfileId)
-          : null;
+    for (let index = 0; index < attemptQueue.length; index += 1) {
+      const attempt = attemptQueue[index];
+      // Only mark failover as triggered when the fallback runs after a primary failure, not when availability-first selects it upfront. docs/en/developer/plans/providerroutingimpl20260313/task_plan.md providerroutingimpl20260313
+      const failoverExecution = attempt.role === 'fallback' && index > 0;
+      const runConfig = resolveProviderRunConfig(attempt.provider, attempt.providerConfigRaw);
+      outputLastMessageFileName = runConfig.outputLastMessageFileName;
+      const outputSelection = buildTaskOutputFilePath({ taskGroupDir, fileName: outputLastMessageFileName });
+      const outputLastMessageFile = outputSelection.filePath;
+      await mkdir(outputSelection.dir, { recursive: true });
+      await rm(outputLastMessageFile, { force: true });
 
-      const userApiKey = credentialSource === 'user' ? safeTrim(userProfile?.apiKey) : '';
-      const userApiBaseUrl = credentialSource === 'user' ? safeTrim(userProfile?.apiBaseUrl) : '';
-      const repoApiKey =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiKey) : '';
-      const repoApiBaseUrl =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiBaseUrl) : '';
+      const promptBody =
+        attempt.provider === CLAUDE_CODE_PROVIDER_KEY
+          ? `${buildTaskGroupWorkspacePromptPrefix({ taskGroupDir, repoFolderName })}${promptBase}`
+          : promptBase;
+      await writeFile(promptFile, promptBody, 'utf8');
 
-      const apiKey = credentialSource === 'robot' ? robotApiKey : credentialSource === 'repo' ? repoApiKey : userApiKey;
-      const apiBaseUrl =
-        credentialSource === 'robot' ? robotApiBaseUrl : credentialSource === 'repo' ? repoApiBaseUrl : userApiBaseUrl;
+      providerRouting = {
+        ...updateProviderRoutingAttempt(providerRouting!, attempt.provider, {
+          status: 'running',
+          reason: failoverExecution ? 'Running after primary provider failure.' : 'Selected for execution.',
+          startedAt: new Date().toISOString(),
+          finishedAt: undefined,
+          error: undefined
+        }),
+        failoverTriggered: providerRouting?.failoverTriggered || failoverExecution
+      };
+      await persistProviderRouting();
+      await appendLog(buildProviderRoutingAttemptStartLog(attempt, index + 1, attemptQueue.length));
 
-      if (!apiKey) {
-        const credentialBack =
-          credentialSource === 'robot'
-            ? 'codex apiKey is required (robot credential)'
-            : credentialSource === 'repo'
-              ? 'codex apiKey is required (repo-scoped credential profile)'
-              : 'codex apiKey is required (user credential profile)';
-        await appendLog(credentialBack);
-        throw new Error(credentialBack);
+      try {
+        pendingResumeThreadId = null;
+        const resolvedProviderCredential = await resolveProviderExecutionCredential({
+          provider: attempt.provider,
+          robotConfigRaw: attempt.providerConfigRaw,
+          userCredentials: execution.userCredentials,
+          repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
+        });
+        providerRouting = updateProviderRoutingAttempt(providerRouting!, attempt.provider, {
+          credential: {
+            requestedStoredSource: resolvedProviderCredential.requestedStoredSource,
+            resolvedLayer: resolvedProviderCredential.resolvedLayer,
+            resolvedMethod: resolvedProviderCredential.resolvedMethod,
+            canExecute: resolvedProviderCredential.canExecute,
+            profileId: resolvedProviderCredential.profileId,
+            fallbackUsed: resolvedProviderCredential.fallbackUsed,
+            reason: resolvedProviderCredential.reason
+          }
+        });
+        await persistProviderRouting();
+        await appendLog(
+          `Model provider credential resolved: provider=${attempt.provider} requested=${resolvedProviderCredential.requestedStoredSource} resolved=${resolvedProviderCredential.resolvedLayer} method=${resolvedProviderCredential.resolvedMethod}${resolvedProviderCredential.profileId ? ` profile=${resolvedProviderCredential.profileId}` : ''}${resolvedProviderCredential.fallbackUsed ? ' fallback=true' : ''}`
+        );
+        if (!resolvedProviderCredential.canExecute) {
+          const message = resolvedProviderCredential.reason || `No executable credential is available for provider ${attempt.provider}`;
+          await appendLog(message);
+          throw new Error(message);
+        }
+
+        // Narrow provider-specific execution config from the shared resolver before accessing provider-only fields. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+        if (runConfig.provider === CODEX_PROVIDER_KEY) {
+          const outputSchema = await readCodexOutputSchema({ taskGroupDir, appendLog });
+          const res = await runCodexExecWithSdk({
+            repoDir,
+            workspaceDir: taskGroupDir,
+            promptFile,
+            model: runConfig.normalized.model,
+            sandbox: runConfig.normalized.sandbox,
+            modelReasoningEffort: runConfig.normalized.model_reasoning_effort,
+            resumeThreadId: resumeThreadId || undefined,
+            apiKey: resolvedProviderCredential.apiKey,
+            apiBaseUrl: resolvedProviderCredential.apiBaseUrl || undefined,
+            outputSchema,
+            outputLastMessageFile,
+            signal: abortSignal,
+            env:
+              runConfig.sandbox === 'workspace-write'
+                ? {
+                    GIT_AUTHOR_NAME: gitUserName,
+                    GIT_AUTHOR_EMAIL: gitUserEmail,
+                    GIT_COMMITTER_NAME: gitUserName,
+                    GIT_COMMITTER_EMAIL: gitUserEmail
+                  }
+                : undefined,
+            redact: redactSensitiveText,
+            logLine: appendRawLog
+          });
+          threadId = res.threadId;
+          finalResponse = res.finalResponse;
+        } else if (runConfig.provider === CLAUDE_CODE_PROVIDER_KEY) {
+          const res = await runClaudeCodeExecWithSdk({
+            repoDir,
+            workspaceDir: taskGroupDir,
+            promptFile,
+            model: runConfig.normalized.model,
+            sandbox: runConfig.normalized.sandbox,
+            networkAccess: runConfig.networkAccess,
+            resumeSessionId: resumeThreadId || undefined,
+            apiKey: resolvedProviderCredential.apiKey,
+            apiBaseUrl: resolvedProviderCredential.apiBaseUrl || undefined,
+            outputLastMessageFile,
+            signal: abortSignal,
+            env:
+              runConfig.sandbox === 'workspace-write'
+                ? {
+                    GIT_AUTHOR_NAME: gitUserName,
+                    GIT_AUTHOR_EMAIL: gitUserEmail,
+                    GIT_COMMITTER_NAME: gitUserName,
+                    GIT_COMMITTER_EMAIL: gitUserEmail
+                  }
+                : undefined,
+            redact: redactSensitiveText,
+            logLine: appendRawLog
+          });
+          threadId = res.threadId;
+          finalResponse = res.finalResponse;
+        } else {
+          const geminiScopeId = taskGroupId ? taskGroupId : task.id;
+          const geminiHomeDir = path.join(BUILD_ROOT, '.gemini_cli_home', `${execution.provider}__${repoSlug}`, geminiScopeId);
+          const res = await runGeminiCliExecWithCli({
+            repoDir,
+            workspaceDir: taskGroupDir,
+            promptFile,
+            model: runConfig.normalized.model,
+            sandbox: runConfig.normalized.sandbox,
+            networkAccess: runConfig.networkAccess,
+            resumeSessionId: resumeThreadId || undefined,
+            apiKey: resolvedProviderCredential.apiKey,
+            apiBaseUrl: resolvedProviderCredential.apiBaseUrl || undefined,
+            outputLastMessageFile,
+            geminiHomeDir,
+            signal: abortSignal,
+            env:
+              runConfig.sandbox === 'workspace-write'
+                ? {
+                    GIT_AUTHOR_NAME: gitUserName,
+                    GIT_AUTHOR_EMAIL: gitUserEmail,
+                    GIT_COMMITTER_NAME: gitUserName,
+                    GIT_COMMITTER_EMAIL: gitUserEmail
+                  }
+                : undefined,
+            redact: redactSensitiveText,
+            logLine: appendRawLog
+          });
+          threadId = res.threadId;
+          finalResponse = res.finalResponse;
+        }
+
+        console.log('[agent] model exec completed', { taskId: task.id, provider: attempt.provider, threadId });
+        await moveTaskOutputToGroupRoot({
+          taskGroupDir,
+          fileName: outputLastMessageFileName,
+          sourcePath: outputLastMessageFile,
+          appendLog
+        });
+
+        const threadIdToBind = threadId || pendingResumeThreadId;
+        if (threadIdToBind && taskGroupId) {
+          await taskService.bindTaskGroupThreadId(taskGroupId, threadIdToBind);
+        }
+
+        providerRouting = {
+          ...updateProviderRoutingAttempt(providerRouting!, attempt.provider, {
+            status: 'succeeded',
+            reason: failoverExecution ? 'Fallback provider succeeded after primary failure.' : 'Execution completed successfully.',
+            finishedAt: new Date().toISOString()
+          }),
+          finalProvider: attempt.provider,
+          failoverTriggered: providerRouting?.failoverTriggered || failoverExecution
+        };
+        await persistProviderRouting();
+        providerRunSucceeded = true;
+        break;
+      } catch (attemptErr: any) {
+        lastAttemptError = attemptErr;
+        if (abortSignal?.aborted) throw attemptErr;
+        const safeError = redactSensitiveText(attemptErr?.message || String(attemptErr));
+        providerRouting = updateProviderRoutingAttempt(providerRouting!, attempt.provider, {
+          status: 'failed',
+          error: safeError,
+          reason: safeError,
+          finishedAt: new Date().toISOString()
+        });
+        await persistProviderRouting();
+        await appendLog(buildProviderRoutingAttemptFailureLog(attempt, safeError));
+        if (attempt.role === 'fallback' || index === attemptQueue.length - 1) {
+          throw attemptErr;
+        }
       }
-
-      // Load the task-group Codex schema so turns can emit structured output + suggestions. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-      const outputSchema = await readCodexOutputSchema({ taskGroupDir, appendLog });
-
-      // Execute providers from the task-group root to match the new workspace layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-      // Change record: avoid noisy debug `console.error` logs; rely on structured logs + per-task appendLog instead.
-      const res = await runCodexExecWithSdk({
-        repoDir,
-        workspaceDir: taskGroupDir,
-        promptFile,
-        model: codexCfg!.model,
-        sandbox: codexCfg!.sandbox,
-        // Codex execution now defaults to network access enabled regardless of robot config. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127
-        modelReasoningEffort: codexCfg!.model_reasoning_effort,
-        resumeThreadId: resumeThreadId || undefined,
-        apiKey,
-        apiBaseUrl: apiBaseUrl || undefined,
-        outputSchema,
-        outputLastMessageFile,
-        signal: abortSignal,
-        env: {
-          ...(sandboxMode === 'workspace-write'
-            ? {
-                GIT_AUTHOR_NAME: gitUserName,
-                GIT_AUTHOR_EMAIL: gitUserEmail,
-                GIT_COMMITTER_NAME: gitUserName,
-                GIT_COMMITTER_EMAIL: gitUserEmail
-              }
-            : {})
-        },
-        redact: redactSensitiveText,
-        logLine: appendRawLog
-      });
-      threadId = res.threadId;
-      finalResponse = res.finalResponse;
-    } else if (isClaudeCodeProvider) {
-      const credentialSource = claudeCfg!.credentialSource;
-      const robotApiKey = (claudeCfg!.credential?.apiKey ?? '').trim();
-      const robotApiBaseUrl = (claudeCfg!.credential?.apiBaseUrl ?? '').trim();
-
-      const userProfile =
-        credentialSource === 'user'
-          ? pickCredentialProfile(execution.userCredentials?.claude_code, claudeCfg!.credentialProfileId)
-          : null;
-      const repoProfile =
-        credentialSource === 'repo'
-          ? pickCredentialProfile(execution.repoScopedCredentials?.modelProvider?.claude_code, claudeCfg!.credentialProfileId)
-          : null;
-
-      const userApiKey = credentialSource === 'user' ? safeTrim(userProfile?.apiKey) : '';
-      const userApiBaseUrl = credentialSource === 'user' ? safeTrim(userProfile?.apiBaseUrl) : '';
-      const repoApiKey =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiKey) : '';
-      const repoApiBaseUrl =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiBaseUrl) : '';
-
-      const apiKey = credentialSource === 'robot' ? robotApiKey : credentialSource === 'repo' ? repoApiKey : userApiKey;
-      const apiBaseUrl =
-        credentialSource === 'robot' ? robotApiBaseUrl : credentialSource === 'repo' ? repoApiBaseUrl : userApiBaseUrl;
-
-      if (!apiKey) {
-        const credentialBack =
-          credentialSource === 'robot'
-            ? 'claude_code apiKey is required (robot credential)'
-            : credentialSource === 'repo'
-              ? 'claude_code apiKey is required (repo-scoped credential profile)'
-              : 'claude_code apiKey is required (user credential profile)';
-        await appendLog(credentialBack);
-        throw new Error(credentialBack);
-      }
-
-      // Execute providers from the task-group root to match the new workspace layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-      const res = await runClaudeCodeExecWithSdk({
-        repoDir,
-        workspaceDir: taskGroupDir,
-        promptFile,
-        model: claudeCfg!.model,
-        sandbox: claudeCfg!.sandbox,
-        networkAccess,
-        resumeSessionId: resumeThreadId || undefined,
-        apiKey,
-        apiBaseUrl: apiBaseUrl || undefined,
-        outputLastMessageFile,
-        signal: abortSignal,
-        env: {
-          ...(sandboxMode === 'workspace-write'
-            ? {
-                GIT_AUTHOR_NAME: gitUserName,
-                GIT_AUTHOR_EMAIL: gitUserEmail,
-                GIT_COMMITTER_NAME: gitUserName,
-                GIT_COMMITTER_EMAIL: gitUserEmail
-              }
-            : {})
-        },
-        redact: redactSensitiveText,
-        logLine: appendRawLog
-      });
-      threadId = res.threadId;
-      finalResponse = res.finalResponse;
-    } else {
-      const credentialSource = geminiCfg!.credentialSource;
-      const robotApiKey = (geminiCfg!.credential?.apiKey ?? '').trim();
-      const robotApiBaseUrl = (geminiCfg!.credential?.apiBaseUrl ?? '').trim();
-
-      const userProfile =
-        credentialSource === 'user'
-          ? pickCredentialProfile(execution.userCredentials?.gemini_cli, geminiCfg!.credentialProfileId)
-          : null;
-      const repoProfile =
-        credentialSource === 'repo'
-          ? pickCredentialProfile(execution.repoScopedCredentials?.modelProvider?.gemini_cli, geminiCfg!.credentialProfileId)
-          : null;
-
-      const userApiKey = credentialSource === 'user' ? safeTrim(userProfile?.apiKey) : '';
-      const userApiBaseUrl = credentialSource === 'user' ? safeTrim(userProfile?.apiBaseUrl) : '';
-      const repoApiKey =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiKey) : '';
-      const repoApiBaseUrl =
-        credentialSource === 'repo' ? safeTrim(repoProfile?.apiBaseUrl) : '';
-
-      const apiKey = credentialSource === 'robot' ? robotApiKey : credentialSource === 'repo' ? repoApiKey : userApiKey;
-      const apiBaseUrl =
-        credentialSource === 'robot' ? robotApiBaseUrl : credentialSource === 'repo' ? repoApiBaseUrl : userApiBaseUrl;
-
-      if (!apiKey) {
-        const credentialBack =
-          credentialSource === 'robot'
-            ? 'gemini_cli apiKey is required (robot credential)'
-            : credentialSource === 'repo'
-              ? 'gemini_cli apiKey is required (repo-scoped credential profile)'
-              : 'gemini_cli apiKey is required (user credential profile)';
-        await appendLog(credentialBack);
-        throw new Error(credentialBack);
-      }
-
-      const geminiScopeId = taskGroupId ? taskGroupId : task.id;
-      const geminiHomeDir = path.join(BUILD_ROOT, '.gemini_cli_home', `${execution.provider}__${repoSlug}`, geminiScopeId);
-
-      // Execute providers from the task-group root to match the new workspace layout. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-      const res = await runGeminiCliExecWithCli({
-        repoDir,
-        workspaceDir: taskGroupDir,
-        promptFile,
-        model: geminiCfg!.model,
-        sandbox: geminiCfg!.sandbox,
-        networkAccess,
-        resumeSessionId: resumeThreadId || undefined,
-        apiKey,
-        apiBaseUrl: apiBaseUrl || undefined,
-        outputLastMessageFile,
-        geminiHomeDir,
-        signal: abortSignal,
-        env: {
-          ...(sandboxMode === 'workspace-write'
-            ? {
-                GIT_AUTHOR_NAME: gitUserName,
-                GIT_AUTHOR_EMAIL: gitUserEmail,
-                GIT_COMMITTER_NAME: gitUserName,
-                GIT_COMMITTER_EMAIL: gitUserEmail
-              }
-            : {})
-        },
-        redact: redactSensitiveText,
-        logLine: appendRawLog
-      });
-      threadId = res.threadId;
-      finalResponse = res.finalResponse;
     }
 
-    console.log('[agent] model exec completed', { taskId: task.id, provider: modelProvider, threadId });
-    // Move provider output artifacts into the task-group root for consistent discovery. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
-    await moveTaskOutputToGroupRoot({
-      taskGroupDir,
-      fileName: outputLastMessageFileName,
-      sourcePath: outputLastMessageFile,
-      appendLog
-    });
-
-    // Bind the thread ID to the task group for future resumption.
-    if (threadId && taskGroupId) {
-      await taskService.bindTaskGroupThreadId(taskGroupId, threadId);
+    if (!providerRunSucceeded && lastAttemptError) throw lastAttemptError;
+    if (providerRouting) {
+      await appendLog(buildProviderRoutingCompletionLog(providerRouting));
+    }
+    if (workspaceChangeTracker && !workspaceChangeTrackerStopped) {
+      await workspaceChangeTracker.stop('completed');
+      workspaceChangeTrackerStopped = true;
     }
 
     if (writeEnabled) {
@@ -2095,7 +2152,7 @@ exit 0
     // - Change record: skip `postToProvider()` when `eventType=chat` or payload explicitly sets `__skipProviderPost`.
     if (skipProviderPost) {
       await appendLog('Provider posting skipped (chat/manual task)');
-      return { outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
+      return { outputText: safeOutputText ? safeOutputText : undefined, gitStatus, providerRouting };
     }
 
     const details = buildGitlabLogDetails(logs);
@@ -2118,8 +2175,12 @@ exit 0
       await appendLog('Posted successfully');
     }
 
-    return { providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined, gitStatus };
+    return { providerCommentUrl: posted?.url, outputText: safeOutputText ? safeOutputText : undefined, gitStatus, providerRouting };
   } catch (err: any) {
+    if (workspaceChangeTracker && !workspaceChangeTrackerStopped) {
+      await workspaceChangeTracker.stop('failed');
+      workspaceChangeTrackerStopped = true;
+    }
     // Short-circuit aborts so pause/stop does not post failure comments. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     if (abortSignal?.aborted) {
       await appendLog('Execution aborted by user request.');
@@ -2127,6 +2188,7 @@ exit 0
       // Strip log payloads from AgentExecutionError now that logs live in task_logs. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       throw new AgentExecutionError(safeMessage, {
         gitStatus,
+        providerRouting,
         cause: err,
         aborted: true
       });
@@ -2184,7 +2246,7 @@ exit 0
 
     const safeMessage = redactSensitiveText(err?.message || String(err));
     // Bubble git status into failed task results for UI visibility. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
-    throw new AgentExecutionError(safeMessage, { providerCommentUrl, gitStatus, cause: err });
+    throw new AgentExecutionError(safeMessage, { providerCommentUrl, gitStatus, providerRouting, cause: err });
   }
 }
 
@@ -2201,8 +2263,8 @@ export const runCommandWithLogs = async (
     return { exitCode: -1, output: '' };
   }
   return await new Promise((resolve, reject) => {
-    // Spawn detached shell commands on POSIX so stop requests can terminate the whole process group, not only the parent shell. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
-    const child = spawn('sh', ['-c', command], {
+    // Spawn a cross-platform shell command; detached on POSIX so stop requests can terminate the whole process group. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    const child = xSpawnShell(command, {
       env: { ...process.env, ...(options.env ?? {}) },
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -2266,8 +2328,8 @@ export const runCommandWithLogs = async (
     const stdoutBuffer = createLineBuffer();
     const stderrBuffer = createLineBuffer();
 
-    child.stdout.on('data', (data: Buffer) => stdoutBuffer.push(data));
-    child.stderr.on('data', (data: Buffer) => stderrBuffer.push(data));
+    child.stdout!.on('data', (data: Buffer) => stdoutBuffer.push(data));
+    child.stderr!.on('data', (data: Buffer) => stderrBuffer.push(data));
 
     child.on('error', (err) => {
       if (timer) clearTimeout(timer);
@@ -2366,6 +2428,18 @@ const stopSpawnedShellCommand = (
   // Kill the spawned shell process group so task stop requests also interrupt git clone/pull/install subprocesses. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   if (child.exitCode !== null || child.signalCode) return;
   const pid = typeof child.pid === 'number' ? child.pid : 0;
+  if (pid > 0 && process.platform === 'win32') {
+    try {
+      // Force-kill the Windows process tree because cmd.exe wrappers otherwise leave the child Node/git process running after abort. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+      execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true
+      });
+      return;
+    } catch {
+      // Fall back to child.kill when taskkill is unavailable or the process already exited. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    }
+  }
   if (pid > 0 && process.platform !== 'win32') {
     try {
       process.kill(-pid, signal);
@@ -2393,7 +2467,8 @@ export const runCommandCapture = async (
   }
   return await new Promise((resolve, reject) => {
     // Keep capture commands abortable too so future task-stop flows do not hang in silent git probes. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
-    const child = spawn('sh', ['-c', command], {
+    // Cross-platform shell command spawner for capture mode. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    const child = xSpawnShell(command, {
       env: { ...process.env, ...(options.env ?? {}) },
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -2417,10 +2492,10 @@ export const runCommandCapture = async (
       else options.signal.addEventListener('abort', handleAbort, { once: true });
     }
 
-    child.stdout.on('data', (data: Buffer) => {
+    child.stdout!.on('data', (data: Buffer) => {
       stdout += data.toString();
     });
-    child.stderr.on('data', (data: Buffer) => {
+    child.stderr!.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
 
@@ -2454,7 +2529,7 @@ export const collectGitStatusSnapshot = async (params: {
   // Collect git refs + working tree changes to report write-enabled task outcomes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   const errors: string[] = [];
   const gitEnv = { GIT_TERMINAL_PROMPT: '0' };
-  const runGit = (cmd: string) => runCommandCapture(`cd ${shDoubleQuote(params.repoDir)} && ${cmd}`, { env: gitEnv });
+  const runGit = (cmd: string) => runCommandCapture(cmd, { env: gitEnv, cwd: params.repoDir });
   // Build git proxy flags for network commands like ls-remote. gitproxyfix20260127
   const gitProxyFlags = buildGitProxyFlags();
 

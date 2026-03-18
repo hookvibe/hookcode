@@ -109,8 +109,7 @@
 | Full frontend suite | `pnpm --filter hookcode-frontend test` | Frontend regression suite passes. | 161/161 tests passed. | Passed |
 | Full backend suite | `pnpm --filter hookcode-backend test` | Backend regression suite passes. | 396/396 tests passed. | Passed |
 
-<!-- Record the follow-up frontend cleanup for the queued workspace delivery. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
-
+{/* Record the follow-up frontend cleanup for the queued workspace delivery. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 ### Phase 3 Follow-up: Workspace Cleanup
 - **Status:** complete
 - Actions taken:
@@ -134,8 +133,7 @@
   - `pnpm --filter hookcode-frontend test` ✅
 
 
-<!-- Record the preview workspace extraction follow-up for the queued workspace page. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
-
+{/* Record the preview workspace extraction follow-up for the queued workspace page. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 ### Phase 3 Follow-up: Preview Workspace Extraction
 - **Status:** complete
 - Actions taken:
@@ -153,8 +151,7 @@
   - `pnpm --filter hookcode-frontend test` ✅
 
 
-<!-- Record the runtime stabilization follow-up for the queued workspace page. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
-
+{/* Record the runtime stabilization follow-up for the queued workspace page. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 ### Phase 3 Follow-up: Runtime Stabilization
 - **Status:** complete
 - Actions taken:
@@ -173,8 +170,7 @@
   - `pnpm --filter hookcode-frontend build` ✅
   - `pnpm --filter hookcode-frontend test` ✅
 
-<!-- Record the runtime API cleanup after the queued workspace refactor. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
-
+{/* Record the runtime API cleanup after the queued workspace refactor. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 ### Phase 3 Follow-up: Preview Empty State & Sidebar Polling
 - **Status:** complete
 - Actions taken:
@@ -203,7 +199,7 @@
 
 
 ## Frontend Cleanup Follow-up — 2026-03-06 21:42 CST
-<!-- Record the focused page-cleanup implementation and validation after the preview workspace split. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
+{/* Record the focused page-cleanup implementation and validation after the preview workspace split. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 - Status: complete
 - Actions taken:
   - Added `frontend/src/pages/taskGroupChatPage/useTaskGroupWorkspaceData.ts` to own repo/robot loading, task-group fetch + SSE/poll refresh, optimistic task submission, lazy task-detail loading, and task-group skill selection state.
@@ -230,7 +226,7 @@
 
 
 ## Card Header Overflow Follow-up — 2026-03-06 22:13 CST
-<!-- Record the task-card title overflow fix for the queued workspace UI. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
+{/* Record the task-card title overflow fix for the queued workspace UI. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 - Status: complete
 - Actions taken:
   - Updated `frontend/src/components/taskGroupWorkspace/TaskGroupTaskCard.tsx` so long task titles expose the full text via the native tooltip and keep shrinking inside the header row.
@@ -246,7 +242,7 @@
 
 
 ## Workspace Detail Polish — 2026-03-06 22:22 CST
-<!-- Record the detail-level task-group workspace polish after the main refactor shipped. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
+{/* Record the detail-level task-group workspace polish after the main refactor shipped. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 - Status: complete
 - Actions taken:
   - Rendered task-card request bodies and execution summaries with `MarkdownViewer` so queue cards preserve original line breaks and Markdown formatting.

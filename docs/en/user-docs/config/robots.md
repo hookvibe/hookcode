@@ -42,11 +42,14 @@ Choose the minimal permissions required for your use case:
 
 ## Model provider configuration (Codex / Claude Code / Gemini CLI)
 
-Each robot selects a model provider and a credential source:
+{/* Normalize this robot doc comment to Mintlify-safe MDX syntax while preserving provider credential guidance. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313 */}
+HookCode checks local machine provider auth first during execution. If no local CLI login or environment key is available, the robot falls back to its configured stored credential source:
 
 - **robot**: store the API key directly on the robot configuration.
-- **user**: select an account-level model credential profile.
 - **repo**: select a repo-scoped model credential profile.
+- **user**: select an account-level model credential profile.
+
+If a robot is configured for **repo** but the repo-scoped profile is unavailable, HookCode falls back to the user-scoped profile.
 
 Depending on the provider, you may also configure:
 
@@ -61,6 +64,37 @@ Automation rules can further adjust prompts via:
 
 - **promptPatch**: appended after the robot default template
 - **promptOverride**: full override (ignores the robot default template and patch)
+
+{/* Document the robot playground entry points and dry-run safety guarantees for repo editors. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313 */}
+## Prompt playground and dry run
+
+The repo robot editor now exposes two validation actions:
+
+- **Preview Prompt**: render the final prompt for the current unsaved robot draft without running a model.
+- **Dry Run**: run the same draft through the selected provider in an isolated temporary workspace.
+
+The playground supports these simulation inputs:
+
+- `manual_chat`
+- `issue`
+- `merge_request`
+- `push`
+- `custom` payload
+
+Every run shows:
+
+- the final rendered prompt
+- resolved provider/model/sandbox information
+- credential-resolution summary and routing attempts
+- model output (for `execute_no_side_effect`)
+- warnings and side-effect protections
+
+Dry runs are intentionally constrained:
+
+- they never mutate the real repository checkout
+- they never post provider comments or status updates
+- they never create PRs/MRs
+- they never persist a real task execution record
 
 {/* Document robot dependency overrides for install behavior. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124 */}
 ## Dependency install overrides

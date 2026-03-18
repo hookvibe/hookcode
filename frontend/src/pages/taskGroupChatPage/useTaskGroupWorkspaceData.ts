@@ -203,7 +203,7 @@ export const useTaskGroupWorkspaceData = ({
 
   // Keep a polling safety net while queued/processing tasks are visible because a just-created group can miss the first SSE status event during route handoff. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   const hasActiveTasks = useMemo(
-    () => orderedTasks.some((task) => task.status === 'queued' || task.status === 'processing'),
+    () => orderedTasks.some((task) => task.status === 'queued' || task.status === 'waiting_approval' || task.status === 'processing'),
     [orderedTasks]
   );
 
@@ -467,6 +467,20 @@ export const useTaskGroupWorkspaceData = ({
     taskDetailRequestRef.current[taskId] = request;
     return request;
   }, [taskDetailsById]);
+
+  useEffect(() => {
+    // Eagerly hydrate approval-gated task details so queue cards can render approval summaries/actions without opening logs first. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+    orderedTasks
+      .filter(
+        (task) =>
+          (task.status === 'waiting_approval' || Boolean(task.approvalRequest)) &&
+          !task.approvalRequest &&
+          taskDetailsById[task.id] === undefined
+      )
+      .forEach((task) => {
+        void ensureTaskDetail(task.id);
+      });
+  }, [ensureTaskDetail, orderedTasks, taskDetailsById]);
 
   const handleSend = useCallback(async (text: string) => {
     const trimmed = String(text ?? '').trim();

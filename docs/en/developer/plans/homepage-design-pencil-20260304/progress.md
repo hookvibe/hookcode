@@ -1,6 +1,5 @@
 ## Progress Log
-<!-- Log execution milestones, touched files, and verification steps for the homepage design session. docs/en/developer/plans/homepage-design-pencil-20260304/task_plan.md homepage-design-pencil-20260304 -->
-
+{/* Log execution milestones, touched files, and verification steps for the homepage design session. docs/en/developer/plans/homepage-design-pencil-20260304/task_plan.md homepage-design-pencil-20260304 */}
 ## Session Metadata
 - **Session Title:** Design frontend homepage in pencil
 - **Session Hash:** homepage-design-pencil-20260304

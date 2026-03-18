@@ -53,7 +53,11 @@ const ZH_SUMMARY_BY_OPERATION_ID: Record<string, string> = {
   task_groups_tasks: '任务分组下的任务列表',
 
   webhook_gitlab: 'GitLab Webhook',
-  webhook_github: 'GitHub Webhook'
+  webhook_github: 'GitHub Webhook',
+  webhook_events_list: 'Webhook 事件列表',
+  webhook_events_get: 'Webhook 事件详情',
+  webhook_events_replay: 'Webhook 事件重放',
+  webhook_events_replay_dry_run: 'Webhook 事件干跑重放'
 };
 
 const applyZhSummaries = (doc: any) => {
