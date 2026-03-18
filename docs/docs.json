@@ -40,7 +40,6 @@
                 "pages": [
                   "en/user-docs/features",
                   "en/user-docs/workers",
-                  "en/user-docs/split-host-deployment",
                   "en/user-docs/preview",
                   "en/user-docs/environment",
                   "en/user-docs/custom-dockerfile",

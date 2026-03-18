@@ -67,7 +67,7 @@ cp docker/.env.example docker/.env
 - `AUTH_ADMIN_USERNAME`
 - `AUTH_ADMIN_PASSWORD`
 - 如需修改容器内工作根目录，再调整 `HOOKCODE_WORK_DIR`（必须保持绝对路径，例如 `/var/lib/hookcode`）
-- 如不想继续使用示例 bundled worker token，请修改 `HOOKCODE_SYSTEM_WORKER_TOKEN`
+- 如不想继续使用示例 Docker worker 绑定码，请修改 `HOOKCODE_SYSTEM_WORKER_BIND_CODE`
 
 ### 2）构建并启动全部服务
 
@@ -76,15 +76,6 @@ docker compose -f docker/docker-compose.yml up -d --build
 ```
 
 如果希望 backend 仅等待独立部署的远程 worker，请只启动 `db backend frontend`，不要带上同 Compose 的 `worker` 服务。
-
-<!-- Add the dedicated remote-worker Docker entrypoint so operators can split backend and executor hosts with repo-provided files. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
-
-如果要在另一台机器单独部署 worker：
-
-```bash
-cp docker/.env.remote-worker.example docker/.env.remote-worker
-docker compose --env-file docker/.env.remote-worker -f docker/docker-compose.remote-worker.yml up -d --build
-```
 
 ### 3）查看运行状态和日志
 
@@ -144,14 +135,12 @@ docker compose -f docker/docker-compose.yml down -v
 
 - Docker 相关资源在 `docker/` 目录：
   - 主栈 Compose 文件：`docker/docker-compose.yml`
-  - 独立远程 worker Compose 文件：`docker/docker-compose.remote-worker.yml`
   - Nginx 反向代理配置：`docker/nginx/frontend.conf`
   - 主栈环境变量文件：`docker/.env`
-  - 独立远程 worker 环境变量文件：`docker/.env.remote-worker`
 - 端口覆盖：`HOOKCODE_FRONTEND_PORT`、`HOOKCODE_BACKEND_PORT`、`HOOKCODE_DB_PORT`
 - 数据库凭据：`DB_USER`、`DB_PASSWORD`、`DB_NAME`
 - 运行时存储：`HOOKCODE_WORK_DIR`（Docker Compose 会把 backend/worker 各自的命名卷挂到这个容器内绝对路径）
-- 默认 Docker worker 模式：backend 以 `HOOKCODE_SYSTEM_WORKER_MODE=external` 启动，同 Compose 的 `worker` 服务默认复用同一组 `HOOKCODE_SYSTEM_WORKER_*` 凭据
+- 默认 Docker worker 模式：backend 以 `HOOKCODE_SYSTEM_WORKER_MODE=external` 启动，可选的同 Compose `worker` 服务会在首次启动时消费同一个 `HOOKCODE_SYSTEM_WORKER_BIND_CODE`，随后从 `HOOKCODE_WORK_DIR` 中持久化的凭据继续启动
 - Cloudflare 单端口路由：
   - 保持 `VITE_API_BASE_URL=/api`
   - 通过 `https://<你的域名>/api/...` 访问 API（不要用 `:8000`）

@@ -23,6 +23,7 @@ import { PreviewHostProxyService } from './modules/tasks/preview-host-proxy.serv
 import { WorkersConnectionService } from './modules/workers/workers-connection.service';
 import { LocalWorkerSupervisorService } from './modules/workers/local-worker-supervisor.service';
 import { WorkersService } from './modules/workers/workers.service';
+import { REQUIRED_WORKER_VERSION, isDeclaredWorkerDependencyAligned, readDeclaredWorkerDependencyVersion } from './modules/workers/worker-version-policy';
 import { readExternalSystemWorkerConfig, readSystemWorkerMode } from './modules/workers/system-worker-config';
 import { HttpErrorMessageFilter } from './modules/common/filters/http-error-message.filter';
 import { AuditLogInterceptor } from './modules/logs/audit-log.interceptor';
@@ -177,6 +178,18 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
     console.warn(`${logTag} log services unavailable`, err);
   }
 
+  if (!isDeclaredWorkerDependencyAligned()) {
+    const declaredWorkerVersion = readDeclaredWorkerDependencyVersion() ?? 'missing';
+    const message = `Backend declares ${declaredWorkerVersion} for @hookvibe/hookcode-worker but runtime requires ${REQUIRED_WORKER_VERSION}. Update backend/package.json to match.`;
+    console.warn(`${logTag} ${message}`);
+    void logWriter?.logSystem({
+      level: 'warn',
+      message,
+      code: 'WORKER_DEPENDENCY_VERSION_MISMATCH',
+      meta: { declaredWorkerVersion, requiredWorkerVersion: REQUIRED_WORKER_VERSION }
+    });
+  }
+
   const runtimeService = app.get(RuntimeService);
   try {
     // Detect available runtimes once on startup for dependency installs. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
@@ -329,8 +342,7 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
     const externalSystemWorker = readExternalSystemWorkerConfig(process.env);
     const workersService = app.get(WorkersService);
     await workersService.ensureExternalSystemWorker({
-      workerId: externalSystemWorker!.workerId,
-      token: externalSystemWorker!.token,
+      bindCode: externalSystemWorker!.bindCode,
       name: externalSystemWorker!.name,
       maxConcurrency: externalSystemWorker!.maxConcurrency,
       backendBaseUrl

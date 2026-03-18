@@ -24,6 +24,7 @@ Notes:
 
 - The local worker is registered as a **system-managed** worker.
 - It shares the same standalone worker runtime as remote workers.
+- In source mode, backend installs and starts the published `@hookvibe/hookcode-worker` package as a normal npm dependency.
 - In v1, preview/proxy features remain **local-worker only**.
 
 ## Remote workers
@@ -41,65 +42,55 @@ Typical examples:
 
 Go to **Settings → Workers** as an admin and create a worker.
 
-The UI returns bootstrap information once:
+The UI returns a one-time bind code plus an expiry time.
 
-- `workerId`
-- `token`
-- `backendUrl`
-- `wsUrl`
-
-Save the token immediately. The plain token is only shown at creation/rotation time.
+Save the bind code immediately. Each bind code can only be consumed once.
 
 ### Start a remote worker
 
-Today the worker is shipped inside the HookCode monorepo/workspace.
+The worker is now shipped as an external npm package and GHCR image.
 
-{/* Document Docker/production external-worker bootstrapping so operators can reuse the same system worker credentials for bundled and fully remote executors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
-For Docker/production deployments you can also let backend bootstrap a default external worker from env by setting `HOOKCODE_SYSTEM_WORKER_MODE=external` plus the matching `HOOKCODE_SYSTEM_WORKER_*` credentials. The bundled Docker worker container can reuse that same id/token, or you can keep `HOOKCODE_DOCKER_INCLUDE_WORKER=false` and run the worker on another machine with the same credentials.
-If you start Docker Compose manually instead of the CI helper script, the same remote-worker-only setup is just `docker compose -f docker/docker-compose.yml up -d --build db backend frontend` while the remote worker runs elsewhere with the same `HOOKCODE_SYSTEM_WORKER_*` credentials.
-
-#### Option A: Run the worker directly from the repo
+#### Option A: Run the published npm package directly
 
 ```bash
-HOOKCODE_BACKEND_URL="https://your-hookcode.example.com/api" \
-HOOKCODE_WORKER_ID="worker_xxx" \
-HOOKCODE_WORKER_TOKEN="token_xxx" \
+HOOKCODE_WORK_DIR="$HOME/.hookcode/workers/worker-a" \
+HOOKCODE_WORKER_BIND_CODE="hcw1...." \
+hookcode-worker configure
+
+HOOKCODE_WORK_DIR="$HOME/.hookcode/workers/worker-a" \
 HOOKCODE_WORKER_NAME="Build Host A" \
 HOOKCODE_WORKER_KIND="remote" \
 HOOKCODE_WORKER_MAX_CONCURRENCY="1" \
-pnpm --filter hookcode-worker start
+npx @hookvibe/hookcode-worker@0.1.2
 ```
 
-#### Option B: Run a dedicated Docker worker on another machine
-
-{/* Add an explicit remote-worker Docker path so operators can separate the backend host from the worker host without hand-writing Compose files. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
-1. Copy `docker/.env.remote-worker.example` to `docker/.env.remote-worker`.
-2. Fill `HOOKCODE_BACKEND_URL`, `HOOKCODE_WORKER_ID`, and `HOOKCODE_WORKER_TOKEN`.
-3. Start the worker host:
+Or pin it globally first:
 
 ```bash
-docker compose --env-file docker/.env.remote-worker -f docker/docker-compose.remote-worker.yml up -d --build
+npm install -g @hookvibe/hookcode-worker@0.1.2
 ```
-
-4. Inspect logs when needed:
 
 ```bash
-docker compose --env-file docker/.env.remote-worker -f docker/docker-compose.remote-worker.yml logs -f worker
-```
+HOOKCODE_WORK_DIR="$HOME/.hookcode/workers/worker-a" \
+HOOKCODE_WORKER_BIND_CODE="hcw1...." \
+hookcode-worker configure
 
-{/* Link the new split-host deployment runbook from the worker guide so operators can jump from bootstrap concepts to the full production sequence. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
-For the full production sequence across a backend host and a separate worker host, see [Split-Host Deployment](./split-host-deployment).
+HOOKCODE_WORK_DIR="$HOME/.hookcode/workers/worker-a" \
+HOOKCODE_WORKER_NAME="Build Host A" \
+HOOKCODE_WORKER_KIND="remote" \
+HOOKCODE_WORKER_MAX_CONCURRENCY="1" \
+hookcode-worker
+```
 
 Useful environment variables:
 
-- `HOOKCODE_BACKEND_URL`: backend API base URL
-- `HOOKCODE_WORKER_ID`: worker id from the admin panel
-- `HOOKCODE_WORKER_TOKEN`: worker bootstrap token
+- `HOOKCODE_WORKER_BIND_CODE`: one-time bind code copied from the admin panel
 - `HOOKCODE_WORKER_NAME`: display name shown in the UI
 - `HOOKCODE_WORKER_KIND`: `local` or `remote`
 - `HOOKCODE_WORKER_MAX_CONCURRENCY`: max concurrent tasks
 - `HOOKCODE_WORK_DIR`: shared root for `task-groups`, worker `runtime`, and worker `workspaces` (defaults to `~/.hookcode`)
 - `HOOKCODE_WORKER_PREVIEW`: keep `false` for remote workers in v1
+- `HOOKCODE_WORKER_FORCE_RECONFIGURE`: force a fresh bind-code exchange even if stored credentials already exist
 
 ## Runtime installation
 
@@ -142,5 +133,5 @@ If a worker goes offline:
 ## Current limitations
 
 - Remote preview is not supported in v1.
-- Worker creation, token rotation, enable/disable, and deletion are admin-only.
+- Worker creation, bind-code reset, enable/disable, and deletion are admin-only.
 - Chat worker override currently depends on admin access because worker listing is admin-only.

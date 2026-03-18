@@ -1,11 +1,20 @@
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { db } from '../../db';
 import type { TaskResult, TaskStatus } from '../../types/task';
-import type { WorkerCapabilities, WorkerRecord, WorkerRuntimeState, WorkerSummary } from '../../types/worker';
+import type { WorkerBindInfo, WorkerCapabilities, WorkerRecord, WorkerRuntimeState, WorkerSummary, WorkerVersionRequirement } from '../../types/worker';
 import type { WorkerHelloMessage, WorkerHeartbeatMessage } from '../../types/workerProtocol';
+import { hashToken } from '../../utils/token';
 import { LogWriterService } from '../logs/log-writer.service';
+import {
+  buildWorkerBindCode,
+  buildWorkerBindCodeExpiresAt,
+  hashWorkerBindCodeSecret,
+  isWorkerBindCodeExpired,
+  parseWorkerBindCode
+} from './worker-bind-code';
+import { buildWorkerVersionMismatchMessage, evaluateWorkerVersion, getWorkerVersionRequirement } from './worker-version-policy';
 
 const toIso = (value: unknown): string => {
   if (value instanceof Date) return value.toISOString();
@@ -18,12 +27,12 @@ const trimString = (value: unknown): string | undefined => {
   return raw ? raw : undefined;
 };
 
-const hashToken = (token: string): string =>
-  // Hash worker bootstrap tokens before persisting them so leaked DB rows cannot connect workers. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-  createHash('sha256').update(token).digest('hex');
+const buildWorkerToken = (): string =>
+  // Generate long-lived worker session tokens after a bind code is exchanged successfully.
+  randomBytes(24).toString('hex');
 
-const buildBootstrapToken = (): string =>
-  // Generate single-view worker bootstrap tokens so admins can provision remote executors safely. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+const buildBindCodeSecret = (): string =>
+  // Generate one-time bind-code secrets so worker installation can start from a single string.
   randomBytes(24).toString('hex');
 
 const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined =>
@@ -46,6 +55,7 @@ const workerToRecord = (row: any): WorkerRecord => ({
   ...workerToSummary(row),
   systemManaged: Boolean(row.systemManaged ?? row.system_managed),
   version: trimString(row.version),
+  versionState: evaluateWorkerVersion(row.version),
   platform: trimString(row.platform),
   arch: trimString(row.arch),
   hostname: trimString(row.hostname),
@@ -66,6 +76,39 @@ const workerToRecord = (row: any): WorkerRecord => ({
 export class WorkersService {
   constructor(private readonly logWriter: LogWriterService) {}
 
+  getWorkerVersionRequirement(): WorkerVersionRequirement {
+    return getWorkerVersionRequirement();
+  }
+
+  private async issueBindCode(
+    workerId: string,
+    backendUrl: string,
+    options?: { clearRuntimeToken?: boolean }
+  ): Promise<WorkerBindInfo> {
+    const secret = buildBindCodeSecret();
+    const bindCodeExpiresAt = buildWorkerBindCodeExpiresAt();
+    const bindCode = buildWorkerBindCode({ workerId, backendUrl, secret });
+    const updated = await db.worker.update({
+      where: { id: workerId },
+      data: {
+        backendBaseUrl: backendUrl,
+        bindCodeHash: hashWorkerBindCodeSecret(secret),
+        bindCodeExpiresAt,
+        bindCodeUsedAt: null,
+        status: 'offline',
+        currentConcurrency: 0,
+        ...(options?.clearRuntimeToken ? { tokenHash: null } : {}),
+        updatedAt: new Date()
+      }
+    });
+    return {
+      worker: workerToRecord(updated),
+      bindCode,
+      bindCodeExpiresAt: bindCodeExpiresAt.toISOString(),
+      versionRequirement: this.getWorkerVersionRequirement()
+    };
+  }
+
   async listWorkers(): Promise<WorkerRecord[]> {
     // Load worker registry rows for the admin settings page and worker-aware selectors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     const rows = await db.worker.findMany({ orderBy: [{ systemManaged: 'desc' }, { createdAt: 'asc' }] });
@@ -81,8 +124,8 @@ export class WorkersService {
     actorUserId?: string;
     name: string;
     maxConcurrency?: number;
-  }): Promise<{ worker: WorkerRecord; token: string }> {
-    const token = buildBootstrapToken();
+    backendUrl: string;
+  }): Promise<WorkerBindInfo> {
     const now = new Date();
     const row = await db.worker.create({
       data: {
@@ -94,7 +137,6 @@ export class WorkersService {
         capabilities: { preview: false },
         maxConcurrency: Number.isFinite(params.maxConcurrency) && Number(params.maxConcurrency) > 0 ? Math.floor(Number(params.maxConcurrency)) : 1,
         currentConcurrency: 0,
-        tokenHash: hashToken(token),
         createdByUserId: params.actorUserId,
         createdAt: now,
         updatedAt: now
@@ -108,31 +150,30 @@ export class WorkersService {
       actorUserId: params.actorUserId,
       meta: { workerId: row.id, kind: row.kind, systemManaged: row.systemManaged }
     });
-    return { worker: workerToRecord(row), token };
+    return this.issueBindCode(String(row.id), params.backendUrl, { clearRuntimeToken: true });
   }
 
   async ensureLocalSystemWorker(params: {
     name: string;
     backendBaseUrl?: string;
     maxConcurrency?: number;
-  }): Promise<{ worker: WorkerRecord; token: string }> {
+  }): Promise<{ worker: WorkerRecord; bindCode: string; bindCodeExpiresAt: string }> {
     const now = new Date();
     const existing = await db.worker.findFirst({ where: { systemManaged: true, kind: 'local' }, orderBy: { createdAt: 'asc' } });
-    const token = buildBootstrapToken();
+    const backendBaseUrl = trimString(params.backendBaseUrl) ?? 'http://127.0.0.1:3000/api';
     if (existing) {
       const updated = await db.worker.update({
         where: { id: existing.id },
         data: {
           name: params.name,
           status: 'offline',
-          backendBaseUrl: params.backendBaseUrl,
+          backendBaseUrl,
           maxConcurrency: Number.isFinite(params.maxConcurrency) && Number(params.maxConcurrency) > 0 ? Math.floor(Number(params.maxConcurrency)) : existing.maxConcurrency,
           currentConcurrency: 0,
-          tokenHash: hashToken(token),
           updatedAt: now
         }
       });
-      return { worker: workerToRecord(updated), token };
+      return this.issueBindCode(String(updated.id), backendBaseUrl, { clearRuntimeToken: true });
     }
     const created = await db.worker.create({
       data: {
@@ -141,29 +182,31 @@ export class WorkersService {
         kind: 'local',
         status: 'offline',
         systemManaged: true,
-        backendBaseUrl: params.backendBaseUrl,
+        backendBaseUrl,
         capabilities: { preview: true },
         maxConcurrency: Number.isFinite(params.maxConcurrency) && Number(params.maxConcurrency) > 0 ? Math.floor(Number(params.maxConcurrency)) : 2,
         currentConcurrency: 0,
-        tokenHash: hashToken(token),
         createdAt: now,
         updatedAt: now
       }
     });
-    return { worker: workerToRecord(created), token };
+    return this.issueBindCode(String(created.id), backendBaseUrl, { clearRuntimeToken: true });
   }
 
   async ensureExternalSystemWorker(params: {
-    workerId: string;
-    token: string;
+    bindCode: string;
     name: string;
     maxConcurrency?: number;
     backendBaseUrl?: string;
   }): Promise<WorkerRecord> {
+    const parsed = parseWorkerBindCode(params.bindCode);
+    if (!parsed) {
+      throw new Error('HOOKCODE_SYSTEM_WORKER_BIND_CODE is invalid');
+    }
     const now = new Date();
-    const existing = await db.worker.findUnique({ where: { id: params.workerId } });
+    const existing = await db.worker.findUnique({ where: { id: parsed.workerId } });
     if (existing && (!existing.systemManaged || existing.kind !== 'remote')) {
-      throw new Error(`Configured external system worker id is already owned by a non-system remote worker: ${params.workerId}`);
+      throw new Error(`Configured external system worker id is already owned by a non-system remote worker: ${parsed.workerId}`);
     }
 
     const payload = {
@@ -172,27 +215,41 @@ export class WorkersService {
       status: 'offline' as const,
       systemManaged: true,
       disabledAt: null,
-      backendBaseUrl: params.backendBaseUrl,
+      backendBaseUrl: trimString(params.backendBaseUrl) ?? parsed.backendUrl,
       capabilities: { preview: false },
       maxConcurrency: Number.isFinite(params.maxConcurrency) && Number(params.maxConcurrency) > 0 ? Math.floor(Number(params.maxConcurrency)) : 1,
       currentConcurrency: 0,
-      tokenHash: hashToken(params.token),
       updatedAt: now
     };
 
-    // Bootstrap one backend-owned external worker record from env so Docker/production can default to a remote executor without manual panel setup. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    const row = existing
-      ? await db.worker.update({
-          where: { id: params.workerId },
-          data: payload
-        })
-      : await db.worker.create({
-          data: {
-            id: params.workerId,
-            ...payload,
-            createdAt: now
-          }
-        });
+    const row =
+      existing && existing.tokenHash && existing.bindCodeUsedAt
+        ? await db.worker.update({
+            where: { id: parsed.workerId },
+            data: payload
+          })
+        : existing
+          ? await db.worker.update({
+              where: { id: parsed.workerId },
+              data: {
+                ...payload,
+                bindCodeHash: hashWorkerBindCodeSecret(parsed.secret),
+                bindCodeExpiresAt: buildWorkerBindCodeExpiresAt(now),
+                bindCodeUsedAt: null,
+                tokenHash: null
+              }
+            })
+          : await db.worker.create({
+              data: {
+                id: parsed.workerId,
+                ...payload,
+                bindCodeHash: hashWorkerBindCodeSecret(parsed.secret),
+                bindCodeExpiresAt: buildWorkerBindCodeExpiresAt(now),
+                bindCodeUsedAt: null,
+                tokenHash: null,
+                createdAt: now
+              }
+            });
 
     void this.logWriter.logSystem({
       level: 'info',
@@ -202,15 +259,52 @@ export class WorkersService {
     });
     return workerToRecord(row);
   }
-  async rotateWorkerToken(id: string): Promise<{ worker: WorkerRecord; token: string } | null> {
+
+  async resetWorkerBindCode(id: string, backendUrl: string): Promise<WorkerBindInfo | null> {
     const existing = await db.worker.findUnique({ where: { id } });
     if (!existing) return null;
-    const token = buildBootstrapToken();
+    return this.issueBindCode(id, backendUrl, { clearRuntimeToken: true });
+  }
+
+  async registerWorker(bindCode: string): Promise<{ worker: WorkerRecord; workerId: string; workerToken: string; backendUrl: string }> {
+    const parsed = parseWorkerBindCode(bindCode);
+    if (!parsed) {
+      throw new Error('Invalid worker bind code');
+    }
+
+    const row = await db.worker.findUnique({ where: { id: parsed.workerId } });
+    if (!row?.bindCodeHash || row.disabledAt || row.status === 'disabled') {
+      throw new Error('Worker bind code is invalid or the worker is disabled');
+    }
+    if (row.bindCodeUsedAt) {
+      throw new Error('Worker bind code has already been used');
+    }
+    if (isWorkerBindCodeExpired(row.bindCodeExpiresAt)) {
+      throw new Error('Worker bind code has expired');
+    }
+    if (row.bindCodeHash !== hashWorkerBindCodeSecret(parsed.secret)) {
+      throw new Error('Worker bind code is invalid');
+    }
+
+    const workerToken = buildWorkerToken();
     const updated = await db.worker.update({
-      where: { id },
-      data: { tokenHash: hashToken(token), updatedAt: new Date() }
+      where: { id: parsed.workerId },
+      data: {
+        tokenHash: hashToken(workerToken),
+        bindCodeUsedAt: new Date(),
+        backendBaseUrl: parsed.backendUrl,
+        status: 'offline',
+        currentConcurrency: 0,
+        updatedAt: new Date()
+      }
     });
-    return { worker: workerToRecord(updated), token };
+
+    return {
+      worker: workerToRecord(updated),
+      workerId: String(updated.id),
+      workerToken,
+      backendUrl: parsed.backendUrl
+    };
   }
 
   async verifyWorkerToken(id: string, token: string): Promise<WorkerRecord | null> {
@@ -271,7 +365,22 @@ export class WorkersService {
       code: 'WORKER_CONNECTED',
       meta: { workerId: updated.id, kind: updated.kind, version: updated.version }
     });
-    return workerToRecord(updated);
+    const record = workerToRecord(updated);
+    if (record.versionState.upgradeRequired) {
+      const requirement = this.getWorkerVersionRequirement();
+      void this.logWriter.logSystem({
+        level: 'warn',
+        message: buildWorkerVersionMismatchMessage(updated.name, updated.version),
+        code: 'WORKER_VERSION_MISMATCH',
+        meta: {
+          workerId: updated.id,
+          currentVersion: record.versionState.currentVersion,
+          requiredVersion: requirement.requiredVersion,
+          upgradeCommand: requirement.npmInstallCommand
+        }
+      });
+    }
+    return record;
   }
 
   async recordHeartbeat(workerId: string, message: WorkerHeartbeatMessage): Promise<void> {
@@ -422,8 +531,16 @@ export class WorkersService {
     const systemWorkers = await db.worker.findMany({
       where: { systemManaged: true, disabledAt: null },
       orderBy: [{ createdAt: 'asc' }],
-      select: { id: true, kind: true, status: true }
+      select: { id: true, kind: true, status: true, version: true }
     });
+    const firstOnlineCompatibleLocal = systemWorkers.find(
+      (worker) => worker.kind === 'local' && worker.status === 'online' && !evaluateWorkerVersion(worker.version).upgradeRequired
+    );
+    if (firstOnlineCompatibleLocal?.id) return trimString(firstOnlineCompatibleLocal.id) ?? null;
+    const firstOnlineCompatibleRemote = systemWorkers.find(
+      (worker) => worker.kind === 'remote' && worker.status === 'online' && !evaluateWorkerVersion(worker.version).upgradeRequired
+    );
+    if (firstOnlineCompatibleRemote?.id) return trimString(firstOnlineCompatibleRemote.id) ?? null;
     const firstOnlineLocal = systemWorkers.find((worker) => worker.kind === 'local' && worker.status === 'online');
     if (firstOnlineLocal?.id) return trimString(firstOnlineLocal.id) ?? null;
     const firstOnlineRemote = systemWorkers.find((worker) => worker.kind === 'remote' && worker.status === 'online');
@@ -435,8 +552,8 @@ export class WorkersService {
   }
 
   async isWorkerOnline(id: string): Promise<boolean> {
-    const worker = await db.worker.findUnique({ where: { id }, select: { status: true, disabledAt: true } });
-    return Boolean(worker && worker.status === 'online' && !worker.disabledAt);
+    const worker = await db.worker.findUnique({ where: { id }, select: { status: true, disabledAt: true, version: true } });
+    return Boolean(worker && worker.status === 'online' && !worker.disabledAt && !evaluateWorkerVersion(worker.version).upgradeRequired);
   }
 
   async attachWorkerSummaries<T extends { workerId?: string | null }>(rows: T[]): Promise<Array<T & { workerSummary?: WorkerSummary }>> {
@@ -451,12 +568,19 @@ export class WorkersService {
   }
 
   async requireWorkerReadyForNewTask(workerId: string): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
-    const worker = await db.worker.findUnique({ where: { id: workerId }, select: { status: true, disabledAt: true, name: true } });
+    const worker = await db.worker.findUnique({ where: { id: workerId }, select: { status: true, disabledAt: true, name: true, version: true } });
     if (!worker) {
       return { ok: false, code: 'WORKER_NOT_FOUND', message: 'Selected worker not found' };
     }
     if (worker.disabledAt || worker.status === 'disabled') {
       return { ok: false, code: 'WORKER_DISABLED', message: 'Selected worker is disabled' };
+    }
+    if (evaluateWorkerVersion(worker.version).upgradeRequired) {
+      return {
+        ok: false,
+        code: 'WORKER_VERSION_MISMATCH',
+        message: buildWorkerVersionMismatchMessage(worker.name, worker.version)
+      };
     }
     if (worker.status !== 'online') {
       return { ok: false, code: 'WORKER_OFFLINE_TASK_GROUP_BLOCKED', message: `Selected worker is offline: ${worker.name}` };

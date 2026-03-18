@@ -23,7 +23,7 @@ bash "${docker_dir}/ci/write-ci-env.sh" "${docker_dir}/.env"
 # - We enforce `-p hookcode` so migrating the compose file path (root -> docker/) won't change the project name.
 services=(db backend frontend)
 include_worker_norm="$(echo "${HOOKCODE_DOCKER_INCLUDE_WORKER:-false}" | tr '[:upper:]' '[:lower:]' | xargs)"
-# Let CI/server deployments choose between a bundled Docker worker and an externally deployed worker without maintaining separate compose files. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+# Let CI/server deployments choose between the compose-managed published worker image and an externally deployed worker without maintaining separate compose files.
 if [[ "${include_worker_norm}" == "1" || "${include_worker_norm}" == "true" || "${include_worker_norm}" == "yes" || "${include_worker_norm}" == "y" || "${include_worker_norm}" == "on" ]]; then
   services+=(worker)
 fi

@@ -2,4 +2,3 @@ packages:
   - "backend"
   - "frontend"
   - "docs"
-  - "worker"

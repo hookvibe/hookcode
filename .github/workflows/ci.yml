@@ -84,19 +84,11 @@ jobs:
           HOOKCODE_DB_NAME: ${{ secrets.HOOKCODE_DB_NAME || 'hookcode' }}
           # Keep CI Docker deployments on an explicit absolute work root so backend and worker runtime state land on the mounted HOOKCODE_WORK_DIR volumes. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
           HOOKCODE_WORK_DIR: ${{ vars.HOOKCODE_WORK_DIR || '/var/lib/hookcode' }}
-          # Keep server deployments on the external system-worker path by default; a remote worker can reuse the same bootstrap id/token from GitHub Actions secrets/vars. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-          HOOKCODE_DOCKER_INCLUDE_WORKER: ${{ vars.HOOKCODE_DOCKER_INCLUDE_WORKER || 'false' }}
-          HOOKCODE_SYSTEM_WORKER_MODE: ${{ vars.HOOKCODE_SYSTEM_WORKER_MODE || 'external' }}
-          HOOKCODE_SYSTEM_WORKER_ID: ${{ vars.HOOKCODE_SYSTEM_WORKER_ID || '11111111-1111-4111-8111-111111111111' }}
-          HOOKCODE_SYSTEM_WORKER_TOKEN: ${{ secrets.HOOKCODE_SYSTEM_WORKER_TOKEN || '' }}
-          HOOKCODE_SYSTEM_WORKER_NAME: ${{ vars.HOOKCODE_SYSTEM_WORKER_NAME || 'GitHub Actions Default Worker' }}
-          HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY: ${{ vars.HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY || '1' }}
-          HOOKCODE_DOCKER_WORKER_BACKEND_URL: ${{ vars.HOOKCODE_DOCKER_WORKER_BACKEND_URL || 'http://backend:4000/api' }}
+          # CI no longer bootstraps a default worker from GitHub Actions. Remote workers are expected to be deployed and bound manually when needed.
+          HOOKCODE_SYSTEM_WORKER_MODE: "disabled"
           # Auth (recommended for internet-facing deployments; written into `docker/.env`).
           AUTH_TOKEN_SECRET: ${{ secrets.AUTH_TOKEN_SECRET || '' }}
           AUTH_ADMIN_USERNAME: ${{ secrets.AUTH_ADMIN_USERNAME || '' }}
           AUTH_ADMIN_PASSWORD: ${{ secrets.AUTH_ADMIN_PASSWORD || '' }}
         run: |
           bash docker/ci/compose-build-up.sh
-          # Validate the dedicated remote-worker compose assets so backend-only and split-host deployments stay documented and syntax-checked together. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-          docker compose --env-file docker/.env.remote-worker.example -f docker/docker-compose.remote-worker.yml config >/dev/null

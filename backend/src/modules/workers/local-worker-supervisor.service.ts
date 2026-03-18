@@ -4,8 +4,10 @@ import path from 'path';
 import { stopChildProcessTree } from '../../utils/crossPlatformSpawn';
 import { resolveBackendWorkDirRoot, resolveBuildRoot } from '../../utils/workDir';
 import { WorkersService } from './workers.service';
+import { evaluateWorkerVersion, getWorkerVersionRequirement } from './worker-version-policy';
 
 const trimString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+const WORKER_PACKAGE_NAME = '@hookvibe/hookcode-worker';
 
 export const normalizeLocalWorkerBackendUrl = (backendBaseUrl: string): string => {
   const fallback = 'http://127.0.0.1:3000/api';
@@ -19,6 +21,29 @@ export const normalizeLocalWorkerBackendUrl = (backendBaseUrl: string): string =
     return url.toString().replace(/\/+$/, '');
   } catch {
     return fallback;
+  }
+};
+
+export const resolveInstalledWorkerPackage = (
+  resolve = require.resolve,
+  load: (id: string) => { bin?: string | Record<string, string>; version?: string } = require
+): { entryPath: string; version?: string } | null => {
+  try {
+    const packageJsonPath = resolve(`${WORKER_PACKAGE_NAME}/package.json`);
+    const manifest = load(packageJsonPath);
+    const rawBin =
+      typeof manifest.bin === 'string'
+        ? manifest.bin
+        : manifest.bin && typeof manifest.bin['hookcode-worker'] === 'string'
+          ? manifest.bin['hookcode-worker']
+          : null;
+    if (!rawBin) return null;
+    return {
+      entryPath: path.resolve(path.dirname(packageJsonPath), rawBin),
+      version: trimString(manifest.version) || undefined
+    };
+  } catch {
+    return null;
   }
 };
 
@@ -39,21 +64,10 @@ export class LocalWorkerSupervisorService {
     });
     this.workerId = ensured.worker.id;
 
-    const repoRoot = path.resolve(process.cwd(), '..');
-    const workerEntry = path.resolve(process.cwd(), '../worker/dist/main.js');
-    const workerPackageJson = path.resolve(process.cwd(), '../worker/package.json');
-    const isBuiltWorkerAvailable = require('fs').existsSync(workerEntry);
-    const isWorkerPackagePresent = require('fs').existsSync(workerPackageJson);
-    if (!isWorkerPackagePresent) {
-      console.warn('[workers] worker package is missing; local worker supervisor skipped');
-      return;
-    }
-
     const env = {
       ...process.env,
-      HOOKCODE_WORKER_ID: ensured.worker.id,
-      HOOKCODE_WORKER_TOKEN: ensured.token,
-      HOOKCODE_BACKEND_URL: normalizedBackendUrl,
+      HOOKCODE_WORKER_BIND_CODE: ensured.bindCode,
+      HOOKCODE_WORKER_FORCE_RECONFIGURE: '1',
       HOOKCODE_WORKER_KIND: 'local',
       HOOKCODE_WORKER_NAME: 'Local Backend Worker',
       HOOKCODE_WORKER_PREVIEW: '1',
@@ -62,13 +76,25 @@ export class LocalWorkerSupervisorService {
       HOOKCODE_WORK_DIR: resolveBackendWorkDirRoot(resolveBuildRoot())
     };
 
-    // Spawn the colocated worker package automatically so each backend keeps one local executor online. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    // Use shell on Windows only for pnpm (a .cmd shim); skip shell for direct node binary to avoid
-    // path-with-spaces breakage (e.g. "C:\Program Files\nodejs\node.exe"). docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
-    const baseOpts: import('child_process').SpawnOptions = { cwd: repoRoot, env, stdio: 'inherit' };
-    this.child = isBuiltWorkerAvailable
-      ? spawn(process.execPath, [workerEntry], baseOpts)
-      : spawn('pnpm', ['--filter', 'hookcode-worker', 'dev'], { ...baseOpts, shell: process.platform === 'win32' });
+    const workerPackage = resolveInstalledWorkerPackage();
+    const versionRequirement = getWorkerVersionRequirement();
+    if (!workerPackage) {
+      console.warn(
+        `[workers] installed worker package ${WORKER_PACKAGE_NAME} could not be resolved; local worker supervisor skipped. Install with: ${versionRequirement.npmInstallCommand}`
+      );
+      return;
+    }
+    const versionState = evaluateWorkerVersion(workerPackage.version);
+    if (versionState.upgradeRequired) {
+      console.warn(
+        `[workers] installed worker package ${WORKER_PACKAGE_NAME} version ${versionState.currentVersion ?? 'unknown'} does not satisfy required version ${versionRequirement.requiredVersion}; local worker supervisor skipped. Upgrade with: ${versionRequirement.npmInstallCommand}`
+      );
+      return;
+    }
+
+    // Spawn the installed npm worker package so source-mode backends use the published executor runtime instead of a monorepo-local worker path.
+    const baseOpts: import('child_process').SpawnOptions = { cwd: process.cwd(), env, stdio: 'inherit' };
+    this.child = spawn(process.execPath, [workerPackage.entryPath], baseOpts);
 
     this.child.on('exit', (code, signal) => {
       console.warn('[workers] local worker exited', { code, signal });

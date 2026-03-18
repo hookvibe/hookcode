@@ -90,28 +90,23 @@ if [[ "${work_dir_root}" != /* ]]; then
   exit 1
 fi
 write_kv HOOKCODE_WORK_DIR "${work_dir_root}"
+write_kv HOOKCODE_WORKER_IMAGE "${HOOKCODE_WORKER_IMAGE:-ghcr.io/hookvibe/hookcode-worker}"
+write_kv HOOKCODE_WORKER_IMAGE_TAG "${HOOKCODE_WORKER_IMAGE_TAG:-0.1.2}"
 
 # Default CI/server Docker deployments to backend-managed external workers so the compose stack can either start a bundled worker or wait for a separately deployed remote worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
 include_worker_raw="${HOOKCODE_DOCKER_INCLUDE_WORKER:-false}"
 write_kv HOOKCODE_DOCKER_INCLUDE_WORKER "${include_worker_raw}"
 system_worker_mode="${HOOKCODE_SYSTEM_WORKER_MODE:-external}"
 write_kv HOOKCODE_SYSTEM_WORKER_MODE "${system_worker_mode}"
-system_worker_id="${HOOKCODE_SYSTEM_WORKER_ID:-11111111-1111-4111-8111-111111111111}"
 if [[ "${system_worker_mode}" == "external" ]]; then
-  if [[ ! "${system_worker_id}" =~ ^[0-9a-fA-F-]{36}$ ]]; then
-    echo "[ci] ERROR: HOOKCODE_SYSTEM_WORKER_ID must look like a UUID when HOOKCODE_SYSTEM_WORKER_MODE=external" >&2
-    exit 1
-  fi
-  if [[ -z "${HOOKCODE_SYSTEM_WORKER_TOKEN:-}" ]]; then
-    echo "[ci] ERROR: HOOKCODE_SYSTEM_WORKER_TOKEN is required when HOOKCODE_SYSTEM_WORKER_MODE=external" >&2
+  if [[ -z "${HOOKCODE_SYSTEM_WORKER_BIND_CODE:-}" ]]; then
+    echo "[ci] ERROR: HOOKCODE_SYSTEM_WORKER_BIND_CODE is required when HOOKCODE_SYSTEM_WORKER_MODE=external" >&2
     exit 1
   fi
 fi
-write_kv HOOKCODE_SYSTEM_WORKER_ID "${system_worker_id}"
-write_kv HOOKCODE_SYSTEM_WORKER_TOKEN "${HOOKCODE_SYSTEM_WORKER_TOKEN:-}"
-write_kv HOOKCODE_SYSTEM_WORKER_NAME "${HOOKCODE_SYSTEM_WORKER_NAME:-GitHub Actions Default Worker}"
+write_kv HOOKCODE_SYSTEM_WORKER_BIND_CODE "${HOOKCODE_SYSTEM_WORKER_BIND_CODE:-}"
+write_kv HOOKCODE_SYSTEM_WORKER_NAME "${HOOKCODE_SYSTEM_WORKER_NAME:-Docker Default Worker}"
 write_kv HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY "${HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY:-1}"
-write_kv HOOKCODE_DOCKER_WORKER_BACKEND_URL "${HOOKCODE_DOCKER_WORKER_BACKEND_URL:-http://backend:4000/api}"
 
 # ------------------------------------------------------------------------------
 # Backend - Auth (CI defaults should NOT be used in production)

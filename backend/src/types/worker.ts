@@ -1,5 +1,6 @@
 export type WorkerKind = 'local' | 'remote';
 export type WorkerStatus = 'online' | 'offline' | 'disabled';
+export type WorkerVersionStatus = 'compatible' | 'mismatch' | 'unknown';
 
 export interface WorkerCapabilities {
   // Limit preview support to local workers in v1 so remote dev-server proxying stays explicit. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
@@ -16,6 +17,21 @@ export interface WorkerRuntimeState {
   lastPrepareError?: string;
 }
 
+export interface WorkerVersionRequirement {
+  packageName: string;
+  requiredVersion: string;
+  npmInstallCommand: string;
+  cliUpgradeCommand: string;
+  dockerImage: string;
+  dockerPullCommand: string;
+}
+
+export interface WorkerVersionState {
+  currentVersion?: string;
+  status: WorkerVersionStatus;
+  upgradeRequired: boolean;
+}
+
 export interface WorkerSummary {
   id: string;
   name: string;
@@ -27,6 +43,7 @@ export interface WorkerSummary {
 export interface WorkerRecord extends WorkerSummary {
   systemManaged: boolean;
   version?: string;
+  versionState: WorkerVersionState;
   platform?: string;
   arch?: string;
   hostname?: string;
@@ -43,9 +60,15 @@ export interface WorkerRecord extends WorkerSummary {
   updatedAt: string;
 }
 
-export interface WorkerBootstrapInfo {
+export interface WorkerBindInfo {
+  worker: WorkerRecord;
+  bindCode: string;
+  bindCodeExpiresAt: string;
+  versionRequirement: WorkerVersionRequirement;
+}
+
+export interface WorkerRegistrationResult {
   workerId: string;
-  token: string;
+  workerToken: string;
   backendUrl: string;
-  wsUrl: string;
 }

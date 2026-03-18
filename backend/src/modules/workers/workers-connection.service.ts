@@ -63,6 +63,20 @@ export class WorkersConnectionService {
     return this.sockets.has(workerId);
   }
 
+  disconnect(workerId: string, reason = 'worker_disconnected'): void {
+    const socket = this.sockets.get(workerId);
+    if (!socket) return;
+    this.sockets.delete(workerId);
+    this.lastSeenAt.delete(workerId);
+    this.rejectPendingRequestsForWorker(workerId, reason);
+    try {
+      socket.terminate();
+    } catch {
+      // ignore
+    }
+    void this.workersService.markWorkerOffline(workerId, reason);
+  }
+
   send(workerId: string, payload: WorkerOutboundMessage): boolean {
     const socket = this.sockets.get(workerId);
     if (!socket || socket.readyState !== WebSocket.OPEN) return false;

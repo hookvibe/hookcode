@@ -1,18 +1,26 @@
 import { api, getCached, invalidateGetCache } from './client';
-import type { ListWorkersResponse, WorkerBootstrapInfo, WorkerRecord } from './types';
+import type { ListWorkersResponse, WorkerBindInfo, WorkerRecord } from './types';
 
 // Centralize worker registry mutations so every admin surface invalidates the same worker cache keys. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
 const invalidateWorkerCaches = () => {
   invalidateGetCache('/workers');
 };
 
-export const fetchWorkers = async (): Promise<WorkerRecord[]> => {
+export const fetchWorkersRegistry = async (): Promise<ListWorkersResponse> => {
   const data = await getCached<ListWorkersResponse>('/workers', { cacheTtlMs: 5000 });
-  return Array.isArray(data.workers) ? data.workers : [];
+  return {
+    workers: Array.isArray(data.workers) ? data.workers : [],
+    versionRequirement: data.versionRequirement
+  };
 };
 
-export const createWorker = async (params: { name: string; maxConcurrency?: number }): Promise<WorkerBootstrapInfo> => {
-  const { data } = await api.post<WorkerBootstrapInfo>('/workers', params);
+export const fetchWorkers = async (): Promise<WorkerRecord[]> => {
+  const data = await fetchWorkersRegistry();
+  return data.workers;
+};
+
+export const createWorker = async (params: { name: string; maxConcurrency?: number }): Promise<WorkerBindInfo> => {
+  const { data } = await api.post<WorkerBindInfo>('/workers', params);
   invalidateWorkerCaches();
   return data;
 };
@@ -26,8 +34,8 @@ export const updateWorker = async (
   return data;
 };
 
-export const rotateWorkerToken = async (id: string): Promise<WorkerBootstrapInfo> => {
-  const { data } = await api.post<WorkerBootstrapInfo>(`/workers/${id}/rotate-token`);
+export const resetWorkerBindCode = async (id: string): Promise<WorkerBindInfo> => {
+  const { data } = await api.post<WorkerBindInfo>(`/workers/${id}/reset-bind-code`);
   invalidateWorkerCaches();
   return data;
 };

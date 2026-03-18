@@ -2,6 +2,7 @@
 
 export type WorkerKind = 'local' | 'remote';
 export type WorkerStatus = 'online' | 'offline' | 'disabled';
+export type WorkerVersionStatus = 'compatible' | 'mismatch' | 'unknown';
 
 export interface WorkerRuntimeCapability {
   language: string;
@@ -22,6 +23,21 @@ export interface WorkerRuntimeState {
   lastPrepareError?: string;
 }
 
+export interface WorkerVersionRequirement {
+  packageName: string;
+  requiredVersion: string;
+  npmInstallCommand: string;
+  cliUpgradeCommand: string;
+  dockerImage: string;
+  dockerPullCommand: string;
+}
+
+export interface WorkerVersionState {
+  currentVersion?: string;
+  status: WorkerVersionStatus;
+  upgradeRequired: boolean;
+}
+
 export interface WorkerSummary {
   id: string;
   name: string;
@@ -33,6 +49,7 @@ export interface WorkerSummary {
 export interface WorkerRecord extends WorkerSummary {
   systemManaged: boolean;
   version?: string;
+  versionState?: WorkerVersionState;
   platform?: string;
   arch?: string;
   hostname?: string;
@@ -49,14 +66,14 @@ export interface WorkerRecord extends WorkerSummary {
   updatedAt: string;
 }
 
-export interface WorkerBootstrapInfo {
+export interface WorkerBindInfo {
   worker: WorkerRecord;
-  workerId: string;
-  token: string;
-  backendUrl: string;
-  wsUrl: string;
+  bindCode: string;
+  bindCodeExpiresAt: string;
+  versionRequirement: WorkerVersionRequirement;
 }
 
 export interface ListWorkersResponse {
   workers: WorkerRecord[];
+  versionRequirement: WorkerVersionRequirement;
 }

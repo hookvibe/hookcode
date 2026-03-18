@@ -12,29 +12,26 @@ describe('system worker config', () => {
   test('parses external mode and returns the configured bootstrap worker payload', () => {
     const env = {
       HOOKCODE_SYSTEM_WORKER_MODE: 'external',
-      HOOKCODE_SYSTEM_WORKER_ID: '11111111-1111-4111-8111-111111111111',
-      HOOKCODE_SYSTEM_WORKER_TOKEN: 'secret-token',
+      HOOKCODE_SYSTEM_WORKER_BIND_CODE: 'hcw1.test',
       HOOKCODE_SYSTEM_WORKER_NAME: 'Configured Remote Worker',
       HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY: '3'
     } as NodeJS.ProcessEnv;
 
     expect(readSystemWorkerMode(env)).toBe('external');
     expect(readExternalSystemWorkerConfig(env)).toEqual({
-      workerId: '11111111-1111-4111-8111-111111111111',
-      token: 'secret-token',
+      bindCode: 'hcw1.test',
       name: 'Configured Remote Worker',
       maxConcurrency: 3
     });
   });
 
-  test('rejects missing token in external mode', () => {
+  test('rejects missing bind code in external mode', () => {
     const env = {
-      HOOKCODE_SYSTEM_WORKER_MODE: 'external',
-      HOOKCODE_SYSTEM_WORKER_ID: '11111111-1111-4111-8111-111111111111'
+      HOOKCODE_SYSTEM_WORKER_MODE: 'external'
     } as NodeJS.ProcessEnv;
 
     expect(() => readExternalSystemWorkerConfig(env)).toThrow(
-      'HOOKCODE_SYSTEM_WORKER_TOKEN is required when HOOKCODE_SYSTEM_WORKER_MODE=external'
+      'HOOKCODE_SYSTEM_WORKER_BIND_CODE is required when HOOKCODE_SYSTEM_WORKER_MODE=external'
     );
   });
 });

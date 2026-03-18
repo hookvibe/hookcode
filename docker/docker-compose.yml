@@ -36,20 +36,14 @@ services:
 
   worker:
     # Run the standalone worker image separately from backend so deployments can place executors on arbitrary machines. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    build:
-      context: ..
-      dockerfile: worker/Dockerfile
-      args:
-        PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR}
+    image: ${HOOKCODE_WORKER_IMAGE:-ghcr.io/hookvibe/hookcode-worker}:${HOOKCODE_WORKER_IMAGE_TAG:-0.1.2}
     env_file:
       - ./.env
     environment:
       # Keep standalone worker runtime storage on the configured container path so runtime installs and sticky workspaces survive restarts. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
       HOOKCODE_WORK_DIR: ${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
-      # Point the bundled Docker worker at backend using the same bootstrap credentials that backend registers as the default external system worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      HOOKCODE_BACKEND_URL: ${HOOKCODE_DOCKER_WORKER_BACKEND_URL:-http://backend:4000/api}
-      HOOKCODE_WORKER_ID: ${HOOKCODE_SYSTEM_WORKER_ID}
-      HOOKCODE_WORKER_TOKEN: ${HOOKCODE_SYSTEM_WORKER_TOKEN}
+      # Reuse the same one-time bind code that backend adopts for the default external system worker. After first start the worker will restart from persisted credentials under HOOKCODE_WORK_DIR.
+      HOOKCODE_WORKER_BIND_CODE: ${HOOKCODE_SYSTEM_WORKER_BIND_CODE}
       HOOKCODE_WORKER_NAME: ${HOOKCODE_SYSTEM_WORKER_NAME:-Docker Default Worker}
       HOOKCODE_WORKER_KIND: remote
       HOOKCODE_WORKER_PREVIEW: ${HOOKCODE_WORKER_PREVIEW:-0}
@@ -59,7 +53,7 @@ services:
       - worker_work_dir:${HOOKCODE_WORK_DIR:-/var/lib/hookcode}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # Run the built worker image entrypoint from /app so Docker deployments start the packaged standalone executor correctly. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    # Run the published worker image entrypoint from /app so Docker deployments consume the decoupled worker release directly.
     command: ["node", "/app/dist/main.js"]
     depends_on:
       - db

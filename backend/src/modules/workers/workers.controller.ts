@@ -2,10 +2,19 @@ import { BadRequestException, Body, ConflictException, Controller, Delete, Get, 
 import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
-import { AuthScopeGroup } from '../auth/auth.decorator';
+import { AuthScopeGroup, Public } from '../auth/auth.decorator';
 import { WorkersService } from './workers.service';
 import { WorkersConnectionService } from './workers-connection.service';
-import { CreateWorkerRequestDto, ListWorkersResponseDto, PrepareRuntimeRequestDto, UpdateWorkerRequestDto, WorkerBootstrapResponseDto } from './dto/workers-swagger.dto';
+import {
+  CreateWorkerRequestDto,
+  ListWorkersResponseDto,
+  PrepareRuntimeRequestDto,
+  RegisterWorkerRequestDto,
+  RegisterWorkerResponseDto,
+  UpdateWorkerRequestDto,
+  WorkerResponseDto,
+  WorkerBindResponseDto
+} from './dto/workers-swagger.dto';
 
 const buildBackendBaseUrl = (req: Request): { backendUrl: string; wsUrl: string } => {
   const host = req.get('host') || '127.0.0.1:3000';
@@ -40,40 +49,57 @@ export class WorkersController {
   async list(@Req() req: Request) {
     this.requireAdmin(req);
     const workers = await this.workersService.listWorkers();
-    return { workers };
+    return { workers, versionRequirement: this.workersService.getWorkerVersionRequirement() };
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create remote worker', description: 'Create a remote worker bootstrap token for admin provisioning.', operationId: 'workers_create' })
-  @ApiOkResponse({ description: 'OK', type: WorkerBootstrapResponseDto })
+  @ApiOperation({ summary: 'Create remote worker', description: 'Create a remote worker bind code for admin provisioning.', operationId: 'workers_create' })
+  @ApiOkResponse({ description: 'OK', type: WorkerBindResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   async create(@Req() req: Request, @Body() body: CreateWorkerRequestDto) {
     const user = this.requireAdmin(req);
     const name = String(body?.name ?? '').trim();
     if (!name) throw new BadRequestException({ error: 'name is required' });
-    const created = await this.workersService.createRemoteWorker({ actorUserId: user.id, name, maxConcurrency: body?.maxConcurrency });
     const urls = buildBackendBaseUrl(req);
-    return { worker: created.worker, workerId: created.worker.id, token: created.token, backendUrl: urls.backendUrl, wsUrl: urls.wsUrl };
+    const created = await this.workersService.createRemoteWorker({ actorUserId: user.id, name, maxConcurrency: body?.maxConcurrency, backendUrl: urls.backendUrl });
+    return created;
   }
 
-  @Post(':id/rotate-token')
-  @ApiOperation({ summary: 'Rotate worker token', description: 'Rotate the bootstrap token for a remote worker.', operationId: 'workers_rotate_token' })
-  @ApiOkResponse({ description: 'OK', type: WorkerBootstrapResponseDto })
+  @Post('register')
+  @Public()
+  @ApiOperation({ summary: 'Register worker from bind code', description: 'Exchange a one-time bind code for runtime worker credentials.', operationId: 'workers_register' })
+  @ApiOkResponse({ description: 'OK', type: RegisterWorkerResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
+  async register(@Req() req: Request, @Body() body: RegisterWorkerRequestDto) {
+    try {
+      const registered = await this.workersService.registerWorker(String(body?.bindCode ?? ''));
+      this.workersConnections.disconnect(registered.workerId, 'worker_rebound');
+      const urls = buildBackendBaseUrl(req);
+      return { workerId: registered.workerId, workerToken: registered.workerToken, backendUrl: urls.backendUrl };
+    } catch (error) {
+      throw new BadRequestException({ error: error instanceof Error ? error.message : 'Unable to register worker' });
+    }
+  }
+
+  @Post(':id/reset-bind-code')
+  @ApiOperation({ summary: 'Reset worker bind code', description: 'Generate a fresh one-time bind code for a worker.', operationId: 'workers_reset_bind_code' })
+  @ApiOkResponse({ description: 'OK', type: WorkerBindResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async rotateToken(@Req() req: Request) {
+  async resetBindCode(@Req() req: Request) {
     this.requireAdmin(req);
     const id = String(req.params.id ?? '').trim();
-    const rotated = await this.workersService.rotateWorkerToken(id);
-    if (!rotated) throw new NotFoundException({ error: 'Worker not found' });
     const urls = buildBackendBaseUrl(req);
-    return { worker: rotated.worker, workerId: rotated.worker.id, token: rotated.token, backendUrl: urls.backendUrl, wsUrl: urls.wsUrl };
+    const rotated = await this.workersService.resetWorkerBindCode(id, urls.backendUrl);
+    if (!rotated) throw new NotFoundException({ error: 'Worker not found' });
+    this.workersConnections.disconnect(id, 'bind_code_reset');
+    return rotated;
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update worker', description: 'Update worker admin metadata such as name, status, or concurrency.', operationId: 'workers_update' })
-  @ApiOkResponse({ description: 'OK', type: WorkerBootstrapResponseDto })
+  @ApiOkResponse({ description: 'OK', type: WorkerResponseDto })
   async update(@Req() req: Request, @Body() body: UpdateWorkerRequestDto) {
     this.requireAdmin(req);
     const id = String(req.params.id ?? '').trim();

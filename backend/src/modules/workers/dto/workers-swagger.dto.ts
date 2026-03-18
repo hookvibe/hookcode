@@ -28,6 +28,13 @@ class WorkerRecordDto extends WorkerSummaryDto {
   @ApiPropertyOptional()
   version?: string;
 
+  @ApiProperty({ type: Object })
+  versionState!: {
+    currentVersion?: string;
+    status: 'compatible' | 'mismatch' | 'unknown';
+    upgradeRequired: boolean;
+  };
+
   @ApiPropertyOptional()
   platform?: string;
 
@@ -71,26 +78,70 @@ class WorkerRecordDto extends WorkerSummaryDto {
   updatedAt!: string;
 }
 
+class WorkerVersionRequirementDto {
+  @ApiProperty()
+  packageName!: string;
+
+  @ApiProperty()
+  requiredVersion!: string;
+
+  @ApiProperty()
+  npmInstallCommand!: string;
+
+  @ApiProperty()
+  cliUpgradeCommand!: string;
+
+  @ApiProperty()
+  dockerImage!: string;
+
+  @ApiProperty()
+  dockerPullCommand!: string;
+}
+
 export class ListWorkersResponseDto {
   @ApiProperty({ type: [WorkerRecordDto] })
   workers!: WorkerRecordDto[];
+
+  @ApiProperty({ type: WorkerVersionRequirementDto })
+  versionRequirement!: WorkerVersionRequirementDto;
 }
 
-export class WorkerBootstrapResponseDto {
+export class WorkerResponseDto {
+  @ApiProperty({ type: WorkerRecordDto })
+  worker!: WorkerRecordDto;
+}
+
+export class WorkerBindResponseDto {
   @ApiProperty({ type: WorkerRecordDto })
   worker!: WorkerRecordDto;
 
   @ApiProperty()
+  bindCode!: string;
+
+  @ApiProperty()
+  bindCodeExpiresAt!: string;
+
+  @ApiProperty({ type: WorkerVersionRequirementDto })
+  versionRequirement!: WorkerVersionRequirementDto;
+}
+
+export class RegisterWorkerRequestDto {
+  @ApiProperty()
+  @Transform(({ value }) => trimString(value))
+  @IsString()
+  @IsNotEmpty()
+  bindCode!: string;
+}
+
+export class RegisterWorkerResponseDto {
+  @ApiProperty()
   workerId!: string;
 
   @ApiProperty()
-  token!: string;
+  workerToken!: string;
 
   @ApiProperty()
   backendUrl!: string;
-
-  @ApiProperty()
-  wsUrl!: string;
 }
 
 export class UpdateWorkerRequestDto {

@@ -7,7 +7,6 @@
   "scripts": {
     "dev": "nest start --watch",
     "dev:tools": "ts-node-dev --respawn --transpile-only src/adminTools/standalone.ts",
-    "dev:worker": "pnpm -C .. --filter hookcode-worker dev",
     "start:dev": "nest start --watch",
     "build": "node scripts/prisma-run.js generate && tsc -p tsconfig.json",
     "prisma:generate": "node scripts/prisma-run.js generate",
@@ -21,7 +20,6 @@
     "docker:up:nobuild": "docker compose -f ../docker/docker-compose.yml up -d backend worker",
     "docker:up": "docker compose -f ../docker/docker-compose.yml up -d --build backend worker",
     "start": "node dist/main.js",
-    "start:worker": "pnpm -C .. --filter hookcode-worker start",
     "lint": "echo \"add backend linting (eslint) later\"",
     "pretest": "node scripts/prisma-run.js generate",
     "test": "jest -c jest.config.cjs --passWithNoTests",
@@ -29,6 +27,7 @@
     "test:watch": "jest -c jest.config.cjs --watch"
   },
   "dependencies": {
+    "@hookvibe/hookcode-worker": "0.1.2",
     "@anthropic-ai/claude-agent-sdk": "^0.2.6",
     "@google/gemini-cli": "^0.23.0",
     "@nestjs/common": "^10.4.20",

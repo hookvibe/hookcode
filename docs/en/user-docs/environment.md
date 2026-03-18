@@ -8,13 +8,10 @@ HookCode uses environment variables for deployment/runtime configuration.
 
 ## Where config lives
 
-There are four primary `.env` entry points:
+There are three primary `.env` entry points:
 
-{/* Add the dedicated remote-worker env entrypoint so operators can discover the split-host Docker example from the environment reference. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
 - **Docker deployment (recommended)**: `docker/.env`
   - Shared by Docker Compose substitution, frontend build-time (`VITE_*`), and backend runtime.
-- **Dedicated remote worker host**: `docker/.env.remote-worker`
-  - Copy from `docker/.env.remote-worker.example`.
 - **Backend local dev**: `backend/.env`
   - Copy from `backend/.env.example`.
 - **Frontend local dev**: `frontend/.env`
@@ -23,7 +20,6 @@ There are four primary `.env` entry points:
 > The `.env.example` files are the most complete reference:
 >
 > - `docker/.env.example`
-> - `docker/.env.remote-worker.example`
 > - `backend/.env.example`
 > - `frontend/.env.example`
 
@@ -70,7 +66,6 @@ Either set `DATABASE_URL` or set the split fields:
 - Default outside Docker: `~/.hookcode`
 - Recommended Docker value: an absolute container path such as `/var/lib/hookcode`
 - In the Docker Compose deployment, backend and worker each mount a separate named volume at this path.
-- The dedicated remote worker compose file also mounts its own worker-only named volume at this path.
 
 ### Auth (console + APIs)
 
@@ -117,6 +112,7 @@ Only expose these ports on trusted networks.
 
 {/* Document the new backend system-worker modes so source deployments, bundled Docker workers, and separately deployed remote workers share one configuration model. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
 - `HOOKCODE_SYSTEM_WORKER_MODE=local`: source-mode default; backend starts its local supervised worker runtime.
-- `HOOKCODE_SYSTEM_WORKER_MODE=external`: backend bootstraps one default external worker from env (`HOOKCODE_SYSTEM_WORKER_ID`, `HOOKCODE_SYSTEM_WORKER_TOKEN`, `HOOKCODE_SYSTEM_WORKER_NAME`, `HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY`).
+- `HOOKCODE_SYSTEM_WORKER_MODE=external`: backend adopts one default external worker from env (`HOOKCODE_SYSTEM_WORKER_BIND_CODE`, `HOOKCODE_SYSTEM_WORKER_NAME`, `HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY`).
 - `HOOKCODE_SYSTEM_WORKER_MODE=disabled`: backend does not auto-provision a default worker.
+- `HOOKCODE_WORKER_IMAGE` / `HOOKCODE_WORKER_IMAGE_TAG`: choose which published worker container image the Docker worker service should pull.
 - `INLINE_WORKER_ENABLED` now only controls the legacy backend-inline fallback path for commandless local tasks; it is no longer the primary worker-mode switch.
