@@ -40,12 +40,9 @@ describe('ExecutionTimeline', () => {
     // Match updated execution timeline layout classes after the style refresh. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     expect(container.querySelector('.chat-stream')).toBeTruthy();
     expect(screen.getAllByText(/echo hi/)).toHaveLength(1);
-    const outputToggle = screen.getByRole('button', { name: 'Command output' });
-    await ui.click(outputToggle);
+    // Last 2 items auto-expand, so output and diffs are immediately visible without clicking toggle buttons. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
     expect(screen.getByText('hi')).toBeInTheDocument();
     expect(screen.getByText('/tmp/a.txt')).toBeInTheDocument();
-    const diffToggle = screen.getByRole('button', { name: 'Diffs' });
-    await ui.click(diffToggle);
     expect(screen.getByText('diff --git a/a.txt b/a.txt')).toBeInTheDocument();
   });
 
@@ -90,8 +87,8 @@ describe('ExecutionTimeline', () => {
         id: 'todo_1',
         status: 'in_progress',
         items: [
-          { text: 'First task', completed: false },
-          { text: 'Second task', completed: true }
+          { id: 'todo_a', content: 'First task', status: 'in_progress', priority: 'high' },
+          { id: 'todo_b', content: 'Second task', status: 'completed', priority: 'low' }
         ]
       }
     ];
@@ -100,6 +97,8 @@ describe('ExecutionTimeline', () => {
 
     expect(screen.getByText('First task')).toBeInTheDocument();
     expect(screen.getByText('Second task')).toBeInTheDocument();
+    expect(screen.getByText('In progress')).toBeInTheDocument();
+    expect(screen.getByText('High')).toBeInTheDocument();
     // Verify the updated todo item class names in the refreshed execution UI. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     expect(container.querySelector('.chat-todo__item.is-complete')).toBeTruthy();
   });
@@ -126,6 +125,36 @@ describe('ExecutionTimeline', () => {
     }
   });
 
+  test('renders localized file pills and compact +/- summaries for file changes', async () => {
+    // Keep the compact timeline file rows aligned with the Claude-style workspace panel by showing localized change pills and derived +/- counts. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+    const items: ExecutionItem[] = [
+      {
+        kind: 'file_change',
+        id: 'fc_stats',
+        status: 'completed',
+        changes: [{ path: 'src/example.ts', kind: 'update' }],
+        diffs: [
+          {
+            path: 'src/example.ts',
+            kind: 'update',
+            unifiedDiff: 'diff --git a/src/example.ts b/src/example.ts',
+            oldText: 'const ready = false;\n',
+            newText: 'const ready = true;\nconst extra = 1;\n'
+          }
+        ]
+      }
+    ];
+
+    render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    expect(screen.getByText('Edited')).toBeInTheDocument();
+    // With auto-expand, +2 appears both in file metric and diff view; use getAllByText. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+    expect(screen.getAllByText('+2').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('-1').length).toBeGreaterThanOrEqual(1);
+    // Last item auto-expands so diffs are already visible. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+    expect(screen.getAllByText('+2').length).toBeGreaterThan(0);
+  });
+
   test('only shows status badges for failed items', () => {
     // Hide non-failure status badges to reduce chat noise while still surfacing failures. docs/en/developer/plans/chat-message-status-20260305/task_plan.md chat-message-status-20260305
     const items: ExecutionItem[] = [
@@ -139,5 +168,82 @@ describe('ExecutionTimeline', () => {
     const failedBadge = container.querySelector('.chat-bubble__status.is-failed');
     expect(failedBadge).toBeTruthy();
     expect(screen.getByText('Failed')).toBeInTheDocument();
+  });
+
+  test('caps oversized command output previews until the user expands them', async () => {
+    // Keep huge command outputs from flooding the dialog DOM on first open while still allowing an explicit full-content inspection path. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
+    const ui = userEvent.setup();
+    const output = Array.from({ length: 190 }, (_, index) => `output line ${index + 1}`).join('\n');
+    const items: ExecutionItem[] = [
+      {
+        kind: 'command_execution',
+        id: 'cmd_big',
+        status: 'completed',
+        command: 'cat massive.log',
+        output
+      }
+    ];
+
+    const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    // Last item auto-expands so output is immediately visible (capped at 180 lines). docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+    expect(screen.getByText(/Showing 180\/190 lines|仅展示 180\/190 行/i)).toBeInTheDocument();
+    const outputBlock = container.querySelector('.chat-work__mono');
+    expect(outputBlock).toBeTruthy();
+    expect(outputBlock).not.toHaveTextContent('output line 190');
+
+    await ui.click(screen.getByRole('button', { name: 'Show full content' }));
+
+    expect(outputBlock).toHaveTextContent('output line 190');
+  });
+
+  test('renders raw tool input details for command tools', async () => {
+    const items: ExecutionItem[] = [
+      {
+        kind: 'command_execution',
+        id: 'cmd_edit',
+        status: 'completed',
+        toolName: 'Edit',
+        toolInput: {
+          file_path: 'src/example.ts',
+          old_string: 'const value = 1;',
+          new_string: 'const value = 2;'
+        },
+        output: 'updated'
+      }
+    ];
+
+    const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    expect(container.querySelector('.chat-bubble.kind-command_execution.tool-edit')).toBeTruthy();
+    // Last item auto-expands so tool input is already visible. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+    expect(screen.getByText(/"file_path": "src\/example\.ts"/)).toBeInTheDocument();
+  });
+
+  test('switches between diff tabs for multi-file tool changes', async () => {
+    const ui = userEvent.setup();
+    const items: ExecutionItem[] = [
+      {
+        kind: 'file_change',
+        id: 'fc_tabs',
+        status: 'completed',
+        changes: [
+          { path: 'src/first.ts', kind: 'update' },
+          { path: 'src/second.ts', kind: 'update' }
+        ],
+        diffs: [
+          { path: 'src/first.ts', kind: 'update', unifiedDiff: 'first diff content' },
+          { path: 'src/second.ts', kind: 'update', unifiedDiff: 'second diff content' }
+        ]
+      }
+    ];
+
+    render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
+
+    // Last item auto-expands so diffs are already visible. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+    expect(screen.getByText('first diff content')).toBeInTheDocument();
+
+    await ui.click(screen.getByRole('tab', { name: 'src/second.ts' }));
+    expect(screen.getByText('second diff content')).toBeInTheDocument();
   });
 });

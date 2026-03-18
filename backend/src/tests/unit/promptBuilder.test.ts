@@ -215,6 +215,38 @@ describe('promptBuilder.buildPrompt', () => {
     expect(ctx.body).toContain('Issue=5 Id=100 Body=content from id');
   });
 
+  // Cover payload-only issue previews so the robot playground can render issue variables without provider API fetches. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+  test('GitLab Issue：provider issue lookup 不可用时，仍会回退到 payload 中的 issue 标题和正文', async () => {
+    const repo = baseRepo();
+    const robot = baseRobot();
+    const task: Task = {
+      ...baseTask(),
+      eventType: 'issue',
+      issueId: 9,
+      repoProvider: 'gitlab',
+      promptCustom: 'Issue={{issue.number}} Title={{issue.title}} Body={{issue.body}}'
+    };
+
+    const input: BuildPromptInput = {
+      task,
+      payload: {
+        issue: {
+          id: 900,
+          iid: 9,
+          title: 'Payload issue title',
+          description: 'Payload issue body',
+          web_url: 'http://example.com/issues/9'
+        }
+      },
+      repo,
+      robot,
+      robotsInRepo: [robot]
+    };
+
+    const ctx = await buildPrompt(input);
+    expect(ctx.body).toContain('Issue=9 Title=Payload issue title Body=Payload issue body');
+  });
+
   test('merge_request created：可通过 mergeRequest.* 插入 MR/PR 内容区块', async () => {
     const repo = baseRepo();
     const robot = baseRobot();

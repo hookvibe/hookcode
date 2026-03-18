@@ -6,6 +6,14 @@ import userEvent from '@testing-library/user-event';
 import { renderTaskGroupChatPage, setupTaskGroupChatMocks } from './taskGroupChatPageTestUtils';
 import * as api from '../api';
 
+// Reuse the live composer placeholder text so TaskGroup chat tests follow the current compact composer copy on every platform. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+const chatComposerPlaceholder = 'Ask something… (Enter to send, Shift+Enter for newline)';
+
+const openComposerActions = async (ui: ReturnType<typeof userEvent.setup>) => {
+  // Open the compact composer settings popover before asserting repo/robot/worker controls that are no longer always visible. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+  await ui.click(await screen.findByRole('button', { name: 'Composer actions' }));
+};
+
 describe('TaskGroupChatPage composer', () => {
   beforeEach(() => {
     setupTaskGroupChatMocks();
@@ -19,7 +27,7 @@ describe('TaskGroupChatPage composer', () => {
     await waitFor(() => expect(api.fetchAllRepos).toHaveBeenCalled());
     await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
 
-    const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
+    const textarea = await screen.findByPlaceholderText(chatComposerPlaceholder);
     await ui.type(textarea, 'Hello from test');
     await ui.click(screen.getByRole('button', { name: /Send/i }));
 
@@ -38,9 +46,11 @@ describe('TaskGroupChatPage composer', () => {
   });
 
   test('shows bound AI provider in the robot selector', async () => {
+    const ui = userEvent.setup();
     renderTaskGroupChatPage();
 
     await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
+    await openComposerActions(ui);
 
     const robotSelect = await screen.findByLabelText('Robot');
     await waitFor(() => {
@@ -49,7 +59,6 @@ describe('TaskGroupChatPage composer', () => {
     });
   });
 
-
   test('submits a chat task with an explicit worker override for admins', async () => {
     // Verify admin chat users can route manual tasks to a selected worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     const ui = userEvent.setup();
@@ -57,14 +66,15 @@ describe('TaskGroupChatPage composer', () => {
     renderTaskGroupChatPage();
 
     await waitFor(() => expect(api.fetchWorkers).toHaveBeenCalled());
+    await openComposerActions(ui);
 
     const workerSelect = await screen.findByLabelText('Worker');
     const workerRoot = workerSelect.closest('.ant-select');
     expect(workerRoot).toBeTruthy();
     fireEvent.mouseDown(workerRoot as HTMLElement);
-    await ui.click(await screen.findByText('Worker 1 · Remote · Online'));
+    await ui.click(await screen.findByText(/Worker 1/i));
 
-    const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
+    const textarea = await screen.findByPlaceholderText(chatComposerPlaceholder);
     await ui.type(textarea, 'Route this to worker 1');
     await ui.click(screen.getByRole('button', { name: /Send/i }));
 
@@ -131,12 +141,11 @@ describe('TaskGroupChatPage composer', () => {
 
     renderTaskGroupChatPage({ taskGroupId: 'g_task' });
 
-    const repoSelect = await screen.findByLabelText('Repository');
-    const robotSelect = await screen.findByLabelText('Robot');
-    const textarea = await screen.findByPlaceholderText('Ask something… (Enter to send, Shift+Enter for newline)');
+    // Assert the disabled compact footer controls because unsupported groups no longer render always-visible repo/robot selects. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    const actionsButton = await screen.findByRole('button', { name: 'Composer actions' });
+    const textarea = await screen.findByPlaceholderText(chatComposerPlaceholder);
 
-    expect(repoSelect.closest('.ant-select')).toHaveClass('ant-select-disabled');
-    expect(robotSelect.closest('.ant-select')).toHaveClass('ant-select-disabled');
+    expect(actionsButton).toBeDisabled();
     expect(textarea).toBeDisabled();
     expect(screen.getByText('This task group does not support manual chat messages')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Send/i })).toBeDisabled();

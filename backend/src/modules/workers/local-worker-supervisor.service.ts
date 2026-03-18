@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ChildProcess, spawn } from 'child_process';
 import path from 'path';
+import { stopChildProcessTree } from '../../utils/crossPlatformSpawn';
 import { resolveBackendWorkDirRoot, resolveBuildRoot } from '../../utils/workDir';
 import { WorkersService } from './workers.service';
 
@@ -63,9 +64,12 @@ export class LocalWorkerSupervisorService {
     };
 
     // Spawn the colocated worker package automatically so each backend keeps one local executor online. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+    // Use shell on Windows only for pnpm (a .cmd shim); skip shell for direct node binary to avoid
+    // path-with-spaces breakage (e.g. "C:\Program Files\nodejs\node.exe"). docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    const baseOpts: import('child_process').SpawnOptions = { cwd: repoRoot, env, stdio: 'inherit' };
     this.child = isBuiltWorkerAvailable
-      ? spawn(process.execPath, [workerEntry], { cwd: repoRoot, env, stdio: 'inherit' })
-      : spawn('pnpm', ['--filter', 'hookcode-worker', 'dev'], { cwd: repoRoot, env, stdio: 'inherit' });
+      ? spawn(process.execPath, [workerEntry], baseOpts)
+      : spawn('pnpm', ['--filter', 'hookcode-worker', 'dev'], { ...baseOpts, shell: process.platform === 'win32' });
 
     this.child.on('exit', (code, signal) => {
       console.warn('[workers] local worker exited', { code, signal });
@@ -79,7 +83,8 @@ export class LocalWorkerSupervisorService {
   async stop(): Promise<void> {
     if (!this.child) return;
     try {
-      this.child.kill('SIGTERM');
+      // Stop the supervised worker tree instead of only the outer shell so Windows dev restarts do not leave orphan executors behind. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+      stopChildProcessTree(this.child, 'SIGTERM');
     } catch {
       // ignore
     }

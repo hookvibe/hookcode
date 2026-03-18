@@ -3,6 +3,7 @@ import type {
   ApiTokenScope,
   ModelProviderModelsRequest,
   ModelProviderModelsResponse,
+  ProviderRuntimeStatusesResponse,
   UserApiTokenPublic,
   UserModelCredentialsPublic
 } from './types';
@@ -70,6 +71,11 @@ export const updateMyModelCredentials = async (params: {
   const { data } = await api.patch<{ credentials: UserModelCredentialsPublic }>('/users/me/model-credentials', params);
   invalidateGetCache('/users/me/model-credentials');
   return data.credentials;
+};
+
+export const fetchMyProviderRuntimeStatuses = async (): Promise<ProviderRuntimeStatusesResponse> => {
+  // Load provider runtime status server-side so the settings UI reflects local CLI auth before stored overrides. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
+  return getCached<ProviderRuntimeStatusesResponse>('/users/me/model-providers/status', { cacheTtlMs: 10000 });
 };
 
 export const fetchMyApiTokens = async (): Promise<UserApiTokenPublic[]> => {

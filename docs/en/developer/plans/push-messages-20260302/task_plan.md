@@ -1,5 +1,5 @@
 # Task Plan: Push notifications to frontend
-<!-- Update plan goals and error log for push messaging work. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302 -->
+{/* Update plan goals and error log for push messaging work. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. push-messages-20260302 */}
@@ -15,7 +15,7 @@ Enable server-initiated, user-scoped, multi-session message delivery to the fron
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-<!-- Reflect completion status for delivery phase. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302 -->
+{/* Reflect completion status for delivery phase. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302 */}
 Phase 5 (Complete)
 
 ## Phases

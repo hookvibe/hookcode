@@ -15,6 +15,7 @@ import { getApiErrorMessage } from '../../api/client';
 import { useLocale, useT } from '../../i18n';
 import { formatWorkerOptionLabel, getWorkerRuntimeStatusLabel } from '../../utils/workers';
 import { WorkerSummaryTag } from '../workers/WorkerSummaryTag';
+import { SETTINGS_DATA_TABLE_SCROLL_X, SETTINGS_STICKY_ACTIONS_TABLE_CLASS_NAME } from './layout';
 
 const DEFAULT_PROVIDER_OPTIONS = [
   { value: 'codex', label: 'Codex' },
@@ -86,6 +87,7 @@ export const SettingsWorkersPanel: FC = () => {
         title: t('workers.table.worker'),
         dataIndex: 'name',
         key: 'name',
+        width: 280,
         render: (_value, record) => (
           <Space direction="vertical" size={2}>
             <Space size={8} wrap>
@@ -99,6 +101,7 @@ export const SettingsWorkersPanel: FC = () => {
       {
         title: t('workers.table.runtime'),
         key: 'runtime',
+        width: 260,
         render: (_value, record) => {
           const runtimeStatus = resolveRuntimeStatus(record);
           const providerText = describeRuntimeProviders(resolveRuntimeProviders(record));
@@ -116,6 +119,7 @@ export const SettingsWorkersPanel: FC = () => {
       {
         title: t('workers.table.connection'),
         key: 'connection',
+        width: 220,
         render: (_value, record) => (
           <Space direction="vertical" size={2}>
             <Typography.Text>{record.hostname || '-'}</Typography.Text>
@@ -134,6 +138,8 @@ export const SettingsWorkersPanel: FC = () => {
         title: t('common.actions'),
         key: 'actions',
         width: 300,
+        // Keep the worker action cluster pinned while the rest of the registry scrolls horizontally. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312
+        fixed: 'right',
         render: (_value, record) => {
           const isBusy = rowLoadingId === record.id;
           const isPreparing = prepareLoadingId === record.id;
@@ -304,16 +310,21 @@ export const SettingsWorkersPanel: FC = () => {
           <Skeleton active paragraph={{ rows: 6 }} />
         ) : (
           <Table
+            // Let worker columns overflow horizontally while preserving a sticky action column on the right. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312
+            className={SETTINGS_STICKY_ACTIONS_TABLE_CLASS_NAME}
             rowKey="id"
             dataSource={workers}
             columns={columns}
+            scroll={{ x: SETTINGS_DATA_TABLE_SCROLL_X }}
             pagination={{ pageSize: 10, showSizeChanger: false }}
             locale={{ emptyText: t('workers.empty') }}
           />
         )}
       </Card>
 
+      {/* Use the shared compact dialog skin so worker creation matches the current theme surface. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312 */}
       <Modal
+        className="hc-dialog--compact"
         title={t('workers.modal.createTitle')}
         open={createOpen}
         onCancel={() => setCreateOpen(false)}
@@ -344,7 +355,9 @@ export const SettingsWorkersPanel: FC = () => {
         </Form>
       </Modal>
 
+      {/* Use the shared compact dialog skin so runtime preparation no longer renders as a mismatched dark block. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312 */}
       <Modal
+        className="hc-dialog--compact"
         title={t('workers.modal.prepareTitle', { name: prepareOpen?.name || '' })}
         open={Boolean(prepareOpen)}
         onCancel={() => setPrepareOpen(null)}

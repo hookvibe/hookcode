@@ -15,6 +15,7 @@ describe('TasksController.volumeByDay', () => {
     };
 
     // Provide controller constructor stubs for DI coverage. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    const taskWorkspaceService = {} as any; // Keep volume-by-day controller tests aligned with the current workspace dependency list. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
     const repoAccessService = { requireRepoRead: jest.fn().mockResolvedValue(undefined) }; // Stub repo access checks for volume-by-day tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
     const workersConnections = {} as WorkersConnectionService; // Keep controller unit tests aligned with the new worker dispatch dependency. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     const controller = new TasksController(
@@ -23,6 +24,7 @@ describe('TasksController.volumeByDay', () => {
       {} as any,
       {} as any,
       {} as any,
+      taskWorkspaceService,
       repoAccessService as any,
       {} as any,
       workersConnections as any
@@ -41,6 +43,7 @@ describe('TasksController.volumeByDay', () => {
   test('rejects invalid date inputs', async () => {
     const taskService: any = { getTaskVolumeByDay: jest.fn() };
     // Provide controller constructor stubs for DI coverage. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
+    const taskWorkspaceService = {} as any; // Keep volume-by-day controller tests aligned with the current workspace dependency list. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
     const repoAccessService = { requireRepoRead: jest.fn().mockResolvedValue(undefined) }; // Stub repo access checks for volume-by-day tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
     const workersConnections = {} as WorkersConnectionService; // Keep controller unit tests aligned with the new worker dispatch dependency. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     const controller = new TasksController(
@@ -49,6 +52,7 @@ describe('TasksController.volumeByDay', () => {
       {} as any,
       {} as any,
       {} as any,
+      taskWorkspaceService,
       repoAccessService as any,
       {} as any,
       workersConnections as any

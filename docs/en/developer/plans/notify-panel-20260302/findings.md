@@ -10,7 +10,7 @@
 - Provide “view all” link to a settings page tab next to logs.
 - Provide APIs for listing, unread count, and marking all read.
 - Clear semantics = mark as read (not delete).
-<!-- Capture creator fallback requirement for notifications. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Capture creator fallback requirement for notifications. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 - Recipients: trigger user if available, else repo owner/creator.
 
 ## Research Findings
@@ -26,7 +26,7 @@
 | Add `Notification` model with `readAt` and `userId`. | Need per-user state and read tracking, distinct from admin system logs. |
 | Add `actorUserId` to Task. | Persist trigger user resolution for notification routing, especially for manual chat tasks. |
 | Use SSE topic `notifications` with per-user filtering. | Enables real-time UI updates without polling; avoids cross-user leakage. |
-<!-- Update fallback recipient to repo owner/creator. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 -->
+{/* Update fallback recipient to repo owner/creator. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302 */}
 | Match trigger user by payload username/email. | Best-effort mapping for webhook users to local accounts before falling back to repo owner/creator. |
 
 ## Issues Encountered

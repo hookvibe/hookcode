@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { fetchSystemLogs } from '../../api';
 import type { SystemLogCategory, SystemLogEntry, SystemLogLevel } from '../../api';
 import { createAuthedEventSource } from '../../utils/sse';
+import { SETTINGS_DATA_TABLE_CLASS_NAME, SETTINGS_DATA_TABLE_SCROLL_X } from './layout';
 
 const CATEGORY_OPTIONS: Array<{ value: SystemLogCategory; label: string }> = [
   { value: 'system', label: 'System' },
@@ -75,12 +76,13 @@ export const SettingsLogsPanel: FC = () => {
         title: 'Message',
         dataIndex: 'message',
         key: 'message',
+        width: 360,
         render: (value: string) => <span>{value}</span>
       },
       {
         title: 'Context',
         key: 'context',
-        width: 200,
+        width: 240,
         render: (_, record) => (
           <Space direction="vertical" size={2}>
             {record.repoId ? <Typography.Text type="secondary">Repo: {record.repoId}</Typography.Text> : null}
@@ -241,9 +243,12 @@ export const SettingsLogsPanel: FC = () => {
         {error ? <Alert type="error" showIcon message={error} /> : null}
 
         <Table
+          // Keep log columns readable by enabling horizontal scroll inside the wide settings table shell. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312
+          className={SETTINGS_DATA_TABLE_CLASS_NAME}
           rowKey={(record) => record.id}
           columns={columns}
           dataSource={pagedLogs}
+          scroll={{ x: SETTINGS_DATA_TABLE_SCROLL_X }}
           pagination={{
             current: page,
             pageSize: LOG_PAGE_SIZE,

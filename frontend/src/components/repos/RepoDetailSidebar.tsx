@@ -36,6 +36,7 @@ import {
   ThunderboltOutlined,
   ToolOutlined,
   GlobalOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import { useT } from '../../i18n';
 import { buildReposHash, buildRepoHash, type RepoTab, REPO_TABS } from '../../router';
@@ -81,6 +82,7 @@ const REPO_NAV_GROUPS: NavGroup[] = [
     titleKey: 'repos.detail.sidebar.groupManage',
     items: [
       { key: 'members', icon: <TeamOutlined />, labelKey: 'repos.detail.tabs.members' },
+      { key: 'costs', icon: <DollarOutlined />, labelKey: 'repos.detail.tabs.costs' },
       { key: 'taskGroupTokens', icon: <ApiOutlined />, labelKey: 'repos.detail.tabs.taskGroupTokens' }, // Add task-group token page entry in the repo sidebar. docs/en/developer/plans/taskgroup-token-sidebar-20260302/task_plan.md taskgroup-token-sidebar-20260302
       { key: 'settings', icon: <SettingOutlined />, labelKey: 'repos.detail.tabs.settings' },
     ],

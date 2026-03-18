@@ -501,6 +501,162 @@ export class UpdateRepoRobotResponseDto {
   robot!: RepoRobotSwaggerDto;
 }
 
+// Document the robot playground dry-run response so the repo API explorer exposes prompt/provider preview fields. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
+export class RepoRobotDryRunActionSwaggerDto {
+  @ApiProperty()
+  type!: string;
+
+  @ApiProperty()
+  summary!: string;
+}
+
+export class RepoRobotDryRunCredentialSummarySwaggerDto {
+  @ApiProperty()
+  provider!: string;
+
+  @ApiProperty()
+  requestedStoredSource!: string;
+
+  @ApiProperty()
+  resolvedLayer!: string;
+
+  @ApiProperty()
+  resolvedMethod!: string;
+
+  @ApiProperty()
+  canExecute!: boolean;
+
+  @ApiPropertyOptional()
+  displayName?: string;
+
+  @ApiPropertyOptional()
+  profileId?: string;
+
+  @ApiPropertyOptional()
+  apiBaseUrl?: string;
+
+  @ApiProperty()
+  supportsModelListing!: boolean;
+
+  @ApiProperty()
+  fallbackUsed!: boolean;
+
+  @ApiPropertyOptional()
+  reason?: string;
+}
+
+export class RepoRobotDryRunAttemptSwaggerDto {
+  @ApiProperty()
+  provider!: string;
+
+  @ApiProperty()
+  role!: string;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiPropertyOptional()
+  reason?: string;
+
+  @ApiPropertyOptional()
+  error?: string;
+
+  @ApiPropertyOptional()
+  startedAt?: string;
+
+  @ApiPropertyOptional()
+  finishedAt?: string;
+
+  @ApiProperty()
+  credential!: unknown;
+}
+
+export class RepoRobotDryRunRoutingSwaggerDto {
+  @ApiProperty()
+  mode!: string;
+
+  @ApiProperty()
+  failoverPolicy!: string;
+
+  @ApiProperty()
+  primaryProvider!: string;
+
+  @ApiPropertyOptional()
+  fallbackProvider?: string;
+
+  @ApiProperty()
+  selectedProvider!: string;
+
+  @ApiPropertyOptional()
+  finalProvider?: string;
+
+  @ApiProperty()
+  selectionReason!: string;
+
+  @ApiProperty()
+  failoverTriggered!: boolean;
+
+  @ApiProperty({ type: RepoRobotDryRunAttemptSwaggerDto, isArray: true })
+  attempts!: RepoRobotDryRunAttemptSwaggerDto[];
+}
+
+export class RepoRobotDryRunResolvedProviderSwaggerDto {
+  @ApiProperty()
+  provider!: string;
+
+  @ApiProperty()
+  model!: string;
+
+  @ApiProperty()
+  sandbox!: string;
+
+  @ApiProperty()
+  networkAccess!: boolean;
+
+  @ApiProperty({ type: RepoRobotDryRunRoutingSwaggerDto })
+  routing!: RepoRobotDryRunRoutingSwaggerDto;
+}
+
+export class RepoRobotDryRunExecutionPlanSwaggerDto {
+  @ApiProperty()
+  mode!: string;
+
+  @ApiProperty()
+  workspaceStrategy!: string;
+
+  @ApiProperty()
+  outputFileName!: string;
+
+  @ApiProperty({ type: String, isArray: true })
+  sideEffectProtection!: string[];
+}
+
+export class RepoRobotDryRunResponseDto {
+  @ApiProperty()
+  renderedPrompt!: string;
+
+  @ApiProperty({ type: RepoRobotDryRunResolvedProviderSwaggerDto })
+  resolvedProvider!: RepoRobotDryRunResolvedProviderSwaggerDto;
+
+  @ApiProperty({ type: RepoRobotDryRunCredentialSummarySwaggerDto })
+  resolvedCredentialSummary!: RepoRobotDryRunCredentialSummarySwaggerDto;
+
+  @ApiProperty({ type: RepoRobotDryRunExecutionPlanSwaggerDto })
+  executionPlan!: RepoRobotDryRunExecutionPlanSwaggerDto;
+
+  @ApiProperty({ type: RepoRobotDryRunActionSwaggerDto, isArray: true })
+  simulatedActions!: RepoRobotDryRunActionSwaggerDto[];
+
+  @ApiPropertyOptional()
+  modelOutput?: string;
+
+  @ApiPropertyOptional()
+  modelError?: string;
+
+  @ApiProperty({ type: String, isArray: true })
+  warnings!: string[];
+}
+
 export class TestRobotResponseDto {
   @ApiProperty()
   ok!: boolean;
@@ -548,6 +704,9 @@ export class RepoWebhookDeliverySummaryDto {
   eventName?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
+  mappedEventType?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
   deliveryId?: string | null;
 
   @ApiProperty({ enum: ['accepted', 'skipped', 'rejected', 'error'] })
@@ -562,8 +721,32 @@ export class RepoWebhookDeliverySummaryDto {
   @ApiPropertyOptional({ nullable: true })
   message?: string | null;
 
+  @ApiPropertyOptional({ nullable: true })
+  payloadHash?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  signatureVerified?: boolean | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  errorLayer?: string | null;
+
+  @ApiProperty({ type: String, isArray: true })
+  matchedRuleIds!: string[];
+
+  @ApiProperty({ type: String, isArray: true })
+  matchedRobotIds!: string[];
+
   @ApiProperty({ type: String, isArray: true })
   taskIds!: string[];
+
+  @ApiProperty({ type: String, isArray: true })
+  taskGroupIds!: string[];
+
+  @ApiPropertyOptional({ nullable: true })
+  replayOfEventId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  replayMode?: string | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
@@ -575,6 +758,15 @@ export class RepoWebhookDeliveryDetailDto extends RepoWebhookDeliverySummaryDto 
 
   @ApiPropertyOptional()
   response?: unknown;
+
+  @ApiPropertyOptional()
+  debugTrace?: unknown;
+
+  @ApiPropertyOptional()
+  dryRunResult?: unknown;
+
+  @ApiPropertyOptional({ type: RepoWebhookDeliverySummaryDto, isArray: true })
+  replays?: RepoWebhookDeliverySummaryDto[];
 }
 
 export class ListRepoWebhookDeliveriesResponseDto {

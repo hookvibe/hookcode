@@ -1,6 +1,5 @@
 # Progress Log
-<!-- Track execution steps and errors for the system log type fix. docs/en/developer/plans/systemlog-typefix-20260302/task_plan.md systemlog-typefix-20260302 -->
-
+{/* Track execution steps and errors for the system log type fix. docs/en/developer/plans/systemlog-typefix-20260302/task_plan.md systemlog-typefix-20260302 */}
 ## Session Metadata
 - **Session Title:** Fix system log type mapping
 - **Session Hash:** systemlog-typefix-20260302
@@ -47,7 +46,7 @@
   -
 
 ### Phase 5: Delivery
-<!-- Mark delivery tasks complete after updating the changelog. docs/en/developer/plans/systemlog-typefix-20260302/task_plan.md systemlog-typefix-20260302 -->
+{/* Mark delivery tasks complete after updating the changelog. docs/en/developer/plans/systemlog-typefix-20260302/task_plan.md systemlog-typefix-20260302 */}
 - **Status:** complete
 - Actions taken:
   - Updated the unreleased changelog entry for this session.

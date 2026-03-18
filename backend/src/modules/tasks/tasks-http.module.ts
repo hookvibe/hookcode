@@ -7,6 +7,8 @@ import { PreviewAdminController } from './preview-admin.controller';
 import { PreviewProxyController } from './preview-proxy.controller';
 import { TaskGroupsController } from './task-groups.controller';
 import { TaskGroupPreviewController } from './task-group-preview.controller';
+import { ApprovalsController } from './approvals.controller';
+import { PoliciesController } from './policies.controller';
 import { TasksController } from './tasks.controller';
 import { TasksModule } from './tasks.module';
 import { SkillsModule } from '../skills/skills.module';
@@ -23,6 +25,8 @@ import { WorkersModule } from '../workers/workers.module';
   // Wire preview HTTP controllers alongside task-group APIs. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
   controllers: [
     TasksController,
+    ApprovalsController,
+    PoliciesController,
     TaskGroupsController,
     TaskGroupPreviewController,
     PreviewProxyController,

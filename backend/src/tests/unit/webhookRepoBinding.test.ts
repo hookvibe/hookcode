@@ -13,7 +13,8 @@ const createDeps = () => ({
     updateRepository: jest.fn()
   },
   repoRobotService: {
-    listByRepo: jest.fn().mockResolvedValue([])
+    listByRepo: jest.fn().mockResolvedValue([]),
+    listByRepoWithToken: jest.fn().mockResolvedValue([])
   },
   repoAutomationService: {
     getConfig: jest.fn().mockResolvedValue({ version: 2, events: {} })

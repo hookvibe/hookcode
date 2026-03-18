@@ -35,12 +35,25 @@ export type WorkerRuntimePrepareFinishedMessage = {
   error?: string;
 };
 
+export type WorkerWorkspaceResponseMessage = {
+  type: 'workspaceResponse';
+  requestId: string;
+  taskId: string;
+  success: boolean;
+  result?: Record<string, unknown>;
+  error?: {
+    code?: string;
+    message?: string;
+  };
+};
+
 export type WorkerInboundMessage =
   | WorkerHelloMessage
   | WorkerHeartbeatMessage
   | WorkerTaskAcceptedMessage
   | WorkerRuntimePrepareStartedMessage
-  | WorkerRuntimePrepareFinishedMessage;
+  | WorkerRuntimePrepareFinishedMessage
+  | WorkerWorkspaceResponseMessage;
 
 export type WorkerAssignTaskMessage = {
   type: 'assignTask';
@@ -59,8 +72,20 @@ export type WorkerCancelTaskMessage = {
 
 export type WorkerPingMessage = { type: 'ping' };
 
+export type WorkerWorkspaceRequestMessage = {
+  type: 'workspaceRequest';
+  requestId: string;
+  taskId: string;
+  action: 'snapshot' | 'stage' | 'unstage' | 'discard' | 'delete_untracked' | 'commit';
+  payload?: {
+    paths?: string[];
+    message?: string;
+  };
+};
+
 export type WorkerOutboundMessage =
   | WorkerAssignTaskMessage
   | WorkerPrepareRuntimeMessage
   | WorkerCancelTaskMessage
-  | WorkerPingMessage;
+  | WorkerPingMessage
+  | WorkerWorkspaceRequestMessage;

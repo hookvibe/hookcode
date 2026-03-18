@@ -33,6 +33,8 @@ const mergeItems = (prev: ExecutionItem, next: ExecutionItem): ExecutionItem => 
       ...p,
       status: n.status || p.status,
       command: n.command || p.command,
+      toolName: n.toolName ?? p.toolName,
+      toolInput: n.toolInput !== undefined ? n.toolInput : p.toolInput,
       output: n.output !== undefined ? n.output : p.output,
       exitCode: n.exitCode !== undefined ? n.exitCode : p.exitCode
     };
@@ -66,6 +68,22 @@ const mergeItems = (prev: ExecutionItem, next: ExecutionItem): ExecutionItem => 
     const n = next;
     const p = prev as Extract<ExecutionItem, { kind: 'todo_list' }>;
     return { ...p, status: n.status || p.status, items: n.items?.length ? n.items : p.items };
+  }
+
+  if (next.kind === 'subagent_container') {
+    const n = next;
+    const p = prev as Extract<ExecutionItem, { kind: 'subagent_container' }>;
+    return {
+      ...p,
+      status: n.status || p.status,
+      title: n.title || p.title,
+      description: n.description || p.description,
+      prompt: n.prompt ?? p.prompt,
+      currentToolIndex: Number.isFinite(n.currentToolIndex) ? n.currentToolIndex : p.currentToolIndex,
+      isComplete: n.isComplete ?? p.isComplete,
+      childItems: n.childItems?.length ? n.childItems : p.childItems,
+      resultText: n.resultText ?? p.resultText
+    };
   }
 
   return next;

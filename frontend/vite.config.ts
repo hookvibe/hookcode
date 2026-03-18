@@ -41,6 +41,21 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     publicDir: fileURLToPath(new URL('../logo', import.meta.url)),
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('/react/') || id.includes('/react-dom/')) return 'vendor-react';
+            if (id.includes('/antd/') || id.includes('/@ant-design/') || id.includes('/@ant-design/x/')) return 'vendor-antd';
+            if (id.includes('/react-markdown/') || id.includes('/remark-gfm/') || id.includes('/remark-breaks/')) return 'vendor-markdown';
+            if (id.includes('/echarts/')) return 'vendor-charts';
+            if (id.includes('/react-window/') || id.includes('/diff/')) return 'vendor-workspace';
+            return 'vendor-misc';
+          }
+        }
+      }
+    },
     server: {
       port,
       proxy: {

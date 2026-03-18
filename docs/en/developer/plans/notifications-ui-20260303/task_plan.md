@@ -1,5 +1,5 @@
 # Task Plan: Notifications UX improvements
-<!-- Define goals and phases for notifications UX improvements. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303 -->
+{/* Define goals and phases for notifications UX improvements. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303 */}
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. notifications-ui-20260303 */}
@@ -15,7 +15,7 @@ Improve notification UX so opening the popover marks messages read, "mark all re
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-<!-- Track active delivery phase for notifications UX updates. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303 -->
+{/* Track active delivery phase for notifications UX updates. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303 */}
 Phase 5 (Complete)
 
 ## Phases

@@ -83,6 +83,14 @@ export const zhCNAuth = {
   'toast.task.retryFailedTasksFailed': '重试失败，请稍后再试',
   'toast.task.executeNowSuccess': '已安排立即执行',
   'toast.task.executeNowFailed': '立即执行失败，请稍后再试',
+  'approval.toast.fetchFailed': '加载审批请求失败',
+  'approval.toast.actionFailed': '审批操作失败',
+  'approval.toast.approved': '任务已批准',
+  'approval.toast.rejected': '任务已拒绝',
+  'approval.toast.changesRequested': '已要求修改',
+  'approval.toast.approvedAlways': '已批准，并记住后续匹配任务',
+  'approval.toast.approvedAlwaysRobot': '已批准，并记住该机器人规则',
+  'approval.toast.approvedAlwaysRule': '已批准，并记住该策略规则',
   // Add taskgroup list error toast for the new card page. docs/en/developer/plans/f39gmn6cmthygu02clmw/task_plan.md f39gmn6cmthygu02clmw
   'toast.taskGroups.fetchFailed': '任务组加载失败',
   'toast.chat.reposLoadFailed': '加载仓库失败',
@@ -128,6 +136,8 @@ export const zhCNAuth = {
   'toast.apiTokens.saveFailed': '保存 API 令牌失败',
   'toast.apiTokens.copySuccess': '令牌已复制',
   'toast.apiTokens.copyFailed': '复制失败',
+  'toast.budgets.saved': '预算策略已保存',
+  'toast.budgets.saveFailed': '保存预算策略失败',
 
   // Add repo URL create fields + onboarding wizard copy. 58w1q3n5nr58flmempxe
 } as const;

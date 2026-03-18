@@ -9,7 +9,7 @@
 Add an admin-only, categorized logging system with retention, SSE updates, and a settings-tab UI, plus enforce global logging for new features.
 
 ## Current Phase
-<!-- Mark task completion status for delivery wrap-up. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+{/* Mark task completion status for delivery wrap-up. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
 Complete
 
 ## Phases
@@ -42,7 +42,7 @@ Complete
 - **Status:** complete
 
 ### Phase 5: Delivery
-<!-- Marked changelog task completion. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 -->
+{/* Marked changelog task completion. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302 */}
 - [x] Update changelog entry
 - [x] Final review + summary
 - **Status:** complete

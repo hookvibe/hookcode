@@ -15,6 +15,8 @@ class FakeRuntimeService {
 describe('dependencyInstaller', () => {
   test('runs installs for multiple workdirs', async () => {
     const calls: Array<{ cwd: string; command: string }> = [];
+    // Compare against path.resolve results so the install test accepts Windows drive-qualified workdirs. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    const repoRoot = path.resolve('/repo');
     const config: HookcodeConfig = {
       version: 1,
       dependency: {
@@ -39,8 +41,8 @@ describe('dependencyInstaller', () => {
 
     expect(result.status).toBe('success');
     expect(calls).toEqual([
-      { cwd: '/repo/backend', command: 'pnpm install --frozen-lockfile' },
-      { cwd: '/repo/frontend', command: 'pnpm install --frozen-lockfile' }
+      { cwd: path.join(repoRoot, 'backend'), command: 'pnpm install --frozen-lockfile' },
+      { cwd: path.join(repoRoot, 'frontend'), command: 'pnpm install --frozen-lockfile' }
     ]);
   });
 

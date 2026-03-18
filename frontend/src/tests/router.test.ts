@@ -48,6 +48,14 @@ describe('router (hash routes)', () => {
     expect(parseRoute('#/settings/preview')).toEqual({ page: 'settings', settingsTab: 'preview' });
   });
 
+  test('parses settings approvals tab route', () => {
+    expect(parseRoute('#/settings/approvals')).toEqual({ page: 'settings', settingsTab: 'approvals' });
+  });
+
+  test('parses settings webhooks tab route', () => {
+    expect(parseRoute('#/settings/webhooks')).toEqual({ page: 'settings', settingsTab: 'webhooks' });
+  });
+
   test('falls back to home for unknown routes', () => {
     expect(parseRoute('#/unknown/path')).toEqual({ page: 'home' });
   });

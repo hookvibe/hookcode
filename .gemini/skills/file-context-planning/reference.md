@@ -189,7 +189,7 @@ Manus operates in a continuous 7-step loop:
 
 ## Critical Constraints
 
-- **Codex Note (Tools):** Codex CLI can run multiple tool calls and can parallelize safe reads. Use parallelism for speed, but keep planning files updated so state doesn't drift.
+- **Gemini Note (Tools):** Gemini CLI can run multiple tool calls and can parallelize safe reads. Use parallelism for speed, but keep planning files updated so state doesn't drift.
 - **Plan is Required:** Always know: goal, current phase, remaining phases.
 - **Files are Memory:** Context = volatile. Filesystem = persistent.
 - **Never Repeat Failures:** If an action failed, the next action should be different (log the failure and mutate the approach).

@@ -5,6 +5,7 @@ import { fetchNotifications, markAllNotificationsRead } from '../../api';
 import type { NotificationEntry, NotificationLevel } from '../../api';
 import { createAuthedEventSource } from '../../utils/sse';
 import { useT } from '../../i18n';
+import { SETTINGS_DATA_TABLE_CLASS_NAME, SETTINGS_DATA_TABLE_SCROLL_X } from './layout';
 
 const formatTimestamp = (value: string): string => {
   const date = new Date(value);
@@ -63,12 +64,13 @@ export const SettingsNotificationsPanel: FC = () => {
         title: 'Message',
         dataIndex: 'message',
         key: 'message',
+        width: 360,
         render: (value: string) => <span>{value}</span>
       },
       {
         title: 'Context',
         key: 'context',
-        width: 200,
+        width: 240,
         render: (_, record) => (
           <Space direction="vertical" size={2}>
             {record.repoId ? <Typography.Text type="secondary">Repo: {record.repoId}</Typography.Text> : null}
@@ -229,9 +231,12 @@ export const SettingsNotificationsPanel: FC = () => {
         {error ? <Alert type="error" showIcon message={error} /> : null}
 
         <Table
+          // Keep notification columns horizontally scrollable when the shared settings shell is too narrow. docs/en/developer/plans/settings-table-layout-20260312/task_plan.md settings-table-layout-20260312
+          className={SETTINGS_DATA_TABLE_CLASS_NAME}
           rowKey={(record) => record.id}
           columns={columns}
           dataSource={pagedNotifications}
+          scroll={{ x: SETTINGS_DATA_TABLE_SCROLL_X }}
           pagination={{
             current: page,
             pageSize: PAGE_SIZE,

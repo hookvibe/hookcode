@@ -13,6 +13,16 @@ describe('gemini_cli provider config', () => {
     expect(cfg.sandbox_workspace_write.network_access).toBe(false);
   });
 
+  test('read-only sandbox clears stale network_access flags', () => {
+    const cfg = normalizeGeminiCliRobotProviderConfig({
+      credentialSource: 'user',
+      model: 'test-model',
+      sandbox: 'read-only',
+      sandbox_workspace_write: { network_access: true }
+    });
+    expect(cfg.sandbox_workspace_write.network_access).toBe(false);
+  });
+
   test('mergeGeminiCliRobotProviderConfig 在未提供 apiKey 时保留旧 apiKey', () => {
     const existing = {
       credentialSource: 'robot',

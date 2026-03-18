@@ -1,4 +1,4 @@
-<!-- Log planning-session actions and status transitions for preview terminal-mode requirement. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
+{/* Log planning-session actions and status transitions for preview terminal-mode requirement. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
 # Progress Log
 
 ## Session Metadata
@@ -77,7 +77,7 @@
   - Ran full root-level test suite (`pnpm test`).
   - Ran build verification for backend and frontend.
   - Updated session planning docs and changelog entry.
-  <!-- Record follow-up user-doc synchronization work after a deeper parser/runtime audit. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
+  {/* Record follow-up user-doc synchronization work after a deeper parser/runtime audit. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
   - Audited user-docs against `.hookcode.yml` runtime behavior and synced display-mode/terminal-preview guidance in config + preview + features pages.
   - Performed a deeper code-vs-doc audit and synced additional user-doc gaps for preview management surfaces, placeholder validation semantics, and startup timeout behavior.
 - Files created/modified:
@@ -90,7 +90,7 @@
   - `docs/en/user-docs/preview.md`
   - `docs/en/user-docs/features.md`
 
-<!-- Track follow-up synchronization work for all hookcode-yml-generator variants. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
+{/* Track follow-up synchronization work for all hookcode-yml-generator variants. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
 ### Phase 6: Skill Sync Follow-up
 - **Status:** complete
 - Actions taken:
@@ -126,10 +126,10 @@
 | Backend targeted tests | `pnpm --filter hookcode-backend test -- src/tests/unit/hookcodeConfigService.test.ts src/tests/unit/previewService.test.ts` | Updated config/preview tests pass | 2 suites passed, 17 tests passed | ✅ |
 | Frontend targeted tests | `pnpm --filter hookcode-frontend test -- src/tests/taskGroupChatPage.preview.test.tsx src/tests/settingsPreviewPanel.test.tsx src/tests/repoDetailPage.test.tsx` | Updated preview UI tests pass | 3 files passed, 33 tests passed | ✅ |
 | Frontend terminal-style regression | `pnpm --filter hookcode-frontend test -- src/tests/taskGroupChatPage.preview.test.tsx` | Terminal-mode UI simplification + auto-follow behavior keep preview tests passing | 1 file passed, 12 tests passed | ✅ |
-<!-- Capture follow-up documentation audit checks and outcomes for this session. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
+{/* Capture follow-up documentation audit checks and outcomes for this session. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
 | User-docs sync audit | manual code-vs-doc review for `.hookcode.yml` (`hookcodeConfigService`, `preview.service`, `TaskGroupChatPage`) | User docs reflect display modes + terminal behavior | Updated `hookcode-yml.md`, `preview.md`, `features.md` | ✅ |
 | User-docs deep sync audit | manual code-vs-doc review for parser/runtime + repo/admin management surfaces | User docs reflect placeholder constraints, management panels, and readiness timeout behavior | Updated `hookcode-yml.md`, `preview.md`, `features.md`, `repositories.md` | ✅ |
-<!-- Record hookcode-yml-generator sync validation checks across all skill bundle variants. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
+{/* Record hookcode-yml-generator sync validation checks across all skill bundle variants. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
 | Skill variant discovery | `find . -type d -name hookcode-yml-generator` | Locate all generator bundle variants in source tree | Found 5 source variants (`.codex/.claude/.gemini/backend/skills/skill`) plus task-group runtime artifacts | ✅ |
 | Skill content consistency | `shasum` over `SKILL.md`, `references/hookcode-yml-logic.md`, and `assets/hookcode.yml.template` in all 5 variants | All source variants are aligned | All checksums match per file class | ✅ |
 | Outdated pattern audit | `rg -n \"port:\\s*5173|-- --port\"` over generator variants | No outdated guidance remains | Deprecated usage only appears in "Do not use ..." guard text | ✅ |
@@ -141,7 +141,7 @@
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
 | 2026-03-03 15:44 CST | `init-session.sh`: `docs.json missing navigation.languages[]` | 1 | Continued with manually maintained session docs (files were created successfully) |
-<!-- Record docs validation blocker details for traceable follow-up. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 -->
+{/* Record docs validation blocker details for traceable follow-up. docs/en/developer/plans/preview-backend-terminal-output-20260303/task_plan.md preview-backend-terminal-output-20260303 */}
 | 2026-03-03 17:52 CST | `mintlify validate`: `Unexpected character \`!\`` with no source file in output | 1 | Treated as pre-existing docs tooling issue; user-doc content was still synced manually via direct code-vs-doc verification |
 
 ## 5-Question Reboot Check

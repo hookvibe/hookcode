@@ -34,6 +34,16 @@ export const useTaskGroupTaskActions = ({
     await refreshGroupDetail(taskGroupId, { mode: 'refreshing' });
   }, [refreshGroupDetail, taskGroupId]);
 
+  const handleTaskMetaChanged = useCallback(async (task: Task) => {
+    // Clear cached task detail snapshots after approval actions so cards re-render from the latest task-group refresh. docs/en/developer/plans/rootfeatureplans20260313/task_plan.md rootfeatureplans20260313
+    setTaskDetailsById((prev) => {
+      const next = { ...prev };
+      delete next[task.id];
+      return next;
+    });
+    await refreshAfterMutation();
+  }, [refreshAfterMutation, setTaskDetailsById]);
+
   // Centralize queue-card task mutations so the workspace keeps one stop/retry/reorder control flow. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   const handleStopTask = useCallback(async (task: Task) => {
     if (!task.permissions?.canManage) {
@@ -125,6 +135,7 @@ export const useTaskGroupTaskActions = ({
     handleRetryTask,
     handleDeleteQueuedTask,
     handleSaveQueuedTask,
-    handleReorderQueuedTask
+    handleReorderQueuedTask,
+    handleTaskMetaChanged
   };
 };

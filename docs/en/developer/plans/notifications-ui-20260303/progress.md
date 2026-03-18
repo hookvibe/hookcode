@@ -1,6 +1,5 @@
 # Progress Log
-<!-- Track execution progress for notifications UX updates. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303 -->
-
+{/* Track execution progress for notifications UX updates. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303 */}
 ## Session Metadata
 - **Session Title:** Notifications UX improvements
 - **Session Hash:** notifications-ui-20260303

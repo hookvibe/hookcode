@@ -37,7 +37,8 @@ export type AppliedMigrationRow = {
   applied_at: Date;
 };
 
-const sha256 = (input: string): string => crypto.createHash('sha256').update(input).digest('hex');
+// Normalize line endings before hashing so checksums are stable across OS (CRLF on Windows vs LF on Linux/macOS/CI).
+const sha256 = (input: string): string => crypto.createHash('sha256').update(input.replace(/\r\n/g, '\n')).digest('hex');
 
 const stripSqlLeadingComments = (input: string): string => {
   // Compatibility note: Prisma migration.sql files often start with "--" comment headers.

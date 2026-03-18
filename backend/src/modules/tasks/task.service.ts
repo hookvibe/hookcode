@@ -23,6 +23,11 @@ import { EventStreamService } from '../events/event-stream.service';
 import { LogWriterService } from '../logs/log-writer.service';
 import { WorkersService } from '../workers/workers.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
+import { ApprovalQueueService } from '../../policyEngine/approvalQueue.service';
+import { PolicyEngineService } from '../../policyEngine/policyEngine.service';
+import { QuotaEnforcerService } from '../../costGovernance/quotaEnforcer.service';
+import { UsageAggregationService } from '../../costGovernance/usageAggregation.service';
+import { BudgetService } from '../../costGovernance/budget.service';
 import {
   TASK_MANUAL_STOP_MESSAGE,
   TASK_MANUAL_STOP_REASON,
@@ -265,6 +270,8 @@ type TaskGroupBinding = {
 type TaskGroupEventReason = 'created' | 'status';
 
 const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 // Define the SSE event name for task-group timeline refresh pushes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
 const TASK_GROUP_EVENT_NAME = 'task-group.refresh';
@@ -367,7 +374,12 @@ export class TaskService {
     private readonly eventStream?: EventStreamService,
     private readonly logWriter?: LogWriterService,
     private readonly notificationRecipients?: NotificationRecipientService,
-    private readonly workersService?: WorkersService
+    private readonly workersService?: WorkersService,
+    private readonly policyEngine?: PolicyEngineService,
+    private readonly approvalQueue?: ApprovalQueueService,
+    private readonly quotaEnforcer?: QuotaEnforcerService,
+    private readonly usageAggregationService?: UsageAggregationService,
+    private readonly budgetService?: BudgetService
   ) {}
 
   private runningTaskGroupLogState = { lastLogAt: 0, lastCount: -1 }; // Throttle running-task group audit logs to avoid sidebar poll spam. docs/en/developer/plans/taskgroup-running-dot-20260305/task_plan.md taskgroup-running-dot-20260305
@@ -487,7 +499,7 @@ export class TaskService {
     const repoIds = Array.from(new Set(tasks.map((t) => t.repoId).filter(Boolean))) as string[];
     const robotIds = Array.from(new Set(tasks.map((t) => t.robotId).filter(Boolean))) as string[];
 
-    const [repos, robots, withWorkers] = await Promise.all([
+    const [repos, robots, withWorkers, approvalMap] = await Promise.all([
       repoIds.length
         ? db.repository.findMany({
             where: { id: { in: repoIds } },
@@ -500,7 +512,8 @@ export class TaskService {
             select: { id: true, repoId: true, name: true, permission: true, enabled: true }
           })
         : Promise.resolve<RobotMetaRow[]>([]),
-      this.workersService ? this.workersService.attachWorkerSummaries(tasks) : Promise.resolve(tasks)
+      this.workersService ? this.workersService.attachWorkerSummaries(tasks) : Promise.resolve(tasks),
+      this.approvalQueue ? this.approvalQueue.getLatestApprovalsForTaskIds(tasks.map((task) => task.id)) : Promise.resolve(new Map())
     ] as const);
 
     const repoMap = new Map<string, TaskRepoSummary>(
@@ -531,6 +544,7 @@ export class TaskService {
       const next: TaskWithMeta = { ...task };
       if (task.repoId && repoMap.has(task.repoId)) next.repo = repoMap.get(task.repoId);
       if (task.robotId && robotMap.has(task.robotId)) next.robot = robotMap.get(task.robotId);
+      if (approvalMap.has(task.id)) next.approvalRequest = approvalMap.get(task.id);
       return next;
     });
   }
@@ -684,6 +698,149 @@ export class TaskService {
     });
   }
 
+  private async applyPolicyGate(task: Task): Promise<Task> {
+    if (!this.policyEngine) return task;
+    const evaluation = await this.policyEngine.evaluateTask(task);
+
+    if (evaluation.decision === 'require_approval' && this.approvalQueue) {
+      await this.approvalQueue.enqueueApproval({
+        taskId: task.id,
+        repoId: task.repoId,
+        robotId: task.robotId,
+        actorUserId: task.actorUserId,
+        evaluation
+      });
+      return (await this.getTask(task.id)) ?? { ...task, status: 'waiting_approval', result: { ...task.result, message: evaluation.summary } };
+    }
+
+    if (evaluation.decision === 'deny') {
+      return (
+        (await this.patchResult(
+          task.id,
+          {
+            message: evaluation.summary,
+            policyDecision: evaluation.decision,
+            policyRiskLevel: evaluation.riskLevel
+          },
+          'failed'
+        )) ?? { ...task, status: 'failed', result: { ...task.result, message: evaluation.summary } }
+      );
+    }
+
+    if (evaluation.decision === 'allow_with_warning') {
+      return (
+        (await this.patchResult(task.id, {
+          message: evaluation.summary,
+          policyDecision: evaluation.decision,
+          policyRiskLevel: evaluation.riskLevel
+        })) ?? task
+      );
+    }
+
+    return task;
+  }
+
+  private async applyCostGovernanceGate(task: Task): Promise<Task> {
+    if (!this.quotaEnforcer) return task;
+    const evaluation = await this.quotaEnforcer.evaluateTask(task);
+    if (!evaluation) return task;
+
+    const currentGovernance = isRecord(task.result) ? task.result.costGovernance : undefined;
+    const unchanged = JSON.stringify(currentGovernance ?? null) === JSON.stringify(evaluation);
+    const basePatch: Partial<TaskResult> = { costGovernance: evaluation };
+
+    const recordQuotaEvent = async (eventType: 'warning' | 'blocked' | 'approval_required' | 'degrade_applied') => {
+      if (!this.budgetService || unchanged) return;
+      try {
+        await this.budgetService.recordQuotaEvent({
+          budgetPolicyId: evaluation.matchedPolicyId,
+          taskId: task.id,
+          repoId: task.repoId,
+          robotId: task.robotId,
+          actorUserId: task.actorUserId,
+          scopeType: evaluation.matchedScopeType,
+          scopeId: evaluation.matchedScopeId,
+          eventType,
+          decision: evaluation.decision,
+          message: evaluation.summary || '',
+          details: {
+            exceeded: evaluation.exceeded,
+            warnings: evaluation.warnings,
+            executionOverride: evaluation.executionOverride
+          }
+        });
+      } catch (err) {
+        console.warn('[tasks] record quota event failed (ignored)', { taskId: task.id, error: err });
+      }
+    };
+
+    if (evaluation.decision === 'deny') {
+      await recordQuotaEvent('blocked');
+      return (
+        (await this.patchResult(
+          task.id,
+          {
+            ...basePatch,
+            message: evaluation.summary
+          },
+          'failed'
+        )) ?? {
+          ...task,
+          status: 'failed',
+          result: { ...task.result, ...basePatch, message: evaluation.summary }
+        }
+      );
+    }
+
+    if (evaluation.decision === 'require_approval' && this.approvalQueue) {
+      await recordQuotaEvent('approval_required');
+      await this.approvalQueue.enqueueApproval({
+        taskId: task.id,
+        repoId: task.repoId,
+        robotId: task.robotId,
+        actorUserId: task.actorUserId,
+        evaluation: await this.quotaEnforcer.toApprovalEvaluation(task, evaluation)
+      });
+      return (
+        (await this.getTask(task.id)) ?? {
+          ...task,
+          status: 'waiting_approval',
+          result: { ...task.result, ...basePatch, message: evaluation.summary }
+        }
+      );
+    }
+
+    if (evaluation.decision === 'degrade') {
+      await recordQuotaEvent('degrade_applied');
+      return (
+        (await this.patchResult(task.id, {
+          ...basePatch,
+          message: evaluation.summary
+        })) ?? { ...task, result: { ...task.result, ...basePatch, message: evaluation.summary } }
+      );
+    }
+
+    if (evaluation.decision === 'allow_with_warning') {
+      await recordQuotaEvent('warning');
+      return (
+        (await this.patchResult(task.id, {
+          ...basePatch,
+          message: evaluation.summary
+        })) ?? { ...task, result: { ...task.result, ...basePatch, message: evaluation.summary } }
+      );
+    }
+
+    return (
+      (await this.patchResult(task.id, basePatch)) ?? { ...task, result: { ...task.result, ...basePatch } }
+    );
+  }
+
+  private async applyTaskGuards(task: Task): Promise<Task> {
+    const costGoverned = await this.applyCostGovernanceGate(task);
+    if (costGoverned.status !== 'queued') return costGoverned;
+    return this.applyPolicyGate(costGoverned);
+  }
+
   private async attachGroupMeta(groups: TaskGroupWithMeta[]): Promise<TaskGroupWithMeta[]> {
     type RepoMetaRow = { id: string; provider: string; name: string; enabled: boolean };
     type RobotMetaRow = { id: string; repoId: string; name: string; permission: string; enabled: boolean };
@@ -821,7 +978,7 @@ export class TaskService {
         updatedAt: now
       }
     });
-    const task = taskRecordToTask(created);
+    const task = await this.applyTaskGuards(taskRecordToTask(created));
     // Push task-group refresh events for new tasks. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
     void this.emitTaskGroupUpdate(task, 'created');
     return task;
@@ -905,7 +1062,7 @@ export class TaskService {
         updatedAt: now
       }
     });
-    const task = taskRecordToTask(created);
+    const task = await this.applyTaskGuards(taskRecordToTask(created));
     // Push task-group refresh events for group-bound tasks. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
     void this.emitTaskGroupUpdate(task, 'created');
     return task;
@@ -1181,6 +1338,7 @@ export class TaskService {
                'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                'tokenUsage', result_json->'tokenUsage',
                'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+               'providerRouting', result_json->'providerRouting',
                'gitStatus', result_json->'gitStatus'
              )) AS result_json
       FROM tasks
@@ -1263,7 +1421,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1282,7 +1441,28 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
+                  )) AS result_json
+           FROM tasks
+           WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
+             AND (${robotId}::uuid IS NULL OR robot_id = ${robotId}::uuid)
+             AND (${eventType}::text IS NULL OR event_type = ${eventType}::text)
+             AND (${listAllArchived}::boolean = true OR (${listArchivedOnly}::boolean = true AND archived_at IS NOT NULL) OR (${listArchivedOnly}::boolean = false AND archived_at IS NULL))
+             AND (${restrictAllowedRepoIds}::boolean = false OR repo_id = ANY(${allowedRepoIds}::uuid[]))
+             AND (${applyCursor}::boolean = false OR updated_at < ${cursorUpdatedAt}::timestamptz OR (updated_at = ${cursorUpdatedAt}::timestamptz AND id < ${cursorId}::uuid))
+             AND status = 'waiting_approval'
+           ORDER BY updated_at DESC, id DESC
+           LIMIT ${take})
+          UNION ALL
+          (SELECT id, group_id, event_type, status, archived_at, title, project_id, repo_provider, repo_id, robot_id, ref, mr_id, issue_id, retries, created_at, updated_at,
+                  jsonb_strip_nulls(jsonb_build_object(
+                    'message', NULLIF(result_json->>'message', ''),
+                    'summary', NULLIF(result_json->>'summary', ''),
+                    'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
+                    'tokenUsage', result_json->'tokenUsage',
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1301,7 +1481,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1320,7 +1501,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1339,7 +1521,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1367,7 +1550,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1386,7 +1570,8 @@ export class TaskService {
                     'summary', NULLIF(result_json->>'summary', ''),
                     'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                     'tokenUsage', result_json->'tokenUsage',
-                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                    'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                    'providerRouting', result_json->'providerRouting'
                   )) AS result_json
            FROM tasks
            WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1414,7 +1599,8 @@ export class TaskService {
                  'summary', NULLIF(result_json->>'summary', ''),
                  'outputText', NULLIF(left(result_json->>'outputText', 4000), ''),
                  'tokenUsage', result_json->'tokenUsage',
-                 'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', '')
+                 'providerCommentUrl', NULLIF(result_json->>'providerCommentUrl', ''),
+                 'providerRouting', result_json->'providerRouting'
                )) AS result_json
         FROM tasks
         WHERE (${repoId}::uuid IS NULL OR repo_id = ${repoId}::uuid)
@@ -1471,7 +1657,7 @@ export class TaskService {
       stats.total += count;
 
       const status = String((row as any)?.status ?? '');
-      if (status === 'queued') stats.queued += count;
+      if (status === 'queued' || status === 'waiting_approval') stats.queued += count;
       else if (status === 'processing') stats.processing += count;
       else if (status === 'failed') stats.failed += count;
       else if (status === 'succeeded' || status === 'commented') stats.success += count;
@@ -1624,6 +1810,15 @@ export class TaskService {
     `;
 
     const task = rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+    if (task && status && this.usageAggregationService) {
+      if (status === 'succeeded' || status === 'failed' || status === 'commented') {
+        try {
+          await this.usageAggregationService.syncTaskRollups(task.id);
+        } catch (err) {
+          console.warn('[tasks] sync usage rollups failed (ignored)', { taskId: task.id, error: err });
+        }
+      }
+    }
     if (task && status) {
       // Broadcast status-driven task-group updates to active chat sessions. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
       void this.emitTaskGroupUpdate(task, 'status');
@@ -1660,7 +1855,14 @@ export class TaskService {
         WHERE id = ${id}
         RETURNING *;
       `;
-      const task = rows?.[0] ? rowToTaskFromSql(rows[0]) : undefined;
+      if (rows?.[0] && this.usageAggregationService) {
+        try {
+          await this.usageAggregationService.clearTaskRollups(String(rows[0].id));
+        } catch (err) {
+          console.warn('[tasks] clear usage rollups failed (ignored)', { taskId: String(rows[0].id), error: err });
+        }
+      }
+      const task = rows?.[0] ? await this.applyTaskGuards(rowToTaskFromSql(rows[0])) : undefined;
       if (!task) return undefined;
       // Notify chat clients about retry status changes. docs/en/developer/plans/push-messages-20260302/task_plan.md push-messages-20260302
       void this.emitTaskGroupUpdate(task, 'status');
@@ -1678,7 +1880,7 @@ export class TaskService {
     try {
       const existing = await db.task.findUnique({ where: { id: taskId } });
       if (!existing) return undefined;
-      if (existing.status === 'queued') {
+      if (existing.status === 'queued' || existing.status === 'waiting_approval') {
         const row = await db.task.update({
           where: { id: taskId },
           data: {
@@ -1743,7 +1945,7 @@ export class TaskService {
         updatedAt: new Date()
       }
     });
-    const task = taskRecordToTask(row);
+    const task = await this.applyTaskGuards(taskRecordToTask(row));
     void this.emitTaskGroupUpdate(task, 'status');
     return task;
   }
@@ -1864,7 +2066,9 @@ export class TaskService {
     const now = new Date();
     for (const row of candidates) {
       const task = rowToTaskFromSql(row);
-      const scheduleState = resolveScheduleState(task.payload, now);
+      const guardedTask = await this.applyTaskGuards(task);
+      if (guardedTask.status !== 'queued') continue;
+      const scheduleState = resolveScheduleState(guardedTask.payload, now);
       if (scheduleState.blocked) continue;
 
       try {

@@ -14,11 +14,9 @@ import {
 import type { Task } from '../../api';
 import { useLocale, useT } from '../../i18n';
 import {
-  eventTag,
   extractTargetLink,
   extractTaskTokenUsage,
   extractTaskUserText,
-  getTaskEventMarker,
   getTaskRepoName,
   getTaskTitle,
   queuedHintText,
@@ -26,9 +24,10 @@ import {
 } from '../../utils/task';
 import { formatDateTime } from '../../utils/dateUtc';
 import { formatRobotLabelWithProvider } from '../../utils/robot';
-import { TaskGitStatusPanel } from '../tasks/TaskGitStatusPanel';
+import { TaskGitWorkspaceSummaryCard } from '../tasks/TaskGitWorkspaceSummaryCard';
+import { TaskProviderRoutingPanel } from '../tasks/TaskProviderRoutingPanel';
 import { MarkdownViewer } from '../MarkdownViewer';
-import { WorkerSummaryTag } from '../workers/WorkerSummaryTag';
+import { ApprovalRequestPanel } from '../approvals/ApprovalRequestPanel';
 
 interface TaskGroupTaskCardProps {
   task: Task;
@@ -38,6 +37,7 @@ interface TaskGroupTaskCardProps {
   onDelete: (task: Task) => void;
   onReorder: (task: Task, action: 'move_earlier' | 'move_later' | 'insert_next') => void;
   onSaveEdit: (task: Task, text: string) => Promise<void>;
+  onApprovalUpdated: (task: Task) => Promise<void>;
   actionLoading?: string | null;
 }
 
@@ -49,6 +49,7 @@ export const TaskGroupTaskCard = ({
   onDelete,
   onReorder,
   onSaveEdit,
+  onApprovalUpdated,
   actionLoading
 }: TaskGroupTaskCardProps) => {
   const locale = useLocale();
@@ -58,7 +59,6 @@ export const TaskGroupTaskCard = ({
 
   const userText = useMemo(() => extractTaskUserText(task) || t('chat.message.userTextFallback'), [t, task]);
   const title = useMemo(() => getTaskTitle(task), [task]);
-  const eventMarker = useMemo(() => getTaskEventMarker(task), [task]);
   const repoName = useMemo(() => getTaskRepoName(task), [task]);
   const robotName = useMemo(() => {
     const raw = String(task.robot?.name ?? task.robotId ?? '').trim();
@@ -67,7 +67,6 @@ export const TaskGroupTaskCard = ({
   }, [task.robot?.modelProvider, task.robot?.name, task.robotId]);
   const queueHint = useMemo(() => queuedHintText(t, task), [t, task]);
   const tokenUsage = useMemo(() => extractTaskTokenUsage(task), [task]);
-  const createdAt = useMemo(() => formatDateTime(locale, task.createdAt), [locale, task.createdAt]);
   const updatedAt = useMemo(() => formatDateTime(locale, task.updatedAt), [locale, task.updatedAt]);
   const targetLink = useMemo(() => extractTargetLink(t, task), [t, task]);
   const summaryMarkdown = useMemo(() => String(task.result?.summary ?? task.result?.message ?? '').trim(), [task.result?.message, task.result?.summary]);
@@ -121,37 +120,30 @@ export const TaskGroupTaskCard = ({
               {/* Keep long task titles from squeezing the status area by letting the headline shrink within the card header. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
               <span className="hc-task-workspace-card__headline" title={title}>{title}</span>
             </div>
-            <Space size={8} wrap className="hc-task-workspace-card__title-tags">
-              {eventTag(t, task.eventType)}
+            {/* Show minimal status chips in the card header for a cleaner look. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */}
+            <Space size={6} wrap className="hc-task-workspace-card__title-tags">
               {statusTag(t, task.status)}
-              {/* Keep each task card tagged with its worker so shared workspaces remain debuggable. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
-              <WorkerSummaryTag worker={task.workerSummary} workerId={task.workerId} />
             </Space>
           </div>
         }
       >
-        {/* Use the current Ant Design Space orientation API so queue cards do not emit runtime deprecation warnings. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
+        {/* Render task card metadata in a compact inline layout for cleaner visual density. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */}
         <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-          <div className="hc-task-workspace-card__meta-row">
-            <div className="hc-task-workspace-card__meta-grid">
-              <span>{t('taskGroup.workspace.eventMarker', { value: eventMarker || '-' })}</span>
-              <span>{t('taskGroup.workspace.repo', { value: repoName || '-' })}</span>
-              <span>{t('taskGroup.workspace.robot', { value: robotName || '-' })}</span>
-              <span>{t('taskGroup.workspace.worker', { value: task.workerSummary?.name || task.workerId || '-' })}</span>
-              <span>{t('taskGroup.workspace.createdAt', { value: createdAt })}</span>
-              <span>{t('taskGroup.workspace.updatedAt', { value: updatedAt })}</span>
-              {tokenUsage ? (
-                <span>
-                  {t('tasks.tokens.format', {
-                    input: new Intl.NumberFormat(locale).format(tokenUsage.inputTokens),
-                    output: new Intl.NumberFormat(locale).format(tokenUsage.outputTokens),
-                    total: new Intl.NumberFormat(locale).format(tokenUsage.totalTokens)
-                  })}
-                </span>
-              ) : null}
-            </div>
+          <div className="hc-task-workspace-card__meta-inline">
+            {repoName ? <span className="hc-task-workspace-card__meta-chip">{repoName}</span> : null}
+            {robotName ? <span className="hc-task-workspace-card__meta-chip">{robotName}</span> : null}
+            {tokenUsage ? (
+              <span className="hc-task-workspace-card__meta-chip">
+                {t('tasks.tokens.format', {
+                  input: new Intl.NumberFormat(locale).format(tokenUsage.inputTokens),
+                  output: new Intl.NumberFormat(locale).format(tokenUsage.outputTokens),
+                  total: new Intl.NumberFormat(locale).format(tokenUsage.totalTokens)
+                })}
+              </span>
+            ) : null}
+            <span className="hc-task-workspace-card__meta-chip hc-task-workspace-card__meta-chip--muted">{updatedAt}</span>
             {targetLink ? (
-              <a className="hc-task-workspace-card__target" href={targetLink.href} target="_blank" rel="noreferrer" onClick={stopCardClick}>
+              <a className="hc-task-workspace-card__meta-chip hc-task-workspace-card__meta-chip--link" href={targetLink.href} target="_blank" rel="noreferrer" onClick={stopCardClick}>
                 {targetLink.text}
               </a>
             ) : null}
@@ -159,6 +151,17 @@ export const TaskGroupTaskCard = ({
 
           {queueHint ? <Alert type="info" showIcon message={queueHint} /> : null}
           {manuallyStopped ? <Alert type="warning" showIcon message={t('taskGroup.workspace.manualStop')} /> : null}
+          {task.approvalRequest ? (
+            <div onClick={stopCardClick}>
+              <ApprovalRequestPanel
+                approval={task.approvalRequest}
+                task={task}
+                variant="compact"
+                canManage={canManage}
+                onUpdated={() => onApprovalUpdated(task)}
+              />
+            </div>
+          ) : null}
 
           <div className="hc-task-workspace-card__content" onClick={editing ? stopCardClick : undefined}>
             <Typography.Text type="secondary">{t('taskGroup.workspace.request')}</Typography.Text>
@@ -186,64 +189,52 @@ export const TaskGroupTaskCard = ({
             </div>
           ) : null}
 
-          {task.result?.gitStatus?.enabled ? <TaskGitStatusPanel task={task} variant="compact" /> : null}
+          {task.result?.providerRouting ? <TaskProviderRoutingPanel task={task} variant="compact" /> : null}
+          <TaskGitWorkspaceSummaryCard
+            task={task}
+            onOpen={() => onOpenLogs(task)}
+            actionLabel={t('tasks.gitWorkspace.summary.open')}
+          />
 
+          {/* Compact card action toolbar with icon-only secondary actions for a cleaner card layout. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */}
           <div className="hc-task-workspace-card__actions" onClick={stopCardClick}>
-            <Space size={8} wrap>
-              <Button icon={<FileTextOutlined />} onClick={() => onOpenLogs(task)}>
+            <Space size={4} wrap>
+              <Button size="small" type="text" icon={<FileTextOutlined />} onClick={() => onOpenLogs(task)}>
                 {t('taskGroup.workspace.openLogs')}
               </Button>
 
               {canManage && isQueued && !editing ? (
-                <Button icon={<EditOutlined />} onClick={startEditing}>
-                  {t('taskGroup.workspace.edit')}
-                </Button>
+                <Button size="small" type="text" icon={<EditOutlined />} onClick={startEditing} />
               ) : null}
 
               {canManage && isQueued && editing ? (
                 <>
-                  <Button type="primary" icon={<SaveOutlined />} onClick={(event) => void saveEdit(event)} loading={busy === `save:${task.id}`}>
+                  <Button size="small" type="primary" icon={<SaveOutlined />} onClick={(event) => void saveEdit(event)} loading={busy === `save:${task.id}`}>
                     {t('taskGroup.workspace.save')}
                   </Button>
-                  <Button onClick={cancelEditing}>{t('common.cancel')}</Button>
+                  <Button size="small" type="text" onClick={cancelEditing}>{t('common.cancel')}</Button>
                 </>
               ) : null}
 
               {canManage && isQueued && !editing ? (
-                <Button icon={<ArrowUpOutlined />} onClick={() => onReorder(task, 'move_earlier')} loading={busy === `move_earlier:${task.id}`}>
-                  {t('taskGroup.workspace.moveEarlier')}
-                </Button>
-              ) : null}
-
-              {canManage && isQueued && !editing ? (
-                <Button icon={<ArrowDownOutlined />} onClick={() => onReorder(task, 'move_later')} loading={busy === `move_later:${task.id}`}>
-                  {t('taskGroup.workspace.moveLater')}
-                </Button>
-              ) : null}
-
-              {canManage && isQueued && !editing ? (
-                <Button icon={<InsertRowAboveOutlined />} onClick={() => onReorder(task, 'insert_next')} loading={busy === `insert_next:${task.id}`}>
-                  {t('taskGroup.workspace.prioritize')}
-                </Button>
+                <>
+                  <Button size="small" type="text" icon={<ArrowUpOutlined />} onClick={() => onReorder(task, 'move_earlier')} loading={busy === `move_earlier:${task.id}`} />
+                  <Button size="small" type="text" icon={<ArrowDownOutlined />} onClick={() => onReorder(task, 'move_later')} loading={busy === `move_later:${task.id}`} />
+                  <Button size="small" type="text" icon={<InsertRowAboveOutlined />} onClick={() => onReorder(task, 'insert_next')} loading={busy === `insert_next:${task.id}`} />
+                </>
               ) : null}
 
               {canManage && (task.status === 'failed' || task.status === 'succeeded' || task.status === 'commented') ? (
-                <Button icon={<ReloadOutlined />} onClick={() => onRetry(task)} loading={busy === `retry:${task.id}`}>
-                  {t('tasks.retry')}
-                </Button>
+                <Button size="small" type="text" icon={<ReloadOutlined />} onClick={() => onRetry(task)} loading={busy === `retry:${task.id}`} />
               ) : null}
 
               {canManage && isProcessing ? (
-                <Button danger icon={<StopOutlined />} onClick={() => onStop(task)} loading={busy === `stop:${task.id}`}>
-                  {t('tasks.stop')}
-                </Button>
+                <Button size="small" type="text" danger icon={<StopOutlined />} onClick={() => onStop(task)} loading={busy === `stop:${task.id}`} />
               ) : null}
 
               {canManage && isQueued ? (
                 <Popconfirm title={t('taskGroup.workspace.cancelConfirm')} onConfirm={() => onDelete(task)}>
-                  <Button danger icon={<DeleteOutlined />} loading={busy === `delete:${task.id}`}>
-                    {t('taskGroup.workspace.cancel')}
-                  </Button>
+                  <Button size="small" type="text" danger icon={<DeleteOutlined />} loading={busy === `delete:${task.id}`} />
                 </Popconfirm>
               ) : null}
             </Space>

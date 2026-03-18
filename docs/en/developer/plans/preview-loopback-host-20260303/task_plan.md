@@ -1,6 +1,5 @@
 # Task Plan: Investigate 127.0.0.1 preview access issue
-<!-- Define concrete investigation phases for loopback hostname mismatch. docs/en/developer/plans/preview-loopback-host-20260303/task_plan.md preview-loopback-host-20260303 -->
-
+{/* Define concrete investigation phases for loopback hostname mismatch. docs/en/developer/plans/preview-loopback-host-20260303/task_plan.md preview-loopback-host-20260303 */}
 ## Session Metadata
 - **Session Hash:** preview-loopback-host-20260303
 - **Created:** 2026-03-03

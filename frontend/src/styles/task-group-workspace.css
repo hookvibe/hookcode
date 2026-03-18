@@ -110,27 +110,43 @@
   color: var(--text);
 }
 
-.hc-task-workspace-card__meta-row {
+/* Compact inline metadata chips replace the old meta grid for cleaner visual density. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
+.hc-task-workspace-card__meta-inline {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 
-.hc-task-workspace-card__meta-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px 12px;
-  flex: 1 1 auto;
+.hc-task-workspace-card__meta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
   color: var(--text-secondary);
-  font-size: 12px;
+  background: var(--hc-accent-soft);
+  border: 1px solid var(--hc-border);
+  line-height: 1.6;
 }
 
-.hc-task-workspace-card__target {
-  flex: 0 0 auto;
+.hc-task-workspace-card__meta-chip--muted {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.hc-task-workspace-card__meta-chip--link {
   color: var(--accent);
-  font-size: 12px;
   font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  background: var(--hc-accent-soft);
+}
+
+.hc-task-workspace-card__meta-chip--link:hover {
+  background: var(--hc-accent-soft-hover);
 }
 
 .hc-task-workspace-card__content,
@@ -151,12 +167,16 @@
   word-break: break-word;
 }
 
+/* Compact action toolbar at the bottom of task cards for reduced visual noise. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-task-workspace-card__actions {
-  padding-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hc-border);
+  margin-top: 4px;
 }
 
+/* Clean up workspace right panel border. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-task-workspace-panel {
-  background: var(--hc-surface);
+  background: var(--hc-surface-elevated);
   border-left: 1px solid var(--hc-border);
 }
 
@@ -196,14 +216,22 @@
   white-space: nowrap;
 }
 
+/* Improved log panel layout for consistent spacing and alignment. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-task-workspace-log-panel {
-  padding: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .hc-task-workspace-log-panel__output {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.hc-task-workspace-log-panel__workspace {
+  width: 100%;
 }
 
 /* Keep Markdown task output aligned to the full workspace log width so lists and code blocks remain readable. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
@@ -220,8 +248,7 @@
     padding-left: 22px;
   }
 
-  .hc-task-workspace-card__title,
-  .hc-task-workspace-card__meta-row {
+  .hc-task-workspace-card__title {
     flex-direction: column;
   }
 

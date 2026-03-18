@@ -92,8 +92,34 @@ describe('executionLog', () => {
     expect(tool?.kind).toBe('command_execution');
     if (tool?.kind !== 'command_execution') return;
     expect(tool.command).toContain('Glob');
+    expect(tool.toolName).toBe('Glob');
+    expect(tool.toolInput).toEqual({ pattern: '*' });
     expect(tool.output).toContain('matched.txt');
     expect(tool.status).toBe('completed');
+  });
+
+  test('parseExecutionLogLine normalizes legacy and rich todo payloads', () => {
+    const line = JSON.stringify({
+      type: 'item.updated',
+      item: {
+        id: 'todo_1',
+        type: 'todo_list',
+        status: 'in_progress',
+        items: [
+          { text: 'Legacy todo', completed: true },
+          { id: 'todo_2', content: 'Rich todo', status: 'in_progress', priority: 'high' }
+        ]
+      }
+    });
+
+    const parsed = parseExecutionLogLine(line);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].kind).toBe('item');
+    if (parsed[0].kind !== 'item' || parsed[0].item.kind !== 'todo_list') return;
+    expect(parsed[0].item.items).toEqual([
+      { id: undefined, content: 'Legacy todo', status: 'completed', priority: 'low' },
+      { id: 'todo_2', content: 'Rich todo', status: 'in_progress', priority: 'high' }
+    ]);
   });
 
   test('buildExecutionTimeline merges started/completed items and attaches diffs', () => {

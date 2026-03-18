@@ -324,58 +324,9 @@
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
-/* Center expanded git status cards inside task cards so compact details stay visually balanced in the workspace. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */
-.hc-chat-git-status {
+
+.hc-chat-item__assistant .hc-git-workspace-summary {
   width: min(960px, 100%);
-  margin-inline: auto;
-  border: 2px solid var(--hc-border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-/* Provide a compact summary row so chat git status cards stay small until users expand details. docs/en/developer/plans/taskgroup-gitstatus-compact-20260303/task_plan.md taskgroup-gitstatus-compact-20260303 */
-.hc-chat-git-status-summary {
-  width: 100%;
-  border: 1px solid var(--hc-border);
-  border-radius: 8px;
-  background: var(--hc-surface);
-  padding: 10px 12px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 8px 12px;
-  align-items: center;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.hc-chat-git-status-summary:hover {
-  border-color: rgba(24, 144, 255, 0.35);
-  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.12);
-}
-
-.hc-chat-git-status-summary__item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.hc-chat-git-status-summary__label {
-  font-size: 11px;
-  color: var(--hc-text-secondary);
-}
-
-.hc-chat-git-status-summary__value {
-  font-size: 13px;
-  color: var(--hc-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hc-chat-git-status-summary__action {
-  justify-self: end;
-  font-size: 12px;
-  color: var(--hc-text-secondary);
 }
 
 /* Style the log expand/collapse toggle button for better visibility. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */
@@ -399,6 +350,14 @@
   border: 1px solid var(--hc-border);
   border-radius: 8px;
   overflow: hidden;
+  width: 100%;
+}
+
+.hc-execution-approval--chat {
+  width: min(760px, 100%);
+}
+
+.hc-execution-approval--chat .hc-card--compact {
   width: 100%;
 }
 /* Remove the TaskGroup "expand thought chain" toggle styling after switching to inline ThoughtChain + reverse paging. docs/en/developer/plans/taskgroupthoughtchain20260121/task_plan.md taskgroupthoughtchain20260121 */

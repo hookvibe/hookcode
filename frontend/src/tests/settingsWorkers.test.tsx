@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App as AntdApp } from 'antd';
 import { SettingsWorkersPanel } from '../components/settings/SettingsWorkersPanel';
+import { SETTINGS_STICKY_ACTIONS_TABLE_CLASS_NAME } from '../components/settings/layout';
 import { setLocale } from '../i18n';
 import * as api from '../api';
 
@@ -64,6 +65,8 @@ describe('SettingsWorkersPanel', () => {
     await waitFor(() => expect(api.fetchWorkers).toHaveBeenCalled());
     expect(await screen.findByText('Local worker')).toBeInTheDocument();
     expect(screen.queryByText('System managed')).not.toBeInTheDocument();
+    expect(document.querySelector(`.${SETTINGS_STICKY_ACTIONS_TABLE_CLASS_NAME.replace(/ /g, '.')}`)).toBeTruthy();
+    expect(document.querySelector('.ant-table-has-fix-end')).toBeTruthy();
   });
 
   test('surfaces backend create validation errors to the user', async () => {
@@ -108,5 +111,15 @@ describe('SettingsWorkersPanel', () => {
     expect(await screen.findByText('Bootstrap credentials')).toBeInTheDocument();
     expect(screen.getByText(/w_remote/)).toBeInTheDocument();
     expect(screen.getByText(/secret-token/)).toBeInTheDocument();
+  });
+
+  test('uses the themed compact modal skin for worker creation', async () => {
+    const ui = userEvent.setup();
+    renderPanel();
+
+    await waitFor(() => expect(api.fetchWorkers).toHaveBeenCalled());
+    await ui.click(screen.getByRole('button', { name: 'Create worker' }));
+
+    expect(document.querySelector('.hc-dialog--compact')).toBeTruthy();
   });
 });

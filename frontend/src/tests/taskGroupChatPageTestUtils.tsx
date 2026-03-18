@@ -59,6 +59,18 @@ vi.mock('../api', () => {
       task: makeTask('t_new')
     })),
     fetchTask: vi.fn(async (id: string) => makeTask(id)),
+    fetchTaskWorkspace: vi.fn(async () => ({
+      source: 'snapshot',
+      live: false,
+      readOnly: true,
+      capturedAt: mockNow,
+      branch: 'main',
+      headSha: '1234567890abcdef',
+      workingTree: { staged: [], unstaged: [], untracked: [] },
+      summary: { total: 0, staged: 0, unstaged: 0, untracked: 0, additions: 0, deletions: 0, hasChanges: false },
+      files: [],
+      canCommit: false
+    })),
     fetchTaskGroup: vi.fn(async (id: string) => ({
       id,
       kind: 'chat',
@@ -94,6 +106,21 @@ vi.mock('../api', () => {
     stopTask: vi.fn(async (id: string) => ({ ...makeTask(id), status: 'failed', result: { stopReason: 'manual_stop' } })),
     retryTask: vi.fn(async (id: string) => makeTask(id)),
     deleteTask: vi.fn(async () => undefined),
+    runTaskWorkspaceOperation: vi.fn(async () => ({
+      workspace: {
+        source: 'snapshot',
+        live: false,
+        readOnly: true,
+        capturedAt: mockNow,
+        branch: 'main',
+        headSha: '1234567890abcdef',
+        workingTree: { staged: [], unstaged: [], untracked: [] },
+        summary: { total: 0, staged: 0, unstaged: 0, untracked: 0, additions: 0, deletions: 0, hasChanges: false },
+        files: [],
+        canCommit: false
+      }
+    })),
+    pushTaskGitChanges: vi.fn(async (id: string) => makeTask(id)),
     updateQueuedTaskContent: vi.fn(async (id: string, text: string) => ({ ...makeTask(id), payload: { __chat: { text } } })),
     reorderQueuedTask: vi.fn(async (id: string) => makeTask(id)),
     startTaskGroupPreview: vi.fn(async () => ({ success: true, instances: [] })),
@@ -184,6 +211,40 @@ export const setupTaskGroupChatMocks = () => {
     createdAt: NOW,
     updatedAt: NOW
   }));
+  vi.mocked(api.fetchTaskWorkspace).mockResolvedValue({
+    source: 'snapshot',
+    live: false,
+    readOnly: true,
+    capturedAt: NOW,
+    branch: 'main',
+    headSha: '1234567890abcdef',
+    workingTree: { staged: [], unstaged: [], untracked: [] },
+    summary: { total: 0, staged: 0, unstaged: 0, untracked: 0, additions: 0, deletions: 0, hasChanges: false },
+    files: [],
+    canCommit: false
+  } as any);
+  vi.mocked(api.runTaskWorkspaceOperation).mockResolvedValue({
+    workspace: {
+      source: 'snapshot',
+      live: false,
+      readOnly: true,
+      capturedAt: NOW,
+      branch: 'main',
+      headSha: '1234567890abcdef',
+      workingTree: { staged: [], unstaged: [], untracked: [] },
+      summary: { total: 0, staged: 0, unstaged: 0, untracked: 0, additions: 0, deletions: 0, hasChanges: false },
+      files: [],
+      canCommit: false
+    }
+  } as any);
+  vi.mocked(api.pushTaskGitChanges).mockResolvedValue({
+    id: 't_push',
+    eventType: 'chat',
+    status: 'queued',
+    retries: 0,
+    createdAt: NOW,
+    updatedAt: NOW
+  } as any);
   // Keep stop/edit/retry/reorder mocks in a stable default state for workspace tests. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   vi.mocked(api.stopTask).mockResolvedValue({
     id: 't_stop',

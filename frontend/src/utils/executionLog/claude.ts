@@ -30,12 +30,15 @@ export const buildClaudeMessageItems = (payload: Record<string, unknown>): Execu
 
       if (entryType === 'tool_use') {
         const toolId = asString(entry.id).trim() || `${messageId || role || 'message'}_tool_${index}`;
+        const toolName = asString(entry.name).trim() || undefined;
         const command = buildToolCommand(asString(entry.name), entry.input);
         return {
           kind: 'command_execution',
           id: toolId,
           status: 'in_progress',
           command,
+          toolName,
+          toolInput: entry.input,
           output: undefined,
           exitCode: undefined
         } satisfies ExecutionItem;

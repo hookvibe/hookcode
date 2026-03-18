@@ -95,14 +95,14 @@
 - The task-group page also surfaced current Ant Design API deprecations through `destroyTooltipOnHide` and `Space direction`, so the workspace now uses `destroyOnHidden` and `orientation` on the affected path.
 
 ## Runtime API Findings — 2026-03-06 21:10 CST
-<!-- Capture the concrete API responses observed during the post-refactor runtime debug pass. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
+{/* Capture the concrete API responses observed during the post-refactor runtime debug pass. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 - PAT-authenticated debugging against `/api/task-groups/dbb01b3a-aa23-49e8-9224-47b262ac9f76/preview/status` showed the browser noise was caused by a backend `409 Conflict` payload with `code: "workspace_missing"`, even though the page only needed an unavailable preview snapshot.
 - PAT-authenticated debugging against `/api/dashboard/sidebar?tasksLimit=3&taskGroupsLimit=50` returned `200 OK`, so the visible sidebar problem on the page was dominated by repeated background polling noise rather than a reproducible contract failure for the current account used by the PAT debug script.
 - The remaining Ant Design `Space.direction` warning on the task-group/task-detail route came from `TaskGitStatusPanel`, which is rendered by both queue cards and the right-side task log panel.
 
 
 ## Workspace Cleanup Findings — 2026-03-06 21:42 CST
-<!-- Capture the remaining cleanup conclusions after the preview split so the next pass starts from concrete evidence. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
+{/* Capture the remaining cleanup conclusions after the preview split so the next pass starts from concrete evidence. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 - `TaskGroupChatPage.tsx` still mixed group/task fetching, optimistic send flow, SSE polling, and UI composition after the preview workspace extraction, which made it the next best candidate for a hook split.
 - The composer skill mode in task-group workspaces was not loading automatically because `fetchTaskGroupSkillSelection()` only ran from the modal refresh action; the page therefore showed a perpetual loading hint until manual intervention.
 - `taskLogsEnabled` was a dead prop for the refactored task-group workspace: `AppShell`, `TaskGroupChatPage`, and the page test helper still threaded it through even though the workspace no longer consumed it.
@@ -110,12 +110,12 @@
 - This follow-up also confirmed two more easy preview cleanups: `previewBridgeReady` can stay ref-only, and `previewAddressMeta` only needs `isSecure` for the browser chrome.
 
 ## Card Header Follow-up — 2026-03-06 22:13 CST
-<!-- Capture the task-card header overflow issue discovered after the workspace refactor. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
+{/* Capture the task-card header overflow issue discovered after the workspace refactor. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 - Long task titles in the queue card header could still compress the order pill and status tags because the header row did not let the title area shrink independently from the badge area.
 
 
 ## Workspace Detail Polish — 2026-03-06 22:22 CST
-<!-- Capture the final detail-level UI issues discovered after the main task-group workspace refactor. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 -->
+{/* Capture the final detail-level UI issues discovered after the main task-group workspace refactor. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
 - Queue-card task bodies and execution summaries were still degrading Markdown into plain text, which dropped line breaks, headings, and code/list formatting.
 - Workspace log-tab output also needed Markdown rendering so backend-generated result text stays readable when it contains structured content.
 - Compact git-status cards inside task cards were still bubbling clicks into the parent task card, which opened the right-side log tab while users were only trying to expand git details.

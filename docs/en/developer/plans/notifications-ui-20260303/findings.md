@@ -1,6 +1,5 @@
 # Findings & Decisions: Notifications UX improvements
-<!-- Capture requirements and discovery notes for notifications UX updates. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303 -->
-
+{/* Capture requirements and discovery notes for notifications UX updates. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303 */}
 ## Session Metadata
 - **Session Hash:** notifications-ui-20260303
 - **Created:** 2026-03-03
@@ -12,7 +11,7 @@
 - Notifications and logs tables in settings should use pagination (no manual "load more" only).
 
 ## Research Findings
-<!-- Update discovery on popover behavior and settings tables. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303 -->
+{/* Update discovery on popover behavior and settings tables. docs/en/developer/plans/notifications-ui-20260303/task_plan.md notifications-ui-20260303 */}
 - `NotificationsPopover` only marks read via the "mark all read" button and does not auto-mark on open or close the popover after marking.
 - `UserSettingsPage` uses `PageNav` without a `userPanel`, so the notifications icon is missing on settings pages.
 - `SettingsNotificationsPanel` uses an AntD `Table` without pagination, relying on cursor-based "Load more" instead.
