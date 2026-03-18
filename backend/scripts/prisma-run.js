@@ -78,30 +78,42 @@ const cleanupStaleQueryEngineTemps = (generatedClientDir = resolveGeneratedClien
   return removed;
 };
 
+// Resolve Prisma's package bin entrypoint directly so Windows execution does not depend on `.cmd` shim lookup. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+const resolvePrismaCliEntrypoint = () => {
+  const prismaPackageJson = require.resolve('prisma/package.json', {
+    paths: [path.join(__dirname, '..')]
+  });
+  const prismaDir = path.dirname(prismaPackageJson);
+  const pkg = require(prismaPackageJson);
+  const binField = typeof pkg.bin === 'string' ? pkg.bin : pkg.bin?.prisma;
+  if (!binField || typeof binField !== 'string') {
+    throw new Error('Unable to resolve Prisma CLI entrypoint');
+  }
+  return path.join(prismaDir, binField);
+};
+
 const shouldRetryGenerateAfterEngineRenameLock = (params) =>
   params.platform === 'win32' &&
   params.command === 'generate' &&
   params.attempt < params.maxAttempts &&
   WINDOWS_ENGINE_RENAME_LOCK_PATTERN.test(String(params.output ?? ''));
 
-const runPrismaCommand = ({ prismaBin, args, env = process.env }) => {
+const runPrismaCommand = ({ prismaEntrypoint, args, env = process.env }) => {
   const command = String(args[0] ?? '').trim().toLowerCase();
   if (process.platform !== 'win32' || command !== 'generate') {
-    const result = spawnSync(prismaBin, args, {
+    const result = spawnSync(process.execPath, [prismaEntrypoint, ...args], {
       stdio: 'inherit',
-      env,
-      shell: process.platform === 'win32'
+      env
     });
     return typeof result.status === 'number' ? result.status : 1;
   }
 
   let lastStatus = 1;
   for (let attempt = 1; attempt <= WINDOWS_PRISMA_GENERATE_RETRY_MAX; attempt += 1) {
-    const result = spawnSync(prismaBin, args, {
+    const result = spawnSync(process.execPath, [prismaEntrypoint, ...args], {
       stdio: 'pipe',
       encoding: 'utf8',
-      env,
-      shell: true
+      env
     });
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
@@ -151,11 +163,8 @@ const main = () => {
     : null;
   const argsWithSchema = resolvedSchemaPath && !hasSchemaArg ? [...args, '--schema', resolvedSchemaPath] : args;
 
-  // Use the prisma CLI entry point directly to avoid .cmd shim issues on Windows
-  // with Node.js v24+ (EINVAL from spawnSync on .cmd files without shell: true).
-  const prismaBin = path.join(__dirname, '..', 'node_modules', '.bin', 'prisma');
-
-  process.exit(runPrismaCommand({ prismaBin, args: argsWithSchema, env: process.env }));
+  const prismaEntrypoint = resolvePrismaCliEntrypoint();
+  process.exit(runPrismaCommand({ prismaEntrypoint, args: argsWithSchema, env: process.env }));
 };
 
 if (require.main === module) {
@@ -163,8 +172,9 @@ if (require.main === module) {
 } else {
   module.exports = {
     buildDatabaseUrl,
-    cleanupStaleQueryEngineTemps,
-    ensureDatabaseUrl,
-    shouldRetryGenerateAfterEngineRenameLock
+      cleanupStaleQueryEngineTemps,
+      ensureDatabaseUrl,
+      resolvePrismaCliEntrypoint,
+      shouldRetryGenerateAfterEngineRenameLock
   };
 }

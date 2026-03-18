@@ -5,6 +5,7 @@ import os from 'os';
 import path from 'path';
 import readline from 'readline';
 import { buildMergedProcessEnv, createAsyncLineLogger } from '../utils/providerRuntime';
+import { stopChildProcessTree } from '../utils/crossPlatformSpawn';
 import { normalizeHttpBaseUrl } from '../utils/url';
 import {
   normalizeProviderRoutingConfig,
@@ -443,9 +444,12 @@ export const runGeminiCliExecWithCli = async (params: {
 
     const abort = () => {
       // Best-effort: propagate cancellations to the CLI process.
-      if (!child.killed) child.kill('SIGTERM');
+      if (!child.killed) {
+        // Stop the Gemini CLI process tree so Windows aborts also reach child workers spawned beneath the Node wrapper. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+        stopChildProcessTree(child, 'SIGTERM');
+      }
       setTimeout(() => {
-        if (!child.killed) child.kill('SIGKILL');
+        if (!child.killed) stopChildProcessTree(child, 'SIGKILL');
       }, 1500).unref();
     };
 

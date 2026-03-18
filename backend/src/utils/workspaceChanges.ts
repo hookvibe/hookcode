@@ -2,8 +2,9 @@ import { createHash } from 'crypto';
 // Use cross-platform spawn options to handle .cmd shims on Windows. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
 import { spawn } from 'child_process';
 import { xpSpawnOpts } from './crossPlatformSpawn';
+import os from 'os';
 import path from 'path';
-import { readFile } from 'fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import type { TaskWorkspaceChange, TaskWorkspaceChangeKind, TaskWorkspaceChanges } from '../types/task';
 
 export const WORKSPACE_SNAPSHOT_EVENT_TYPE = 'hookcode.workspace.snapshot' as const;
@@ -54,6 +55,30 @@ const readUtf8BestEffort = async (targetPath: string): Promise<string | undefine
   } catch {
     return undefined;
   }
+};
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const toGitHeaderPath = (value: string): string => String(value ?? '').replace(/\\/g, '/').replace(/^\/+/, '');
+
+const normalizeCreatedFileDiff = (unifiedDiff: string, emptyFilePath: string, repoRelativePath: string): string => {
+  const sourceHeaderPath = escapeRegExp(toGitHeaderPath(emptyFilePath));
+  const targetHeaderPath = escapeRegExp(repoRelativePath);
+  return unifiedDiff
+    .replace(new RegExp(`^diff --git a/${sourceHeaderPath} b/${targetHeaderPath}$`, 'm'), `diff --git a/${repoRelativePath} b/${repoRelativePath}`)
+    .replace(new RegExp(`^--- a/${sourceHeaderPath}$`, 'm'), '--- /dev/null');
+};
+
+const createEmptyDiffSource = async (): Promise<{ filePath: string; cleanup: () => Promise<void> }> => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'hookcode-empty-diff-'));
+  const filePath = path.join(tempDir, 'empty.txt');
+  await writeFile(filePath, '', 'utf8');
+  return {
+    filePath,
+    cleanup: async () => {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  };
 };
 
 const runGit = async (repoDir: string, args: string[]): Promise<GitCommandResult> =>
@@ -131,11 +156,15 @@ const collectChangedFiles = async (repoDir: string): Promise<GitChangedFile[]> =
     .sort((fileA, fileB) => fileA.path.localeCompare(fileB.path));
 };
 
-const buildDiffArgs = (repoDir: string, file: GitChangedFile): { command: string[]; readPath?: string } => {
+const buildDiffArgs = (
+  repoDir: string,
+  file: GitChangedFile,
+  emptyDiffSourcePath: string
+): { command: string[]; readPath?: string } => {
   const absPath = path.join(repoDir, file.path);
   if (file.kind === 'create') {
-    // Diff new files from the repo root so git prints repo-relative patch headers instead of absolute temp paths. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
-    return { command: ['diff', '--no-color', '--unified=3', '--no-index', '--', '/dev/null', file.path], readPath: absPath };
+    // Replace `/dev/null` with a real empty file so created-file patches work on Windows while still normalizing headers back to `/dev/null`. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+    return { command: ['diff', '--no-color', '--unified=3', '--no-index', '--', emptyDiffSourcePath, file.path], readPath: absPath };
   }
   if (file.kind === 'delete') {
     // Reuse `git diff HEAD -- <path>` for deletes because no-index fails once the working-tree file is already gone. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
@@ -155,24 +184,33 @@ export const collectWorkspaceChanges = async (repoDir: string): Promise<TaskWork
   if (changedFiles.length === 0) return null;
 
   const files: TaskWorkspaceChange[] = [];
-  for (const file of changedFiles) {
-    const diffSpec = buildDiffArgs(repoDir, file);
-    const [diffRes, oldText, newText] = await Promise.all([
-      runGit(repoDir, diffSpec.command),
-      file.kind === 'create' ? Promise.resolve(undefined) : readHeadFile(repoDir, file.path),
-      file.kind === 'delete' ? Promise.resolve(undefined) : diffSpec.readPath ? readUtf8BestEffort(diffSpec.readPath) : Promise.resolve(undefined)
-    ]);
+  const emptyDiffSource = await createEmptyDiffSource();
+  try {
+    for (const file of changedFiles) {
+      const diffSpec = buildDiffArgs(repoDir, file, emptyDiffSource.filePath);
+      const [diffRes, oldText, newText] = await Promise.all([
+        runGit(repoDir, diffSpec.command),
+        file.kind === 'create' ? Promise.resolve(undefined) : readHeadFile(repoDir, file.path),
+        file.kind === 'delete' ? Promise.resolve(undefined) : diffSpec.readPath ? readUtf8BestEffort(diffSpec.readPath) : Promise.resolve(undefined)
+      ]);
 
-    const unifiedDiff = truncateText(diffRes.stdout, MAX_WORKSPACE_DIFF_CHARS) ?? '';
-    files.push({
-      path: file.path,
-      kind: file.kind,
-      unifiedDiff,
-      oldText,
-      newText,
-      diffHash: hashDiff(unifiedDiff, oldText, newText),
-      updatedAt: new Date().toISOString()
-    });
+      const unifiedDiffRaw = truncateText(diffRes.stdout, MAX_WORKSPACE_DIFF_CHARS) ?? '';
+      const unifiedDiff =
+        file.kind === 'create'
+          ? normalizeCreatedFileDiff(unifiedDiffRaw, emptyDiffSource.filePath, file.path)
+          : unifiedDiffRaw;
+      files.push({
+        path: file.path,
+        kind: file.kind,
+        unifiedDiff,
+        oldText,
+        newText,
+        diffHash: hashDiff(unifiedDiff, oldText, newText),
+        updatedAt: new Date().toISOString()
+      });
+    }
+  } finally {
+    await emptyDiffSource.cleanup();
   }
 
   return {

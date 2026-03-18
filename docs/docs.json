@@ -82,15 +82,6 @@
                 "group": "Plans",
                 "pages": [
                   {
-                    "group": "Make root package scripts work on Windows and macOS (package-json-cross-platform-20260318)",
-                    "pages": [
-                      "en/developer/plans/package-json-cross-platform-20260318/task_plan",
-                      "en/developer/plans/package-json-cross-platform-20260318/findings",
-                      "en/developer/plans/package-json-cross-platform-20260318/progress"
-                    ],
-                    "expanded": false
-                  },
-                  {
                     "group": "Legacy Docs: Split docs into 4 navbar categories (z91bv632ewan7oocdkb4)",
                     "pages": [
                       "en/developer/plans/z91bv632ewan7oocdkb4/task_plan",
@@ -420,6 +411,15 @@
                       "en/developer/plans/taskgroup-ui-refactor-20260306/task_plan",
                       "en/developer/plans/taskgroup-ui-refactor-20260306/findings",
                       "en/developer/plans/taskgroup-ui-refactor-20260306/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Task Group Page UI Cleanup & Modernization (taskgroup-ui-cleanup-20260318)",
+                    "pages": [
+                      "en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan",
+                      "en/developer/plans/taskgroup-ui-cleanup-20260318/findings",
+                      "en/developer/plans/taskgroup-ui-cleanup-20260318/progress"
                     ],
                     "expanded": false
                   },
@@ -937,6 +937,15 @@
                     "expanded": false
                   },
                   {
+                    "group": "Make root package scripts work on Windows and macOS (package-json-cross-platform-20260318)",
+                    "pages": [
+                      "en/developer/plans/package-json-cross-platform-20260318/task_plan",
+                      "en/developer/plans/package-json-cross-platform-20260318/findings",
+                      "en/developer/plans/package-json-cross-platform-20260318/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
                     "group": "Swagger启动方式 (p1qnl1d63n6c7wiob2wt)",
                     "pages": [
                       "en/developer/plans/p1qnl1d63n6c7wiob2wt/task_plan",
@@ -1347,6 +1356,15 @@
                       "en/developer/plans/dashtrendline20260119m9v2/task_plan",
                       "en/developer/plans/dashtrendline20260119m9v2/findings",
                       "en/developer/plans/dashtrendline20260119m9v2/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Cross-platform compatibility audit and fixes (crossplatformcompat20260318)",
+                    "pages": [
+                      "en/developer/plans/crossplatformcompat20260318/task_plan",
+                      "en/developer/plans/crossplatformcompat20260318/findings",
+                      "en/developer/plans/crossplatformcompat20260318/progress"
                     ],
                     "expanded": false
                   },

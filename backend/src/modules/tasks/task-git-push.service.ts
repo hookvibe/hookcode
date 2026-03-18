@@ -67,8 +67,8 @@ export class TaskGitPushService {
     }
 
     const gitEnv = { GIT_TERMINAL_PROMPT: '0' };
-    const runGit = (cmd: string) =>
-      runCommandCapture(`cd ${shDoubleQuote(repoDir)} && ${cmd}`, { env: gitEnv });
+    // Execute push-time git commands with `cwd` so Windows drive changes and space-containing repo paths behave consistently. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+    const runGit = (cmd: string) => runCommandCapture(cmd, { env: gitEnv, cwd: repoDir });
 
     const upstreamCloneUrl =
       safeTrim(result.repoWorkflow?.upstream?.cloneUrl) || safeTrim(getRepoCloneUrl(execution.provider, payload));

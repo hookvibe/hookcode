@@ -1,7 +1,8 @@
-import { spawn, spawnSync } from 'child_process';
+import type { SpawnSyncOptions, SpawnSyncReturns } from 'child_process';
 import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import type { WorkerRuntimeState } from '../protocol';
+import { xSpawn, xSpawnSync } from './crossPlatformSpawn';
 
 const PROVIDER_PACKAGES: Record<string, string[]> = {
   codex: ['@openai/codex-sdk'],
@@ -28,10 +29,13 @@ const applyNodePath = (vendorDir: string): void => {
   }
 };
 
-const detectNpmCommand = (): { command: string; args: string[] } => {
+export const detectNpmCommand = (
+  runSync: (command: string, args: string[], opts?: SpawnSyncOptions) => SpawnSyncReturns<Buffer | string> = xSpawnSync
+): { command: string; args: string[] } => {
   // Prefer pnpm when available, but keep npm as a fallback so the worker can bootstrap on clean machines. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-  const pnpmCheck = spawnSync('pnpm', ['--version'], { stdio: 'ignore' });
-  if (pnpmCheck.status === 0) {
+  // Reuse the cross-platform spawn wrapper so Windows `.cmd` shims are probed the same way as real execution commands. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+  const pnpmCheck = runSync('pnpm', ['--version'], { stdio: 'ignore' });
+  if (!pnpmCheck.error && pnpmCheck.status === 0) {
     return { command: 'pnpm', args: ['add', '--ignore-workspace', '--save-prod'] };
   }
   return { command: 'npm', args: ['install', '--no-save'] };
@@ -42,11 +46,10 @@ const installPackages = async (vendorDir: string, packages: string[]): Promise<v
   await writeFile(path.join(vendorDir, 'package.json'), JSON.stringify({ name: 'hookcode-worker-vendor', private: true }, null, 2));
   const { command, args } = detectNpmCommand();
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(command, [...args, ...packages], {
+    const child = xSpawn(command, [...args, ...packages], {
       cwd: vendorDir,
       stdio: 'inherit',
-      env: process.env,
-      shell: process.platform === 'win32'
+      env: process.env
     });
     child.once('error', reject);
     child.once('exit', (code) => {

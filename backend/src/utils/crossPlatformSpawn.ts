@@ -69,6 +69,42 @@ export const xExecFileSync = (file: string, args: string[], opts?: ExecFileSyncO
   return execFileSync(file, args, { ...opts, shell: opts?.shell ?? IS_WIN });
 };
 
+// Stop shell-backed child processes through the full process tree so Windows wrappers and long-running subprocesses do not leak after cancellation. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+export const stopChildProcessTree = (
+  child: Pick<ChildProcess, 'pid' | 'kill' | 'exitCode' | 'signalCode'>,
+  signal: 'SIGTERM' | 'SIGKILL'
+): void => {
+  if (child.exitCode !== null || child.signalCode) return;
+
+  const pid = typeof child.pid === 'number' ? child.pid : 0;
+  if (pid > 0 && IS_WIN) {
+    try {
+      execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true
+      });
+      return;
+    } catch {
+      // Fall back to child.kill when taskkill is unavailable or the process already exited. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+    }
+  }
+
+  if (pid > 0 && !IS_WIN) {
+    try {
+      process.kill(-pid, signal);
+      return;
+    } catch {
+      // Fall back to the direct child when the process was not started as its own group leader. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+    }
+  }
+
+  try {
+    child.kill(signal);
+  } catch {
+    // Ignore double-kill races because shutdown is best effort once the owner is already stopping. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+  }
+};
+
 /**
  * Resolve a command's absolute path cross-platform (`command -v` on POSIX, `where` on Windows).
  * Returns the path string or null if not found.

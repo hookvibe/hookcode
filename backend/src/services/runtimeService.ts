@@ -14,17 +14,30 @@ export interface RuntimeInfo {
 }
 
 type RuntimeDetector = {
-  cmd: string;
-  args: string[];
+  probes: Array<{ cmd: string; args: string[] }>;
   pm?: string;
 };
 
-const DETECTORS: Record<RuntimeInfo['language'], RuntimeDetector> = {
-  node: { cmd: 'node', args: ['--version'], pm: 'npm' },
-  python: { cmd: 'python3', args: ['--version'], pm: 'pip' },
-  java: { cmd: 'java', args: ['--version'], pm: 'mvn' },
-  ruby: { cmd: 'ruby', args: ['--version'], pm: 'gem' },
-  go: { cmd: 'go', args: ['version'], pm: 'go' }
+// Probe Python with Windows-friendly launchers so runtime discovery reports Python on hosts that expose `python` or `py -3` instead of `python3`. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+export const DETECTORS: Record<RuntimeInfo['language'], RuntimeDetector> = {
+  node: { probes: [{ cmd: 'node', args: ['--version'] }], pm: 'npm' },
+  python: {
+    probes:
+      process.platform === 'win32'
+        ? [
+            { cmd: 'python', args: ['--version'] },
+            { cmd: 'py', args: ['-3', '--version'] },
+            { cmd: 'python3', args: ['--version'] }
+          ]
+        : [
+            { cmd: 'python3', args: ['--version'] },
+            { cmd: 'python', args: ['--version'] }
+          ],
+    pm: 'pip'
+  },
+  java: { probes: [{ cmd: 'java', args: ['--version'] }], pm: 'mvn' },
+  ruby: { probes: [{ cmd: 'ruby', args: ['--version'] }], pm: 'gem' },
+  go: { probes: [{ cmd: 'go', args: ['version'] }], pm: 'go' }
 };
 
 const extractVersion = (output: string): string => {
@@ -74,20 +87,23 @@ export class RuntimeService {
 
   private async probeRuntime(language: RuntimeInfo['language'], detector: RuntimeDetector): Promise<RuntimeInfo | null> {
     // Attempt to probe a runtime binary and capture its version for reporting. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
-    try {
-      const { stdout, stderr } = await execFileAsync(detector.cmd, detector.args, { timeout: 5000 });
-      const output = `${stdout ?? ''}\n${stderr ?? ''}`.trim();
-      if (!output) return null;
-      const version = extractVersion(output);
-      const path = (await resolveCommandPath(detector.cmd)) ?? detector.cmd;
-      return {
-        language,
-        version,
-        path,
-        packageManager: detector.pm
-      };
-    } catch {
-      return null;
+    for (const probe of detector.probes) {
+      try {
+        const { stdout, stderr } = await execFileAsync(probe.cmd, probe.args, { timeout: 5000 });
+        const output = `${stdout ?? ''}\n${stderr ?? ''}`.trim();
+        if (!output) continue;
+        const version = extractVersion(output);
+        const path = (await resolveCommandPath(probe.cmd)) ?? probe.cmd;
+        return {
+          language,
+          version,
+          path,
+          packageManager: detector.pm
+        };
+      } catch {
+        // Keep probing platform-specific fallbacks until one runtime launcher succeeds. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+      }
     }
+    return null;
   }
 }

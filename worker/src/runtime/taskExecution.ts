@@ -2,6 +2,7 @@ import { mkdir } from 'fs/promises';
 import { spawn } from 'child_process';
 import { BackendInternalApiClient, WorkerTaskContextResponse } from '../backend/internalApiClient';
 import type { WorkerConfig } from '../config';
+import { stopChildProcessTree } from './crossPlatformSpawn';
 import { TaskLogBatcher } from './logBatcher';
 import { RepoChangeTracker } from './repoChangeTracker';
 import {
@@ -111,9 +112,10 @@ const executeShellCommand = async (params: {
     const stopChild = () => {
       if (killedByAbort) return;
       killedByAbort = true;
-      child.kill('SIGTERM');
+      // Stop the command tree instead of only the shell wrapper so Windows task cancellations do not leave child tools running. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+      stopChildProcessTree(child, 'SIGTERM');
       killTimer = setTimeout(() => {
-        child.kill('SIGKILL');
+        stopChildProcessTree(child, 'SIGKILL');
       }, params.killTimeoutMs);
     };
 

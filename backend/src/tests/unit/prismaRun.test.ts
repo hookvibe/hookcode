@@ -6,6 +6,7 @@ import path from 'path';
 
 const {
   cleanupStaleQueryEngineTemps,
+  resolvePrismaCliEntrypoint,
   shouldRetryGenerateAfterEngineRenameLock
 } = require('../../../scripts/prisma-run.js');
 
@@ -63,5 +64,10 @@ describe('prisma-run windows retry helpers', () => {
     } finally {
       fs.rmSync(generatedClientDir, { recursive: true, force: true });
     }
+  });
+
+  test('resolves Prisma to the package bin entrypoint instead of a .bin shim path', () => {
+    // Resolve Prisma through its package bin entrypoint so Windows execution does not depend on `.cmd` shims. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+    expect(resolvePrismaCliEntrypoint()).toMatch(/build[\\/]index\.js$/);
   });
 });

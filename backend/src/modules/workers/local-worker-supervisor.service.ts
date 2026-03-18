@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ChildProcess, spawn } from 'child_process';
 import path from 'path';
+import { stopChildProcessTree } from '../../utils/crossPlatformSpawn';
 import { resolveBackendWorkDirRoot, resolveBuildRoot } from '../../utils/workDir';
 import { WorkersService } from './workers.service';
 
@@ -81,7 +82,8 @@ export class LocalWorkerSupervisorService {
   async stop(): Promise<void> {
     if (!this.child) return;
     try {
-      this.child.kill('SIGTERM');
+      // Stop the supervised worker tree instead of only the outer shell so Windows dev restarts do not leave orphan executors behind. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+      stopChildProcessTree(this.child, 'SIGTERM');
     } catch {
       // ignore
     }

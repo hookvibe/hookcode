@@ -1087,6 +1087,9 @@ async function callAgent(
   // Route task abort signals into every workspace shell command so clone/pull/install stages stop with the task. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   const streamTaskCommand = (command: string, log: (msg: string) => Promise<void>, commandOptions: StreamOptions = {}) =>
     streamCommand(command, log, { ...commandOptions, signal: abortSignal });
+  // Run repo-scoped git commands via `cwd` so Windows and space-containing paths do not depend on fragile `cd ... &&` shell wrappers. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+  const streamRepoCommand = (command: string, commandOptions: StreamOptions = {}) =>
+    streamTaskCommand(command, appendRawLog, { ...commandOptions, cwd: repoDir });
 
   let persistLogsDisabled = false;
   let lastPersistErrorAt = 0;
@@ -1447,20 +1450,16 @@ async function callAgent(
     if (checkoutRef) {
       try {
         await appendLog(`Checking out branch ${checkoutRef}`);
-        await streamTaskCommand(`cd ${repoDir} && git checkout ${shDoubleQuote(checkoutRef)}`, appendRawLog, {
+        await streamRepoCommand(`git checkout ${shDoubleQuote(checkoutRef)}`, {
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
         });
         if (allowNetworkPull) {
           // Use gitProxyFlags to pass proxy config to git pull. gitproxyfix20260127
-          await streamTaskCommand(
-            `cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`,
-            appendRawLog,
-            {
-              env: { GIT_TERMINAL_PROMPT: '0' },
-              redact: redactSensitiveText
-            }
-          );
+          await streamRepoCommand(`git ${gitProxyFlags} pull --no-rebase origin ${shDoubleQuote(checkoutRef)}`, {
+            env: { GIT_TERMINAL_PROMPT: '0' },
+            redact: redactSensitiveText
+          });
         } else {
           // Keep logs explicit when skipping network pulls for existing task-group workspaces. docs/en/developer/plans/tgpull2wkg7n9f4a/task_plan.md tgpull2wkg7n9f4a
           await appendLog(`Skipping git pull for existing ${workspaceLabel} workspace`);
@@ -1472,7 +1471,7 @@ async function callAgent(
       try {
         await appendLog('Updating default branch');
         // Use gitProxyFlags to pass proxy config to git pull. gitproxyfix20260127
-        await streamTaskCommand(`cd ${repoDir} && git ${gitProxyFlags} pull --no-rebase`, appendRawLog, {
+        await streamRepoCommand(`git ${gitProxyFlags} pull --no-rebase`, {
           env: { GIT_TERMINAL_PROMPT: '0' },
           redact: redactSensitiveText
         });
@@ -1537,9 +1536,8 @@ exit 0
       // Persist expected remotes under valid git config keys for the pre-push guard. docs/en/developer/plans/gitcfgfix20260123/task_plan.md gitcfgfix20260123
       const expectedUpstream = normalizeGitRemoteUrl(params.expectedUpstream);
       const expectedPush = normalizeGitRemoteUrl(params.expectedPush);
-      await streamTaskCommand(
-        `cd ${repoDir} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.upstream)} ${shDoubleQuote(expectedUpstream)} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.push)} ${shDoubleQuote(expectedPush)}`,
-        appendRawLog,
+      await streamRepoCommand(
+        `git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.upstream)} ${shDoubleQuote(expectedUpstream)} && git config --local ${shDoubleQuote(GIT_CONFIG_KEYS.push)} ${shDoubleQuote(expectedPush)}`,
         { redact: redactSensitiveText }
       );
     };
@@ -1590,11 +1588,10 @@ exit 0
       })();
 
       const upstreamInjected = injectBasicAuth(repoUrl, auth);
-      await streamTaskCommand(
-        `cd ${repoDir} && git remote set-url origin ${shDoubleQuote(upstreamInjected.execUrl)}`,
-        appendRawLog,
-        { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-      );
+      await streamRepoCommand(`git remote set-url origin ${shDoubleQuote(upstreamInjected.execUrl)}`, {
+        env: { GIT_TERMINAL_PROMPT: '0' },
+        redact: redactSensitiveText
+      });
 
       const expectedUpstreamUrl = upstream.cloneUrl || repoUrl;
       // Resolve the robot-configured workflow mode (auto/direct/fork) for this run. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
@@ -1603,11 +1600,10 @@ exit 0
       const upstreamCanPush = canTokenPushToUpstream(execution!.provider, execution!.robot.repoTokenRepoRole);
 
       // Always reset origin push URL first to avoid stale fork pushUrl when workflow changes. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
-      await streamTaskCommand(
-        `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(upstreamInjected.execUrl)}`,
-        appendRawLog,
-        { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-      );
+      await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(upstreamInjected.execUrl)}`, {
+        env: { GIT_TERMINAL_PROMPT: '0' },
+        redact: redactSensitiveText
+      });
       await installGitPrePushGuard({ expectedUpstream: expectedUpstreamUrl, expectedPush: expectedUpstreamUrl });
 
       if (workflowMode === 'direct') {
@@ -1631,11 +1627,10 @@ exit 0
           }
 
           const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-          await streamTaskCommand(
-            `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
-            appendRawLog,
-            { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-          );
+          await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`, {
+            env: { GIT_TERMINAL_PROMPT: '0' },
+            redact: redactSensitiveText
+          });
           await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
           repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
           await appendLog(`Repo workflow mode: fork (upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug})`);
@@ -1651,11 +1646,10 @@ exit 0
           }
 
           const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-          await streamTaskCommand(
-            `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
-            appendRawLog,
-            { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-          );
+          await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`, {
+            env: { GIT_TERMINAL_PROMPT: '0' },
+            redact: redactSensitiveText
+          });
           await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
           repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
           await appendLog(`Repo workflow mode: fork (upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug})`);
@@ -1690,11 +1684,10 @@ exit 0
         }
 
         const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-        await streamTaskCommand(
-          `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
-          appendRawLog,
-          { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-        );
+        await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`, {
+          env: { GIT_TERMINAL_PROMPT: '0' },
+          redact: redactSensitiveText
+        });
         await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
         repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
         await appendLog(`Fork workflow enabled: upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug}`);
@@ -1713,11 +1706,10 @@ exit 0
         }
 
         const forkInjected = injectBasicAuth(forkCloneUrl, auth);
-        await streamTaskCommand(
-          `cd ${repoDir} && git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`,
-          appendRawLog,
-          { env: { GIT_TERMINAL_PROMPT: '0' }, redact: redactSensitiveText }
-        );
+        await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(forkInjected.execUrl)}`, {
+          env: { GIT_TERMINAL_PROMPT: '0' },
+          redact: redactSensitiveText
+        });
         await installGitPrePushGuard({ expectedUpstream: upstream.cloneUrl || repoUrl, expectedPush: forkCloneUrl });
         repoWorkflow = { mode: 'fork', provider: execution!.provider, upstream: upstream, fork: fork };
         await appendLog(`Fork workflow enabled: upstream=${upstream.slug ?? 'unknown'} fork=${fork.slug}`);
@@ -1905,9 +1897,8 @@ exit 0
       }
       try {
         await appendLog(`Configuring git identity: ${gitUserName} <${gitUserEmail}>`);
-        await streamTaskCommand(
-          `cd ${repoDir} && git config --local user.name ${shDoubleQuote(gitUserName)} && git config --local user.email ${shDoubleQuote(gitUserEmail)}`,
-          appendRawLog,
+        await streamRepoCommand(
+          `git config --local user.name ${shDoubleQuote(gitUserName)} && git config --local user.email ${shDoubleQuote(gitUserEmail)}`,
           { redact: redactSensitiveText }
         );
       } catch (err: any) {
@@ -2538,7 +2529,7 @@ export const collectGitStatusSnapshot = async (params: {
   // Collect git refs + working tree changes to report write-enabled task outcomes. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
   const errors: string[] = [];
   const gitEnv = { GIT_TERMINAL_PROMPT: '0' };
-  const runGit = (cmd: string) => runCommandCapture(`cd ${shDoubleQuote(params.repoDir)} && ${cmd}`, { env: gitEnv });
+  const runGit = (cmd: string) => runCommandCapture(cmd, { env: gitEnv, cwd: params.repoDir });
   // Build git proxy flags for network commands like ls-remote. gitproxyfix20260127
   const gitProxyFlags = buildGitProxyFlags();
 

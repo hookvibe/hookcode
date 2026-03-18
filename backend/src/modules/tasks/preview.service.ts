@@ -20,6 +20,7 @@ import { buildPreviewPublicUrl } from '../../utils/previewHost';
 import { RuntimeService } from '../../services/runtimeService';
 import { RepositoryService } from '../repositories/repository.service';
 import { PreviewPortPool } from './previewPortPool';
+import { stopChildProcessTree } from '../../utils/crossPlatformSpawn';
 import type {
   PreviewAdminOverviewSnapshot,
   PreviewDiagnostics,
@@ -542,7 +543,7 @@ export class PreviewService implements OnModuleDestroy {
 
     const killPromise = new Promise<void>((resolve) => {
       const timer = setTimeout(() => {
-        proc.kill('SIGKILL');
+        stopChildProcessTree(proc, 'SIGKILL');
         resolve();
       }, 3000);
 
@@ -551,7 +552,8 @@ export class PreviewService implements OnModuleDestroy {
         resolve();
       });
 
-      proc.kill('SIGTERM');
+      // Stop preview process trees so shell-wrapped dev servers are terminated consistently on Windows and POSIX. docs/en/developer/plans/crossplatformcompat20260318/task_plan.md crossplatformcompat20260318
+      stopChildProcessTree(proc, 'SIGTERM');
     });
 
     await killPromise;
