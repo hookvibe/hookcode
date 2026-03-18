@@ -110,13 +110,70 @@
   - [docs/en/developer/plans/package-json-cross-platform-20260318/progress.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/progress.md)
 
 ### Follow-up: Windows Prisma generate lock regression
-- **Status:** in_progress
+- **Status:** complete
 - Actions taken:
   - Reused the existing `package-json-cross-platform-20260318` session because the new failure is a continuation of the same Windows portability task.
   - Inspected [backend/scripts/prisma-run.js](/c:/Users/yuhe/Documents/github/hookcode/backend/scripts/prisma-run.js), [backend/prisma/schema.prisma](/c:/Users/yuhe/Documents/github/hookcode/backend/prisma/schema.prisma), and [backend/src/db.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/db.ts) to verify how Prisma Client is generated and instantiated.
   - Confirmed the generated client still uses Rust `engineType: "library"` and that the workspace contains multiple stale `query_engine-windows.dll.node.tmp*` files from failed Windows rename attempts.
-  - Reviewed Prisma's official generator docs and captured the supported `engineType = "client"` path as the implementation direction because HookCode already uses `@prisma/adapter-pg`.
+  - Reviewed Prisma's official generator docs to confirm the available mitigation options before choosing the smaller repo-local retry/cleanup hardening in `backend/scripts/prisma-run.js`.
 - Files created/modified:
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md)
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/findings.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/findings.md)
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/progress.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/progress.md)
+
+### Follow-up: Windows backend suite cleanup
+- **Status:** complete
+- Actions taken:
+  - Reviewed the user's latest `pnpm test` output and enumerated the remaining backend failures after `pretest` succeeded.
+  - Classified the failures into three buckets: Windows path/command expectations in tests, stale `TasksController` constructor wiring in tests, and a real Windows process-abort issue in agent shell execution.
+  - Reopened the implementation checklist in `task_plan.md` and captured the new findings so the remaining backend suite work stays traceable under the same session.
+- Files created/modified:
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md)
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/findings.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/findings.md)
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/progress.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/progress.md)
+
+### Follow-up: Frontend composer suite cleanup
+- **Status:** complete
+- Actions taken:
+  - Confirmed the backend fixes now let the root `pnpm test` flow reach `hookcode-frontend`.
+  - Inspected [frontend/src/tests/taskGroupChatPage.composer.test.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/tests/taskGroupChatPage.composer.test.tsx), [frontend/src/components/taskGroupWorkspace/TaskGroupComposer.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/components/taskGroupWorkspace/TaskGroupComposer.tsx), and [frontend/src/tests/taskGroupChatPageTestUtils.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/tests/taskGroupChatPageTestUtils.tsx).
+  - Verified the failing assertions are stale: the current composer keeps repo/robot/worker selects inside the `Composer actions` popover, while unsupported task groups disable the settings button instead of rendering disabled visible selects.
+- Files created/modified:
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md)
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/findings.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/findings.md)
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/progress.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/progress.md)
+
+### Follow-up: Final frontend shell failure
+- **Status:** complete
+- Actions taken:
+  - Ran `pnpm --filter hookcode-frontend test run src/tests/taskGroupChatPage.composer.test.tsx` and confirmed the updated composer spec now passes 7/7.
+  - Ran the full root `pnpm test` flow again and reduced the suite to one remaining failure in [frontend/src/tests/appShell.test.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/tests/appShell.test.tsx).
+  - Inspected [frontend/src/tests/appShell.test.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/tests/appShell.test.tsx), [frontend/src/App.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/App.tsx), and [frontend/src/pages/AppShell.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/pages/AppShell.tsx) and confirmed the last failure is a cold lazy-load timing race on the first home-page assertion, not a broken home route.
+- Files created/modified:
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md)
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/findings.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/findings.md)
+  - [docs/en/developer/plans/package-json-cross-platform-20260318/progress.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/progress.md)
+
+### Follow-up: Root suite green
+- **Status:** complete
+- Actions taken:
+  - Updated [frontend/src/tests/taskGroupChatPage.composer.test.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/tests/taskGroupChatPage.composer.test.tsx) to use the current `Composer actions` popover workflow, the current composer placeholder copy, and the compact disabled-footer behavior for unsupported task groups.
+  - Updated [frontend/src/tests/appShell.test.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/tests/appShell.test.tsx) to reuse a shared longer-wait helper for the lazy-loaded home route.
+  - Re-ran `node scripts/prisma-run.js generate`, `pnpm --filter hookcode-frontend test run src/tests/taskGroupChatPage.composer.test.tsx`, `pnpm --filter hookcode-frontend test run src/tests/appShell.test.tsx`, and the full root `pnpm test` command until every package passed.
+- Files created/modified:
+  - [backend/prisma/schema.prisma](/c:/Users/yuhe/Documents/github/hookcode/backend/prisma/schema.prisma)
+  - [backend/scripts/prisma-run.js](/c:/Users/yuhe/Documents/github/hookcode/backend/scripts/prisma-run.js)
+  - [backend/src/agent/agent.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/agent/agent.ts)
+  - [backend/src/tests/unit/prismaClientEngineMode.test.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/tests/unit/prismaClientEngineMode.test.ts) (deleted)
+  - [backend/src/tests/unit/prismaRun.test.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/tests/unit/prismaRun.test.ts)
+  - [backend/src/tests/unit/workDir.test.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/tests/unit/workDir.test.ts)
+  - [backend/src/tests/unit/dependencyInstaller.test.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/tests/unit/dependencyInstaller.test.ts)
+  - [backend/src/tests/unit/codexProviderConfig.test.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/tests/unit/codexProviderConfig.test.ts)
+  - [backend/src/tests/unit/runCommandCapture.test.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/tests/unit/runCommandCapture.test.ts)
+  - [backend/src/tests/unit/taskLogsFeatureToggle.test.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/tests/unit/taskLogsFeatureToggle.test.ts)
+  - [backend/src/tests/unit/tasksVolumeByDayController.test.ts](/c:/Users/yuhe/Documents/github/hookcode/backend/src/tests/unit/tasksVolumeByDayController.test.ts)
+  - [frontend/src/tests/taskGroupChatPage.composer.test.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/tests/taskGroupChatPage.composer.test.tsx)
+  - [frontend/src/tests/appShell.test.tsx](/c:/Users/yuhe/Documents/github/hookcode/frontend/src/tests/appShell.test.tsx)
   - [docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md)
   - [docs/en/developer/plans/package-json-cross-platform-20260318/findings.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/findings.md)
   - [docs/en/developer/plans/package-json-cross-platform-20260318/progress.md](/c:/Users/yuhe/Documents/github/hookcode/docs/en/developer/plans/package-json-cross-platform-20260318/progress.md)
@@ -127,9 +184,13 @@
 | Root launcher unit test | `node --test scripts/run-backend-dev.test.cjs` | Verify Windows/macOS command resolution and env merge behavior | 2 tests passed | pass |
 | Backend build | `pnpm --filter hookcode-backend build` | 0 TS errors | 0 errors, build succeeded | pass |
 | Worker build | `pnpm --filter hookcode-worker build` | 0 TS errors | 0 errors, build succeeded | pass |
-| Backend unit tests | `npx jest --config jest.config.cjs` | All cross-platform tests pass | 459 passed, 8 failed (pre-existing TasksController mismatch) | pass (cross-platform tests OK) |
+| Prisma generate | `node backend/scripts/prisma-run.js generate` | Generate Prisma Client successfully on Windows | Prisma Client generated successfully after the retry/cleanup hardening | pass |
+| Backend unit tests | `pnpm --filter hookcode-backend test` | All backend suites pass on Windows after `pretest` | 118 suites passed, 471 tests passed | pass |
 | Worker unit tests | `npx jest --config jest.config.cjs` | All tests pass | 11/11 passed | pass |
 | Cross-platform workspace changes test | `npx jest --testPathPatterns workspaceChanges` | Verify git spawn works on Windows | 2/2 passed | pass |
+| Frontend composer spec | `pnpm --filter hookcode-frontend test run src/tests/taskGroupChatPage.composer.test.tsx` | Updated composer tests pass against the popover UI | 7/7 passed | pass |
+| Frontend AppShell spec | `pnpm --filter hookcode-frontend test run src/tests/appShell.test.tsx` | Lazy home-route assertions remain stable on cold load | 25/25 passed | pass |
+| Root full suite | `pnpm test` | Root + backend + frontend + worker all pass together | All packages passed; backend 471 tests, frontend 197 tests, worker 11 tests | pass |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -141,8 +202,8 @@
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | Delivery complete |
-| Where am I going? | Await user confirmation or follow-up requests |
-| What's the goal? | Make the root backend dev script portable across Windows and macOS without changing behavior |
-| What have I learned? | Only `dev:backend` needed a shell-independent launcher; the remaining Windows failures are existing backend test portability issues unrelated to the launcher |
-| What have I done? | Added the launcher and tests, updated package scripts, synced docs navigation, and updated the changelog |
+| Where am I? | Delivery complete with the full root test suite passing on Windows |
+| Where am I going? | Await user confirmation or a new task |
+| What's the goal? | Make the root/backend/frontend/worker command and test flows behave consistently on Windows and macOS |
+| What have I learned? | The remaining failures after the spawn fixes were stale test assumptions around Windows paths, compact composer UI, and lazy home-route timing |
+| What have I done? | Hardened Prisma generation and command aborts, updated stale backend/frontend tests, and re-ran the full root suite until it passed |

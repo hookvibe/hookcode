@@ -5,6 +5,7 @@ import {
   normalizeCodexRobotProviderConfig,
   toPublicCodexRobotProviderConfig
 } from '../../modelProviders/codex';
+import path from 'path';
 
 describe('codex provider config', () => {
   test('normalizeCodexRobotProviderConfig 默认值完整', () => {
@@ -82,7 +83,8 @@ describe('codex provider config', () => {
       modelReasoningEffort: 'medium'
     });
     expect(opts.sandboxMode).toBe('workspace-write');
-    expect(opts.additionalDirectories).toEqual(['/repo/.git']);
+    // Match the repo-local .git path with platform-native separators because the SDK receives real filesystem paths. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    expect(opts.additionalDirectories).toEqual([path.join('/repo', '.git')]);
   });
 
   test('buildCodexSdkThreadOptions 在 includeModelReasoningEffort=false 时省略 reasoning 参数', () => {

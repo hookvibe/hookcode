@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { execFileSync, spawn } from 'child_process';
 import { xSpawnShell, xExecSync } from '../utils/crossPlatformSpawn';
 import { existsSync } from 'fs';
 import { mkdir, rm, writeFile, stat, readFile, chmod, rename, copyFile, cp, readdir } from 'fs/promises';
@@ -2437,6 +2437,18 @@ const stopSpawnedShellCommand = (
   // Kill the spawned shell process group so task stop requests also interrupt git clone/pull/install subprocesses. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   if (child.exitCode !== null || child.signalCode) return;
   const pid = typeof child.pid === 'number' ? child.pid : 0;
+  if (pid > 0 && process.platform === 'win32') {
+    try {
+      // Force-kill the Windows process tree because cmd.exe wrappers otherwise leave the child Node/git process running after abort. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+      execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true
+      });
+      return;
+    } catch {
+      // Fall back to child.kill when taskkill is unavailable or the process already exited. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+    }
+  }
   if (pid > 0 && process.platform !== 'win32') {
     try {
       process.kill(-pid, signal);

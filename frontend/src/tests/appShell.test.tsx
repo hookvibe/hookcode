@@ -237,6 +237,10 @@ const renderApp = () =>
     </AntdApp>
   );
 
+const findHomePageReady = () =>
+  // Wait longer for the lazy home route so the first full-suite AppShell assertion does not race module loading. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
+  screen.findByText('What can I do for you?', {}, { timeout: 5000 });
+
 describe('AppShell (frontend-chat migration)', () => {
   beforeEach(() => {
     // Test isolation: restore API mock implementations to the defaults defined in `vi.mock(...)`.
@@ -250,7 +254,7 @@ describe('AppShell (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     renderApp();
 
-    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    expect(await findHomePageReady()).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /New task group/i })).toBeInTheDocument();
     // Query sidebar toggle by title to match the modern sidebar button markup. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     expect(screen.getByTitle('Collapse sidebar')).toBeInTheDocument();
@@ -328,7 +332,7 @@ describe('AppShell (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     renderApp();
 
-    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    expect(await findHomePageReady()).toBeInTheDocument();
     // Align divider selectors with modern sidebar classes. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     expect(document.querySelectorAll('.hc-sidebar-divider')).toHaveLength(2);
 
@@ -363,7 +367,7 @@ describe('AppShell (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     const first = renderApp();
 
-    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    expect(await findHomePageReady()).toBeInTheDocument();
 
     // Locate the sidebar toggle via its title attribute in the refreshed layout. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     const collapseButton = await screen.findByTitle('Collapse sidebar');
@@ -407,7 +411,7 @@ describe('AppShell (frontend-chat migration)', () => {
     const ui = userEvent.setup();
     renderApp();
 
-    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    expect(await findHomePageReady()).toBeInTheDocument();
     // Query the archive nav item by title in the modern sidebar. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     await ui.click(screen.getByTitle('Archive'));
     expect(window.location.hash).toBe('#/archive');
@@ -428,7 +432,7 @@ describe('AppShell (frontend-chat migration)', () => {
     } as any);
 
     renderApp();
-    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    expect(await findHomePageReady()).toBeInTheDocument();
 
     // Locate the sidebar toggle via its title attribute in the refreshed layout. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     const collapseButton = await screen.findByTitle('Collapse sidebar');
@@ -713,7 +717,7 @@ describe('AppShell (frontend-chat migration)', () => {
     renderApp();
 
     await waitFor(() => expect(window.location.hash).toBe('#/'));
-    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    expect(await findHomePageReady()).toBeInTheDocument();
   });
 
   test('navigates to home after login even when legacy login-next points to #/login', async () => {
@@ -735,7 +739,7 @@ describe('AppShell (frontend-chat migration)', () => {
 
     await waitFor(() => expect(window.location.hash).toBe('#/'));
     window.dispatchEvent(new Event('hashchange'));
-    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    expect(await findHomePageReady()).toBeInTheDocument();
   });
 
   test('shows home after login even when hash is already #/', async () => {
@@ -753,7 +757,7 @@ describe('AppShell (frontend-chat migration)', () => {
     await ui.type(screen.getByLabelText(/Password/i), 'p');
     await ui.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(await screen.findByText('What can I do for you?')).toBeInTheDocument();
+    expect(await findHomePageReady()).toBeInTheDocument();
   });
 
   test('navigates to repositories page from sidebar nav', async () => {

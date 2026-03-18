@@ -11,6 +11,7 @@ import { TaskLogsService } from '../../modules/tasks/task-logs.service';
 import { TaskRunner } from '../../modules/tasks/task-runner.service';
 import { TaskService } from '../../modules/tasks/task.service';
 import { TasksController } from '../../modules/tasks/tasks.controller';
+import { TaskWorkspaceService } from '../../modules/tasks/task-workspace.service';
 import { WorkersConnectionService } from '../../modules/workers/workers-connection.service';
 
 // Verify task logs toggles with only the new env variables after legacy removal. docs/en/developer/plans/tasklogslegacy20260225/task_plan.md tasklogslegacy20260225
@@ -39,6 +40,7 @@ describe('task logs feature toggles (TASK_LOGS_DB_ENABLED / TASK_LOGS_VISIBLE_EN
     logWriter: any;
   }) => {
     const taskGitPushService = {} as any;
+    const taskWorkspaceService = {} as TaskWorkspaceService; // Keep log-toggle controller tests aligned with the current workspace dependency graph. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
     const workersConnections = {} as WorkersConnectionService; // Keep controller toggle tests aligned with the new worker control dependency. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     return Test.createTestingModule({
       controllers: [TasksController],
@@ -49,6 +51,7 @@ describe('task logs feature toggles (TASK_LOGS_DB_ENABLED / TASK_LOGS_VISIBLE_EN
         { provide: TaskRunner, useValue: params.taskRunner },
         { provide: LogWriterService, useValue: params.logWriter }, // Include log writer for audit logging in log clears. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
         { provide: TaskGitPushService, useValue: taskGitPushService },
+        { provide: TaskWorkspaceService, useValue: taskWorkspaceService },
         { provide: RepoAccessService, useValue: params.repoAccessService }, // Inject RepoAccessService mock for RBAC guard coverage. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: WorkersConnectionService, useValue: workersConnections } // Keep TasksController tests compatible with worker control injection. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
       ]

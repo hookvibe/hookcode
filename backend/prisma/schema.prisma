@@ -1,7 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  // Generate Prisma Client without Rust query engine binaries so Windows pretest avoids locked DLL renames. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
-  engineType = "client"
 }
 
 datasource db {
