@@ -77,13 +77,14 @@ export class TaskWorkspaceService {
         await this.persistWorkspace(task, result.workspace);
         return result;
       } catch (error) {
-        if (!worker.systemManaged || worker.kind !== 'local') {
+        if (worker.kind !== 'local') {
           throw new TaskWorkspaceServiceError('WORKSPACE_REMOTE_FAILED', error instanceof Error ? error.message : 'Worker workspace request failed');
         }
       }
     }
 
-    if (worker?.systemManaged && worker.kind === 'local') {
+    // Fall back to the colocated worker only when the worker kind is local because system-managed flags were removed from the worker model. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+    if (worker?.kind === 'local') {
       const repoDir = this.resolveBackendWorkspaceDir(task);
       try {
         const result = await executeLocalTaskWorkspaceOperation({
@@ -123,13 +124,14 @@ export class TaskWorkspaceService {
         });
         return this.parseWorkerOperationResult(raw).workspace;
       } catch (error) {
-        if (!worker.systemManaged || worker.kind !== 'local') {
+        if (worker.kind !== 'local') {
           return null;
         }
       }
     }
 
-    if (worker?.systemManaged && worker.kind === 'local') {
+    // Reuse the same local-worker fallback for snapshots so task workspace reads stay compatible with the simplified worker records. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
+    if (worker?.kind === 'local') {
       try {
         return await collectLocalTaskWorkspace(this.resolveBackendWorkspaceDir(task));
       } catch (error) {
