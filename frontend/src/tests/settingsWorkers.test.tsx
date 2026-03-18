@@ -17,6 +17,17 @@ vi.mock('../api', () => ({
   deleteWorker: vi.fn()
 }));
 
+const TEST_WORKER_VERSION = '9.9.9';
+
+const buildVersionRequirement = () => ({
+  packageName: '@hookvibe/hookcode-worker',
+  requiredVersion: TEST_WORKER_VERSION,
+  npmInstallCommand: `npm install -g @hookvibe/hookcode-worker@${TEST_WORKER_VERSION}`,
+  cliUpgradeCommand: `hookcode-worker upgrade --to ${TEST_WORKER_VERSION}`,
+  dockerImage: 'ghcr.io/hookvibe/hookcode-worker',
+  dockerPullCommand: `docker pull ghcr.io/hookvibe/hookcode-worker:${TEST_WORKER_VERSION}`
+});
+
 // Verify the admin worker panel can load workers and reveal manual install guidance. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
 const renderPanel = () =>
   render(
@@ -37,22 +48,15 @@ describe('SettingsWorkersPanel', () => {
           kind: 'local',
           status: 'online',
           systemManaged: true,
-          version: '0.1.2',
-          versionState: { currentVersion: '0.1.2', status: 'compatible', upgradeRequired: false },
+          version: TEST_WORKER_VERSION,
+          versionState: { currentVersion: TEST_WORKER_VERSION, status: 'compatible', upgradeRequired: false },
           maxConcurrency: 2,
           currentConcurrency: 0,
           createdAt: '2026-03-07T00:00:00.000Z',
           updatedAt: '2026-03-07T00:00:00.000Z'
         } as any
       ],
-      versionRequirement: {
-        packageName: '@hookvibe/hookcode-worker',
-        requiredVersion: '0.1.2',
-        npmInstallCommand: 'npm install -g @hookvibe/hookcode-worker@0.1.2',
-        cliUpgradeCommand: 'hookcode-worker upgrade --to 0.1.2',
-        dockerImage: 'ghcr.io/hookvibe/hookcode-worker',
-        dockerPullCommand: 'docker pull ghcr.io/hookvibe/hookcode-worker:0.1.2'
-      }
+      versionRequirement: buildVersionRequirement()
     } as any);
     vi.mocked(api.createWorker).mockResolvedValue({
       worker: {
@@ -69,14 +73,7 @@ describe('SettingsWorkersPanel', () => {
       } as any,
       bindCode: 'hcw1.bind-code',
       bindCodeExpiresAt: '2026-03-08T00:00:00.000Z',
-      versionRequirement: {
-        packageName: '@hookvibe/hookcode-worker',
-        requiredVersion: '0.1.2',
-        npmInstallCommand: 'npm install -g @hookvibe/hookcode-worker@0.1.2',
-        cliUpgradeCommand: 'hookcode-worker upgrade --to 0.1.2',
-        dockerImage: 'ghcr.io/hookvibe/hookcode-worker',
-        dockerPullCommand: 'docker pull ghcr.io/hookvibe/hookcode-worker:0.1.2'
-      }
+      versionRequirement: buildVersionRequirement()
     } as any);
   });
 
@@ -133,7 +130,7 @@ describe('SettingsWorkersPanel', () => {
     await waitFor(() => expect(api.createWorker).toHaveBeenCalledWith({ name: 'Remote worker', maxConcurrency: 1 }));
     expect(await screen.findByText('Manual deployment')).toBeInTheDocument();
     expect(screen.getAllByText(/hcw1\.bind-code/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/npm install -g @hookvibe\/hookcode-worker@0\.1\.2/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(new RegExp(`npm install -g @hookvibe/hookcode-worker@${TEST_WORKER_VERSION.replace(/\./g, '\\.')}`)).length).toBeGreaterThan(0);
   });
 
   test('uses the themed compact modal skin for worker creation', async () => {

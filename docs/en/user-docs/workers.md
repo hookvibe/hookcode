@@ -61,14 +61,16 @@ HOOKCODE_WORK_DIR="$HOME/.hookcode/workers/worker-a" \
 HOOKCODE_WORKER_NAME="Build Host A" \
 HOOKCODE_WORKER_KIND="remote" \
 HOOKCODE_WORKER_MAX_CONCURRENCY="1" \
-npx @hookvibe/hookcode-worker@0.1.2
+npx @hookvibe/hookcode-worker@<required-version>
 ```
 
 Or pin it globally first:
 
 ```bash
-npm install -g @hookvibe/hookcode-worker@0.1.2
+npm install -g @hookvibe/hookcode-worker
 ```
+
+Use the exact version shown in **Settings → Workers** when backend reports a required worker version.
 
 ```bash
 HOOKCODE_WORK_DIR="$HOME/.hookcode/workers/worker-a" \
