@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Button, Input, Popover, Select, Space, Typography } from 'antd';
-import { ClockCircleOutlined, GlobalOutlined, SendOutlined, ToolOutlined } from '@ant-design/icons';
+import { Button, Input, Popover, Select, Typography } from 'antd';
+import { ClockCircleOutlined, GlobalOutlined, SendOutlined, SettingOutlined, ToolOutlined } from '@ant-design/icons';
 import type { TimeWindow } from '../../api';
 import { useT } from '../../i18n';
 import { TimeWindowPicker } from '../TimeWindowPicker';
@@ -88,37 +88,97 @@ export const TaskGroupComposer = ({
     [composerMode]
   );
 
-  // Isolate task submission controls so the queue workspace page can focus on orchestration flow. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
+  // Restructure composer actions popover with grouped sections for cleaner UI. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
   const composerActionsContent = (
     <div className="hc-composer-actions">
-      {/* Keep schedule, preview, and skill actions together under one compact composer menu. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
-      <div className="hc-composer-action-block">
-        <Typography.Text type="secondary" className="hc-composer-action-title">
-          {t('chat.form.timeWindow')}
-        </Typography.Text>
-        <TimeWindowPicker
-          value={chatTimeWindow}
-          onChange={onChatTimeWindowChange}
-          disabled={!canRun}
-          size="small"
-          showTimezoneHint={false}
-        />
+      <div className="hc-composer-action-section">
+        <span className="hc-composer-action-section__title">{t('chat.form.context')}</span>
+        <div className="hc-composer-action-block">
+          <Typography.Text type="secondary" className="hc-composer-action-title">
+            {t('chat.repo')}
+          </Typography.Text>
+          <Select
+            showSearch
+            optionFilterProp="label"
+            style={{ width: '100%' }}
+            placeholder={t('chat.repoPlaceholder')}
+            loading={reposLoading}
+            value={repoId || undefined}
+            disabled={repoLocked}
+            aria-label={t('chat.repo')}
+            onChange={(value) => onRepoChange(String(value))}
+            options={repoOptions}
+            size="small"
+          />
+        </div>
+        <div className="hc-composer-action-block">
+          <Typography.Text type="secondary" className="hc-composer-action-title">
+            {t('chat.form.robot')}
+          </Typography.Text>
+          <Select
+            showSearch
+            optionFilterProp="label"
+            style={{ width: '100%' }}
+            placeholder={t('chat.form.robotPlaceholder')}
+            loading={robotsLoading}
+            value={robotId || undefined}
+            aria-label={t('chat.form.robot')}
+            onChange={(value) => onRobotChange(String(value))}
+            options={robotOptions}
+            disabled={!canRun}
+            size="small"
+          />
+        </div>
+        {showWorkerSelector ? (
+          <div className="hc-composer-action-block">
+            <Typography.Text type="secondary" className="hc-composer-action-title">
+              {t('chat.form.worker')}
+            </Typography.Text>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              style={{ width: '100%' }}
+              placeholder={t('chat.form.workerPlaceholder')}
+              loading={workersLoading}
+              value={workerLocked ? (workerId || undefined) : (workerId || '__auto__')}
+              aria-label={t('chat.form.worker')}
+              onChange={(value) => onWorkerChange(String(value) === '__auto__' ? '' : String(value))}
+              options={workerOptions}
+              disabled={!canRun || workerLocked}
+              size="small"
+            />
+          </div>
+        ) : null}
       </div>
       <div className="hc-composer-action-divider" aria-hidden="true" />
-      <Button size="small" icon={<GlobalOutlined />} disabled={previewStartDisabled} onClick={onStartPreview}>
-        {t('preview.action.start')}
-      </Button>
-      <div className="hc-composer-action-divider" aria-hidden="true" />
-      <div className="hc-composer-action-block">
-        <Typography.Text type="secondary" className="hc-composer-action-title">
-          {t('skills.selection.taskGroup.title')}
-        </Typography.Text>
-        <Button size="small" icon={<ToolOutlined />} disabled={skillsButtonDisabled} onClick={onOpenSkills}>
-          {t('skills.selection.action.configure')}
-        </Button>
-        <Typography.Text type="secondary" className="hc-composer-action-hint">
-          {skillModeLabel}
-        </Typography.Text>
+      <div className="hc-composer-action-section">
+        <span className="hc-composer-action-section__title">{t('chat.form.advanced')}</span>
+        <div className="hc-composer-action-block">
+          <Typography.Text type="secondary" className="hc-composer-action-title">
+            <ClockCircleOutlined style={{ marginRight: 4 }} />
+            {t('chat.form.timeWindow')}
+          </Typography.Text>
+          <TimeWindowPicker
+            value={chatTimeWindow}
+            onChange={onChatTimeWindowChange}
+            disabled={!canRun}
+            size="small"
+            showTimezoneHint={false}
+          />
+        </div>
+        <div className="hc-composer-action-row">
+          <Button size="small" icon={<GlobalOutlined />} disabled={previewStartDisabled} onClick={onStartPreview}>
+            {t('preview.action.start')}
+          </Button>
+          <Button size="small" icon={<ToolOutlined />} disabled={skillsButtonDisabled} onClick={onOpenSkills}>
+            {t('skills.selection.action.configure')}
+          </Button>
+        </div>
+        {skillModeLabel ? (
+          <Typography.Text type="secondary" className="hc-composer-action-hint">
+            {skillModeLabel}
+          </Typography.Text>
+        ) : null}
       </div>
     </div>
   );
@@ -147,6 +207,7 @@ export const TaskGroupComposer = ({
           />
         </div>
 
+        {/* Simplified composer footer with settings popover and send button only. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */}
         <div className="hc-composer-footer">
           <div className="hc-composer-footer-left">
             <Popover
@@ -162,8 +223,8 @@ export const TaskGroupComposer = ({
                 aria-label={t('chat.form.actions')}
                 title={t('chat.form.actions')}
                 disabled={!canRun}
-                icon={<ClockCircleOutlined />}
-                className={chatTimeWindowLabel ? 'hc-timewindow-toggle is-active' : 'hc-timewindow-toggle'}
+                icon={<SettingOutlined />}
+                className="hc-composer-settings-btn"
               />
             </Popover>
             {chatTimeWindowLabel ? (
@@ -171,66 +232,14 @@ export const TaskGroupComposer = ({
                 {chatTimeWindowLabel}
               </Typography.Text>
             ) : null}
+            {repoId && repoOptions.length > 0 ? (
+              <Typography.Text type="secondary" className="hc-composer-context-label">
+                {repoOptions.find((o) => o.value === repoId)?.label ?? ''}
+              </Typography.Text>
+            ) : null}
           </div>
 
           <div className="hc-composer-footer-right">
-            <Space size={0} wrap style={{ gap: 4 }}>
-              <Select
-                variant="borderless"
-                showSearch
-                optionFilterProp="label"
-                style={{ width: 'auto', minWidth: 100 }}
-                placeholder={t('chat.repoPlaceholder')}
-                loading={reposLoading}
-                value={repoId || undefined}
-                disabled={repoLocked}
-                aria-label={t('chat.repo')}
-                onChange={(value) => onRepoChange(String(value))}
-                options={repoOptions}
-                popupMatchSelectWidth={false}
-                size="small"
-                className="hc-select-subtle"
-              />
-              <span style={{ color: 'var(--border)', userSelect: 'none', margin: '0 4px' }}>|</span>
-              <Select
-                variant="borderless"
-                showSearch
-                optionFilterProp="label"
-                style={{ width: 'auto', minWidth: 100 }}
-                placeholder={t('chat.form.robotPlaceholder')}
-                loading={robotsLoading}
-                value={robotId || undefined}
-                aria-label={t('chat.form.robot')}
-                onChange={(value) => onRobotChange(String(value))}
-                options={robotOptions}
-                disabled={!canRun}
-                popupMatchSelectWidth={false}
-                size="small"
-                className="hc-select-subtle"
-              />
-              {showWorkerSelector ? (
-                <>
-                  <span style={{ color: 'var(--border)', userSelect: 'none', margin: '0 4px' }}>|</span>
-                  {/* Keep worker override close to repo/robot selection so manual chat routing stays explicit. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
-                  <Select
-                    variant="borderless"
-                    showSearch
-                    optionFilterProp="label"
-                    style={{ width: 'auto', minWidth: 120 }}
-                    placeholder={t('chat.form.workerPlaceholder')}
-                    loading={workersLoading}
-                    value={workerLocked ? (workerId || undefined) : (workerId || '__auto__')}
-                    aria-label={t('chat.form.worker')}
-                    onChange={(value) => onWorkerChange(String(value) === '__auto__' ? '' : String(value))}
-                    options={workerOptions}
-                    disabled={!canRun || workerLocked}
-                    popupMatchSelectWidth={false}
-                    size="small"
-                    className="hc-select-subtle"
-                  />
-                </>
-              ) : null}
-            </Space>
             <Button
               type="primary"
               shape="round"

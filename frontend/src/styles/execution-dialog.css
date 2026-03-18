@@ -1,12 +1,13 @@
 /* =============================================================================
- * Execution Dialog (Modern Chat Bubbles)
+ * Execution Timeline — Flat Activity Feed
+ * Compact layout without avatars, vertical bars, or role labels.
+ * docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
  * ========================================================================== */
-/* Restyle execution timeline cards toward the compact Claude-like tool surface used for worker diff inspection. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316 */
 
 .chat-stream {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 2px;
   max-width: none;
   margin: 0;
   width: 100%;
@@ -14,240 +15,102 @@
 
 .chat-bubble {
   display: flex;
-  gap: 10px;
   align-items: flex-start;
-  animation: slideIn 0.2s ease-out;
+  animation: slideIn 0.12s ease-out;
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(5px); }
+  from { opacity: 0; transform: translateY(2px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Avatar Styling */
-.chat-bubble__avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--hc-surface-elevated) 98%, transparent);
-  border: 1px solid color-mix(in srgb, var(--hc-border) 86%, transparent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: var(--muted);
-  transition: all 0.2s;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 20%, transparent);
-}
-
-/* Kind-specific Avatar Colors */
-.chat-bubble.kind-agent_message .chat-bubble__avatar {
-  color: #3b82f6; /* Blue */
-  background: color-mix(in srgb, #3b82f6 8%, var(--hc-surface));
-  border-color: color-mix(in srgb, #3b82f6 20%, var(--hc-border));
-}
-
-.chat-bubble.kind-command_execution .chat-bubble__avatar {
-  color: #ea580c;
-  background: color-mix(in srgb, #ea580c 8%, var(--hc-surface));
-  border-color: color-mix(in srgb, #ea580c 20%, var(--hc-border));
-}
-
-.chat-bubble.kind-command_execution.tool-search .chat-bubble__avatar {
-  color: #475569;
-  background: color-mix(in srgb, #475569 8%, var(--hc-surface));
-  border-color: color-mix(in srgb, #475569 20%, var(--hc-border));
-}
-
-.chat-bubble.kind-command_execution.tool-bash .chat-bubble__avatar {
-  color: #15803d;
-  background: color-mix(in srgb, #15803d 8%, var(--hc-surface));
-  border-color: color-mix(in srgb, #15803d 20%, var(--hc-border));
-}
-
-.chat-bubble.kind-command_execution.tool-agent .chat-bubble__avatar,
-.chat-bubble.kind-command_execution.tool-plan .chat-bubble__avatar {
-  color: #7c3aed;
-  background: color-mix(in srgb, #7c3aed 8%, var(--hc-surface));
-  border-color: color-mix(in srgb, #7c3aed 20%, var(--hc-border));
-}
-
-.chat-bubble.kind-command_execution.tool-question .chat-bubble__avatar {
-  color: #2563eb;
-  background: color-mix(in srgb, #2563eb 8%, var(--hc-surface));
-  border-color: color-mix(in srgb, #2563eb 20%, var(--hc-border));
-}
-
-.chat-bubble.kind-file_change .chat-bubble__avatar {
-  color: #059669;
-  background: color-mix(in srgb, #059669 8%, var(--hc-surface));
-  border-color: color-mix(in srgb, #059669 20%, var(--hc-border));
-}
-
-.chat-bubble.kind-reasoning .chat-bubble__avatar {
-  color: #64748b; /* Slate */
-  background: color-mix(in srgb, #64748b 8%, var(--hc-surface));
-  border-color: color-mix(in srgb, #64748b 20%, var(--hc-border));
-}
-
-.chat-bubble.kind-todo_list .chat-bubble__avatar {
-  color: #14b8a6; /* Teal */
-  background: color-mix(in srgb, #14b8a6 8%, var(--hc-surface));
-  border-color: color-mix(in srgb, #14b8a6 20%, var(--hc-border));
-}
-
-.chat-bubble.kind-subagent_container .chat-bubble__avatar {
-  color: #7c3aed;
-  background: color-mix(in srgb, #7c3aed 8%, var(--hc-surface));
-  border-color: color-mix(in srgb, #7c3aed 20%, var(--hc-border));
-}
-
-/* Status Overrides for Avatar (Running/Failed take precedence) */
-.chat-bubble.is-running .chat-bubble__avatar {
-  border-color: var(--hc-primary);
-  color: var(--hc-primary);
-  background: color-mix(in srgb, var(--hc-primary) 10%, var(--hc-surface));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--hc-primary) 15%, transparent);
-}
-.chat-bubble.is-failed .chat-bubble__avatar {
-  border-color: #ef4444;
-  color: #ef4444;
-  background: color-mix(in srgb, #ef4444 10%, var(--hc-surface));
-}
-
 .chat-bubble__content {
-  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--hc-border) 88%, transparent);
-  border-radius: 12px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--hc-surface) 98%, transparent) 0%,
-    color-mix(in srgb, var(--hc-surface-elevated) 96%, transparent) 100%
-  );
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 24%, transparent);
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-
-.chat-bubble__content::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 2px;
-  border-radius: 999px;
+  gap: 4px;
+  padding: 5px 8px;
+  border-radius: 8px;
   background: transparent;
-  transition: background 160ms ease;
+  border: 1px solid transparent;
+  transition: background 120ms ease, border-color 120ms ease;
 }
 
 .chat-bubble:hover .chat-bubble__content {
-  border-color: color-mix(in srgb, var(--hc-accent-border) 45%, var(--hc-border));
-  transform: translateY(-1px);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #fff 24%, transparent),
-    var(--hc-shadow-xs);
+  background: color-mix(in srgb, var(--hc-surface-elevated) 50%, transparent);
+  border-color: color-mix(in srgb, var(--hc-border) 40%, transparent);
 }
 
-.chat-bubble.kind-command_execution .chat-bubble__content::before {
-  background: color-mix(in srgb, #ea580c 72%, transparent);
-}
-
-.chat-bubble.kind-command_execution.tool-search .chat-bubble__content::before {
-  background: color-mix(in srgb, #475569 72%, transparent);
-}
-
-.chat-bubble.kind-command_execution.tool-bash .chat-bubble__content::before {
-  background: color-mix(in srgb, #15803d 72%, transparent);
-}
-
-.chat-bubble.kind-command_execution.tool-agent .chat-bubble__content::before,
-.chat-bubble.kind-command_execution.tool-plan .chat-bubble__content::before {
-  background: color-mix(in srgb, #7c3aed 72%, transparent);
-}
-
-.chat-bubble.kind-command_execution.tool-question .chat-bubble__content::before {
-  background: color-mix(in srgb, #2563eb 72%, transparent);
-}
-
-.chat-bubble.kind-file_change .chat-bubble__content::before {
-  background: color-mix(in srgb, #059669 72%, transparent);
-}
-
-.chat-bubble.kind-agent_message .chat-bubble__content::before {
-  background: color-mix(in srgb, #2563eb 72%, transparent);
-}
-
-.chat-bubble.kind-reasoning .chat-bubble__content::before {
-  background: color-mix(in srgb, #64748b 72%, transparent);
-}
-
-.chat-bubble.kind-todo_list .chat-bubble__content::before {
-  background: color-mix(in srgb, #0d9488 72%, transparent);
-}
-
-.chat-bubble.kind-subagent_container .chat-bubble__content::before {
-  background: color-mix(in srgb, #7c3aed 72%, transparent);
-}
-
+/* Clickable header: entire row toggles expand/collapse for items with details. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .chat-bubble__header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 22px;
+}
+.chat-bubble__header.is-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+.chat-bubble__header.is-clickable:hover {
+  opacity: 0.85;
 }
 
-/* Role Label Styling */
-.chat-bubble__role {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0;
+/* Chevron indicator for expandable items. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
+.chat-bubble__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.chat-bubble__chevron svg {
+  width: 12px;
+  height: 12px;
 }
 
-/* Kind-specific Role Colors */
-.chat-bubble.kind-agent_message .chat-bubble__role { color: #2563eb; }
-.chat-bubble.kind-command_execution .chat-bubble__role { color: #c2410c; }
-.chat-bubble.kind-command_execution.tool-search .chat-bubble__role { color: #475569; }
-.chat-bubble.kind-command_execution.tool-bash .chat-bubble__role { color: #15803d; }
-.chat-bubble.kind-command_execution.tool-agent .chat-bubble__role,
-.chat-bubble.kind-command_execution.tool-plan .chat-bubble__role { color: #7c3aed; }
-.chat-bubble.kind-command_execution.tool-question .chat-bubble__role { color: #2563eb; }
-.chat-bubble.kind-file_change .chat-bubble__role { color: #047857; }
-.chat-bubble.kind-reasoning .chat-bubble__role { color: #475569; }
-.chat-bubble.kind-todo_list .chat-bubble__role { color: #0d9488; }
-.chat-bubble.kind-subagent_container .chat-bubble__role { color: #7c3aed; }
-/* Dark mode adjustments for readability */
-html[data-theme='dark'] .chat-bubble.kind-agent_message .chat-bubble__role { color: #60a5fa; }
-html[data-theme='dark'] .chat-bubble.kind-command_execution .chat-bubble__role { color: #fdba74; }
-html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-search .chat-bubble__role { color: #cbd5e1; }
-html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-bash .chat-bubble__role { color: #86efac; }
-html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-agent .chat-bubble__role,
-html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-plan .chat-bubble__role { color: #c4b5fd; }
-html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-question .chat-bubble__role { color: #93c5fd; }
-html[data-theme='dark'] .chat-bubble.kind-file_change .chat-bubble__role { color: #6ee7b7; }
-html[data-theme='dark'] .chat-bubble.kind-reasoning .chat-bubble__role { color: #94a3b8; }
-html[data-theme='dark'] .chat-bubble.kind-todo_list .chat-bubble__role { color: #2dd4bf; }
-html[data-theme='dark'] .chat-bubble.kind-subagent_container .chat-bubble__role { color: #c4b5fd; }
-
+/* Kind badge: compact colored tag that distinguishes item type. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .chat-bubble__kind {
   display: inline-flex;
   align-items: center;
-  min-height: 20px;
-  padding: 0 7px;
-  border: 1px solid color-mix(in srgb, var(--hc-border) 82%, transparent);
-  border-radius: 999px;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
   font-size: 10.5px;
   font-weight: 700;
+  border: none;
   color: var(--text-secondary);
-  background: color-mix(in srgb, var(--hc-code-bg) 72%, transparent);
+  background: color-mix(in srgb, var(--hc-code-bg) 80%, transparent);
 }
+
+/* Kind-specific badge colors */
+.chat-bubble.kind-agent_message .chat-bubble__kind { color: #2563eb; background: rgba(37, 99, 235, 0.08); }
+.chat-bubble.kind-command_execution .chat-bubble__kind { color: #c2410c; background: rgba(194, 65, 12, 0.08); }
+.chat-bubble.kind-command_execution.tool-search .chat-bubble__kind { color: #475569; background: rgba(71, 85, 105, 0.08); }
+.chat-bubble.kind-command_execution.tool-bash .chat-bubble__kind { color: #15803d; background: rgba(21, 128, 61, 0.08); }
+.chat-bubble.kind-command_execution.tool-agent .chat-bubble__kind,
+.chat-bubble.kind-command_execution.tool-plan .chat-bubble__kind { color: #7c3aed; background: rgba(124, 58, 237, 0.08); }
+.chat-bubble.kind-command_execution.tool-question .chat-bubble__kind { color: #2563eb; background: rgba(37, 99, 235, 0.08); }
+.chat-bubble.kind-file_change .chat-bubble__kind { color: #047857; background: rgba(4, 120, 87, 0.08); }
+.chat-bubble.kind-reasoning .chat-bubble__kind { color: #64748b; background: rgba(100, 116, 139, 0.08); }
+.chat-bubble.kind-todo_list .chat-bubble__kind { color: #0d9488; background: rgba(13, 148, 136, 0.08); }
+.chat-bubble.kind-subagent_container .chat-bubble__kind { color: #7c3aed; background: rgba(124, 58, 237, 0.08); }
+
+html[data-theme='dark'] .chat-bubble.kind-agent_message .chat-bubble__kind { color: #60a5fa; background: rgba(96, 165, 250, 0.12); }
+html[data-theme='dark'] .chat-bubble.kind-command_execution .chat-bubble__kind { color: #fdba74; background: rgba(253, 186, 116, 0.12); }
+html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-search .chat-bubble__kind { color: #cbd5e1; background: rgba(203, 213, 225, 0.1); }
+html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-bash .chat-bubble__kind { color: #86efac; background: rgba(134, 239, 172, 0.1); }
+html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-agent .chat-bubble__kind,
+html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-plan .chat-bubble__kind { color: #c4b5fd; background: rgba(196, 181, 253, 0.1); }
+html[data-theme='dark'] .chat-bubble.kind-command_execution.tool-question .chat-bubble__kind { color: #93c5fd; background: rgba(147, 197, 253, 0.1); }
+html[data-theme='dark'] .chat-bubble.kind-file_change .chat-bubble__kind { color: #6ee7b7; background: rgba(110, 231, 183, 0.1); }
+html[data-theme='dark'] .chat-bubble.kind-reasoning .chat-bubble__kind { color: #94a3b8; background: rgba(148, 163, 184, 0.1); }
+html[data-theme='dark'] .chat-bubble.kind-todo_list .chat-bubble__kind { color: #2dd4bf; background: rgba(45, 212, 191, 0.1); }
+html[data-theme='dark'] .chat-bubble.kind-subagent_container .chat-bubble__kind { color: #c4b5fd; background: rgba(196, 181, 253, 0.1); }
 
 .chat-bubble__status {
   font-size: 10px;
@@ -280,34 +143,34 @@ html[data-theme='dark'] .chat-bubble.kind-subagent_container .chat-bubble__role 
 
 .chat-bubble__body {
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.5;
   color: var(--text);
 }
 
+/* Summary shown inline next to the kind badge. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .chat-bubble__summary {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--hc-code-bg) 62%, transparent);
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 /* Collapsible / Work Area */
 
 .chat-collapsible {
-  margin-top: 4px;
+  margin-top: 2px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
 .chat-collapsible-group {
-  margin-top: 4px;
+  margin-top: 2px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .chat-collapsible__toggle {
@@ -331,7 +194,6 @@ html[data-theme='dark'] .chat-bubble.kind-subagent_container .chat-bubble__role 
   color: var(--text);
   border-color: var(--hc-accent-border);
   background: color-mix(in srgb, var(--hc-accent-soft) 72%, transparent);
-  transform: translateY(-1px);
 }
 
 .chat-collapsible__toggle svg {
@@ -355,10 +217,10 @@ html[data-theme='dark'] .chat-bubble.kind-subagent_container .chat-bubble__role 
 
 /* Reasoning */
 .chat-reasoning {
-  margin-top: 2px;
-  padding: 10px 12px;
+  margin-top: 0;
+  padding: 6px 8px;
   border-left: 2px solid var(--hc-border);
-  border-radius: 0 10px 10px 0;
+  border-radius: 0 6px 6px 0;
   background: color-mix(in srgb, var(--hc-code-bg) 42%, transparent);
   color: var(--text);
 }
@@ -370,15 +232,15 @@ html[data-theme='dark'] .chat-bubble.kind-reasoning .chat-reasoning { border-lef
 /* Code / Output */
 .chat-work__mono {
   font-family: "Fira Code", monospace;
-  font-size: 12px;
+  font-size: 11.5px;
   background: var(--hc-surface-elevated);
-  padding: 10px 11px;
-  border-radius: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
   border: 1px solid color-mix(in srgb, var(--hc-border) 84%, transparent);
   overflow: auto;
   margin: 0;
   color: var(--text);
-  max-height: 300px;
+  max-height: 280px;
   box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent);
   white-space: pre;
   word-break: normal;
@@ -429,30 +291,29 @@ html[data-theme='dark'] .chat-work__mono { background: #0c0c0c; border-color: #1
 .chat-files {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
 .chat-file {
   appearance: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 7px 8px;
+  padding: 4px 6px;
   border: 1px solid color-mix(in srgb, var(--hc-border) 80%, transparent);
-  border-radius: 10px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--hc-code-bg) 56%, transparent);
   text-align: left;
   color: inherit;
   cursor: pointer;
-  font-size: 12px;
-  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  font-size: 11.5px;
+  transition: border-color 120ms ease, background 120ms ease;
 }
 
 .chat-file:hover {
   border-color: color-mix(in srgb, var(--hc-accent-border) 48%, var(--hc-border));
   background: color-mix(in srgb, var(--hc-accent-soft) 58%, var(--hc-surface));
-  transform: translateY(-1px);
 }
 
 .chat-file:disabled {
@@ -605,17 +466,16 @@ html[data-theme='dark'] .chat-file__metric--remove {
 .chat-diff {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  gap: 4px;
+  padding: 4px 6px;
   border: 1px solid color-mix(in srgb, var(--hc-border) 82%, transparent);
-  border-radius: 10px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--hc-surface) 92%, transparent);
-  transition: border-color 160ms ease, background 160ms ease;
+  transition: border-color 120ms ease;
 }
 
 .chat-diff:hover {
   border-color: color-mix(in srgb, var(--hc-accent-border) 48%, var(--hc-border));
-  background: color-mix(in srgb, var(--hc-surface-elevated) 94%, transparent);
 }
 
 .chat-diff__header {
@@ -637,8 +497,8 @@ html[data-theme='dark'] .chat-file__metric--remove {
 .chat-todo {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 6px;
+  gap: 4px;
+  margin-top: 2px;
 }
 
 .chat-todo__summarybar {
@@ -682,18 +542,18 @@ html[data-theme='dark'] .chat-file__metric--remove {
 .chat-todo__list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
 .chat-todo__item {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 8px 9px;
+  gap: 6px;
+  padding: 5px 7px;
   border: 1px solid color-mix(in srgb, var(--hc-border) 80%, transparent);
-  border-radius: 10px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--hc-surface) 88%, transparent);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .chat-todo__item.is-complete {
@@ -797,11 +657,11 @@ html[data-theme='dark'] .chat-file__metric--remove {
 .chat-subagent {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
-  padding: 10px 12px;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 6px 8px;
   border: 1px solid color-mix(in srgb, var(--hc-border) 82%, transparent);
-  border-radius: 10px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--hc-code-bg) 42%, transparent);
 }
 
@@ -866,10 +726,10 @@ html[data-theme='dark'] .chat-file__metric--remove {
 .chat-running {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 6px 8px;
   border: 1px dashed color-mix(in srgb, var(--hc-border) 84%, transparent);
-  border-radius: 12px;
+  border-radius: 6px;
   background: color-mix(in srgb, var(--hc-code-bg) 56%, transparent);
   justify-content: center;
 }
@@ -894,10 +754,10 @@ html[data-theme='dark'] .chat-file__metric--remove {
 
 .chat-empty {
   text-align: center;
-  padding: 22px 16px;
+  padding: 12px 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   border: 1px dashed color-mix(in srgb, var(--hc-border) 82%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--hc-code-bg) 44%, transparent);
@@ -909,22 +769,10 @@ html[data-theme='dark'] .chat-file__metric--remove {
   font-size: 13px;
 }
 
+/* Responsive: compact layout already minimal; just handle overflow. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 @media (max-width: 720px) {
-  .chat-bubble {
-    gap: 8px;
-  }
-
-  .chat-bubble__avatar {
-    width: 24px;
-    height: 24px;
-  }
-
   .chat-bubble__content {
-    padding: 9px 10px;
-  }
-
-  .chat-bubble__header {
-    gap: 6px;
+    padding: 4px 6px;
   }
 
   .chat-bubble__status {

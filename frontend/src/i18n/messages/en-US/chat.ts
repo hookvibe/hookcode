@@ -28,6 +28,9 @@ export const enUSChat = {
   // Add a composer actions label for the new popover trigger. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
   'chat.form.actions': 'Composer actions',
   'chat.form.timeWindow': 'Execution window',
+  // Grouped composer popover section headers. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+  'chat.form.context': 'Context',
+  'chat.form.advanced': 'Advanced',
   'chat.form.send': 'Send',
   // Pause/resume controls for active task-group runs. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   'chat.form.pause': 'Pause',

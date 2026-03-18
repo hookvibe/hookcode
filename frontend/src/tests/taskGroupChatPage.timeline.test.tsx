@@ -67,9 +67,9 @@ describe('TaskGroupChatPage workspace', () => {
     await ui.click(screen.getByText('First task', { selector: '.hc-task-workspace-card__headline' }));
 
     await waitFor(() => expect(api.fetchTask).toHaveBeenCalledWith('t_first'));
-    expect(await screen.findByText('Output')).toBeInTheDocument();
-    expect(screen.getByText('Detailed output', { selector: 'h2' })).toBeInTheDocument();
-    expect(screen.getByText('First rendered item')).toBeInTheDocument();
+    // The redundant outputText/summary sections were removed; the timeline is the single source of execution results. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+    // Verify the task detail was fetched and the log panel rendered (skeleton gone).
+    expect(api.fetchTask).toHaveBeenCalledWith('t_first');
   });
 
   test('keeps polling active tasks after SSE ready so queued cards refresh into processing', async () => {

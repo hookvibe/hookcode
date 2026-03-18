@@ -28,6 +28,9 @@ export const zhCNChat = {
   // Add a composer actions label for the new popover trigger. docs/en/developer/plans/b0lmcv9gkmu76vryzkjt/task_plan.md b0lmcv9gkmu76vryzkjt
   'chat.form.actions': '输入操作',
   'chat.form.timeWindow': '执行时间段',
+  // Grouped composer popover section headers. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+  'chat.form.context': '上下文',
+  'chat.form.advanced': '高级设置',
   'chat.form.send': '发送',
   // Pause/resume controls for active task-group runs. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
   'chat.form.pause': '暂停',

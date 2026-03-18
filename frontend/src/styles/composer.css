@@ -219,6 +219,36 @@
   background: var(--hc-border);
 }
 
+/* Grouped popover sections with titles for cleaner hierarchy. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
+.hc-composer-action-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-composer-action-section__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.hc-composer-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hc-composer-settings-btn {
+  color: var(--text-secondary);
+  transition: color 0.2s;
+}
+
+.hc-composer-settings-btn:hover {
+  color: var(--text);
+}
+
 .hc-composer-footer-right {
   /* Keep repo/robot selectors grouped with the send action on the right. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
   display: flex;
@@ -227,19 +257,28 @@
   gap: 8px;
 }
 
+/* Time window toggle styling kept for backwards compatibility. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-timewindow-toggle {
-  /* Minimal icon affordance for the chat time-window popover. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
   color: var(--text-secondary);
 }
 
 .hc-timewindow-toggle.is-active {
-  /* Highlight the icon when a time window is selected. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
   color: var(--primary);
 }
 
 .hc-timewindow-label {
   /* Keep the time window label compact and readable. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
   font-size: 12px;
+}
+
+/* Show the selected repo name as a subtle label in the composer footer. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
+.hc-composer-context-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Reduce composer padding on phones to keep the input above the fold. docs/en/developer/plans/dhbg1plvf7lvamcpt546/task_plan.md dhbg1plvf7lvamcpt546 */

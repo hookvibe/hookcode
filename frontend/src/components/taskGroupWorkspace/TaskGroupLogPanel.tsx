@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
-import { Alert, Skeleton, Space, Typography } from 'antd';
+import { Skeleton, Space } from 'antd';
 import type { Task } from '../../api';
 import { useT } from '../../i18n';
 import { TaskLogViewer } from '../TaskLogViewer';
-import { MarkdownViewer } from '../MarkdownViewer';
 import { TaskGitWorkspacePanel } from '../tasks/TaskGitWorkspacePanel';
 
 interface TaskGroupLogPanelProps {
@@ -16,8 +15,6 @@ export const TaskGroupLogPanel = ({ task, taskDetail, onTaskUpdated }: TaskGroup
   const t = useT();
   const detail = taskDetail ?? null;
   const resolvedTask = detail ?? task;
-  const summary = useMemo(() => String(detail?.result?.summary ?? task.result?.summary ?? detail?.result?.message ?? task.result?.message ?? '').trim(), [detail?.result?.message, detail?.result?.summary, task.result?.message, task.result?.summary]);
-  const outputText = useMemo(() => String(detail?.result?.outputText ?? '').trim(), [detail?.result?.outputText]);
   const showWorkspace = Boolean(
     resolvedTask.id &&
       (resolvedTask.status === 'processing' ||
@@ -32,7 +29,7 @@ export const TaskGroupLogPanel = ({ task, taskDetail, onTaskUpdated }: TaskGroup
       <Space orientation="vertical" size={12} style={{ width: '100%' }}>
         {!detail ? <Skeleton active paragraph={{ rows: 2 }} title={false} /> : null}
 
-        {summary ? <Alert type="info" showIcon message={summary} /> : null}
+        {/* Remove redundant summary Alert and outputText MarkdownViewer; timeline already shows all execution results inline. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */}
 
         <TaskLogViewer
           taskId={task.id}
@@ -46,14 +43,6 @@ export const TaskGroupLogPanel = ({ task, taskDetail, onTaskUpdated }: TaskGroup
           workspaceChanges={detail?.result?.workspaceChanges ?? task.result?.workspaceChanges ?? null}
           variant="panel"
         />
-
-        {outputText ? (
-          <div className="hc-task-workspace-log-panel__output">
-            <Typography.Text type="secondary">{t('taskGroup.workspace.output')}</Typography.Text>
-            {/* Render task output as Markdown so structured lists/code blocks stay readable in the workspace log tab. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
-            <MarkdownViewer markdown={outputText} className="markdown-result--expanded hc-task-workspace-log-panel__output-markdown" />
-          </div>
-        ) : null}
 
         {showWorkspace ? (
           <div className="hc-task-workspace-log-panel__workspace">

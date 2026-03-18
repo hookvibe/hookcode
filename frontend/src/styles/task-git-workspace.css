@@ -1,14 +1,13 @@
+/* Modernized git workspace summary using neutral design tokens instead of hardcoded blue gradients. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-git-workspace-summary {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px 18px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 18px;
-  background:
-    radial-gradient(circle at top right, rgba(61, 92, 255, 0.12), transparent 36%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 252, 0.98));
-  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  background: var(--hc-surface);
+  box-shadow: var(--hc-shadow-sm);
 }
 
 .hc-git-workspace-summary__header,
@@ -31,13 +30,14 @@
   flex: 1 1 auto;
 }
 
+/* Neutral eyebrow label for git workspace section headers. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-git-workspace-summary__eyebrow {
   font-size: 11px;
   line-height: 1;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(37, 99, 235, 0.78);
-  font-weight: 700;
+  color: var(--text-tertiary);
+  font-weight: 600;
 }
 
 .hc-git-workspace-summary__title-row {
@@ -49,16 +49,16 @@
 
 .hc-git-workspace-summary__title {
   max-width: 100%;
-  font-size: 16px;
-  color: rgba(15, 23, 42, 0.94);
+  font-size: 15px;
+  color: var(--text);
 }
 
 .hc-git-workspace-summary__meta {
   flex-wrap: wrap;
   gap: 8px 14px;
-  margin-top: 8px;
+  margin-top: 6px;
   font-size: 12px;
-  color: rgba(71, 85, 105, 0.88);
+  color: var(--text-tertiary);
 }
 
 .hc-git-workspace-summary__action {
@@ -71,29 +71,30 @@
   gap: 10px;
 }
 
+/* Use neutral surface tokens for git stat cards instead of hardcoded white/blue. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-git-workspace-summary__stat {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.82);
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  background: var(--hc-accent-soft);
 }
 
 .hc-git-workspace-summary__stat-label {
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 11px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: rgba(100, 116, 139, 0.9);
+  color: var(--text-tertiary);
 }
 
 .hc-git-workspace-summary__stat strong {
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
-  color: rgba(15, 23, 42, 0.94);
+  color: var(--text);
 }
 
 .hc-git-workspace-summary__sections,
@@ -102,35 +103,35 @@
   gap: 8px;
 }
 
+/* Neutral file chips in git workspace summary. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-git-workspace-summary__file,
 .hc-git-workspace-summary__more {
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
+  min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(248, 250, 252, 0.8);
-  color: rgba(51, 65, 85, 0.92);
+  border: 1px solid var(--hc-border);
+  background: var(--hc-accent-soft);
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
 .hc-git-workspace-summary__more {
   border-style: dashed;
-  color: rgba(71, 85, 105, 0.86);
+  color: var(--text-tertiary);
 }
 
+/* Use neutral surface styling for the full git workspace panel. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-git-workspace {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 20px;
   border: 1px solid var(--hc-border);
-  border-radius: 20px;
-  background:
-    radial-gradient(circle at top right, rgba(61, 92, 255, 0.12), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 248, 252, 0.98));
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  background: var(--hc-surface);
+  box-shadow: var(--hc-shadow-sm);
 }
 
 .hc-git-workspace--loading {
@@ -169,12 +170,13 @@
   gap: 16px;
 }
 
+/* Neutral eyebrow label for git workspace header. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-git-workspace__eyebrow {
   font-size: 11px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(37, 99, 235, 0.78);
-  font-weight: 700;
+  color: var(--text-tertiary);
+  font-weight: 600;
 }
 
 .hc-git-workspace__title-row {
@@ -185,9 +187,9 @@
 
 .hc-git-workspace__title {
   margin: 0;
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1.1;
-  color: rgba(15, 23, 42, 0.94);
+  color: var(--text);
 }
 
 .hc-git-workspace__meta {
@@ -195,7 +197,7 @@
   gap: 8px 14px;
   margin-top: 8px;
   font-size: 12px;
-  color: rgba(71, 85, 105, 0.88);
+  color: var(--text-tertiary);
 }
 
 .hc-git-workspace__toolbar,
@@ -219,28 +221,28 @@
   flex-wrap: wrap;
 }
 
+/* Neutral stat cards for the git workspace panel. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-git-workspace__stat-card {
   min-width: 132px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--hc-accent-soft);
+  border: 1px solid var(--hc-border);
 }
 
 .hc-git-workspace__stat-card strong {
   display: block;
   margin-top: 4px;
-  font-size: 20px;
-  color: rgba(15, 23, 42, 0.94);
+  font-size: 18px;
+  color: var(--text);
 }
 
 .hc-git-workspace__stat-label {
   display: block;
   font-size: 11px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: rgba(100, 116, 139, 0.9);
+  color: var(--text-tertiary);
 }
 
 .hc-git-workspace__surface {
@@ -250,13 +252,13 @@
   min-height: 640px;
 }
 
+/* Neutral surface for rail, viewer, and composer panels. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-git-workspace__rail,
 .hc-git-workspace__viewer,
 .hc-git-workspace__composer {
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--hc-border);
+  border-radius: 16px;
+  background: var(--hc-surface-elevated);
 }
 
 .hc-git-workspace__rail {
@@ -269,11 +271,11 @@
 
 .hc-git-workspace__search input {
   width: 100%;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  padding: 8px 12px;
   font-size: 13px;
-  background: rgba(248, 250, 252, 0.88);
+  background: var(--hc-accent-soft);
 }
 
 .hc-git-workspace__bulk-actions {
@@ -284,28 +286,28 @@
 .hc-git-workspace__legend {
   gap: 10px;
   padding: 10px 12px;
-  border: 1px dashed rgba(148, 163, 184, 0.24);
-  border-radius: 14px;
-  background: rgba(248, 250, 252, 0.62);
+  border: 1px dashed var(--hc-border);
+  border-radius: 12px;
+  background: var(--hc-accent-soft);
 }
 
 .hc-git-workspace__legend-item {
   font-size: 12px;
-  color: rgba(71, 85, 105, 0.9);
+  color: var(--text-secondary);
 }
 
 .hc-git-workspace__selection-toolbar {
   justify-content: space-between;
   padding: 10px 12px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  background: var(--hc-surface-elevated);
 }
 
 .hc-git-workspace__selection-count {
   font-size: 12px;
   font-weight: 600;
-  color: rgba(51, 65, 85, 0.92);
+  color: var(--text-secondary);
 }
 
 .hc-git-workspace__groups {
@@ -327,42 +329,43 @@
   align-items: center;
   justify-content: space-between;
   font-size: 12px;
-  color: rgba(71, 85, 105, 0.88);
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
 .hc-git-workspace__group-empty {
   padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(248, 250, 252, 0.72);
-  color: rgba(100, 116, 139, 0.82);
+  border-radius: 10px;
+  background: var(--hc-accent-soft);
+  color: var(--text-tertiary);
   font-size: 12px;
 }
 
+/* Neutral file items in the git workspace rail. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-git-workspace__file {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
   align-items: flex-start;
   width: 100%;
-  padding: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 14px;
-  background: rgba(248, 250, 252, 0.72);
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
+  background: var(--hc-accent-soft);
   text-align: left;
   transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
 }
 
 .hc-git-workspace__file:hover,
 .hc-git-workspace__file.is-active {
-  border-color: rgba(37, 99, 235, 0.42);
-  background: rgba(219, 234, 254, 0.46);
+  border-color: var(--hc-accent-border);
+  background: var(--hc-accent-soft-hover);
   transform: translateY(-1px);
 }
 
 .hc-git-workspace__file.is-selected {
-  border-color: rgba(16, 185, 129, 0.34);
-  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.14);
+  border-color: var(--hc-accent-border);
+  box-shadow: inset 0 0 0 1px var(--hc-accent-soft);
 }
 
 .hc-git-workspace__file-check {
@@ -421,7 +424,7 @@
 .hc-git-workspace__file-name {
   display: block;
   font-size: 13px;
-  color: rgba(15, 23, 42, 0.95);
+  color: var(--text);
   font-weight: 600;
   min-width: 0;
   word-break: break-word;
@@ -430,7 +433,7 @@
 .hc-git-workspace__file-path {
   display: block;
   font-size: 11px;
-  color: rgba(100, 116, 139, 0.88);
+  color: var(--text-tertiary);
 }
 
 .hc-git-workspace__file-meta {
@@ -475,7 +478,7 @@
 .hc-git-workspace__viewer-lines {
   font-family: var(--hc-font-mono, 'SFMono-Regular', ui-monospace, monospace);
   font-size: 11px;
-  color: rgba(71, 85, 105, 0.88);
+  color: var(--text-secondary);
 }
 
 .hc-git-workspace__section-pill {
@@ -487,19 +490,20 @@
   font-weight: 700;
 }
 
+/* Neutral section pills with muted semantic colors. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */
 .hc-git-workspace__section-pill--staged {
-  color: #0f766e;
-  background: rgba(45, 212, 191, 0.18);
+  color: var(--text-secondary);
+  background: var(--hc-accent-soft);
 }
 
 .hc-git-workspace__section-pill--unstaged {
-  color: #92400e;
-  background: rgba(251, 191, 36, 0.22);
+  color: var(--text-secondary);
+  background: var(--hc-accent-soft);
 }
 
 .hc-git-workspace__section-pill--untracked {
-  color: #1d4ed8;
-  background: rgba(96, 165, 250, 0.2);
+  color: var(--text-secondary);
+  background: var(--hc-accent-soft);
 }
 
 .hc-git-workspace__viewer {
@@ -511,9 +515,9 @@
 }
 
 .hc-git-workspace__viewer-path {
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.3;
-  color: rgba(15, 23, 42, 0.94);
+  color: var(--text);
   word-break: break-word;
 }
 
@@ -526,8 +530,8 @@
   flex: 1;
   overflow: auto;
   padding: 8px;
-  border-radius: 16px;
-  background: rgba(248, 250, 252, 0.72);
+  border-radius: 14px;
+  background: var(--hc-accent-soft);
 }
 
 .hc-git-workspace__diff .hc-diff-viewer,
@@ -537,9 +541,9 @@
 
 .hc-git-workspace__inline-preview {
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background: var(--hc-surface-elevated);
 }
 
 .hc-git-workspace__inline-preview-code {
@@ -547,7 +551,7 @@
   padding: 10px 12px;
   font-size: 11px;
   line-height: 1.5;
-  color: rgba(15, 23, 42, 0.9);
+  color: var(--text);
   font-family: var(--hc-font-mono, 'SFMono-Regular', ui-monospace, monospace);
   overflow: auto;
 }
@@ -565,7 +569,7 @@
 .hc-git-workspace__inline-preview-empty {
   padding: 0 12px 10px;
   font-size: 11px;
-  color: rgba(100, 116, 139, 0.9);
+  color: var(--text-tertiary);
 }
 
 .hc-git-workspace__composer {

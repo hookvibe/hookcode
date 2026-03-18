@@ -527,8 +527,7 @@ export const TaskLogViewer: FC<Props> = ({
     );
   }
 
-  const logSectionTitle = mode === 'raw' ? t('execViewer.actions.showRaw') : t('execViewer.actions.showTimeline');
-
+  // Flatten panel structure by removing redundant section wrapper for a cleaner log display. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
   return (
     <div className="log-viewer" ref={rootRef}>
       <TaskLogViewerHeader
@@ -558,7 +557,6 @@ export const TaskLogViewer: FC<Props> = ({
         <div className="log-error">
            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
            <span>{error}</span>
-           {/* Add retry button for failed log connections. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306 */}
            <button className="log-btn log-btn--small" onClick={() => setSession((v) => v + 1)} style={{ marginLeft: 'auto' }}>
              {t('logViewer.actions.reconnect')}
            </button>
@@ -568,55 +566,47 @@ export const TaskLogViewer: FC<Props> = ({
       <div className="log-viewer__body">
         <div className="log-viewer__stack">
           {approvalBanner}
-          <TaskWorkspaceChangesPanel changes={resolvedWorkspaceChanges} />
-          <section className="log-viewer__section">
-            <div className="log-viewer__section-bar">
-              <span className="log-viewer__section-title">{logSectionTitle}</span>
-              {visibleLogs.length ? <span className="log-viewer__section-meta">{t('logViewer.lines', { count: visibleLogs.length })}</span> : null}
-            </div>
-            <div className="log-viewer__section-body">
-              {mode === 'raw' ? (
-                visibleLogs.length ? (
-                  // Use virtual scrolling for long log lists to prevent render lag. docs/en/developer/plans/taskgroup-logs-refactor-20260306/task_plan.md taskgroup-logs-refactor-20260306
-                  visibleLogs.length > 100 ? (
-                    <VirtualList
-                      height={600}
-                      rowCount={visibleLogs.length}
-                      rowHeight={20}
-                      rowComponent={({ index, style }: { index: number; style: React.CSSProperties }) => (
-                        <div style={style} id={buildLineId(index)} className="log-viewer__virtual-line">
-                          {visibleLogs[index]}
-                        </div>
-                      )}
-                      rowProps={{}}
-                    />
-                  ) : (
-                    <pre className="log-viewer__pre">
-                      {visibleLogs.map((line, idx) => (
-                        <div key={idx} id={buildLineId(idx)}>
-                          {line}
-                        </div>
-                      ))}
-                    </pre>
-                  )
-                ) : (
-                  <div className="log-viewer__empty">
-                    <span className="text-secondary">{resolvedEmptyMessage}</span>
-                    {emptyHint ? <span className="text-secondary">{emptyHint}</span> : null}
-                  </div>
-                )
-              ) : (
-                <ExecutionTimeline
-                  items={timeline.items}
-                  showReasoning={showReasoning}
-                  wrapDiffLines={wrapDiffLines}
-                  showLineNumbers={showLineNumbers}
-                  emptyMessage={resolvedEmptyMessage}
-                  emptyHint={emptyHint}
+          {/* Show workspace changes panel only in raw mode; timeline mode already shows file_change items inline. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */}
+          {mode === 'raw' ? <TaskWorkspaceChangesPanel changes={resolvedWorkspaceChanges} /> : null}
+          {mode === 'raw' ? (
+            visibleLogs.length ? (
+              visibleLogs.length > 100 ? (
+                <VirtualList
+                  height={600}
+                  rowCount={visibleLogs.length}
+                  rowHeight={20}
+                  rowComponent={({ index, style }: { index: number; style: React.CSSProperties }) => (
+                    <div style={style} id={buildLineId(index)} className="log-viewer__virtual-line">
+                      {visibleLogs[index]}
+                    </div>
+                  )}
+                  rowProps={{}}
                 />
-              )}
-            </div>
-          </section>
+              ) : (
+                <pre className="log-viewer__pre">
+                  {visibleLogs.map((line, idx) => (
+                    <div key={idx} id={buildLineId(idx)}>
+                      {line}
+                    </div>
+                  ))}
+                </pre>
+              )
+            ) : (
+              <div className="log-viewer__empty">
+                <span className="text-secondary">{resolvedEmptyMessage}</span>
+                {emptyHint ? <span className="text-secondary">{emptyHint}</span> : null}
+              </div>
+            )
+          ) : (
+            <ExecutionTimeline
+              items={timeline.items}
+              showReasoning={showReasoning}
+              wrapDiffLines={wrapDiffLines}
+              showLineNumbers={showLineNumbers}
+              emptyMessage={resolvedEmptyMessage}
+              emptyHint={emptyHint}
+            />
+          )}
         </div>
         <div ref={endRef} />
       </div>

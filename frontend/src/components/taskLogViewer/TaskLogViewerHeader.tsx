@@ -55,6 +55,7 @@ const IconLines = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16"></path><path d="M4 12h16"></path><path d="M4 18h16"></path><path d="M9 4v16"></path></svg>
 );
 
+// Simplified log header layout with inline status and compact toolbar. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
 export const TaskLogViewerHeader = ({
   t,
   connecting,
@@ -78,32 +79,27 @@ export const TaskLogViewerHeader = ({
   clearing
 }: TaskLogViewerHeaderProps) => (
   <div className="log-header">
-    <div className="log-header__meta">
-      <span className="log-header__eyebrow">{t('execViewer.title')}</span>
-      <div className="log-header__summary">
-        <span className={`log-header__status ${connecting ? 'is-connecting' : error ? 'is-error' : 'is-live'}`}>
-          <span className="log-header__status-dot" />
-          {connecting ? t('logViewer.state.connecting') : error ? t('logViewer.state.error') : t('logViewer.state.live')}
-        </span>
-        <span className="log-header__count">{t('logViewer.lines', { count: logsCount })}</span>
-      </div>
+    <div className="log-header__left">
+      <span className={`log-header__status ${connecting ? 'is-connecting' : error ? 'is-error' : 'is-live'}`}>
+        <span className="log-header__status-dot" />
+        {connecting ? t('logViewer.state.connecting') : error ? t('logViewer.state.error') : t('logViewer.state.live')}
+      </span>
+      {logsCount > 0 ? <span className="log-header__count">{logsCount}</span> : null}
     </div>
 
     <div className="log-header__toolbar">
-      {/* Keep load-earlier visible for paged task log access in the tabbed workspace. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306 */}
       {showLoadEarlier && (
         <button type="button" className="log-btn log-btn--labelled" onClick={onLoadEarlier} disabled={loadingEarlier} title={t('logViewer.actions.loadEarlier')}>
           {loadingEarlier ? <IconSpinner /> : <IconArrowUp />}
           <span>{loadingEarlier ? t('logViewer.loading') : t('logViewer.actions.loadEarlier')}</span>
         </button>
       )}
-      <div className="log-toolbar-group">
-        {showReconnectButton && (
-          <button type="button" className="log-btn" onClick={onReconnect} aria-label={t('logViewer.actions.reconnect')} title={t('logViewer.actions.reconnect')}>
-            <IconRefresh />
-          </button>
-        )}
-      </div>
+
+      {showReconnectButton && (
+        <button type="button" className="log-btn log-btn--icon-only" onClick={onReconnect} aria-label={t('logViewer.actions.reconnect')} title={t('logViewer.actions.reconnect')}>
+          <IconRefresh />
+        </button>
+      )}
 
       <div className="log-toolbar-group log-toolbar-group--segmented">
         <button
@@ -161,10 +157,10 @@ export const TaskLogViewerHeader = ({
       )}
 
       <div className="log-toolbar-group">
-        <button type="button" className="log-btn" onClick={onCopy} aria-label={t('logViewer.actions.copy')} title={t('logViewer.actions.copy')}>
+        <button type="button" className="log-btn log-btn--icon-only" onClick={onCopy} aria-label={t('logViewer.actions.copy')} title={t('logViewer.actions.copy')}>
           <IconCopy />
         </button>
-        <button type="button" className="log-btn log-btn--danger" onClick={onClear} disabled={clearing} aria-label={t('logViewer.actions.clear')} title={t('logViewer.actions.clear')}>
+        <button type="button" className="log-btn log-btn--icon-only log-btn--danger" onClick={onClear} disabled={clearing} aria-label={t('logViewer.actions.clear')} title={t('logViewer.actions.clear')}>
           <IconTrash />
         </button>
       </div>

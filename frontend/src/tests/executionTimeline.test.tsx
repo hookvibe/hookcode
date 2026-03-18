@@ -40,12 +40,9 @@ describe('ExecutionTimeline', () => {
     // Match updated execution timeline layout classes after the style refresh. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     expect(container.querySelector('.chat-stream')).toBeTruthy();
     expect(screen.getAllByText(/echo hi/)).toHaveLength(1);
-    const outputToggle = screen.getByRole('button', { name: 'Command output' });
-    await ui.click(outputToggle);
+    // Last 2 items auto-expand, so output and diffs are immediately visible without clicking toggle buttons. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
     expect(screen.getByText('hi')).toBeInTheDocument();
     expect(screen.getByText('/tmp/a.txt')).toBeInTheDocument();
-    const diffToggle = screen.getByRole('button', { name: 'Diffs' });
-    await ui.click(diffToggle);
     expect(screen.getByText('diff --git a/a.txt b/a.txt')).toBeInTheDocument();
   });
 
@@ -130,7 +127,6 @@ describe('ExecutionTimeline', () => {
 
   test('renders localized file pills and compact +/- summaries for file changes', async () => {
     // Keep the compact timeline file rows aligned with the Claude-style workspace panel by showing localized change pills and derived +/- counts. docs/en/developer/plans/worker-file-diff-ui-20260316/task_plan.md worker-file-diff-ui-20260316
-    const ui = userEvent.setup();
     const items: ExecutionItem[] = [
       {
         kind: 'file_change',
@@ -152,9 +148,10 @@ describe('ExecutionTimeline', () => {
     render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
 
     expect(screen.getByText('Edited')).toBeInTheDocument();
-    expect(screen.getByText('+2')).toBeInTheDocument();
-    expect(screen.getByText('-1')).toBeInTheDocument();
-    await ui.click(screen.getByRole('button', { name: 'Diffs' }));
+    // With auto-expand, +2 appears both in file metric and diff view; use getAllByText. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+    expect(screen.getAllByText('+2').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('-1').length).toBeGreaterThanOrEqual(1);
+    // Last item auto-expands so diffs are already visible. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
     expect(screen.getAllByText('+2').length).toBeGreaterThan(0);
   });
 
@@ -189,7 +186,7 @@ describe('ExecutionTimeline', () => {
 
     const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
 
-    await ui.click(screen.getByRole('button', { name: 'Command output' }));
+    // Last item auto-expands so output is immediately visible (capped at 180 lines). docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
     expect(screen.getByText(/Showing 180\/190 lines|仅展示 180\/190 行/i)).toBeInTheDocument();
     const outputBlock = container.querySelector('.chat-work__mono');
     expect(outputBlock).toBeTruthy();
@@ -201,7 +198,6 @@ describe('ExecutionTimeline', () => {
   });
 
   test('renders raw tool input details for command tools', async () => {
-    const ui = userEvent.setup();
     const items: ExecutionItem[] = [
       {
         kind: 'command_execution',
@@ -220,7 +216,7 @@ describe('ExecutionTimeline', () => {
     const { container } = render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
 
     expect(container.querySelector('.chat-bubble.kind-command_execution.tool-edit')).toBeTruthy();
-    await ui.click(screen.getByRole('button', { name: 'Tool input' }));
+    // Last item auto-expands so tool input is already visible. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
     expect(screen.getByText(/"file_path": "src\/example\.ts"/)).toBeInTheDocument();
   });
 
@@ -244,7 +240,7 @@ describe('ExecutionTimeline', () => {
 
     render(<ExecutionTimeline items={items} showReasoning wrapDiffLines showLineNumbers />);
 
-    await ui.click(screen.getByRole('button', { name: 'Diffs' }));
+    // Last item auto-expands so diffs are already visible. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
     expect(screen.getByText('first diff content')).toBeInTheDocument();
 
     await ui.click(screen.getByRole('tab', { name: 'src/second.ts' }));

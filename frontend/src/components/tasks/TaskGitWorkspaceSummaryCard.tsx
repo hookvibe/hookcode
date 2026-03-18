@@ -20,10 +20,11 @@ const pushLabelKeyByStatus: Record<string, string> = {
   unknown: 'tasks.gitStatus.push.unknown'
 };
 
+// Use neutral tag colors for push status to harmonize with the monochrome theme. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
 const pushColorByStatus: Record<string, string | undefined> = {
-  pushed: 'green',
-  unpushed: 'orange',
-  error: 'red',
+  pushed: 'success',
+  unpushed: 'warning',
+  error: 'error',
   not_applicable: undefined,
   unknown: undefined
 };
@@ -113,12 +114,13 @@ export const TaskGitWorkspaceSummaryCard: FC<TaskGitWorkspaceSummaryCardProps> =
       <div className="hc-git-workspace-summary__header">
         <div className="hc-git-workspace-summary__intro">
           <div className="hc-git-workspace-summary__eyebrow">{t('tasks.gitWorkspace.eyebrow')}</div>
+          {/* Use neutral tag colors for git status indicators. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318 */}
           <div className="hc-git-workspace-summary__title-row">
             <Typography.Text strong className="hc-git-workspace-summary__title">
               {view.branch || '-'}
             </Typography.Text>
-            <Tag color={task.status === 'processing' ? 'blue' : undefined}>{t(task.status === 'processing' ? 'tasks.gitWorkspace.live' : 'tasks.gitWorkspace.snapshot')}</Tag>
-            <Tag color={view.totalFileCount > 0 ? 'volcano' : 'green'}>{t(view.totalFileCount > 0 ? 'tasks.gitStatus.dirty' : 'tasks.gitStatus.clean')}</Tag>
+            <Tag color={task.status === 'processing' ? 'processing' : 'default'}>{t(task.status === 'processing' ? 'tasks.gitWorkspace.live' : 'tasks.gitWorkspace.snapshot')}</Tag>
+            <Tag color={view.totalFileCount > 0 ? 'warning' : 'success'}>{t(view.totalFileCount > 0 ? 'tasks.gitStatus.dirty' : 'tasks.gitStatus.clean')}</Tag>
             <Tag color={pushColor}>{t(pushKey)}</Tag>
           </div>
           <div className="hc-git-workspace-summary__meta">

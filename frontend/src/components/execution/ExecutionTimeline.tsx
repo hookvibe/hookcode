@@ -98,10 +98,12 @@ type TodoDisplayMeta = {
   priorityClassName: string;
 };
 
+// Render context passed to each detail renderer including parent-controlled expand state. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
 type DetailRendererContext = {
   t: ReturnType<typeof useT>;
   wrapDiffLines: boolean;
   showLineNumbers: boolean;
+  expanded: boolean;
 };
 
 type RendererDefinition = {
@@ -110,6 +112,7 @@ type RendererDefinition = {
   kindLabel: (item: ExecutionItem, t: ReturnType<typeof useT>) => string;
   summary: (item: ExecutionItem, t: ReturnType<typeof useT>) => string;
   hideSummary?: boolean;
+  hasDetails?: boolean;
   renderDetails: (item: ExecutionItem, context: DetailRendererContext) => ReactNode;
 };
 
@@ -325,62 +328,45 @@ const buildStatusMeta = (item: ExecutionItem, t: ReturnType<typeof useT>): Statu
   return { tone: 'neutral', label: status || t('execViewer.status.completed') };
 };
 
+// Show tool input and command output directly when parent item is expanded (no inner toggle). docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
 const CommandExecutionDetails: FC<{
   item: Extract<ExecutionItem, { kind: 'command_execution' }>;
-}> = ({ item }) => {
-  const t = useT();
-  const [outputExpanded, setOutputExpanded] = useState(false);
-  const [inputExpanded, setInputExpanded] = useState(false);
+  expanded: boolean;
+}> = ({ item, expanded }) => {
   const toolInputText = formatToolInputText(item.toolInput);
 
-  if (!item.output && !toolInputText) return null;
+  if (!expanded || (!item.output && !toolInputText)) return null;
 
   return (
     <div className="chat-collapsible-group">
       {toolInputText ? (
-        <div className="chat-collapsible">
-          <button className="chat-collapsible__toggle" onClick={() => setInputExpanded((current) => !current)}>
-            {inputExpanded ? <IconChevronDown /> : <IconChevronRight />}
-            <span>{t('execViewer.section.toolInput')}</span>
-          </button>
-          {inputExpanded ? (
-            <TextPreviewBlock
-              text={toolInputText}
-              limits={RAW_TEXT_PREVIEW_LIMITS}
-              className="chat-preview-block"
-              codeClassName="chat-work__mono"
-            />
-          ) : null}
-        </div>
+        <TextPreviewBlock
+          text={toolInputText}
+          limits={RAW_TEXT_PREVIEW_LIMITS}
+          className="chat-preview-block"
+          codeClassName="chat-work__mono"
+        />
       ) : null}
-
       {item.output ? (
-        <div className="chat-collapsible">
-          <button className="chat-collapsible__toggle" onClick={() => setOutputExpanded((current) => !current)}>
-            {outputExpanded ? <IconChevronDown /> : <IconChevronRight />}
-            <span>{t('execViewer.section.commandOutput')}</span>
-          </button>
-          {outputExpanded ? (
-            <TextPreviewBlock
-              text={item.output}
-              limits={COMMAND_OUTPUT_PREVIEW_LIMITS}
-              className="chat-preview-block"
-              codeClassName="chat-work__mono"
-            />
-          ) : null}
-        </div>
+        <TextPreviewBlock
+          text={item.output}
+          limits={COMMAND_OUTPUT_PREVIEW_LIMITS}
+          className="chat-preview-block"
+          codeClassName="chat-work__mono"
+        />
       ) : null}
     </div>
   );
 };
 
+// Show file changes and diffs when parent item is expanded. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
 const FileChangeDetails: FC<{
   item: Extract<ExecutionItem, { kind: 'file_change' }>;
   wrapDiffLines: boolean;
   showLineNumbers: boolean;
-}> = ({ item, wrapDiffLines, showLineNumbers }) => {
+  expanded: boolean;
+}> = ({ item, wrapDiffLines, showLineNumbers, expanded }) => {
   const t = useT();
-  const [expanded, setExpanded] = useState(false);
   const diffs = item.diffs ?? [];
   const fileDecorations = buildFileDecorations(item);
   const filesToShow = item.changes.length > 0 ? item.changes : diffs.map((diff) => ({ path: diff.path, kind: '' }));
@@ -402,7 +388,6 @@ const FileChangeDetails: FC<{
   const activateDiffPath = (path: string) => {
     if (diffs.some((diff) => diff.path === path)) {
       setActiveDiffPath(path);
-      setExpanded(true);
     }
   };
 
@@ -437,16 +422,8 @@ const FileChangeDetails: FC<{
         </div>
       ) : null}
 
-      {diffs.length > 0 ? (
+      {diffs.length > 0 && expanded ? (
         <div className="chat-collapsible">
-          <button className="chat-collapsible__toggle" onClick={() => setExpanded((current) => !current)}>
-            {expanded ? <IconChevronDown /> : <IconChevronRight />}
-            <span>{t('execViewer.section.fileDiffs')}</span>
-            <span className="chat-collapsible__count" aria-hidden="true">
-              {diffs.length}
-            </span>
-          </button>
-          {expanded ? (
             <div className="chat-diffs">
               {diffs.length > 1 ? (
                 <div className="chat-diff-tabs" role="tablist" aria-label={t('execViewer.section.fileDiffs')}>
@@ -500,7 +477,6 @@ const FileChangeDetails: FC<{
                 );
               })() : null}
             </div>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -612,26 +588,21 @@ const SubagentDetails: FC<{
   );
 };
 
+// Show raw JSON for unknown items when parent expanded. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
 const UnknownDetails: FC<{
   item: Extract<ExecutionItem, { kind: 'unknown' }>;
-}> = ({ item }) => {
-  const t = useT();
-  const [expanded, setExpanded] = useState(false);
+  expanded: boolean;
+}> = ({ item, expanded }) => {
+  if (!expanded) return null;
 
   return (
     <div className="chat-collapsible">
-      <button className="chat-collapsible__toggle" onClick={() => setExpanded((current) => !current)}>
-        {expanded ? <IconChevronDown /> : <IconChevronRight />}
-        <span>{t('execViewer.item.unknown')}</span>
-      </button>
-      {expanded ? (
-        <TextPreviewBlock
-          text={JSON.stringify(item.raw ?? item, null, 2)}
-          limits={RAW_TEXT_PREVIEW_LIMITS}
-          className="chat-preview-block"
-          codeClassName="chat-work__mono"
-        />
-      ) : null}
+      <TextPreviewBlock
+        text={JSON.stringify(item.raw ?? item, null, 2)}
+        limits={RAW_TEXT_PREVIEW_LIMITS}
+        className="chat-preview-block"
+        codeClassName="chat-work__mono"
+      />
     </div>
   );
 };
@@ -642,7 +613,8 @@ const executionRenderers: Record<ExecutionItem['kind'], RendererDefinition> = {
     roleLabel: (t) => t('execViewer.role.tool'),
     kindLabel: (item, t) => (item.kind === 'command_execution' && item.toolName ? item.toolName : t('execViewer.item.command')),
     summary: (item, t) => buildCommandSummary(item as Extract<ExecutionItem, { kind: 'command_execution' }>, t),
-    renderDetails: (item) => <CommandExecutionDetails item={item as Extract<ExecutionItem, { kind: 'command_execution' }>} />
+    hasDetails: true,
+    renderDetails: (item, ctx) => <CommandExecutionDetails item={item as Extract<ExecutionItem, { kind: 'command_execution' }>} expanded={ctx.expanded} />
   },
   file_change: {
     icon: <IconFile />,
@@ -655,11 +627,13 @@ const executionRenderers: Record<ExecutionItem['kind'], RendererDefinition> = {
       return summary ? t('execViewer.item.filesDetail', { summary }) : t('execViewer.item.files');
     },
     hideSummary: true,
+    hasDetails: true,
     renderDetails: (item, context) => (
       <FileChangeDetails
         item={item as Extract<ExecutionItem, { kind: 'file_change' }>}
         wrapDiffLines={context.wrapDiffLines}
         showLineNumbers={context.showLineNumbers}
+        expanded={context.expanded}
       />
     )
   },
@@ -705,48 +679,71 @@ const executionRenderers: Record<ExecutionItem['kind'], RendererDefinition> = {
     roleLabel: (t) => t('execViewer.role.system'),
     kindLabel: (_item, t) => t('execViewer.item.unknown'),
     summary: (_item, t) => t('execViewer.item.unknown'),
-    renderDetails: (item) => <UnknownDetails item={item as Extract<ExecutionItem, { kind: 'unknown' }>} />
+    hasDetails: true,
+    renderDetails: (item, ctx) => <UnknownDetails item={item as Extract<ExecutionItem, { kind: 'unknown' }>} expanded={ctx.expanded} />
   }
 };
 
+// Each timeline item: clickable header toggles detail area; parent controls default expand. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
 const ExecutionTimelineItem: FC<{
   item: ExecutionItem;
   wrapDiffLines: boolean;
   showLineNumbers: boolean;
-}> = ({ item, wrapDiffLines, showLineNumbers }) => {
+  defaultExpanded: boolean;
+}> = ({ item, wrapDiffLines, showLineNumbers, defaultExpanded }) => {
   const t = useT();
   const renderer = executionRenderers[item.kind];
   const status = buildStatusMeta(item, t);
   const toolCategoryClass =
     item.kind === 'command_execution' ? ` tool-${getToolCategory((item as Extract<ExecutionItem, { kind: 'command_execution' }>).toolName)}` : '';
-  const bubbleClass = `chat-bubble chat-bubble--${item.kind === 'agent_message' ? 'message' : 'action'} kind-${item.kind}${toolCategoryClass} is-${status.tone}`;
+  const hasExpandable = Boolean(renderer.hasDetails);
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  // Sync with parent-driven defaultExpanded when new items arrive. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+  useEffect(() => {
+    setExpanded(defaultExpanded);
+  }, [defaultExpanded]);
+
+  const bubbleClass = `chat-bubble chat-bubble--${item.kind === 'agent_message' ? 'message' : 'action'} kind-${item.kind}${toolCategoryClass} is-${status.tone}${expanded ? ' is-expanded' : ''}`;
   const showStatusBadge = status.tone === 'failed';
   const summary = renderer.summary(item, t);
 
+  const handleHeaderClick = () => {
+    if (hasExpandable) setExpanded((v) => !v);
+  };
+
   return (
     <div className={bubbleClass}>
-      <div className="chat-bubble__avatar">{renderer.icon}</div>
-
       <div className="chat-bubble__content">
-        <div className="chat-bubble__header">
-          <span className="chat-bubble__role">{renderer.roleLabel(t)}</span>
+        <div
+          className={`chat-bubble__header${hasExpandable ? ' is-clickable' : ''}`}
+          onClick={handleHeaderClick}
+          role={hasExpandable ? 'button' : undefined}
+          tabIndex={hasExpandable ? 0 : undefined}
+          onKeyDown={hasExpandable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleHeaderClick(); } } : undefined}
+        >
+          {hasExpandable ? (
+            <span className="chat-bubble__chevron">{expanded ? <IconChevronDown /> : <IconChevronRight />}</span>
+          ) : null}
           <span className="chat-bubble__kind">{renderer.kindLabel(item, t)}</span>
+          {!renderer.hideSummary && summary ? <span className="chat-bubble__summary">{summary}</span> : null}
           {showStatusBadge ? <span className={`chat-bubble__status is-${status.tone}`}>{status.label}</span> : null}
         </div>
 
         <div className="chat-bubble__body">
           {item.kind === 'agent_message' ? (
             item.text ? <MarkdownViewer markdown={item.text} className="markdown-result--expanded" /> : <span className="text-secondary">-</span>
-          ) : !renderer.hideSummary ? (
-            <span className="chat-bubble__summary">{summary}</span>
           ) : null}
         </div>
 
-        {renderer.renderDetails(item, { t, wrapDiffLines, showLineNumbers })}
+        {renderer.renderDetails(item, { t, wrapDiffLines, showLineNumbers, expanded })}
       </div>
     </div>
   );
 };
+
+// Number of most-recent items to auto-expand in the timeline. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+const AUTO_EXPAND_TAIL = 2;
 
 export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({
   items,
@@ -765,6 +762,12 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({
     return status === 'in_progress' || status === 'started' || status === 'updated' || status === 'running' || status === 'processing';
   });
 
+  // Build a Set of item IDs that should be auto-expanded (last N items). When new items arrive, only the freshest N stay expanded. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
+  const autoExpandIds = useMemo(() => {
+    const tail = visibleItems.slice(-AUTO_EXPAND_TAIL);
+    return new Set(tail.map((item) => item.id));
+  }, [visibleItems]);
+
   if (!visibleItems.length) {
     const fallbackMessage = emptyMessage ?? t('execViewer.empty.timeline');
     return (
@@ -778,7 +781,13 @@ export const ExecutionTimeline: FC<ExecutionTimelineProps> = ({
   return (
     <div className="chat-stream">
       {visibleItems.map((item) => (
-        <ExecutionTimelineItem key={item.id} item={item} wrapDiffLines={wrapDiffLines} showLineNumbers={showLineNumbers} />
+        <ExecutionTimelineItem
+          key={item.id}
+          item={item}
+          wrapDiffLines={wrapDiffLines}
+          showLineNumbers={showLineNumbers}
+          defaultExpanded={autoExpandIds.has(item.id)}
+        />
       ))}
 
       {showRunningIndicator ? (

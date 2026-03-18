@@ -8,15 +8,16 @@ import { getTaskEventText } from './labels';
 export const isTerminalStatus = (status: TaskStatus): boolean =>
   status === 'succeeded' || status === 'failed' || status === 'commented';
 
+// Use muted tag colors that harmonize with the neutral B&W design system. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
 export const statusTag = (t: TFunction, status: TaskStatus | string | null | undefined) => {
   const map: Record<string, { color: string; text: string }> = {
-    queued: { color: 'blue', text: t('task.status.queued') },
-    waiting_approval: { color: 'orange', text: t('task.status.waiting_approval') },
-    processing: { color: 'gold', text: t('task.status.processing') },
+    queued: { color: 'default', text: t('task.status.queued') },
+    waiting_approval: { color: 'warning', text: t('task.status.waiting_approval') },
+    processing: { color: 'processing', text: t('task.status.processing') },
     paused: { color: 'default', text: t('task.status.paused') },
-    succeeded: { color: 'green', text: t('task.status.succeeded') },
-    failed: { color: 'red', text: t('task.status.failed') },
-    commented: { color: 'purple', text: t('task.status.commented') }
+    succeeded: { color: 'success', text: t('task.status.succeeded') },
+    failed: { color: 'error', text: t('task.status.failed') },
+    commented: { color: 'default', text: t('task.status.commented') }
   };
   // Guard task-card status badges against unexpected runtime statuses so the queue workspace never crashes on partial payloads. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
   const normalizedStatus = typeof status === 'string' && status.trim() ? status.trim() : 'unknown';
@@ -31,19 +32,7 @@ export const statusTag = (t: TFunction, status: TaskStatus | string | null | und
   return <Tag color={item.color}>{item.text}</Tag>;
 };
 
+// Use a unified neutral color for all event tags to reduce visual noise in the monochrome UI. docs/en/developer/plans/taskgroup-ui-cleanup-20260318/task_plan.md taskgroup-ui-cleanup-20260318
 export const eventTag = (t: TFunction, eventType: Task['eventType']) => {
-  const map: Record<string, { color: string }> = {
-    commit_review: { color: 'cyan' },
-    commit: { color: 'cyan' },
-    push: { color: 'cyan' },
-    merge_request: { color: 'geekblue' },
-    issue_created: { color: 'volcano' },
-    issue: { color: 'volcano' },
-    issue_comment: { color: 'purple' },
-    note: { color: 'purple' },
-    unknown: { color: 'default' },
-    chat: { color: 'blue' }
-  };
-  const item = map[eventType] ?? { color: 'default' };
-  return <Tag color={item.color}>{getTaskEventText(t, eventType)}</Tag>;
+  return <Tag color="default">{getTaskEventText(t, eventType)}</Tag>;
 };
