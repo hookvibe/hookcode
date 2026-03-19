@@ -10,7 +10,8 @@ export const fetchWorkersRegistry = async (): Promise<ListWorkersResponse> => {
   const data = await getCached<ListWorkersResponse>('/workers', { cacheTtlMs: 5000 });
   return {
     workers: Array.isArray(data.workers) ? data.workers : [],
-    versionRequirement: data.versionRequirement
+    versionRequirement: data.versionRequirement,
+    defaultBackendUrl: typeof data.defaultBackendUrl === 'string' ? data.defaultBackendUrl : ''
   };
 };
 
@@ -19,7 +20,7 @@ export const fetchWorkers = async (): Promise<WorkerRecord[]> => {
   return data.workers;
 };
 
-export const createWorker = async (params: { name: string; maxConcurrency?: number }): Promise<WorkerBindInfo> => {
+export const createWorker = async (params: { name: string; maxConcurrency?: number; backendUrl: string }): Promise<WorkerBindInfo> => {
   const { data } = await api.post<WorkerBindInfo>('/workers', params);
   invalidateWorkerCaches();
   return data;
@@ -34,8 +35,9 @@ export const updateWorker = async (
   return data;
 };
 
-export const resetWorkerBindCode = async (id: string): Promise<WorkerBindInfo> => {
-  const { data } = await api.post<WorkerBindInfo>(`/workers/${id}/reset-bind-code`);
+export const resetWorkerBindCode = async (id: string, backendUrl?: string): Promise<WorkerBindInfo> => {
+  const payload = typeof backendUrl === 'string' && backendUrl.trim() ? { backendUrl: backendUrl.trim() } : undefined;
+  const { data } = await api.post<WorkerBindInfo>(`/workers/${id}/reset-bind-code`, payload);
   invalidateWorkerCaches();
   return data;
 };

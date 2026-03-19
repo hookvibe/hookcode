@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { ArrayNotEmpty, IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Min } from 'class-validator';
+import { normalizeWorkerApiBaseUrl } from '../worker-public-url';
 
 const trimString = (value: unknown): unknown => (typeof value === 'string' ? value.trim() : value);
 
@@ -104,6 +105,9 @@ export class ListWorkersResponseDto {
 
   @ApiProperty({ type: WorkerVersionRequirementDto })
   versionRequirement!: WorkerVersionRequirementDto;
+
+  @ApiProperty()
+  defaultBackendUrl!: string;
 }
 
 export class WorkerResponseDto {
@@ -120,6 +124,9 @@ export class WorkerBindResponseDto {
 
   @ApiProperty()
   bindCodeExpiresAt!: string;
+
+  @ApiProperty()
+  backendUrl!: string;
 
   @ApiProperty({ type: WorkerVersionRequirementDto })
   versionRequirement!: WorkerVersionRequirementDto;
@@ -180,6 +187,24 @@ export class CreateWorkerRequestDto {
   @IsInt()
   @Min(1)
   maxConcurrency?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => normalizeWorkerApiBaseUrl(value))
+  @IsString()
+  @IsNotEmpty()
+  @IsUrl({ require_protocol: true, require_tld: false })
+  backendUrl?: string;
+}
+
+export class ResetWorkerBindCodeRequestDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(({ value }) => normalizeWorkerApiBaseUrl(value))
+  @IsString()
+  @IsNotEmpty()
+  @IsUrl({ require_protocol: true, require_tld: false })
+  backendUrl?: string;
 }
 
 export class PrepareRuntimeRequestDto {

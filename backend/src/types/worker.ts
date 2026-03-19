@@ -64,6 +64,7 @@ export interface WorkerBindInfo {
   worker: WorkerRecord;
   bindCode: string;
   bindCodeExpiresAt: string;
+  backendUrl: string;
   versionRequirement: WorkerVersionRequirement;
 }
 

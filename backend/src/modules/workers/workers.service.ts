@@ -105,6 +105,7 @@ export class WorkersService {
       worker: workerToRecord(updated),
       bindCode,
       bindCodeExpiresAt: bindCodeExpiresAt.toISOString(),
+      backendUrl,
       versionRequirement: this.getWorkerVersionRequirement()
     };
   }
@@ -263,7 +264,7 @@ export class WorkersService {
   async resetWorkerBindCode(id: string, backendUrl: string): Promise<WorkerBindInfo | null> {
     const existing = await db.worker.findUnique({ where: { id } });
     if (!existing) return null;
-    return this.issueBindCode(id, backendUrl, { clearRuntimeToken: true });
+    return this.issueBindCode(id, trimString(backendUrl) ?? trimString(existing.backendBaseUrl) ?? 'http://127.0.0.1:3000/api', { clearRuntimeToken: true });
   }
 
   async registerWorker(bindCode: string): Promise<{ worker: WorkerRecord; workerId: string; workerToken: string; backendUrl: string }> {

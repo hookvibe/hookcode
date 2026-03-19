@@ -107,6 +107,8 @@ fi
 write_kv HOOKCODE_SYSTEM_WORKER_BIND_CODE "${HOOKCODE_SYSTEM_WORKER_BIND_CODE:-}"
 write_kv HOOKCODE_SYSTEM_WORKER_NAME "${HOOKCODE_SYSTEM_WORKER_NAME:-Docker Default Worker}"
 write_kv HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY "${HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY:-1}"
+# Dedicated public API base for remote-worker bind codes in deployed environments.
+write_kv HOOKCODE_WORKER_PUBLIC_API_BASE_URL "${HOOKCODE_WORKER_PUBLIC_API_BASE_URL:-}"
 
 # ------------------------------------------------------------------------------
 # Backend - Auth (CI defaults should NOT be used in production)
