@@ -26,6 +26,19 @@ const DEFAULT_PROVIDER_OPTIONS = [
 
 const powerShellQuote = (value: string): string => `'${String(value).replace(/'/g, "''")}'`;
 
+const trimString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
+const isValidBackendUrl = (value: string): boolean => {
+  const raw = trimString(value);
+  if (!raw) return false;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 const formatDateTime = (locale: string, value?: string | null): string => {
   if (!value) return '-';
   const parsed = new Date(value);
@@ -115,6 +128,7 @@ export const SettingsWorkersPanel: FC = () => {
   const { message } = App.useApp();
   const [workers, setWorkers] = useState<WorkerRecord[]>([]);
   const [versionRequirement, setVersionRequirement] = useState<WorkerVersionRequirement | null>(null);
+  const [defaultBackendUrl, setDefaultBackendUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [prepareLoadingId, setPrepareLoadingId] = useState<string | null>(null);
@@ -122,8 +136,10 @@ export const SettingsWorkersPanel: FC = () => {
   const [installInfo, setInstallInfo] = useState<WorkerBindInfo | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [prepareOpen, setPrepareOpen] = useState<WorkerRecord | null>(null);
-  const [createForm] = Form.useForm<{ name: string; maxConcurrency?: number }>();
+  const [createForm] = Form.useForm<{ name: string; maxConcurrency?: number; backendUrl: string }>();
+  const [resetForm] = Form.useForm<{ backendUrl: string }>();
   const [prepareForm] = Form.useForm<{ providers: string[] }>();
+  const [resetOpen, setResetOpen] = useState<WorkerRecord | null>(null);
 
   const loadWorkers = useCallback(async () => {
     setLoading(true);
@@ -131,11 +147,13 @@ export const SettingsWorkersPanel: FC = () => {
       const data = await fetchWorkersRegistry();
       setWorkers(data.workers);
       setVersionRequirement(data.versionRequirement);
+      setDefaultBackendUrl(data.defaultBackendUrl || '');
     } catch (error) {
       console.error(error);
       message.error(getApiErrorMessage(error) || t('workers.toast.fetchFailed'));
       setWorkers([]);
       setVersionRequirement(null);
+      setDefaultBackendUrl('');
     } finally {
       setLoading(false);
     }
@@ -145,12 +163,13 @@ export const SettingsWorkersPanel: FC = () => {
     void loadWorkers();
   }, [loadWorkers]);
 
-  const handleCreate = useCallback(async (values: { name: string; maxConcurrency?: number }) => {
+  const handleCreate = useCallback(async (values: { name: string; maxConcurrency?: number; backendUrl: string }) => {
     try {
       setSubmitting(true);
       const nextInstallInfo = await createWorker({
         name: String(values.name ?? '').trim(),
-        maxConcurrency: values.maxConcurrency ? Number(values.maxConcurrency) : undefined
+        maxConcurrency: values.maxConcurrency ? Number(values.maxConcurrency) : undefined,
+        backendUrl: trimString(values.backendUrl)
       });
       setInstallInfo(nextInstallInfo);
       setCreateOpen(false);
@@ -180,19 +199,50 @@ export const SettingsWorkersPanel: FC = () => {
   }, [loadWorkers, message, t]);
 
   const handleResetBindCode = useCallback(async (worker: WorkerRecord) => {
-    setRowLoadingId(worker.id);
+    resetForm.setFieldsValue({ backendUrl: trimString(worker.backendBaseUrl) || defaultBackendUrl });
+    setResetOpen(worker);
+  }, [defaultBackendUrl, resetForm]);
+
+  const handleConfirmResetBindCode = useCallback(async () => {
+    if (!resetOpen) return;
+    setRowLoadingId(resetOpen.id);
     try {
-      const nextInstallInfo = await resetWorkerBindCode(worker.id);
+      const values = await resetForm.validateFields();
+      const nextInstallInfo = await resetWorkerBindCode(resetOpen.id, trimString(values.backendUrl));
       setInstallInfo(nextInstallInfo);
+      setResetOpen(null);
+      resetForm.resetFields();
       message.success(t('workers.toast.bindCodeReset'));
       await loadWorkers();
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.errorFields) return;
       console.error(error);
       message.error(getApiErrorMessage(error) || t('workers.toast.bindCodeResetFailed'));
     } finally {
       setRowLoadingId(null);
     }
-  }, [loadWorkers, message, t]);
+  }, [loadWorkers, message, resetForm, resetOpen, t]);
+
+  const openCreateModal = useCallback(() => {
+    createForm.resetFields();
+    createForm.setFieldsValue({ name: '', maxConcurrency: 1, backendUrl: defaultBackendUrl });
+    setCreateOpen(true);
+  }, [createForm, defaultBackendUrl]);
+
+  useEffect(() => {
+    if (!createOpen) return;
+    if (trimString(createForm.getFieldValue('backendUrl'))) return;
+    createForm.setFieldsValue({ backendUrl: defaultBackendUrl });
+  }, [createForm, createOpen, defaultBackendUrl]);
+
+  const renderBackendUrlHelp = useMemo(
+    () => (
+      <Typography.Text type="secondary">
+        {t('workers.field.backendUrlHelp', { defaultUrl: defaultBackendUrl || '-' })}
+      </Typography.Text>
+    ),
+    [defaultBackendUrl, t]
+  );
 
   const handleDelete = useCallback(async (worker: WorkerRecord) => {
     setRowLoadingId(worker.id);
@@ -365,7 +415,7 @@ export const SettingsWorkersPanel: FC = () => {
         extra={
           <Space>
             <Button onClick={() => void loadWorkers()}>{t('common.refresh')}</Button>
-            <Button type="primary" onClick={() => setCreateOpen(true)}>{t('workers.action.create')}</Button>
+            <Button type="primary" onClick={openCreateModal}>{t('workers.action.create')}</Button>
           </Space>
         }
       >
@@ -388,14 +438,17 @@ export const SettingsWorkersPanel: FC = () => {
         className="hc-dialog--compact"
         title={t('workers.modal.createTitle')}
         open={createOpen}
-        onCancel={() => setCreateOpen(false)}
+        onCancel={() => {
+          setCreateOpen(false);
+          createForm.resetFields();
+        }}
         onOk={() => createForm.submit()}
         confirmLoading={submitting}
         okText={t('common.create')}
         cancelText={t('common.cancel')}
         destroyOnHidden
       >
-        <Form form={createForm} layout="vertical" initialValues={{ maxConcurrency: 1 }} requiredMark={false} onFinish={(values) => void handleCreate(values)}>
+        <Form form={createForm} layout="vertical" requiredMark={false} onFinish={(values) => void handleCreate(values)}>
           <Form.Item
             label={t('workers.field.name')}
             name="name"
@@ -405,6 +458,56 @@ export const SettingsWorkersPanel: FC = () => {
           </Form.Item>
           <Form.Item label={t('workers.field.maxConcurrency')} name="maxConcurrency">
             <Select options={[1, 2, 3, 4].map((value) => ({ value, label: String(value) }))} placeholder={t('workers.placeholder.maxConcurrency')} />
+          </Form.Item>
+          <Form.Item
+            label={t('workers.field.backendUrl')}
+            name="backendUrl"
+            extra={renderBackendUrlHelp}
+            rules={[
+              { required: true, transform: (value) => trimString(value), message: t('panel.validation.required') },
+              {
+                validator: async (_rule, value) => {
+                  if (isValidBackendUrl(String(value ?? ''))) return;
+                  throw new Error(t('workers.validation.backendUrl'));
+                }
+              }
+            ]}
+          >
+            <Input placeholder={t('workers.placeholder.backendUrl')} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        className="hc-dialog--compact"
+        title={t('workers.modal.resetTitle', { name: resetOpen?.name || '' })}
+        open={Boolean(resetOpen)}
+        onCancel={() => {
+          setResetOpen(null);
+          resetForm.resetFields();
+        }}
+        onOk={() => void handleConfirmResetBindCode()}
+        confirmLoading={Boolean(resetOpen && rowLoadingId === resetOpen.id)}
+        okText={t('workers.action.resetBindCode')}
+        cancelText={t('common.cancel')}
+        destroyOnHidden
+      >
+        <Form form={resetForm} layout="vertical" requiredMark={false}>
+          <Form.Item
+            label={t('workers.field.backendUrl')}
+            name="backendUrl"
+            extra={renderBackendUrlHelp}
+            rules={[
+              { required: true, transform: (value) => trimString(value), message: t('panel.validation.required') },
+              {
+                validator: async (_rule, value) => {
+                  if (isValidBackendUrl(String(value ?? ''))) return;
+                  throw new Error(t('workers.validation.backendUrl'));
+                }
+              }
+            ]}
+          >
+            <Input placeholder={t('workers.placeholder.backendUrl')} />
           </Form.Item>
         </Form>
       </Modal>
@@ -446,6 +549,9 @@ export const SettingsWorkersPanel: FC = () => {
             </Typography.Paragraph>
             <Typography.Paragraph>
               <strong>{t('workers.install.expiresAt')}:</strong> {formatDateTime(locale, installInfo.bindCodeExpiresAt)}
+            </Typography.Paragraph>
+            <Typography.Paragraph copyable={{ text: installInfo.backendUrl }}>
+              <strong>{t('workers.install.backendUrl')}:</strong> {installInfo.backendUrl}
             </Typography.Paragraph>
             <Typography.Paragraph type="secondary">
               {t('workers.install.workDirHint', { workerId: installInfo.worker.id })}

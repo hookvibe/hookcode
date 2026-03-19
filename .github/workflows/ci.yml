@@ -86,6 +86,8 @@ jobs:
           HOOKCODE_WORK_DIR: ${{ vars.HOOKCODE_WORK_DIR || '/var/lib/hookcode' }}
           # CI no longer bootstraps a default worker from GitHub Actions. Remote workers are expected to be deployed and bound manually when needed.
           HOOKCODE_SYSTEM_WORKER_MODE: "disabled"
+          # Dedicated public API base used when backend generates remote-worker bind codes during deployed CI environments.
+          HOOKCODE_WORKER_PUBLIC_API_BASE_URL: ${{ secrets.HOOKCODE_WORKER_PUBLIC_API_BASE_URL || '' }}
           # Auth (recommended for internet-facing deployments; written into `docker/.env`).
           AUTH_TOKEN_SECRET: ${{ secrets.AUTH_TOKEN_SECRET || '' }}
           AUTH_ADMIN_USERNAME: ${{ secrets.AUTH_ADMIN_USERNAME || '' }}

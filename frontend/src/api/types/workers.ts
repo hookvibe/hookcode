@@ -70,10 +70,12 @@ export interface WorkerBindInfo {
   worker: WorkerRecord;
   bindCode: string;
   bindCodeExpiresAt: string;
+  backendUrl: string;
   versionRequirement: WorkerVersionRequirement;
 }
 
 export interface ListWorkersResponse {
   workers: WorkerRecord[];
   versionRequirement: WorkerVersionRequirement;
+  defaultBackendUrl: string;
 }

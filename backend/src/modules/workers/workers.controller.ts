@@ -5,26 +5,18 @@ import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { AuthScopeGroup, Public } from '../auth/auth.decorator';
 import { WorkersService } from './workers.service';
 import { WorkersConnectionService } from './workers-connection.service';
+import { resolveWorkerPublicApiBaseUrl } from './worker-public-url';
 import {
   CreateWorkerRequestDto,
   ListWorkersResponseDto,
   PrepareRuntimeRequestDto,
   RegisterWorkerRequestDto,
   RegisterWorkerResponseDto,
+  ResetWorkerBindCodeRequestDto,
   UpdateWorkerRequestDto,
   WorkerResponseDto,
   WorkerBindResponseDto
 } from './dto/workers-swagger.dto';
-
-const buildBackendBaseUrl = (req: Request): { backendUrl: string; wsUrl: string } => {
-  const host = req.get('host') || '127.0.0.1:3000';
-  const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
-  const wsProto = proto === 'https' ? 'wss' : 'ws';
-  return {
-    backendUrl: `${proto}://${host}/api`,
-    wsUrl: `${wsProto}://${host}/api/workers/connect`
-  };
-};
 
 @AuthScopeGroup('system') // Scope admin worker management APIs under system-level PAT permissions until a dedicated worker scope is introduced. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
 @Controller('workers')
@@ -49,7 +41,8 @@ export class WorkersController {
   async list(@Req() req: Request) {
     this.requireAdmin(req);
     const workers = await this.workersService.listWorkers();
-    return { workers, versionRequirement: this.workersService.getWorkerVersionRequirement() };
+    const urls = resolveWorkerPublicApiBaseUrl(req);
+    return { workers, versionRequirement: this.workersService.getWorkerVersionRequirement(), defaultBackendUrl: urls.backendUrl };
   }
 
   @Post()
@@ -61,8 +54,13 @@ export class WorkersController {
     const user = this.requireAdmin(req);
     const name = String(body?.name ?? '').trim();
     if (!name) throw new BadRequestException({ error: 'name is required' });
-    const urls = buildBackendBaseUrl(req);
-    const created = await this.workersService.createRemoteWorker({ actorUserId: user.id, name, maxConcurrency: body?.maxConcurrency, backendUrl: urls.backendUrl });
+    const urls = resolveWorkerPublicApiBaseUrl(req);
+    const created = await this.workersService.createRemoteWorker({
+      actorUserId: user.id,
+      name,
+      maxConcurrency: body?.maxConcurrency,
+      backendUrl: String(body?.backendUrl ?? '').trim() || urls.backendUrl
+    });
     return created;
   }
 
@@ -75,8 +73,7 @@ export class WorkersController {
     try {
       const registered = await this.workersService.registerWorker(String(body?.bindCode ?? ''));
       this.workersConnections.disconnect(registered.workerId, 'worker_rebound');
-      const urls = buildBackendBaseUrl(req);
-      return { workerId: registered.workerId, workerToken: registered.workerToken, backendUrl: urls.backendUrl };
+      return { workerId: registered.workerId, workerToken: registered.workerToken, backendUrl: registered.backendUrl };
     } catch (error) {
       throw new BadRequestException({ error: error instanceof Error ? error.message : 'Unable to register worker' });
     }
@@ -87,11 +84,11 @@ export class WorkersController {
   @ApiOkResponse({ description: 'OK', type: WorkerBindResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async resetBindCode(@Req() req: Request) {
+  async resetBindCode(@Req() req: Request, @Body() body: ResetWorkerBindCodeRequestDto) {
     this.requireAdmin(req);
     const id = String(req.params.id ?? '').trim();
-    const urls = buildBackendBaseUrl(req);
-    const rotated = await this.workersService.resetWorkerBindCode(id, urls.backendUrl);
+    const urls = resolveWorkerPublicApiBaseUrl(req);
+    const rotated = await this.workersService.resetWorkerBindCode(id, String(body?.backendUrl ?? '').trim() || urls.backendUrl);
     if (!rotated) throw new NotFoundException({ error: 'Worker not found' });
     this.workersConnections.disconnect(id, 'bind_code_reset');
     return rotated;

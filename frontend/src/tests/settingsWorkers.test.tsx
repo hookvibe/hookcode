@@ -37,6 +37,8 @@ const renderPanel = () =>
   );
 
 describe('SettingsWorkersPanel', () => {
+  const defaultBackendUrl = 'http://yuhe.space:7213/api';
+
   beforeEach(() => {
     vi.clearAllMocks();
     setLocale('en-US');
@@ -56,7 +58,8 @@ describe('SettingsWorkersPanel', () => {
           updatedAt: '2026-03-07T00:00:00.000Z'
         } as any
       ],
-      versionRequirement: buildVersionRequirement()
+      versionRequirement: buildVersionRequirement(),
+      defaultBackendUrl
     } as any);
     vi.mocked(api.createWorker).mockResolvedValue({
       worker: {
@@ -73,6 +76,7 @@ describe('SettingsWorkersPanel', () => {
       } as any,
       bindCode: 'hcw1.bind-code',
       bindCodeExpiresAt: '2026-03-08T00:00:00.000Z',
+      backendUrl: defaultBackendUrl,
       versionRequirement: buildVersionRequirement()
     } as any);
   });
@@ -125,12 +129,36 @@ describe('SettingsWorkersPanel', () => {
     await ui.click(screen.getByRole('button', { name: 'Create worker' }));
 
     await ui.type(await screen.findByLabelText('Name'), 'Remote worker');
+    expect((screen.getByLabelText('Backend URL') as HTMLInputElement).value).toBe(defaultBackendUrl);
     await ui.click(screen.getByRole('button', { name: 'Create' }));
 
-    await waitFor(() => expect(api.createWorker).toHaveBeenCalledWith({ name: 'Remote worker', maxConcurrency: 1 }));
+    await waitFor(() => expect(api.createWorker).toHaveBeenCalledWith({ name: 'Remote worker', maxConcurrency: 1, backendUrl: defaultBackendUrl }));
     expect(await screen.findByText('Manual deployment')).toBeInTheDocument();
     expect(screen.getAllByText(/hcw1\.bind-code/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(new RegExp(`npm install -g @hookvibe/hookcode-worker@${TEST_WORKER_VERSION.replace(/\./g, '\\.')}`)).length).toBeGreaterThan(0);
+    expect(screen.getByText(new RegExp(defaultBackendUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))).toBeInTheDocument();
+  });
+
+  test('allows overriding the backend url before generating the bind code', async () => {
+    const ui = userEvent.setup();
+    renderPanel();
+
+    await waitFor(() => expect(api.fetchWorkersRegistry).toHaveBeenCalled());
+    await ui.click(screen.getByRole('button', { name: 'Create worker' }));
+
+    await ui.type(await screen.findByLabelText('Name'), 'Remote worker');
+    const backendUrlInput = screen.getByLabelText('Backend URL');
+    await ui.clear(backendUrlInput);
+    await ui.type(backendUrlInput, 'https://edge.example.com/root');
+    await ui.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() =>
+      expect(api.createWorker).toHaveBeenCalledWith({
+        name: 'Remote worker',
+        maxConcurrency: 1,
+        backendUrl: 'https://edge.example.com/root'
+      })
+    );
   });
 
   test('uses the themed compact modal skin for worker creation', async () => {
