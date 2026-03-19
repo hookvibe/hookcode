@@ -630,6 +630,15 @@
                     "expanded": false
                   },
                   {
+                    "group": "Relax settings table width and fix executor dialog theme (settings-table-layout-20260312)",
+                    "pages": [
+                      "en/developer/plans/settings-table-layout-20260312/task_plan",
+                      "en/developer/plans/settings-table-layout-20260312/findings",
+                      "en/developer/plans/settings-table-layout-20260312/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
                     "group": "Refactor planning-with-files skill (sddsa89612jk4hbwas678)",
                     "pages": [
                       "en/developer/plans/sddsa89612jk4hbwas678/task_plan",
@@ -1247,6 +1256,15 @@
                       "en/developer/plans/frontendtestfix20260205/task_plan",
                       "en/developer/plans/frontendtestfix20260205/findings",
                       "en/developer/plans/frontendtestfix20260205/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "Fix frontend dist useLayoutEffect runtime error (frontenddistuselayoutfix20260319)",
+                    "pages": [
+                      "en/developer/plans/frontenddistuselayoutfix20260319/task_plan",
+                      "en/developer/plans/frontenddistuselayoutfix20260319/findings",
+                      "en/developer/plans/frontenddistuselayoutfix20260319/progress"
                     ],
                     "expanded": false
                   },
