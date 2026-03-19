@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
+import { getVendorChunkName } from './src/utils/vendorChunking';
 
 const DEFAULT_PORT = 5173;
 const DEFAULT_BACKEND_HOST = '127.0.0.1';
@@ -45,13 +46,8 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (!id.includes('node_modules')) return undefined;
-            if (id.includes('/react/') || id.includes('/react-dom/')) return 'vendor-react';
-            if (id.includes('/antd/') || id.includes('/@ant-design/') || id.includes('/@ant-design/x/')) return 'vendor-antd';
-            if (id.includes('/react-markdown/') || id.includes('/remark-gfm/') || id.includes('/remark-breaks/')) return 'vendor-markdown';
-            if (id.includes('/echarts/')) return 'vendor-charts';
-            if (id.includes('/react-window/') || id.includes('/diff/')) return 'vendor-workspace';
-            return 'vendor-misc';
+            // Reuse the shared chunk classifier so tests cover the same production bundle grouping logic. docs/en/developer/plans/frontenddistuselayoutfix20260319/task_plan.md frontenddistuselayoutfix20260319
+            return getVendorChunkName(id);
           }
         }
       }
