@@ -91,7 +91,7 @@ if [[ "${work_dir_root}" != /* ]]; then
 fi
 write_kv HOOKCODE_WORK_DIR "${work_dir_root}"
 write_kv HOOKCODE_WORKER_IMAGE "${HOOKCODE_WORKER_IMAGE:-ghcr.io/hookvibe/hookcode-worker}"
-write_kv HOOKCODE_WORKER_IMAGE_TAG "${HOOKCODE_WORKER_IMAGE_TAG:-0.1.2}"
+write_kv HOOKCODE_WORKER_IMAGE_TAG "${HOOKCODE_WORKER_IMAGE_TAG:-0.1.4}"
 
 # Default CI/server Docker deployments to backend-managed external workers so the compose stack can either start a bundled worker or wait for a separately deployed remote worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
 include_worker_raw="${HOOKCODE_DOCKER_INCLUDE_WORKER:-false}"

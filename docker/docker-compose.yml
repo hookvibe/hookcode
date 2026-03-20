@@ -36,7 +36,7 @@ services:
 
   worker:
     # Run the standalone worker image separately from backend so deployments can place executors on arbitrary machines. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    image: ${HOOKCODE_WORKER_IMAGE:-ghcr.io/hookvibe/hookcode-worker}:${HOOKCODE_WORKER_IMAGE_TAG:-0.1.2}
+    image: ${HOOKCODE_WORKER_IMAGE:-ghcr.io/hookvibe/hookcode-worker}:${HOOKCODE_WORKER_IMAGE_TAG:-0.1.4}
     env_file:
       - ./.env
     environment:
