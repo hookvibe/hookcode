@@ -16,7 +16,7 @@ import {
   type TaskTokenUsage
 } from '../services/taskTokenUsage';
 import { buildPrompt } from './promptBuilder';
-import { resolveProviderExecutionCredential } from '../modelProviders/providerCredentialResolver';
+import { resolveProviderExecutionCredential, type ResolvedProviderCredential } from '../modelProviders/providerCredentialResolver';
 import { postToProvider } from './reporter';
 import type { RepoRobotWithToken } from '../modules/repositories/repo-robot.service';
 import type { RepoProvider, Repository } from '../types/repository';
@@ -79,7 +79,7 @@ import { RuntimeService } from '../services/runtimeService';
 import { HookcodeConfigService } from '../services/hookcodeConfigService';
 import type { DependencyResult, HookcodeConfig, RobotDependencyConfig } from '../types/dependency';
 import { resolveBuildRoot, resolveTaskGroupWorkspaceRoot } from '../utils/workDir';
-import { resolveProviderRunConfig } from '../utils/providerRunConfig';
+import { resolveProviderRunConfig, type ProviderRunConfig } from '../utils/providerRunConfig';
 import {
   buildProviderRoutingAttemptFailureLog,
   buildProviderRoutingAttemptStartLog,
@@ -635,6 +635,92 @@ const ensureTaskGroupLayout = async (params: {
   await syncTaskGroupSkillEnvFiles({ taskGroupDir: params.taskGroupDir, envContents });
 };
 
+const readFileIfPresent = async (filePath: string): Promise<string | null> => {
+  try {
+    return await readFile(filePath, 'utf8');
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return null;
+    throw err;
+  }
+};
+
+const collectRelativeFiles = async (rootDir: string, prefix = ''): Promise<RemoteExecutionWorkspaceFile[]> => {
+  const entries = await readdir(rootDir, { withFileTypes: true });
+  const files: RemoteExecutionWorkspaceFile[] = [];
+  for (const entry of entries) {
+    const relPath = prefix ? path.join(prefix, entry.name) : entry.name;
+    const absPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await collectRelativeFiles(absPath, relPath)));
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    const contents = await readFile(absPath, 'utf8');
+    files.push({ path: relPath.replace(/\\/g, '/'), contents });
+  }
+  return files;
+};
+
+const buildRemoteWorkspaceFiles = async (params: {
+  taskGroupDir: string;
+  taskGroupId: string;
+  repoFolderName: string;
+}): Promise<RemoteExecutionWorkspaceFile[]> => {
+  // Materialize the task-group control files as an in-memory bundle so remote workers can recreate the same workspace contract without backend filesystem access.
+  const existingEnv = await readEnvFileValues(path.join(params.taskGroupDir, '.env'));
+  const envValues = await resolveTaskGroupEnvValues({
+    taskGroupId: params.taskGroupId,
+    existingPat: existingEnv.HOOKCODE_PAT
+  });
+  const envContents = buildTaskGroupEnvFileContents(envValues);
+  await mkdir(params.taskGroupDir, { recursive: true });
+  await ensureTaskGroupCodexDir(params.taskGroupDir);
+  await ensureTaskGroupClaudeDir(params.taskGroupDir);
+  await ensureTaskGroupGeminiDir(params.taskGroupDir);
+  await syncTaskGroupBuiltInSkills(params.taskGroupDir);
+  await syncTaskGroupExtraSkills(params.taskGroupDir, params.taskGroupId);
+  await syncTaskGroupSkillEnvFiles({ taskGroupDir: params.taskGroupDir, envContents });
+  const agentsContents =
+    (await readFileIfPresent(path.join(params.taskGroupDir, 'AGENTS.md'))) ??
+    buildTaskGroupAgentsContent({
+      envFileContents: envContents,
+      repoFolderName: params.repoFolderName
+    });
+  const claudeContents =
+    (await readFileIfPresent(path.join(params.taskGroupDir, 'CLAUDE.md'))) ??
+    buildTaskGroupClaudeContent({
+      envFileContents: envContents,
+      repoFolderName: params.repoFolderName
+    });
+  const geminiContents =
+    (await readFileIfPresent(path.join(params.taskGroupDir, 'GEMINI.md'))) ??
+    buildTaskGroupGeminiContent({
+      envFileContents: envContents,
+      repoFolderName: params.repoFolderName
+    });
+  const codexSchemaContents =
+    (await readFileIfPresent(path.join(params.taskGroupDir, 'codex-schema.json'))) ?? buildCodexSchemaContents();
+  const fileMap = new Map<string, string>();
+  fileMap.set('.env', envContents);
+  fileMap.set('AGENTS.md', agentsContents);
+  fileMap.set('CLAUDE.md', claudeContents);
+  fileMap.set('GEMINI.md', geminiContents);
+  fileMap.set('codex-schema.json', codexSchemaContents);
+
+  for (const rootName of ['.codex', '.claude', '.gemini']) {
+    const rootPath = path.join(params.taskGroupDir, rootName);
+    try {
+      for (const file of await collectRelativeFiles(rootPath, rootName)) {
+        fileMap.set(file.path, file.contents);
+      }
+    } catch (err: any) {
+      if (err?.code !== 'ENOENT') throw err;
+    }
+  }
+
+  return Array.from(fileMap.entries()).map(([filePath, contents]) => ({ path: filePath, contents }));
+};
+
 const moveTaskOutputToGroupRoot = async (params: {
   taskGroupDir: string;
   fileName: string;
@@ -981,6 +1067,48 @@ interface ResolvedExecution {
   github?: GithubService;
 }
 
+export interface RemoteExecutionWorkspaceFile {
+  path: string;
+  contents: string;
+}
+
+export interface RemoteExecutionBundle {
+  taskId: string;
+  taskGroupId: string;
+  provider: RepoProvider;
+  repoFolderName: string;
+  hasPriorTaskGroupTask: boolean;
+  hasTaskGroupLogs: boolean;
+  resumeThreadId?: string | null;
+  writeEnabled: boolean;
+  skipProviderPost: boolean;
+  checkout: {
+    ref?: string;
+    source: 'event' | 'robot' | 'repo' | 'payload' | 'none';
+  };
+  promptBase: string;
+  workspaceFiles: RemoteExecutionWorkspaceFile[];
+  git: {
+    cloneUrl: string;
+    displayCloneUrl: string;
+    pushUrl: string;
+    displayPushUrl: string;
+  };
+  repoWorkflow?: TaskResult['repoWorkflow'];
+  gitIdentity?: {
+    userName: string;
+    userEmail: string;
+  };
+  providerRouting: ProviderRoutingResult;
+  attempts: Array<{
+    provider: RoutedProviderKey;
+    role: 'primary' | 'fallback';
+    runConfig: ProviderRunConfig;
+    credential: ResolvedProviderCredential;
+  }>;
+  dependencyConfig?: RobotDependencyConfig | null;
+}
+
 // Export execution resolver for shared push flows. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj
 export const resolveExecution = async (
   task: Task,
@@ -1046,6 +1174,310 @@ export const resolveExecution = async (
   throw new Error(
     'Task is missing repoId: legacy /api/webhook/gitlab has been removed; please re-trigger via /api/webhook/{provider}/{repoId}. Old tasks can be cleared by wiping the tasks table'
   );
+};
+
+const buildRemoteRepoWorkflow = async (params: {
+  execution: ResolvedExecution;
+  task: Task;
+  payload: any;
+  repoUrl: string;
+}): Promise<{
+  repoWorkflow?: TaskResult['repoWorkflow'];
+  pushUrl: string;
+  displayPushUrl: string;
+}> => {
+  const repoCredentialSource = inferRobotRepoProviderCredentialSource(params.execution.robot);
+  const auth = resolveGitCloneAuth({
+    provider: params.execution.provider,
+    robot: params.execution.robot,
+    userCredentials: params.execution.userCredentials,
+    repoCredentials: params.execution.repoScopedCredentials?.repoProvider ?? null,
+    source: repoCredentialSource
+  });
+  const upstreamInjected = injectBasicAuth(params.repoUrl, auth);
+
+  const upstream: {
+    slug?: string;
+    webUrl?: string;
+    cloneUrl?: string;
+    github?: { owner: string; repo: string } | null;
+    gitlabProject?: string | number | null;
+  } = (() => {
+    if (params.execution.provider === 'github') {
+      const slug = getGithubRepoSlugFromPayload(params.payload);
+      const full = slug ? `${slug.owner}/${slug.repo}` : '';
+      return {
+        slug: full || undefined,
+        webUrl: safeTrim(params.payload?.repository?.html_url) || undefined,
+        cloneUrl: safeTrim(params.payload?.repository?.clone_url) || safeTrim(params.repoUrl) || undefined,
+        github: slug ? { owner: slug.owner, repo: slug.repo } : null,
+        gitlabProject: null
+      };
+    }
+
+    const pathWithNamespace = getGitlabProjectPathWithNamespaceFromPayload(params.payload) ?? '';
+    const projectId = getGitlabProjectIdFromPayload(params.task, params.payload);
+    const projectIdentity = projectId ?? (pathWithNamespace ? pathWithNamespace : null);
+    const cloneUrl =
+      safeTrim(params.payload?.project?.git_http_url || params.payload?.project?.http_url || params.payload?.project?.http_url_to_repo) ||
+      safeTrim(params.repoUrl) ||
+      undefined;
+    return {
+      slug: pathWithNamespace ? pathWithNamespace : undefined,
+      webUrl: safeTrim(params.payload?.project?.web_url) || undefined,
+      cloneUrl,
+      github: null,
+      gitlabProject: projectIdentity
+    };
+  })();
+
+  const workflowMode = resolveRepoWorkflowMode((params.execution.robot as any)?.repoWorkflowMode);
+  const writeEnabled = params.execution.robot.permission === 'write';
+  const upstreamCanPush = canTokenPushToUpstream(params.execution.provider, params.execution.robot.repoTokenRepoRole);
+
+  if (workflowMode === 'direct') {
+    return {
+      repoWorkflow: { mode: 'direct', provider: params.execution.provider, upstream },
+      pushUrl: upstreamInjected.execUrl,
+      displayPushUrl: upstreamInjected.displayUrl
+    };
+  }
+
+  const ensureFork = async (): Promise<{
+    repoWorkflow?: TaskResult['repoWorkflow'];
+    pushUrl: string;
+    displayPushUrl: string;
+  }> => {
+    if (params.execution.provider === 'github' && upstream.github && params.execution.github) {
+      const fork = await ensureGithubForkRepo({
+        github: params.execution.github,
+        upstream: upstream.github,
+        log: async () => undefined
+      });
+      const forkCloneUrl = safeTrim(fork?.cloneUrl);
+      if (!fork || !forkCloneUrl) {
+        throw new Error('fork workflow requested but fork repository clone URL is missing');
+      }
+      const forkInjected = injectBasicAuth(forkCloneUrl, auth);
+      return {
+        repoWorkflow: { mode: 'fork', provider: params.execution.provider, upstream, fork },
+        pushUrl: forkInjected.execUrl,
+        displayPushUrl: forkInjected.displayUrl
+      };
+    }
+
+    if (params.execution.provider === 'gitlab' && upstream.gitlabProject && params.execution.gitlab) {
+      const fork = await ensureGitlabForkProject({
+        gitlab: params.execution.gitlab,
+        upstreamProject: upstream.gitlabProject,
+        log: async () => undefined
+      });
+      const forkCloneUrl = safeTrim(fork?.cloneUrl) || (safeTrim(fork?.webUrl) ? `${safeTrim(fork?.webUrl)}.git` : '');
+      if (!fork || !forkCloneUrl) {
+        throw new Error('fork workflow requested but fork project clone URL is missing');
+      }
+      const forkInjected = injectBasicAuth(forkCloneUrl, auth);
+      return {
+        repoWorkflow: { mode: 'fork', provider: params.execution.provider, upstream, fork },
+        pushUrl: forkInjected.execUrl,
+        displayPushUrl: forkInjected.displayUrl
+      };
+    }
+
+    throw new Error(`fork workflow requested but provider ${params.execution.provider} is unsupported or upstream is missing`);
+  };
+
+  if (workflowMode === 'fork') {
+    return await ensureFork();
+  }
+
+  if (!writeEnabled || upstreamCanPush) {
+    return {
+      repoWorkflow: { mode: 'direct', provider: params.execution.provider, upstream },
+      pushUrl: upstreamInjected.execUrl,
+      displayPushUrl: upstreamInjected.displayUrl
+    };
+  }
+
+  try {
+    return await ensureFork();
+  } catch {
+    return {
+      repoWorkflow: { mode: 'direct', provider: params.execution.provider, upstream },
+      pushUrl: upstreamInjected.execUrl,
+      displayPushUrl: upstreamInjected.displayUrl
+    };
+  }
+};
+
+export const buildRemoteExecutionBundle = async (task: Task): Promise<RemoteExecutionBundle> => {
+  assertAgentServicesReady();
+
+  const payload: any = task.payload ?? {};
+  const taskGroupId = (await taskService.ensureTaskGroupId(task)) || task.id;
+  const hasPriorTaskGroupTask = await taskService.hasPriorTaskGroupTask(taskGroupId, task.id);
+  const hasTaskGroupLogs = await taskService.hasTaskGroupLogs(taskGroupId);
+  const resumeThreadId = hasPriorTaskGroupTask ? await taskService.getTaskGroupThreadId(taskGroupId) : null;
+  const execution = await resolveExecution(task, payload, async () => undefined);
+  const writeEnabled = execution.robot.permission === 'write';
+
+  const repoUrl = getRepoCloneUrl(execution.provider, payload);
+  if (!repoUrl) {
+    throw new Error('missing repo url');
+  }
+  const repoSlug = getRepoSlug(execution.provider, payload, task.id);
+  const checkout = resolveCheckoutRef({
+    task,
+    payload,
+    repo: execution.repo,
+    robot: execution.robot
+  });
+  const taskGroupDir = buildTaskGroupRootDir({ taskGroupId, taskId: task.id });
+  const repoFolderName = path.basename(
+    buildTaskGroupWorkspaceDir({
+      taskGroupId,
+      taskId: task.id,
+      provider: execution.provider,
+      repoSlug
+    })
+  );
+  const workspaceFiles = await buildRemoteWorkspaceFiles({
+    taskGroupDir,
+    taskGroupId,
+    repoFolderName
+  });
+
+  const promptCtx = await buildPrompt({
+    task,
+    payload,
+    repo: execution.repo,
+    checkout: { branch: checkout.ref ?? '', source: checkout.source },
+    robot: execution.robot,
+    robotsInRepo: execution.robotsInRepo,
+    gitlab: execution.gitlab,
+    github: execution.github
+  });
+  const skillPromptPrefix = await buildSkillPromptPrefix(async () => undefined, taskGroupId);
+  const promptBase = `${skillPromptPrefix}${promptCtx.body}`;
+
+  const modelProvider = safeTrim(execution.robot.modelProvider).toLowerCase();
+  if (modelProvider !== CODEX_PROVIDER_KEY && modelProvider !== CLAUDE_CODE_PROVIDER_KEY && modelProvider !== GEMINI_CLI_PROVIDER_KEY) {
+    throw new Error(`unsupported model provider: ${modelProvider || '<empty>'}`);
+  }
+  const taskExecutionOverride = normalizeBudgetExecutionOverride(task.result?.costGovernance?.executionOverride);
+  const resolvedExecutionPlan = applyBudgetExecutionOverride({
+    primaryProvider: modelProvider as RoutedProviderKey,
+    primaryConfigRaw: execution.robot.modelProviderConfigRaw,
+    override: taskExecutionOverride
+  });
+  const routingPlan = await buildProviderRoutingPlan({
+    primaryProvider: resolvedExecutionPlan.provider,
+    primaryConfigRaw: resolvedExecutionPlan.configRaw,
+    userCredentials: execution.userCredentials,
+    repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
+  });
+  const providerRouting = toProviderRoutingResult(routingPlan);
+  const selectedAttempt = routingPlan.attempts.find((attempt) => attempt.provider === routingPlan.selectedProvider) ?? routingPlan.attempts[0];
+  const fallbackAttempt =
+    routingPlan.selectedProvider === routingPlan.primaryProvider && routingPlan.failoverPolicy === 'fallback_provider_once'
+      ? routingPlan.attempts.find((attempt) => attempt.role === 'fallback')
+      : undefined;
+  const attemptQueue = fallbackAttempt ? [selectedAttempt, fallbackAttempt] : [selectedAttempt];
+  const attempts = await Promise.all(
+    attemptQueue.map(async (attempt) => ({
+      provider: attempt.provider,
+      role: attempt.role,
+      runConfig: resolveProviderRunConfig(attempt.provider, attempt.providerConfigRaw),
+      credential: await resolveProviderExecutionCredential({
+        provider: attempt.provider,
+        robotConfigRaw: attempt.providerConfigRaw,
+        userCredentials: execution.userCredentials,
+        repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
+      })
+    }))
+  );
+
+  const repoCredentialSource = inferRobotRepoProviderCredentialSource(execution.robot);
+  const cloneAuth = resolveGitCloneAuth({
+    provider: execution.provider,
+    robot: execution.robot,
+    userCredentials: execution.userCredentials,
+    repoCredentials: execution.repoScopedCredentials?.repoProvider ?? null,
+    source: repoCredentialSource
+  });
+  const upstreamInjected = injectBasicAuth(repoUrl, cloneAuth);
+  const repoWorkflowPlan = await buildRemoteRepoWorkflow({
+    execution,
+    task,
+    payload,
+    repoUrl
+  });
+  const requiresGitIdentity = attempts.some(({ runConfig }) => runConfig.sandbox === 'workspace-write');
+  const tokenUserName = safeTrim(execution.robot.repoTokenUserName);
+  const tokenUserEmail = safeTrim(execution.robot.repoTokenUserEmail);
+
+  return {
+    taskId: task.id,
+    taskGroupId,
+    provider: execution.provider,
+    repoFolderName,
+    hasPriorTaskGroupTask,
+    hasTaskGroupLogs,
+    resumeThreadId,
+    writeEnabled,
+    skipProviderPost: task.eventType === 'chat' || Boolean(payload?.__skipProviderPost),
+    checkout,
+    promptBase,
+    workspaceFiles,
+    git: {
+      cloneUrl: upstreamInjected.execUrl,
+      displayCloneUrl: upstreamInjected.displayUrl,
+      pushUrl: repoWorkflowPlan.pushUrl,
+      displayPushUrl: repoWorkflowPlan.displayPushUrl
+    },
+    repoWorkflow: repoWorkflowPlan.repoWorkflow,
+    gitIdentity:
+      requiresGitIdentity && tokenUserName && tokenUserEmail
+        ? {
+            userName: tokenUserName,
+            userEmail: tokenUserEmail
+          }
+        : undefined,
+    providerRouting,
+    attempts,
+    dependencyConfig: normalizeRobotDependencyConfig((execution.robot as any).dependencyConfig)
+  };
+};
+
+export const postRemoteExecutionResult = async (
+  task: Task,
+  params: { status: 'succeeded' | 'failed'; outputText?: string; message?: string }
+): Promise<{ providerCommentUrl?: string }> => {
+  assertAgentServicesReady();
+
+  const payload: any = task.payload ?? {};
+  if (task.eventType === 'chat' || Boolean(payload?.__skipProviderPost)) {
+    return {};
+  }
+
+  const execution = await resolveExecution(task, payload, async () => undefined);
+  const safeOutputText = redactSensitiveText(safeTrim(params.outputText)).trimEnd();
+  const body =
+    params.status === 'succeeded'
+      ? safeOutputText || '(no output)'
+      : [`Task execution failed; see HookCode console: ${getTaskConsoleUrl(task.id)}`, safeTrim(params.message)]
+          .filter(Boolean)
+          .join('\n\n');
+  const posted = await postToProvider({
+    provider: execution.provider,
+    task,
+    payload,
+    body,
+    gitlab: execution.gitlab,
+    github: execution.github
+  });
+
+  return { providerCommentUrl: posted?.url };
 };
 
 // Return git status alongside logs so downstream services can persist change tracking. docs/en/developer/plans/ujmczqa7zhw9pjaitfdj/task_plan.md ujmczqa7zhw9pjaitfdj

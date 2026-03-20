@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { setAgentServices, callAgent } from '../../agent/agent';
+import { setAgentServices, callAgent, buildRemoteExecutionBundle, postRemoteExecutionResult } from '../../agent/agent';
 import { Task } from '../../types/task';
 import { RepositoryService } from '../repositories/repository.service';
 import { RepoRobotService } from '../repositories/repo-robot.service';
@@ -45,5 +45,15 @@ export class AgentService {
   callAgent(task: Task, options?: { signal?: AbortSignal }) {
     // Forward abort signals so task runner can pause/stop executions. docs/en/developer/plans/task-pause-resume-20260203/task_plan.md task-pause-resume-20260203
     return callAgent(task, options);
+  }
+
+  buildRemoteExecutionBundle(task: Task) {
+    // Keep remote execution planning on the backend so workers only receive an already-resolved execution bundle.
+    return buildRemoteExecutionBundle(task);
+  }
+
+  postRemoteExecutionResult(task: Task, params: { status: 'succeeded' | 'failed'; outputText?: string; message?: string }) {
+    // Let backend-owned provider clients publish remote worker results so worker nodes do not need repo-provider tokens or API clients.
+    return postRemoteExecutionResult(task, params);
   }
 }

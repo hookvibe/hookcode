@@ -3,6 +3,7 @@ import { ApiExcludeController } from '@nestjs/swagger';
 import { RepositoryService } from '../repositories/repository.service';
 import { RepoRobotService } from '../repositories/repo-robot.service';
 import { SkillsService } from '../skills/skills.service';
+import { AgentService } from '../tasks/agent.service';
 import { TaskRunner } from '../tasks/task-runner.service';
 import { TaskLogStream } from '../tasks/task-log-stream.service';
 import { TaskLogsService } from '../tasks/task-logs.service';
@@ -13,6 +14,23 @@ import { Public } from '../auth/auth.decorator';
 import { WorkersService } from './workers.service';
 
 const trimString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+const lookupString = (root: unknown, path: string[]): string => {
+  let current: unknown = root;
+  for (const segment of path) {
+    if (!current || typeof current !== 'object') return '';
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return trimString(current);
+};
+const TASK_COMMAND_PATHS = [
+  ['executionCommand'],
+  ['command'],
+  ['executor', 'command'],
+  ['payload', 'command'],
+  ['payload', 'executor', 'command'],
+  ['payload', 'hookcode', 'command']
+] as const;
+const taskHasWorkerCommand = (task: unknown): boolean => TASK_COMMAND_PATHS.some((path) => Boolean(lookupString(task, [...path])));
 
 @ApiExcludeController()
 @Public() // Keep worker-runtime internal APIs outside bearer auth because they authenticate with worker headers instead. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
@@ -21,6 +39,7 @@ export class WorkersInternalController {
   constructor(
     private readonly workersService: WorkersService,
     private readonly taskService: TaskService,
+    private readonly agentService: AgentService,
     private readonly taskRunner: TaskRunner,
     private readonly taskLogStream: TaskLogStream,
     private readonly taskLogsService: TaskLogsService,
@@ -101,15 +120,45 @@ export class WorkersInternalController {
   }
 
   @Post('tasks/:taskId/execute-inline')
-  async executeInlineTask(@Headers() headers: Record<string, string | string[] | undefined>, @Param('taskId') taskId: string) {
+  async executeInlineTask(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Param('taskId') taskId: string,
+    @Body() body: { reason?: string }
+  ) {
     const worker = await this.authenticate(headers);
     const task = await this.requireAssignedTask(taskId, worker.id);
-    if (worker.kind !== 'local' || !worker.systemManaged) {
-      // Restrict backend-inline fallback to the supervised local worker so remote hosts never tunnel execution back into backend by surprise. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      throw new ForbiddenException({ error: 'Inline execution is only available to the local system worker' });
+    const missingCommandFallback = trimString(body?.reason) === 'missing_command';
+    const localSystemWorker = worker.kind === 'local' && worker.systemManaged;
+    const taskMissingWorkerCommand = !taskHasWorkerCommand(task);
+    if (!localSystemWorker && (!missingCommandFallback || !taskMissingWorkerCommand)) {
+      // Allow non-local workers to delegate only commandless-task fallback so selected remote workers can still run older tasks while command envelopes roll out, without turning this endpoint into a generic remote tunnel for command-capable tasks. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+      throw new ForbiddenException({ error: 'Inline execution is only available to the local system worker unless the assigned task has no runnable worker command' });
     }
     await this.taskRunner.executeAssignedTaskInline(task);
     return { success: true };
+  }
+
+  @Get('tasks/:taskId/execution-bundle')
+  async getExecutionBundle(@Headers() headers: Record<string, string | string[] | undefined>, @Param('taskId') taskId: string) {
+    const worker = await this.authenticate(headers);
+    const task = await this.requireAssignedTask(taskId, worker.id);
+    return { bundle: await this.agentService.buildRemoteExecutionBundle(task) };
+  }
+
+  @Post('tasks/:taskId/provider-result')
+  async postProviderResult(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Param('taskId') taskId: string,
+    @Body() body: { status?: 'succeeded' | 'failed'; outputText?: string; message?: string }
+  ) {
+    const worker = await this.authenticate(headers);
+    const task = await this.requireAssignedTask(taskId, worker.id);
+    const status = body?.status === 'failed' ? 'failed' : 'succeeded';
+    return await this.agentService.postRemoteExecutionResult(task, {
+      status,
+      outputText: trimString(body?.outputText),
+      message: trimString(body?.message)
+    });
   }
 
   @Post('tasks/:taskId/logs')

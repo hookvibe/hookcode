@@ -3,6 +3,7 @@
 # Exit 0 if complete, exit 1 if incomplete
 # Can be used at the end of a task to verify all phases are marked complete.
 # Support hash-based planning directories for traceability. sddsa89612jk4hbwas678
+# Route completion checks through the planning_recorder asset folder. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320
 
 set -euo pipefail
 
@@ -49,11 +50,11 @@ PLAN_FILE="$(resolve_plan_file "$INPUT")"
 if [ ! -f "$PLAN_FILE" ]; then
     echo "ERROR: task plan not found"
     echo "Usage:"
-    echo "  bash .codex/skills/file-context-planning/scripts/check-complete.sh <plan-path|session-hash>"
+    echo "  bash .codex/agents/planning-recorder/scripts/check-complete.sh <plan-path|session-hash>"
     echo ""
     echo "Examples:"
-    echo "  bash .codex/skills/file-context-planning/scripts/check-complete.sh docs/en/developer/plans/<hash>/task_plan.md"
-    echo "  bash .codex/skills/file-context-planning/scripts/check-complete.sh <hash>"
+    echo "  bash .codex/agents/planning-recorder/scripts/check-complete.sh docs/en/developer/plans/<hash>/task_plan.md"
+    echo "  bash .codex/agents/planning-recorder/scripts/check-complete.sh <hash>"
     exit 1
 fi
 

@@ -1,9 +1,6 @@
 # Findings & Decisions: [SESSION_TITLE]
-
-
-
-# Findings & Decisions: [SESSION_TITLE]
 {/* WHAT: Your knowledge base for the task. Stores everything you discover and decide. WHY: Context windows are limited. This file is your "external memory" - persistent and unlimited. WHEN: Update after ANY discovery, especially after 2 view/browser/search operations (2-Action Rule). */}
+{/* Keep the recorder findings template single-pass so new sessions do not duplicate sections. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320 */}
 
 {/* Link discoveries to code changes via this session hash. [SESSION_HASH] */}
 
@@ -48,49 +45,5 @@
 
 ---
 {/* REMINDER: The 2-Action Rule After every 2 view/browser/search operations, you MUST update this file. This prevents visual information from being lost when context resets. */}
-*Update this file after every 2 view/browser/search operations*
-*This prevents visual information from being lost*
-
-## Session Metadata
-- **Session Hash:** [SESSION_HASH]
-- **Created:** [DATE]
-
-## Requirements
-
-
--
-
-## Research Findings
-
-
--
-
-## Technical Decisions
-
-
-| Decision | Rationale |
-|----------|-----------|
-|          |           |
-
-## Issues Encountered
-
-
-| Issue | Resolution |
-|-------|------------|
-|       |            |
-
-## Resources
-
-
--
-
-## Visual/Browser Findings
-
-
-
--
-
----
-
 *Update this file after every 2 view/browser/search operations*
 *This prevents visual information from being lost*

@@ -14,38 +14,54 @@ An AI assistant for GitLab/GITHUB automated analysis: it receives events via Web
 
 ## Working workflow
 
-<!-- Enforce file-context-planning workflow on every invocation for traceability. 0lldjnbw5qxdhw4wwftz -->
+<!-- Enforce planning_recorder bookkeeping on every invocation for traceability. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320 -->
+<!-- Route planning bookkeeping through the planning_recorder custom subagent. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320 -->
 <!-- Add doc-sync and release versioning rules to the working workflow. docs/en/developer/plans/docsworkflowapi20260121/task_plan.md docsworkflowapi20260121 -->
 
-1. Determine the active session (NON-NEGOTIABLE)
-   - **Check conversation history first**: if this conversation already has an active `SESSION_HASH` and the current request is a continuation/refinement of that task, **reuse the existing SESSION_HASH** (do NOT create a new session).
+1. Start the `planning_recorder` custom subagent (NON-NEGOTIABLE)
+   - **Check conversation history first**: if this conversation already has an active `SESSION_HASH` and the current request is a continuation/refinement of that task, **reuse the existing SESSION_HASH**.
+   - Before any substantial repo work, the parent agent must invoke `planning_recorder` and send `INIT_SESSION` with the user goal, candidate session title, and any known `SESSION_HASH`.
    - **Only start a new session** if:
      - This is a completely new, unrelated task, OR
      - The previous session is explicitly marked as complete and the user requests a new feature.
-   - To start a new session:
-     - Start a `file-context-planning` 
-     - Decide the `SESSION_HASH` (use user-provided hash; otherwise generate one).
-     - Run `bash .codex/skills/file-context-planning/scripts/init-session.sh "<SESSION_HASH>" "<SESSION_TITLE>"` (or run without args to auto-generate a hash).
+   - `planning_recorder` must initialize or reuse `docs/en/developer/plans/<SESSION_HASH>/` via `bash .codex/agents/planning-recorder/scripts/init-session.sh "<SESSION_HASH>" "<SESSION_TITLE>"` (or run without args to auto-generate a hash).
+   - The parent agent must wait for the recorder response and use the returned `SESSION_HASH` in all traceability comments.
+   - If `planning_recorder` cannot run or cannot update the session docs, stop and report the blocker instead of editing the planning files manually.
    - The only source of truth for the plan is: `docs/en/developer/plans/<SESSION_HASH>/`
-2. Before ANY implementation, fill the session docs
-   - Update `docs/en/developer/plans/<SESSION_HASH>/task_plan.md` (goal, phases, key questions).
-   - Capture requirements/discoveries in `docs/en/developer/plans/<SESSION_HASH>/findings.md`.
-3. Locate related files (both frontend and backend) and continuously update findings (2-Action Rule)
+2. Before ANY implementation, fill the session docs through the recorder
+   - `planning_recorder` updates `docs/en/developer/plans/<SESSION_HASH>/task_plan.md` (goal, phases, key questions).
+   - `planning_recorder` captures requirements/discoveries in `docs/en/developer/plans/<SESSION_HASH>/findings.md`.
+3. Locate related files (both frontend and backend) and continuously sync findings (2-Action Rule)
+   - After every 2 information-gathering actions, the parent agent must send `SYNC_FINDINGS` to `planning_recorder`.
+   - The parent agent may re-read the planning files, but it must not directly edit `task_plan.md`, `findings.md`, or `progress.md`.
 4. Implement the change
    - Re-read `docs/en/developer/plans/<SESSION_HASH>/task_plan.md` before major decisions.
    - Add/adjust inline comments for every code change (see "Inline comment requirements").
    - After changing code, validate whether any user-facing docs output becomes outdated (User Docs / API Reference); update docs and navigation as needed.
-5. After completing each phase or meaningful milestone, return to the session folder and update
-   - `task_plan.md`: phase status (pending → in_progress → complete)
-   - `progress.md`: actions, touched files, test results, error log
+5. After completing each phase or meaningful milestone, sync progress through the recorder
+   - The parent agent sends `SYNC_PROGRESS` with actions, touched files, test results, and error-log details.
+   - `planning_recorder` updates:
+     - `task_plan.md`: phase status (pending → in_progress → complete)
+     - `progress.md`: actions, touched files, test results, error log
 <!-- Require a full test-suite run after adding tests during build. docs/en/developer/plans/testfix20260131/task_plan.md testfix20260131 -->
-6. Add or update test cases, run tests, and record results in `docs/en/developer/plans/<SESSION_HASH>/progress.md`; after writing tests during build, run the full test suite to verify the outcome
+6. Add or update test cases, run tests, and report results through `SYNC_PROGRESS`; after writing tests during build, run the full test suite to verify the outcome
 7. Delivery checklist (NON-NEGOTIABLE)
-   - Ensure all phases are complete (optional helper: `bash .codex/skills/file-context-planning/scripts/check-complete.sh <SESSION_HASH>`).
-   - Update `docs/en/change-log/0.0.0.md` (Unreleased placeholder) with: `SESSION_HASH` + one-line summary + relative link to the plan.
+   - Send `FINALIZE_SESSION` to `planning_recorder` with the final summary, touched files, test results, and unresolved risks.
+   - Ensure all phases are complete (optional helper: `bash .codex/agents/planning-recorder/scripts/check-complete.sh <SESSION_HASH>`).
+   - `planning_recorder` updates `docs/en/change-log/0.0.0.md` (Unreleased placeholder) with: `SESSION_HASH` + one-line summary + relative link to the plan.
    - Versioning: the release version is `package.json#version` (current: `0.0.1`); when releasing, rename `docs/en/change-log/0.0.0.md` → `docs/en/change-log/<version>.md` and recreate a fresh `0.0.0.md`.
    <!-- Keep changelog entries clean by avoiding redundant HTML comment lines. l290bb7v758opd6uxu6r -->
    - Do NOT add an extra `<!-- ... -->` line above changelog bullets; the bullet (hash + plan link) is enough traceability.
+
+## planning_recorder protocol
+
+<!-- Keep the recorder message contract stable for future Codex runs. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320 -->
+
+- `INIT_SESSION`: includes `session_hash` (optional), `session_title`, `goal`, and any continuation context; recorder returns the authoritative `SESSION_HASH`.
+- `SYNC_FINDINGS`: includes `session_hash`, `summary`, `discoveries`, `resources`, and optional issues/decisions after every 2 information-gathering actions.
+- `SYNC_PROGRESS`: includes `session_hash`, `phase`, `summary`, `touched_files`, `tests`, and `errors` after milestones or test runs.
+- `FINALIZE_SESSION`: includes `session_hash`, `final_summary`, `touched_files`, `tests`, and unresolved risks; recorder must run completion checks and append the changelog entry before the parent agent answers the user.
+- Recorder responses should stay short and include `STATUS`, `SESSION_HASH`, `TOUCHED_FILES`, and `BLOCKERS`.
 
 ## Inline comment requirements
 
