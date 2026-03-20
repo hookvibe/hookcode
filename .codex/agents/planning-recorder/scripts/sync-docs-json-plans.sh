@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Sync docs/docs.json navigation entries for planning session files. docsjsonindex20260121
+# Route docs navigation sync through the planning_recorder asset folder. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320
 #
 # Usage:
-#   bash .codex/skills/file-context-planning/scripts/sync-docs-json-plans.sh
+#   bash .codex/agents/planning-recorder/scripts/sync-docs-json-plans.sh
 #
 # Behavior:
 # - Scans: docs/en/developer/plans/<session-hash>/{task_plan,findings,progress}.md
