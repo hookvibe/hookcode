@@ -1,5 +1,5 @@
 # Examples: Planning with Files in Action
-{/* Update examples to use hash-based plan directories. sddsa89612jk4hbwas678 */}
+{/* Keep the examples aligned with recorder-only bookkeeping flows. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320 */}
 {/* Update the examples to show the planning_recorder asset paths and protocol. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320 */}
 
 ## Example 1: Research Task
@@ -8,12 +8,13 @@
 
 ### Loop 1: Create Plan
 ```bash
-SESSION_HASH="sddsa89612jk4hbwas678"
+SESSION_HASH="$(bash .codex/agents/planning-recorder/scripts/generate-session-hash.sh)"
 # Parent agent delegates:
 # INIT_SESSION
-# session_hash: sddsa89612jk4hbwas678
+# session_hash: $SESSION_HASH
 # session_title: morning-exercise-research
 # goal: Research the benefits of morning exercise and write a summary.
+# Fire-and-forget: start the recorder update and continue local discovery immediately.
 bash .codex/agents/planning-recorder/scripts/init-session.sh "$SESSION_HASH" "morning-exercise-research"
 # (Alternative) Copy templates from .codex/agents/planning-recorder/templates/
 ```
@@ -42,17 +43,16 @@ Create a research summary on the benefits of morning exercise.
 ### Loop 2: Research
 ```bash
 cat "docs/en/developer/plans/$SESSION_HASH/task_plan.md"  # Refresh goals
-# Gather information (repo/docs/web as available)
-# Immediately save key findings into docs/en/developer/plans/$SESSION_HASH/findings.md
-# Update docs/en/developer/plans/$SESSION_HASH/task_plan.md to mark Phase 2 complete
+# Gather information (repo/docs/web as available) while the parent agent keeps the main task moving.
+# Dispatch SYNC_FINDINGS / SYNC_PROGRESS to planning_recorder instead of editing planning files directly.
 ```
 
 ### Loop 3: Synthesize
 ```bash
 cat "docs/en/developer/plans/$SESSION_HASH/task_plan.md"  # Refresh goals
 cat "docs/en/developer/plans/$SESSION_HASH/findings.md"   # Get findings
-# Write morning_exercise_summary.md
-# Update docs/en/developer/plans/$SESSION_HASH/task_plan.md to mark Phase 3 complete
+# Write morning_exercise_summary.md while planning_recorder updates findings/progress in the background.
+# Only wait for FINALIZE_SESSION before the final handoff to the user.
 ```
 
 ### Loop 4: Deliver

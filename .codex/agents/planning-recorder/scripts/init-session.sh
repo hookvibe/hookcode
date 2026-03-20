@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Initialize planning files for a new session (Codex-compatible).
-# Refactor planning session storage to hash directories for traceability. sddsa89612jk4hbwas678
+# Keep session bootstrap independent from recorder return values by generating hashes locally when needed. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320
 # Route session bootstrap through the planning_recorder asset folder. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320
 #
 # Usage:
@@ -9,7 +9,7 @@
 # Behavior:
 # - Stores planning files under: docs/en/developer/plans/<session-hash>/
 # - Creates: task_plan.md, findings.md, progress.md
-# - If session-hash is omitted, a random one is generated.
+# - If session-hash is omitted, a random one is generated via generate-session-hash.sh.
 
 set -euo pipefail
 
@@ -19,23 +19,13 @@ DATE="$(date +%Y-%m-%d)"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="$(cd "${SCRIPT_DIR}/../templates" && pwd)"
-
-generate_hash() {
-    # Generate a readable, filesystem-safe hash (lowercase letters + digits).
-    python3 - <<'PY'
-import secrets
-import string
-
-alphabet = string.ascii_lowercase + string.digits
-print("".join(secrets.choice(alphabet) for _ in range(20)))
-PY
-}
+GENERATE_HASH_SCRIPT="${SCRIPT_DIR}/generate-session-hash.sh"
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 PLAN_BASE_DIR="${REPO_ROOT}/docs/en/developer/plans"
 
 if [ -z "${SESSION_HASH}" ]; then
-    SESSION_HASH="$(generate_hash)"
+    SESSION_HASH="$(bash "${GENERATE_HASH_SCRIPT}")"
 fi
 
 SESSION_DIR="${PLAN_BASE_DIR}/${SESSION_HASH}"

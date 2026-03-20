@@ -72,11 +72,24 @@
   - Prepared the final session updates, completion check, and changelog summary for the new recorder workflow.
   - Ran the migrated completion helper against `planning-recorder-subagent-20260320` and confirmed all 5 phases were complete.
   - Appended the unreleased changelog entry through the migrated recorder helper.
+  - Followed up on the interactive `/agent` question by checking the official Codex docs plus the saved smoke-run event log to confirm `/agent` is thread-oriented rather than a static custom-agent browser.
 - Files created/modified:
   - `docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md`
   - `docs/en/developer/plans/planning-recorder-subagent-20260320/findings.md`
   - `docs/en/developer/plans/planning-recorder-subagent-20260320/progress.md`
   - `docs/en/change-log/0.0.0.md`
+
+### Phase 3 follow-up: Parallel orchestration refinement
+{/* Record the reopened protocol refinement so the parent agent can keep implementing while the recorder updates docs in the background. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320 */}
+- **Status:** in_progress
+- Actions taken:
+  - Reopened the session to capture the new requirement that the parent agent and `planning_recorder` must execute in parallel instead of blocking on every recorder update.
+  - Documented that the parent should determine or reuse `SESSION_HASH` itself, spawn the recorder without waiting, continue local implementation immediately, and treat `INIT_SESSION`, `SYNC_FINDINGS`, and `SYNC_PROGRESS` as asynchronous fire-and-forget messages.
+  - Documented that only `FINALIZE_SESSION` should require a blocking wait before the final user-facing response.
+- Files created/modified:
+  - `docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md`
+  - `docs/en/developer/plans/planning-recorder-subagent-20260320/findings.md`
+  - `docs/en/developer/plans/planning-recorder-subagent-20260320/progress.md`
 
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
@@ -88,6 +101,8 @@
 | Recorder config contract smoke | `bash .codex/agents/planning-recorder/scripts/agent-config.test.sh` | Custom-agent TOML, AGENTS wiring, and retired skill removal all validate | Passed after fixing the initial root-path/self-match issues | ✓ |
 | Live Codex recorder smoke | `codex exec --json --sandbox read-only -C /Users/gaoruicheng/Documents/Github/hookvibe/hookcode "Use the planning_recorder subagent ..."` | Local Codex CLI loads the new custom agent and delegates to it without file edits | Passed; `/tmp/planning-recorder-smoke.jsonl` contains `spawn_agent` and `wait` events for `planning_recorder` | ✓ |
 | Final completion check | `bash .codex/agents/planning-recorder/scripts/check-complete.sh planning-recorder-subagent-20260320` | Session plan reports all phases complete before changelog update | Passed (`ALL PHASES COMPLETE`) | ✓ |
+| `/agent` follow-up diagnosis | Official Codex subagent docs + `tail -n 12 /tmp/planning-recorder-smoke.jsonl` + `codex -V` | Confirm whether `/agent` should list custom agents before they are spawned | Confirmed `/agent` is for active agent threads; fresh local spawn still works on `codex-cli 0.116.0` | ✓ |
+| Parallel-workflow requirement capture | Current session doc review | Record the new non-blocking orchestration requirement without touching code/config files | Captured in `task_plan.md`, `findings.md`, and `progress.md` | ✓ |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
@@ -102,11 +117,11 @@
 {/* If you can answer these, context is solid */}
 | Question | Answer |
 |----------|--------|
-| Where am I? | Delivery is complete and the recorder rollout is ready for user handoff. |
-| Where am I going? | User handoff only. |
-| What's the goal? | Replace `file-context-planning` with a `planning_recorder` custom subagent that owns planning records during Codex runs. |
-| What have I learned? | Codex discovers the repo-local `planning_recorder` TOML and can delegate to it in a real `codex exec` run once the helper assets and AGENTS contract are aligned. |
-| What have I done? | Migrated the planning assets into `.codex/agents/`, rewrote `AGENTS.md`, added recorder smoke tests, and validated a live delegation run. |
+| Where am I? | Phase 3 follow-up, refining the recorder orchestration so the parent and recorder can run in parallel. |
+| Where am I going? | Hand the updated protocol requirements back to the parent agent so it can implement the non-blocking workflow in code/config. |
+| What's the goal? | Replace `file-context-planning` with a `planning_recorder` custom subagent that owns planning records during Codex runs and only blocks on final delivery synchronization. |
+| What have I learned? | The parent can safely keep working after it determines `SESSION_HASH` locally; only `FINALIZE_SESSION` truly needs a blocking wait. |
+| What have I done? | Updated the current session planning docs to reflect the new asynchronous recorder protocol while leaving code and agent config untouched. |
 
 ---
 {/* REMINDER: - Update after completing each phase or encountering errors - Be detailed - this is your "what happened" log - Include timestamps for errors to track when issues occurred */}

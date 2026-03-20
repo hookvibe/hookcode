@@ -1521,6 +1521,15 @@
                     "expanded": false
                   },
                   {
+                    "group": "repo-identification-overview (apxmtfgdr9yvl9u1qb8g)",
+                    "pages": [
+                      "en/developer/plans/apxmtfgdr9yvl9u1qb8g/task_plan",
+                      "en/developer/plans/apxmtfgdr9yvl9u1qb8g/findings",
+                      "en/developer/plans/apxmtfgdr9yvl9u1qb8g/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
                     "group": "Fix missing NestJS decorators (apiquery-fix-20260227)",
                     "pages": [
                       "en/developer/plans/apiquery-fix-20260227/task_plan",
