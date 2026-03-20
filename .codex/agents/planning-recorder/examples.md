@@ -1,5 +1,6 @@
 # Examples: Planning with Files in Action
 {/* Update examples to use hash-based plan directories. sddsa89612jk4hbwas678 */}
+{/* Update the examples to show the planning_recorder asset paths and protocol. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320 */}
 
 ## Example 1: Research Task
 
@@ -8,8 +9,13 @@
 ### Loop 1: Create Plan
 ```bash
 SESSION_HASH="sddsa89612jk4hbwas678"
-bash .codex/skills/file-context-planning/scripts/init-session.sh "$SESSION_HASH" "morning-exercise-research"
-# (Alternative) Copy templates from .codex/skills/file-context-planning/templates/
+# Parent agent delegates:
+# INIT_SESSION
+# session_hash: sddsa89612jk4hbwas678
+# session_title: morning-exercise-research
+# goal: Research the benefits of morning exercise and write a summary.
+bash .codex/agents/planning-recorder/scripts/init-session.sh "$SESSION_HASH" "morning-exercise-research"
+# (Alternative) Copy templates from .codex/agents/planning-recorder/templates/
 ```
 
 ```markdown

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Initialize planning files for a new session (Codex-compatible).
 # Refactor planning session storage to hash directories for traceability. sddsa89612jk4hbwas678
+# Route session bootstrap through the planning_recorder asset folder. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320
 #
 # Usage:
-#   bash .codex/skills/file-context-planning/scripts/init-session.sh [session-hash] [session-title]
+#   bash .codex/agents/planning-recorder/scripts/init-session.sh [session-hash] [session-title]
 #
 # Behavior:
 # - Stores planning files under: docs/en/developer/plans/<session-hash>/

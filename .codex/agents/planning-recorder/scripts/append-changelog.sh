@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Append a changelog entry for a planning session.
 # Add session hash + summary + relative plan link to docs/en/change-log/0.0.0.md. sddsa89612jk4hbwas678
+# Route changelog helper usage through the planning_recorder asset folder. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320
 #
 # Usage:
-#   bash .codex/skills/file-context-planning/scripts/append-changelog.sh "<session-hash>" "<one-line-summary>"
-#   printf '%s' "<one-line-summary>" | bash .codex/skills/file-context-planning/scripts/append-changelog.sh "<session-hash>"
+#   bash .codex/agents/planning-recorder/scripts/append-changelog.sh "<session-hash>" "<one-line-summary>"
+#   printf '%s' "<one-line-summary>" | bash .codex/agents/planning-recorder/scripts/append-changelog.sh "<session-hash>"
 #
 # Output:
 # - Updates docs/en/change-log/0.0.0.md (current version) with a markdown bullet linking to the plan.
@@ -17,8 +18,8 @@ SUMMARY="${2:-}"
 if [ -z "${SESSION_HASH}" ]; then
     echo "ERROR: missing session hash"
     echo "Usage:"
-    echo "  bash .codex/skills/file-context-planning/scripts/append-changelog.sh \"<session-hash>\" \"<one-line-summary>\""
-    echo "  printf '%s' \"<one-line-summary>\" | bash .codex/skills/file-context-planning/scripts/append-changelog.sh \"<session-hash>\""
+    echo "  bash .codex/agents/planning-recorder/scripts/append-changelog.sh \"<session-hash>\" \"<one-line-summary>\""
+    echo "  printf '%s' \"<one-line-summary>\" | bash .codex/agents/planning-recorder/scripts/append-changelog.sh \"<session-hash>\""
     exit 1
 fi
 
@@ -27,8 +28,8 @@ if [ -z "${SUMMARY}" ]; then
     if [ -t 0 ]; then
         echo "ERROR: missing summary"
         echo "Usage:"
-        echo "  bash .codex/skills/file-context-planning/scripts/append-changelog.sh \"<session-hash>\" \"<one-line-summary>\""
-        echo "  printf '%s' \"<one-line-summary>\" | bash .codex/skills/file-context-planning/scripts/append-changelog.sh \"<session-hash>\""
+        echo "  bash .codex/agents/planning-recorder/scripts/append-changelog.sh \"<session-hash>\" \"<one-line-summary>\""
+        echo "  printf '%s' \"<one-line-summary>\" | bash .codex/agents/planning-recorder/scripts/append-changelog.sh \"<session-hash>\""
         exit 1
     fi
 

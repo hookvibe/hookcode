@@ -891,6 +891,15 @@
                     "expanded": false
                   },
                   {
+                    "group": "planning recorder subagent (planning-recorder-subagent-20260320)",
+                    "pages": [
+                      "en/developer/plans/planning-recorder-subagent-20260320/task_plan",
+                      "en/developer/plans/planning-recorder-subagent-20260320/findings",
+                      "en/developer/plans/planning-recorder-subagent-20260320/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
                     "group": "Docs pixel theme (pixeldocs20260126)",
                     "pages": [
                       "en/developer/plans/pixeldocs20260126/task_plan",

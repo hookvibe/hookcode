@@ -1,7 +1,8 @@
 # Reference: Manus Context Engineering Principles
 {/* Document repo-specific plan storage under docs/en/developer/plans/<hash>. sddsa89612jk4hbwas678 */}
+{/* Reframe the planning reference around the planning_recorder subagent. docs/en/developer/plans/planning-recorder-subagent-20260320/task_plan.md planning-recorder-subagent-20260320 */}
 
-This skill borrows ideas often attributed to "Manus-style" context engineering: use the filesystem as durable working memory, and actively refresh goals to avoid "lost in the middle" drift.
+This recorder borrows ideas often attributed to "Manus-style" context engineering: use the filesystem as durable working memory, and actively refresh goals to avoid "lost in the middle" drift.
 
 ## Repo Convention: Hash-Based Plan Folders
 
