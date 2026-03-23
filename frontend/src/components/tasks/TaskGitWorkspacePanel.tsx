@@ -141,16 +141,29 @@ export const TaskGitWorkspacePanel: FC<TaskGitWorkspacePanelProps> = ({ task, on
   const commitDraftStorageKey = useMemo(() => `hookcode:task-workspace-commit:${task.id}`, [task.id]);
   const composerCollapsedStorageKey = useMemo(() => `hookcode:task-workspace-composer:${task.id}`, [task.id]);
 
+  const consecutiveErrorsRef = useRef(0);
+
   const loadWorkspace = useCallback(
     async (options?: { silent?: boolean }) => {
       if (!task.id) return;
-      if (!options?.silent) setLoading(true);
-      setError('');
+      if (!options?.silent) {
+        setLoading(true);
+        setError('');
+      }
       try {
         const nextWorkspace = await fetchTaskWorkspace(task.id);
         setWorkspace(nextWorkspace);
+        setError('');
+        consecutiveErrorsRef.current = 0;
       } catch (err: any) {
         console.error(err);
+        // Debounce error display during silent polling: only show the error
+        // after 2 consecutive failures so that transient network hiccups
+        // (common with remote workers) don't cause the error banner to flicker.
+        if (options?.silent) {
+          consecutiveErrorsRef.current += 1;
+          if (consecutiveErrorsRef.current < 2) return;
+        }
         const code = err?.response?.data?.code as string | undefined;
         const key = getWorkspaceErrorKey(code);
         setError(key ? t(key) : t('tasks.gitWorkspace.errors.unavailable'));

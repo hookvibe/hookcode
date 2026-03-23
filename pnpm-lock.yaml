@@ -21,8 +21,8 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(@opentelemetry/core@2.3.0(@opentelemetry/api@1.9.0))(@opentelemetry/resources@2.3.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-metrics@2.0.1(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.0.1(@opentelemetry/api@1.9.0))(hono@4.11.4)
       '@hookvibe/hookcode-worker':
-        specifier: 0.1.4
-        version: 0.1.4
+        specifier: 0.1.5
+        version: 0.1.5
       '@nestjs/common':
         specifier: ^10.4.20
         version: 10.4.20(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -937,8 +937,8 @@ packages:
     peerDependencies:
       hono: ^4
 
-  '@hookvibe/hookcode-worker@0.1.4':
-    resolution: {integrity: sha512-4M5YEir0FfUZ4yV/gjEZXWxKrQX3/WRoV7t3pTj/mBdSqKcJv2IE5BRJVyy0m2q1OVObB7whox8/YAEwzn9ZXA==}
+  '@hookvibe/hookcode-worker@0.1.5':
+    resolution: {integrity: sha512-Y2qWhd6sOSHirci8Kb9mcg7zDiI+/KU/G4tVdiBrDOB2ieq+HkWw8fTVmd/nsfFFogsn8NKG3UT7wtau2XIjNw==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -8458,7 +8458,7 @@ snapshots:
     dependencies:
       hono: 4.11.4
 
-  '@hookvibe/hookcode-worker@0.1.4':
+  '@hookvibe/hookcode-worker@0.1.5':
     dependencies:
       ws: 8.19.0
       yaml: 2.8.2

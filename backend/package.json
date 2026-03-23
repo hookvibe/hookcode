@@ -27,7 +27,7 @@
     "test:watch": "jest -c jest.config.cjs --watch"
   },
   "dependencies": {
-    "@hookvibe/hookcode-worker": "0.1.4",
+    "@hookvibe/hookcode-worker": "0.1.5",
     "@anthropic-ai/claude-agent-sdk": "^0.2.6",
     "@google/gemini-cli": "^0.23.0",
     "@nestjs/common": "^10.4.20",
