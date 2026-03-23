@@ -3,7 +3,7 @@ import path from 'path';
 
 export const WORKER_PACKAGE_NAME = '@hookvibe/hookcode-worker';
 export const WORKER_DOCKER_IMAGE = 'ghcr.io/hookvibe/hookcode-worker';
-export const REQUIRED_WORKER_VERSION = '0.1.4';
+export const REQUIRED_WORKER_VERSION = '0.1.5';
 
 export type WorkerVersionStatus = 'compatible' | 'mismatch' | 'unknown';
 
