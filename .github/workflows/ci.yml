@@ -23,9 +23,42 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout
+        id: test_checkout_attempt_1
+        continue-on-error: true
+        # Force checkout fetches onto HTTP/1.1 on the self-hosted runner so transient GitHub TLS transport failures follow the same mitigation as repo clone retries. docs/en/developer/plans/15244rp0z2hnlpc3vmxm/task_plan.md 15244rp0z2hnlpc3vmxm
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: http.version
+          GIT_CONFIG_VALUE_0: HTTP/1.1
         uses: actions/checkout@v4
         with:
           # Use fetch strategy to match GitLab CI behavior
+          clean: true
+
+      # Retry checkout at the workflow layer because actions/checkout can still exhaust its built-in fetch retries on flaky runner networks. docs/en/developer/plans/15244rp0z2hnlpc3vmxm/task_plan.md 15244rp0z2hnlpc3vmxm
+      - name: Checkout retry
+        id: test_checkout_attempt_2
+        if: steps.test_checkout_attempt_1.outcome == 'failure'
+        continue-on-error: true
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: http.version
+          GIT_CONFIG_VALUE_0: HTTP/1.1
+        uses: actions/checkout@v4
+        with:
+          # Keep retries aligned with the primary checkout behavior.
+          clean: true
+
+      # Let the last checkout attempt fail the job naturally so CI still stops when GitHub remains unreachable after two extra retries. docs/en/developer/plans/15244rp0z2hnlpc3vmxm/task_plan.md 15244rp0z2hnlpc3vmxm
+      - name: Checkout final retry
+        if: steps.test_checkout_attempt_1.outcome == 'failure' && steps.test_checkout_attempt_2.outcome == 'failure'
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: http.version
+          GIT_CONFIG_VALUE_0: HTTP/1.1
+        uses: actions/checkout@v4
+        with:
+          # Keep retries aligned with the primary checkout behavior.
           clean: true
 
       - name: Setup Node
@@ -63,9 +96,42 @@ jobs:
     environment: hookcode
     steps:
       - name: Checkout
+        id: docker_checkout_attempt_1
+        continue-on-error: true
+        # Force checkout fetches onto HTTP/1.1 on the self-hosted runner so transient GitHub TLS transport failures follow the same mitigation as repo clone retries. docs/en/developer/plans/15244rp0z2hnlpc3vmxm/task_plan.md 15244rp0z2hnlpc3vmxm
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: http.version
+          GIT_CONFIG_VALUE_0: HTTP/1.1
         uses: actions/checkout@v4
         with:
           # Keep behavior consistent with the `test` job (avoid relying on untracked runner workspace files).
+          clean: true
+
+      # Retry checkout at the workflow layer because actions/checkout can still exhaust its built-in fetch retries on flaky runner networks. docs/en/developer/plans/15244rp0z2hnlpc3vmxm/task_plan.md 15244rp0z2hnlpc3vmxm
+      - name: Checkout retry
+        id: docker_checkout_attempt_2
+        if: steps.docker_checkout_attempt_1.outcome == 'failure'
+        continue-on-error: true
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: http.version
+          GIT_CONFIG_VALUE_0: HTTP/1.1
+        uses: actions/checkout@v4
+        with:
+          # Keep retries aligned with the primary checkout behavior.
+          clean: true
+
+      # Let the last checkout attempt fail the job naturally so CI still stops when GitHub remains unreachable after two extra retries. docs/en/developer/plans/15244rp0z2hnlpc3vmxm/task_plan.md 15244rp0z2hnlpc3vmxm
+      - name: Checkout final retry
+        if: steps.docker_checkout_attempt_1.outcome == 'failure' && steps.docker_checkout_attempt_2.outcome == 'failure'
+        env:
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: http.version
+          GIT_CONFIG_VALUE_0: HTTP/1.1
+        uses: actions/checkout@v4
+        with:
+          # Keep retries aligned with the primary checkout behavior.
           clean: true
 
       # Use docker compose to match GitLab CI build approach.
