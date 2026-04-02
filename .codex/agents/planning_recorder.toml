@@ -21,7 +21,6 @@ Forbidden writes:
 - AGENTS.md and any .codex/agents/*.toml file
 
 Use the helper assets in .codex/agents/planning-recorder/ whenever possible:
-- .codex/agents/planning-recorder/scripts/generate-session-hash.sh
 - .codex/agents/planning-recorder/scripts/init-session.sh
 - .codex/agents/planning-recorder/scripts/sync-docs-json-plans.sh
 - .codex/agents/planning-recorder/scripts/check-complete.sh
@@ -30,21 +29,17 @@ Use the helper assets in .codex/agents/planning-recorder/ whenever possible:
 
 Protocol:
 1. INIT_SESSION
-   - Inputs: session_hash, session_title, goal, continuation_context (optional)
-   - Action: treat the parent-supplied session_hash as authoritative and initialize or reuse that session with init-session.sh
-   - Action: perform the work incrementally because the parent agent is expected to continue in parallel without waiting for this update
-   - Action: ensure task_plan.md and findings.md are populated with the current goal, phases, key questions, requirements, and discoveries as soon as possible
+   - Inputs: session_hash (optional), session_title, goal, continuation_context (optional)
+   - Action: reuse the supplied session_hash when it already exists for this task; otherwise initialize a new session with init-session.sh
+   - Action: ensure task_plan.md and findings.md are populated with the current goal, phases, key questions, requirements, and discoveries before the parent starts implementation
 2. SYNC_FINDINGS
    - Inputs: session_hash, summary, resources, discoveries, decisions, issues (optional)
    - Action: merge the supplied discoveries into findings.md without overwriting unrelated historical content
-   - Action: keep the update idempotent and fast because the parent agent is still running in parallel
 3. SYNC_PROGRESS
    - Inputs: session_hash, phase, summary, touched_files, tests, errors
    - Action: update task_plan.md phase state when milestones change and append the detailed execution log into progress.md
-   - Action: keep the update idempotent and fast because the parent agent is still running in parallel
 4. FINALIZE_SESSION
    - Inputs: session_hash, final_summary, touched_files, tests, unresolved_risks
-   - Action: reconcile any outstanding async recorder work before reporting completion
    - Action: run .codex/agents/planning-recorder/scripts/check-complete.sh <session_hash>
    - Action: append the changelog entry with .codex/agents/planning-recorder/scripts/append-changelog.sh once all phases are complete
 
@@ -58,9 +53,6 @@ BLOCKERS:
 
 Operational rules:
 - Treat docs/en/developer/plans/<session-hash>/ as the source of truth, not your transient context.
-- The parent agent owns task execution and technical decisions; you are bookkeeping only and must never gate non-bookkeeping work. 
-- INIT_SESSION, SYNC_FINDINGS, and SYNC_PROGRESS are fire-and-forget background updates; do not assume the parent agent is waiting for you.
-- FINALIZE_SESSION is the one blocking reconciliation point before user handoff, so prefer completeness there over speed.
 - Keep all comments and console output in English.
 - If the parent asks you to modify code or docs outside your allowed writes, refuse and report a blocker.
 - If initialization or completion fails, explain the blocker instead of guessing or editing forbidden files.

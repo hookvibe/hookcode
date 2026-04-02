@@ -10,11 +10,11 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Replace the repo-local `file-context-planning` skill with a project-scoped `planning_recorder` custom subagent that owns planning file updates, completion checks, and changelog writes during Codex runs, while allowing the parent and recorder agents to execute in parallel except for final handoff synchronization.
+Replace the repo-local `file-context-planning` skill with a project-scoped `planning_recorder` custom subagent that owns planning file updates, completion checks, and changelog writes during Codex runs.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-Phase 3
+Phase 5
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -39,24 +39,21 @@ Phase 3
 - [x] Execute the plan step by step
 - [x] Write code to files before executing
 - [x] Test incrementally
-- [ ] Refine the recorder orchestration for parallel parent/subagent execution
-- **Status:** in_progress
+- **Status:** complete
 
 ### Phase 4: Testing & Verification
 {/* WHAT: Verify everything works and meets requirements. WHY: Catching issues early saves time. Document test results in progress.md. */}
 - [x] Verify all requirements met
 - [x] Document test results in progress.md
 - [x] Fix any issues found
-- [ ] Re-verify the async recorder workflow after the protocol update
-- **Status:** pending
+- **Status:** complete
 
 ### Phase 5: Delivery
 {/* WHAT: Final review and handoff to user. WHY: Ensures nothing is forgotten and deliverables are complete. */}
 - [x] Review all output files
 - [x] Ensure deliverables are complete
 - [x] Deliver to user
-- [ ] Confirm the final recorder behavior after the parallel-execution refinement
-- **Status:** pending
+- **Status:** complete
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
@@ -71,8 +68,6 @@ Phase 3
 | Retire the old `file-context-planning` skill entrypoint instead of keeping dual sources of truth. | The user chose a full replacement so future maintenance stays on one recorder contract. |
 | Keep Codex default subagent depth instead of adding a new `.codex/config.toml`. | The official docs already default to one level, so adding config would not change behavior in v1. |
 | Validate the recorder with a real `codex exec --json` smoke run after the helper tests pass. | The repo change affects Codex runtime discovery, so one end-to-end delegation check is worth doing before handoff. |
-| Let the parent determine or reuse `SESSION_HASH` and spawn `planning_recorder` without blocking. | The user explicitly wants the main and recorder agents to work in parallel instead of serializing on recorder initialization. |
-| Treat `INIT_SESSION`, `SYNC_FINDINGS`, and `SYNC_PROGRESS` as asynchronous fire-and-forget messages, and block only on `FINALIZE_SESSION`. | This keeps planning records up to date while avoiding unnecessary parent-agent stalls during discovery and implementation. |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}

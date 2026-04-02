@@ -15,8 +15,6 @@
 - Move planning-session ownership away from the main agent so the recorder handles session init, findings/progress syncing, completion checks, and changelog updates.
 - Base the implementation on the official OpenAI Codex subagent capability rather than only prompt text conventions.
 - Replace the old skill entrypoint instead of keeping the previous `file-context-planning` skill as the primary workflow surface.
-- Refine the recorder workflow so the parent and `planning_recorder` execute in parallel instead of serializing on every recorder update.
-- Make the parent determine or reuse `SESSION_HASH` itself, send recorder updates asynchronously, and only block on `FINALIZE_SESSION` before the final user handoff.
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
@@ -27,11 +25,6 @@
 - Official Codex subagent docs describe project-scoped custom agents under `.codex/agents/*.toml`, with explicit invocation by the parent agent rather than implicit auto-execution.
 - The official docs indicate Codex already defaults subagent depth to one level, so a new `.codex/config.toml` is not required for this first implementation.
 - A live `codex exec --json` smoke run inside this repo emitted `spawn_agent` and `wait` events for `planning_recorder`, which confirms the local Codex CLI discovers the new custom agent and can delegate to it.
-- The official subagents docs describe `/agent` as a way to inspect or switch active agent threads, not as a registry browser for every custom agent definition on disk.
-- Because `/agent` is thread-oriented, a newly added custom agent will not appear there until the parent agent has actually spawned it in the current Codex session.
-- The local machine is running `codex-cli 0.116.0`, and a fresh `codex exec` invocation in this repo successfully spawned `planning_recorder`, so the missing `/agent` entry is about command semantics or stale session state rather than the custom-agent file being unreadable.
-- The parent agent does not need recorder-generated data to begin local work if it can determine or reuse `SESSION_HASH` on its own first.
-- The only recorder step that inherently needs synchronization is final handoff, because changelog and completion checks must finish before the parent replies to the user.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}
@@ -42,8 +35,6 @@
 | Keep shell helper scripts and retarget their usage/help text instead of rewriting them in another language. | The current scripts are already tested and encode repo-specific docs and changelog behaviors. |
 | Rewrite `AGENTS.md` to mandate the recorder subagent contract for session management. | The repository workflow must teach future Codex runs when to spawn and how to message the recorder. |
 | Add dedicated smoke tests for the new agent contract and moved completion helper. | The subagent rollout changes repo workflow infrastructure, so config and helper regressions must fail fast. |
-| Rework the recorder protocol so the parent chooses `SESSION_HASH` up front and continues immediately after spawning the recorder. | Parallel execution removes the avoidable wait that currently happens before implementation starts. |
-| Limit blocking waits to `FINALIZE_SESSION` only. | Findings and progress updates can be recorded asynchronously without changing the parent agent's next engineering action. |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}
@@ -52,8 +43,6 @@
 |-------|------------|
 | The init script created the session files, but the next direct `sed` reads reported missing files. | A follow-up directory listing showed the files existed; switching to explicit `./docs/...` paths avoided the transient lookup mismatch and the work continued. |
 | The first `agent-config` smoke test looked for `.codex/.codex/agents/planning_recorder.toml` and later flagged its own literal checks as stale path references. | Fixed the repo-root calculation in the test script and narrowed the stale-path scan so it ignores `agent-config.test.sh` itself. |
-| After rollout, `/agent` in an interactive Codex session did not list the new `planning_recorder` definition. | Verified against the official docs and the live `codex exec` smoke log that `/agent` shows active threads only; start a fresh session and explicitly spawn the recorder before expecting it to appear there. |
-| The first recorder design still forced the parent agent to wait for `planning_recorder` responses during initialization and every sync point. | The workflow is being revised so the parent emits asynchronous recorder updates and blocks only during final delivery synchronization. |
 
 ## Resources
 {/* WHAT: URLs, file paths, API references, documentation links you've found useful. WHY: Easy reference for later. Don't lose important links in context. WHEN: Add as you discover useful resources. EXAMPLE: - Python argparse docs: https://docs.python.org/3/library/argparse.html - Project structure: src/main.py, src/utils.py */}

@@ -26,9 +26,6 @@ required_tokens = [
     "SYNC_FINDINGS",
     "SYNC_PROGRESS",
     "FINALIZE_SESSION",
-    "fire-and-forget background updates",
-    "must never gate non-bookkeeping work",
-    ".codex/agents/planning-recorder/scripts/generate-session-hash.sh",
     "docs/en/change-log/0.0.0.md",
     "Business code, tests, migrations, package manifests, or build config",
     ".codex/agents/planning-recorder/scripts/init-session.sh",
@@ -45,21 +42,6 @@ fi
 
 if ! rg -n --fixed-strings 'planning_recorder' "${AGENTS_FILE}" >/dev/null; then
     echo "FAIL: AGENTS.md does not mention planning_recorder"
-    exit 1
-fi
-
-if ! rg -n --fixed-strings 'Do **not** wait on `INIT_SESSION`' "${AGENTS_FILE}" >/dev/null; then
-    echo "FAIL: AGENTS.md does not document async INIT_SESSION behavior"
-    exit 1
-fi
-
-if ! rg -n --fixed-strings '`FINALIZE_SESSION` is the only recorder message that requires a blocking wait' "${AGENTS_FILE}" >/dev/null; then
-    echo "FAIL: AGENTS.md does not document FINALIZE_SESSION as the blocking wait point"
-    exit 1
-fi
-
-if ! rg -n --fixed-strings 'planning_recorder` is bookkeeping only and must never gate non-bookkeeping work' "${AGENTS_FILE}" >/dev/null; then
-    echo "FAIL: AGENTS.md does not keep planning_recorder advisory-only"
     exit 1
 fi
 
