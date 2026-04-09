@@ -7,14 +7,14 @@ describe('worker public api url', () => {
     expect(normalizeWorkerApiBaseUrl('https://example.com/api')).toBe('https://example.com/api');
   });
 
-  test('prefers explicit worker public api env over request host inference', () => {
+  test('prefers explicit worker connect api env over request host inference', () => {
     const resolved = resolveWorkerPublicApiBaseUrl(
       {
         get: (header: string) => (header === 'host' ? 'console.example.com' : undefined),
         protocol: 'https'
       } as any,
       {
-        HOOKCODE_WORKER_PUBLIC_API_BASE_URL: 'http://backend.example.com:7213/api'
+        HOOKCODE_WORKER_CONNECT_API_BASE_URL: 'http://backend.example.com:7213/api'
       } as NodeJS.ProcessEnv
     );
 
@@ -23,6 +23,20 @@ describe('worker public api url', () => {
       wsUrl: 'ws://backend.example.com:7213/api/workers/connect',
       source: 'env'
     });
+  });
+
+  test('still accepts the legacy worker public api env name as an alias', () => {
+    const resolved = resolveWorkerPublicApiBaseUrl(
+      {
+        get: () => undefined,
+        protocol: 'https'
+      } as any,
+      {
+        HOOKCODE_WORKER_PUBLIC_API_BASE_URL: 'http://legacy.example.com:7213/api'
+      } as NodeJS.ProcessEnv
+    );
+
+    expect(resolved.backendUrl).toBe('http://legacy.example.com:7213/api');
   });
 
   test('uses forwarded host and forwarded port when a proxy strips the original port from host', () => {

@@ -52,7 +52,7 @@ HookCode is an intelligent code review and automation platform that elegantly tr
 <!-- Reorganize command-first quick start workflows for Docker and local development clarity. docs/en/developer/plans/readmecmd20260227/task_plan.md readmecmd20260227 -->
 ## Docker Deployment (Recommended)
 
-Use Docker Compose to run **database + backend + worker + frontend** together.
+Use Docker Compose to run **database + backend + frontend** together. Bind the production worker separately after the stack is up.
 
 <!-- Document Docker work-root and named-volume behavior so deployment docs stay aligned with HOOKCODE_WORK_DIR. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
 
@@ -67,7 +67,7 @@ At minimum, update these keys in `docker/.env` before production use:
 - `AUTH_ADMIN_USERNAME`
 - `AUTH_ADMIN_PASSWORD`
 - `HOOKCODE_WORK_DIR` if you want a different container work root (keep it absolute, for example `/var/lib/hookcode`)
-- `HOOKCODE_SYSTEM_WORKER_BIND_CODE` if you do not want to keep the example Docker worker bind code
+- `HOOKCODE_WORKER_CONNECT_API_BASE_URL` if workers should reconnect through a fixed public backend URL
 
 ### 2) Build and start all services
 
@@ -75,7 +75,7 @@ At minimum, update these keys in `docker/.env` before production use:
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-To keep backend waiting for a separately deployed remote worker, start only `db backend frontend` instead of the bundled `worker` service.
+After the stack is running, open **Settings → Workers**, create a remote worker, and bind it on the Linux server as a separate `systemd` service.
 
 ### 3) Check running status and logs
 
@@ -84,7 +84,7 @@ docker compose -f docker/docker-compose.yml ps
 ```
 
 ```bash
-docker compose -f docker/docker-compose.yml logs -f backend worker frontend
+docker compose -f docker/docker-compose.yml logs -f backend frontend
 ```
 
 ### 4) Daily operations
@@ -95,10 +95,10 @@ Restart all services:
 docker compose -f docker/docker-compose.yml restart
 ```
 
-Rebuild and restart only backend after backend code changes:
+Rebuild and restart backend after backend code changes:
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d --build backend worker
+docker compose -f docker/docker-compose.yml up -d --build backend
 ```
 
 Rebuild and restart only frontend after frontend code changes:
@@ -139,8 +139,9 @@ docker compose -f docker/docker-compose.yml down -v
   - Main stack env file: `docker/.env`
 - Port overrides: `HOOKCODE_FRONTEND_PORT`, `HOOKCODE_BACKEND_PORT`, `HOOKCODE_DB_PORT`
 - DB credentials: `DB_USER`, `DB_PASSWORD`, `DB_NAME`
-- Runtime storage: `HOOKCODE_WORK_DIR` (Docker Compose mounts separate backend/worker named volumes to this absolute container path)
-- Default Docker worker mode: backend boots in `HOOKCODE_SYSTEM_WORKER_MODE=external`, and the optional compose `worker` service can consume the same `HOOKCODE_SYSTEM_WORKER_BIND_CODE` on first boot before restarting from persisted credentials under `HOOKCODE_WORK_DIR`
+- Runtime storage: `HOOKCODE_WORK_DIR` (Docker Compose persists backend state at this absolute container path; the recommended remote worker service should also use its own absolute work dir)
+- Default Docker worker mode: backend boots with `HOOKCODE_SYSTEM_WORKER_MODE=disabled`, so production deployments rely on manually bound remote workers instead of a bundled compose worker
+- Recommended production worker hosting: install `@hookvibe/hookcode-worker` on the Linux server and run it under `systemd` using the install snippet shown in **Settings → Workers**
 - Cloudflare single-port routing:
   - Keep `VITE_API_BASE_URL=/api`
   - Access API via `https://<your-domain>/api/...` (not `:8000`)
@@ -170,6 +171,12 @@ Database only:
 pnpm dev:db
 ```
 
+Dedicated local Postgres for source-mode backend/frontend dev:
+
+```bash
+pnpm dev:db:local
+```
+
 Backend only (default `4000`):
 
 ```bash
@@ -182,9 +189,9 @@ Frontend only (default `5173`):
 pnpm dev:frontend
 ```
 
-### 4) Remote database for local dev (optional)
+### 4) Local database for local dev (recommended)
 
-Copy `backend/.env.example` to `backend/.env`, keep local frontend/backend ports unchanged, and point DB settings to your remote Postgres (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, or `DATABASE_URL`).
+Copy `backend/.env.example` to `backend/.env` and keep local development on a dedicated local database. `pnpm dev:db:local` starts the matching local Postgres container on `127.0.0.1:55432`, and `pnpm dev:backend` now refuses non-loopback databases by default. Avoid pointing source-mode local workers at a shared production database unless you intentionally set `HOOKCODE_ALLOW_REMOTE_DEV_DB=true`.
 
 ### 5) Auth and registration notes
 
@@ -195,7 +202,7 @@ Copy `backend/.env.example` to `backend/.env`, keep local frontend/backend ports
 
 ## Environment Variables
 
-- **Backend**: `backend/.env.example`. Copy to `backend/.env` for local development or deployment (do not commit real secrets). For remote DB in development, override `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` (or set `DATABASE_URL` directly)
+- **Backend**: `backend/.env.example`. Copy to `backend/.env` for local development or deployment (do not commit real secrets). Source-mode local workers should use a dedicated local DB, while production deployments should use `HOOKCODE_SYSTEM_WORKER_MODE=disabled` plus manually bound remote workers.
 - **Frontend**: `frontend/.env.example` (Vite `VITE_*` variables are build-time injected; set `VITE_API_BASE_URL` to backend API base, e.g., `http://localhost:4000/api`)
 - **Repository Configuration**: Robot/tokens are managed via console (database); env token fallbacks are not supported. Configure tokens per Robot/account/repository in the console
 

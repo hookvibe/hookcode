@@ -28,7 +28,7 @@ export const createWorker = async (params: { name: string; maxConcurrency?: numb
 
 export const updateWorker = async (
   id: string,
-  params: Partial<{ name: string; status: 'online' | 'offline' | 'disabled'; maxConcurrency: number }>
+  params: Partial<{ name: string; status: 'online' | 'offline' | 'disabled'; maxConcurrency: number; isGlobalDefault: boolean }>
 ): Promise<{ worker: WorkerRecord }> => {
   const { data } = await api.patch<{ worker: WorkerRecord }>(`/workers/${id}`, params);
   invalidateWorkerCaches();

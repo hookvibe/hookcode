@@ -34,70 +34,109 @@
 }
 
 .hc-composer-box {
-  /* Use adaptive background that works in both light and dark modes. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
-  background: var(--hc-surface-elevated);
-  border: 1px solid var(--hc-border);
-  border-radius: 16px;
-  padding: 12px 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.2s ease;
+  /* Glassmorphism surface — frosted translucent background with blur. */
+  background: rgba(255, 255, 255, 0.65);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 20px;
+  padding: 14px 18px;
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: all 0.25s ease;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
 .hc-composer-box--inline {
-  /* Keep inline composer with elevated surface for consistency. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
-  padding: 10px 12px;
+  /* Inline composer — lighter glass effect. */
+  padding: 10px 14px;
   gap: 8px;
-  background: var(--hc-surface-elevated);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
-/* Dark mode shadow adjustments for better visibility. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
+/* Dark mode glassmorphism — darker translucent surface with subtle border glow. */
 :root[data-theme='dark'] .hc-composer-box {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  background: rgba(22, 22, 22, 0.7);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 2px 16px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 :root[data-theme='dark'] .hc-composer-box--inline {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  background: rgba(22, 22, 22, 0.6);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .hc-composer-box:focus-within {
-  border-color: var(--hc-accent-border);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), var(--hc-focus-ring);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.1),
+    0 0 0 3px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .hc-composer-box--inline:focus-within {
-  /* Enhanced focus shadow for inline composer. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), var(--hc-focus-ring);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 0 0 3px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
-/* Dark mode focus state enhancements. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
 :root[data-theme='dark'] .hc-composer-box:focus-within {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1), var(--hc-focus-ring);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.6),
+    0 0 0 3px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 :root[data-theme='dark'] .hc-composer-box--inline:focus-within {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1), var(--hc-focus-ring);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    0 0 0 3px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .hc-composer-box--focused {
-  /* Enhanced focus state for better visual feedback. docs/en/developer/plans/ui-improve-20260302/task_plan.md ui-improve-20260302 */
-  border-color: var(--hc-accent-border);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), var(--hc-focus-ring);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.1),
+    0 0 0 3px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .hc-composer-box--inline.hc-composer-box--focused {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), var(--hc-focus-ring);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 0 0 3px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 :root[data-theme='dark'] .hc-composer-box--focused {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1), var(--hc-focus-ring);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.6),
+    0 0 0 3px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 :root[data-theme='dark'] .hc-composer-box--inline.hc-composer-box--focused {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1), var(--hc-focus-ring);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    0 0 0 3px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 /* Chat composer input (AntD):
@@ -132,9 +171,141 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--hc-border);
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme='dark'] .hc-composer-header {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+/* =============================================================================
+ * Pill / Tag Selectors — modern capsule-style context selectors above the input.
+ * ========================================================================== */
+
+.hc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  max-width: 220px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.hc-pill:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.hc-pill--active {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: var(--text);
+}
+
+.hc-pill--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.hc-pill__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.hc-pill__arrow {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.hc-pill__icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* Dark mode pill adaptations */
+:root[data-theme='dark'] .hc-pill {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:root[data-theme='dark'] .hc-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='dark'] .hc-pill--active {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* =============================================================================
+ * Inline Robot Dropdown — compact model switcher next to send button.
+ * ========================================================================== */
+
+.hc-robot-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  max-width: 180px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.hc-robot-dropdown-trigger:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: var(--text);
+}
+
+.hc-robot-dropdown-trigger__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.hc-robot-dropdown-trigger__arrow {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+:root[data-theme='dark'] .hc-robot-dropdown-trigger:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .hc-composer-input-wrapper {
@@ -173,11 +344,16 @@
 
 .hc-composer-footer {
   display: flex;
-  /* Arrange composer footer into left icon + selectors and right actions. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126 */
   justify-content: space-between;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+:root[data-theme='dark'] .hc-composer-footer {
+  border-top-color: rgba(255, 255, 255, 0.04);
 }
 
 .hc-composer-footer-left {

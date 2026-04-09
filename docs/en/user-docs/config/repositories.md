@@ -99,7 +99,7 @@ Use this when a repository should prefer a specific executor, for example:
 - a machine with preinstalled private tooling
 - a runner with larger CPU / RAM budgets
 
-If no default worker is configured, tasks fall back to the backend's local worker.
+If no robot default worker is configured, tasks fall back to the global default worker when one exists, otherwise to the local system worker in source mode.
 
 {/* Document repo preview env injection for preview-only dev servers. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302 */}
 ## Preview environment variables

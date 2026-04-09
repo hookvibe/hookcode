@@ -91,24 +91,13 @@ if [[ "${work_dir_root}" != /* ]]; then
 fi
 write_kv HOOKCODE_WORK_DIR "${work_dir_root}"
 write_kv HOOKCODE_WORKER_IMAGE "${HOOKCODE_WORKER_IMAGE:-ghcr.io/hookvibe/hookcode-worker}"
-write_kv HOOKCODE_WORKER_IMAGE_TAG "${HOOKCODE_WORKER_IMAGE_TAG:-0.1.4}"
+write_kv HOOKCODE_WORKER_IMAGE_TAG "${HOOKCODE_WORKER_IMAGE_TAG:-0.1.5}"
 
-# Default CI/server Docker deployments to backend-managed external workers so the compose stack can either start a bundled worker or wait for a separately deployed remote worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-include_worker_raw="${HOOKCODE_DOCKER_INCLUDE_WORKER:-false}"
-write_kv HOOKCODE_DOCKER_INCLUDE_WORKER "${include_worker_raw}"
-system_worker_mode="${HOOKCODE_SYSTEM_WORKER_MODE:-external}"
+# Default CI/server Docker deployments to manually bound remote workers by disabling backend-owned bootstrap workers.
+system_worker_mode="${HOOKCODE_SYSTEM_WORKER_MODE:-disabled}"
 write_kv HOOKCODE_SYSTEM_WORKER_MODE "${system_worker_mode}"
-if [[ "${system_worker_mode}" == "external" ]]; then
-  if [[ -z "${HOOKCODE_SYSTEM_WORKER_BIND_CODE:-}" ]]; then
-    echo "[ci] ERROR: HOOKCODE_SYSTEM_WORKER_BIND_CODE is required when HOOKCODE_SYSTEM_WORKER_MODE=external" >&2
-    exit 1
-  fi
-fi
-write_kv HOOKCODE_SYSTEM_WORKER_BIND_CODE "${HOOKCODE_SYSTEM_WORKER_BIND_CODE:-}"
-write_kv HOOKCODE_SYSTEM_WORKER_NAME "${HOOKCODE_SYSTEM_WORKER_NAME:-Docker Default Worker}"
-write_kv HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY "${HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY:-1}"
-# Dedicated public API base for remote-worker bind codes in deployed environments.
-write_kv HOOKCODE_WORKER_PUBLIC_API_BASE_URL "${HOOKCODE_WORKER_PUBLIC_API_BASE_URL:-}"
+# Dedicated public API base used when manually bound remote workers connect back to the deployed backend.
+write_kv HOOKCODE_WORKER_CONNECT_API_BASE_URL "${HOOKCODE_WORKER_CONNECT_API_BASE_URL:-${HOOKCODE_WORKER_PUBLIC_API_BASE_URL:-}}"
 
 # ------------------------------------------------------------------------------
 # Backend - Auth (CI defaults should NOT be used in production)

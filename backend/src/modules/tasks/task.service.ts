@@ -888,7 +888,19 @@ export class TaskService {
         }
       ])
     );
-    const workerMap = new Map(workers.map((worker) => [String(worker.id), { id: String(worker.id), name: String(worker.name), kind: String(worker.kind) as any, status: String(worker.status) as any, preview: Boolean((worker.capabilities as any)?.preview ?? false) }] as const));
+    const workerMap = new Map(
+      workers.map((worker) => [
+        String(worker.id),
+        {
+          id: String(worker.id),
+          name: String(worker.name),
+          kind: String(worker.kind) as any,
+          status: String(worker.status) as any,
+          isGlobalDefault: Boolean(worker.isGlobalDefault),
+          preview: Boolean((worker.capabilities as any)?.preview ?? false)
+        }
+      ] as const)
+    );
 
     return groups.map((group) => {
       const next: TaskGroupWithMeta = { ...group };

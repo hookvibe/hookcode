@@ -102,6 +102,9 @@ export class WorkersController {
     const id = String(req.params.id ?? '').trim();
     const updated = await this.workersService.updateWorker(id, body ?? {});
     if (!updated) throw new NotFoundException({ error: 'Worker not found' });
+    if (body?.status === 'offline' || body?.status === 'disabled') {
+      this.workersConnections.disconnect(id, 'admin_status_update');
+    }
     return { worker: updated };
   }
 

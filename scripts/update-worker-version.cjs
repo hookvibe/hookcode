@@ -99,16 +99,6 @@ const updateDockerEnvExample = (rawVersion) =>
     replaceRequired(content, /^HOOKCODE_WORKER_IMAGE_TAG=.*$/m, `HOOKCODE_WORKER_IMAGE_TAG=${rawVersion}`, 'HOOKCODE_WORKER_IMAGE_TAG')
   );
 
-const updateDockerCompose = (rawVersion) =>
-  updateFile('docker/docker-compose.yml', (content) =>
-    replaceRequired(
-      content,
-      /(\$\{HOOKCODE_WORKER_IMAGE_TAG:-)([^}]+)(\})/,
-      `$1${rawVersion}$3`,
-      'docker compose worker image tag'
-    )
-  );
-
 const updateCiEnvWriter = (rawVersion) =>
   updateFile('docker/ci/write-ci-env.sh', (content) =>
     replaceRequired(
@@ -131,7 +121,6 @@ const main = async () => {
     updateBackendPackageJson(rawVersion),
     updateWorkerVersionPolicy(rawVersion),
     updateDockerEnvExample(rawVersion),
-    updateDockerCompose(rawVersion),
     updateCiEnvWriter(rawVersion)
   ].some(Boolean);
 

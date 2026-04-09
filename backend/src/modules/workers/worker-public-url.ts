@@ -48,7 +48,8 @@ export const resolveWorkerPublicApiBaseUrl = (
   req: Pick<Request, 'get' | 'protocol'>,
   env: NodeJS.ProcessEnv = process.env
 ): { backendUrl: string; wsUrl: string; source: 'env' | 'request' } => {
-  const configuredUrl = normalizeWorkerApiBaseUrl(env.HOOKCODE_WORKER_PUBLIC_API_BASE_URL);
+  // Prefer the explicit worker connect API base URL while accepting the old env name as a temporary alias.
+  const configuredUrl = normalizeWorkerApiBaseUrl(env.HOOKCODE_WORKER_CONNECT_API_BASE_URL || env.HOOKCODE_WORKER_PUBLIC_API_BASE_URL);
   if (configuredUrl) {
     return {
       backendUrl: configuredUrl,

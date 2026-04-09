@@ -5,6 +5,7 @@ import { db } from '../../db';
 import type { TaskResult, TaskStatus } from '../../types/task';
 import type { WorkerBindInfo, WorkerCapabilities, WorkerRecord, WorkerRuntimeState, WorkerSummary, WorkerVersionRequirement } from '../../types/worker';
 import type { WorkerHelloMessage, WorkerHeartbeatMessage } from '../../types/workerProtocol';
+import { parsePositiveInt } from '../../utils/parse';
 import { hashToken } from '../../utils/token';
 import { LogWriterService } from '../logs/log-writer.service';
 import {
@@ -43,11 +44,26 @@ const toJsonInput = <T>(value: T): Prisma.InputJsonValue =>
   // Normalize worker protocol payloads before Prisma writes so executor metadata remains DB-safe. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
   value as Prisma.InputJsonValue;
 
+const resolveWorkerHeartbeatTimeoutMs = (env: NodeJS.ProcessEnv = process.env): number =>
+  parsePositiveInt(env.WORKER_HEARTBEAT_TIMEOUT_MS, 30_000);
+
+const isWorkerHeartbeatFresh = (
+  lastSeenAt?: Date | string | null,
+  now = new Date(),
+  env: NodeJS.ProcessEnv = process.env
+): boolean => {
+  if (!lastSeenAt) return false;
+  const timestamp = lastSeenAt instanceof Date ? lastSeenAt.getTime() : new Date(lastSeenAt).getTime();
+  if (!Number.isFinite(timestamp)) return false;
+  return now.getTime() - timestamp <= resolveWorkerHeartbeatTimeoutMs(env);
+};
+
 const workerToSummary = (row: any): WorkerSummary => ({
   id: String(row.id),
   name: String(row.name),
   kind: String(row.kind) as WorkerSummary['kind'],
   status: String(row.status) as WorkerSummary['status'],
+  isGlobalDefault: Boolean(row.isGlobalDefault ?? row.is_global_default),
   preview: Boolean((row.capabilities?.preview ?? row.capabilities_json?.preview) || false)
 });
 
@@ -112,7 +128,7 @@ export class WorkersService {
 
   async listWorkers(): Promise<WorkerRecord[]> {
     // Load worker registry rows for the admin settings page and worker-aware selectors. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    const rows = await db.worker.findMany({ orderBy: [{ systemManaged: 'desc' }, { createdAt: 'asc' }] });
+    const rows = await db.worker.findMany({ orderBy: [{ isGlobalDefault: 'desc' }, { systemManaged: 'desc' }, { createdAt: 'asc' }] });
     return rows.map(workerToRecord);
   }
 
@@ -317,10 +333,20 @@ export class WorkersService {
     return row.tokenHash === hashToken(rawToken) ? workerToRecord(row) : null;
   }
 
-  async updateWorker(id: string, patch: { name?: string; status?: 'online' | 'offline' | 'disabled'; maxConcurrency?: number }): Promise<WorkerRecord | null> {
+  async updateWorker(
+    id: string,
+    patch: { name?: string; status?: 'online' | 'offline' | 'disabled'; maxConcurrency?: number; isGlobalDefault?: boolean }
+  ): Promise<WorkerRecord | null> {
     const existing = await db.worker.findUnique({ where: { id } });
     if (!existing) return null;
+    const now = new Date();
     const nextStatus = patch.status ?? (existing.status as WorkerRecord['status']);
+    if (patch.isGlobalDefault === true) {
+      await db.worker.updateMany({
+        where: { isGlobalDefault: true, NOT: { id } },
+        data: { isGlobalDefault: false, updatedAt: now }
+      });
+    }
     const updated = await db.worker.update({
       where: { id },
       data: {
@@ -328,7 +354,8 @@ export class WorkersService {
         status: nextStatus,
         disabledAt: nextStatus === 'disabled' ? new Date() : null,
         maxConcurrency: Number.isFinite(patch.maxConcurrency) && Number(patch.maxConcurrency) > 0 ? Math.floor(Number(patch.maxConcurrency)) : existing.maxConcurrency,
-        updatedAt: new Date()
+        isGlobalDefault: patch.isGlobalDefault ?? existing.isGlobalDefault,
+        updatedAt: now
       }
     });
     return workerToRecord(updated);
@@ -435,9 +462,13 @@ export class WorkersService {
 
   async markWorkerOffline(workerId: string, reason: string): Promise<void> {
     const now = new Date();
+    const current = await db.worker.findUnique({
+      where: { id: workerId },
+      select: { status: true, disabledAt: true }
+    });
     const worker = await db.worker.update({
       where: { id: workerId },
-      data: { status: 'offline', currentConcurrency: 0, updatedAt: now }
+      data: { status: current?.disabledAt || current?.status === 'disabled' ? 'disabled' : 'offline', currentConcurrency: 0, updatedAt: now }
     }).catch(() => null);
     if (!worker) return;
 
@@ -509,6 +540,18 @@ export class WorkersService {
     });
   }
 
+  async reconcileStaleWorkers(now = new Date()): Promise<number> {
+    const onlineWorkers = await db.worker.findMany({
+      where: { status: 'online', disabledAt: null },
+      select: { id: true, lastSeenAt: true }
+    });
+    const staleWorkers = onlineWorkers.filter((worker) => !isWorkerHeartbeatFresh(worker.lastSeenAt, now));
+    for (const worker of staleWorkers) {
+      await this.markWorkerOffline(String(worker.id), 'startup_stale_reconcile');
+    }
+    return staleWorkers.length;
+  }
+
   async findEffectiveWorkerId(params: { requestedWorkerId?: string | null; taskGroupId?: string | null; robotId?: string | null }): Promise<string | null> {
     const taskGroupId = trimString(params.taskGroupId);
     if (taskGroupId) {
@@ -528,33 +571,31 @@ export class WorkersService {
       if (robotWorkerId) return robotWorkerId;
     }
 
-    // Prefer online system-managed workers first so Docker/production can fall back to the configured external worker when a stale local row exists in the shared DB. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    const systemWorkers = await db.worker.findMany({
-      where: { systemManaged: true, disabledAt: null },
-      orderBy: [{ createdAt: 'asc' }],
-      select: { id: true, kind: true, status: true, version: true }
+    const globalDefaultWorker = await db.worker.findFirst({
+      where: { isGlobalDefault: true },
+      select: { id: true }
     });
-    const firstOnlineCompatibleLocal = systemWorkers.find(
-      (worker) => worker.kind === 'local' && worker.status === 'online' && !evaluateWorkerVersion(worker.version).upgradeRequired
-    );
-    if (firstOnlineCompatibleLocal?.id) return trimString(firstOnlineCompatibleLocal.id) ?? null;
-    const firstOnlineCompatibleRemote = systemWorkers.find(
-      (worker) => worker.kind === 'remote' && worker.status === 'online' && !evaluateWorkerVersion(worker.version).upgradeRequired
-    );
-    if (firstOnlineCompatibleRemote?.id) return trimString(firstOnlineCompatibleRemote.id) ?? null;
-    const firstOnlineLocal = systemWorkers.find((worker) => worker.kind === 'local' && worker.status === 'online');
-    if (firstOnlineLocal?.id) return trimString(firstOnlineLocal.id) ?? null;
-    const firstOnlineRemote = systemWorkers.find((worker) => worker.kind === 'remote' && worker.status === 'online');
-    if (firstOnlineRemote?.id) return trimString(firstOnlineRemote.id) ?? null;
-    const firstLocal = systemWorkers.find((worker) => worker.kind === 'local');
-    if (firstLocal?.id) return trimString(firstLocal.id) ?? null;
-    const firstRemote = systemWorkers.find((worker) => worker.kind === 'remote');
-    return trimString(firstRemote?.id) ?? null;
+    const globalDefaultWorkerId = trimString(globalDefaultWorker?.id);
+    if (globalDefaultWorkerId) return globalDefaultWorkerId;
+
+    // Keep source-mode backends working out of the box by falling back to the local supervised worker when no explicit default exists.
+    const localSystemWorker = await db.worker.findFirst({
+      where: { systemManaged: true, kind: 'local' },
+      orderBy: [{ createdAt: 'asc' }],
+      select: { id: true }
+    });
+    return trimString(localSystemWorker?.id) ?? null;
   }
 
   async isWorkerOnline(id: string): Promise<boolean> {
-    const worker = await db.worker.findUnique({ where: { id }, select: { status: true, disabledAt: true, version: true } });
-    return Boolean(worker && worker.status === 'online' && !worker.disabledAt && !evaluateWorkerVersion(worker.version).upgradeRequired);
+    const worker = await db.worker.findUnique({ where: { id }, select: { status: true, disabledAt: true, version: true, lastSeenAt: true } });
+    return Boolean(
+      worker &&
+        worker.status === 'online' &&
+        !worker.disabledAt &&
+        isWorkerHeartbeatFresh(worker.lastSeenAt) &&
+        !evaluateWorkerVersion(worker.version).upgradeRequired
+    );
   }
 
   async attachWorkerSummaries<T extends { workerId?: string | null }>(rows: T[]): Promise<Array<T & { workerSummary?: WorkerSummary }>> {
@@ -569,7 +610,7 @@ export class WorkersService {
   }
 
   async requireWorkerReadyForNewTask(workerId: string): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
-    const worker = await db.worker.findUnique({ where: { id: workerId }, select: { status: true, disabledAt: true, name: true, version: true } });
+    const worker = await db.worker.findUnique({ where: { id: workerId }, select: { status: true, disabledAt: true, name: true, version: true, lastSeenAt: true } });
     if (!worker) {
       return { ok: false, code: 'WORKER_NOT_FOUND', message: 'Selected worker not found' };
     }
@@ -583,7 +624,7 @@ export class WorkersService {
         message: buildWorkerVersionMismatchMessage(worker.name, worker.version)
       };
     }
-    if (worker.status !== 'online') {
+    if (worker.status !== 'online' || !isWorkerHeartbeatFresh(worker.lastSeenAt)) {
       return { ok: false, code: 'WORKER_OFFLINE_TASK_GROUP_BLOCKED', message: `Selected worker is offline: ${worker.name}` };
     }
     return { ok: true };

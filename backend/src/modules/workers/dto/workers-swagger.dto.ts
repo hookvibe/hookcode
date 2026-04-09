@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { ArrayNotEmpty, IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Min } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Min } from 'class-validator';
 import { normalizeWorkerApiBaseUrl } from '../worker-public-url';
 
 const trimString = (value: unknown): unknown => (typeof value === 'string' ? value.trim() : value);
@@ -17,6 +17,9 @@ class WorkerSummaryDto {
 
   @ApiProperty({ enum: ['online', 'offline', 'disabled'] })
   status!: 'online' | 'offline' | 'disabled';
+
+  @ApiProperty()
+  isGlobalDefault!: boolean;
 
   @ApiPropertyOptional()
   preview?: boolean;
@@ -171,6 +174,11 @@ export class UpdateWorkerRequestDto {
   @IsInt()
   @Min(1)
   maxConcurrency?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isGlobalDefault?: boolean;
 }
 
 export class CreateWorkerRequestDto {

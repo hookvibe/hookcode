@@ -89,9 +89,36 @@ const buildInstallScripts = (info: WorkerBindInfo) => {
   const requiredVersion = info.versionRequirement.requiredVersion;
   const unixWorkDir = `"$HOME/.hookcode/workers/${worker.id}"`;
   const windowsWorkDir = `"$env:USERPROFILE\\.hookcode\\workers\\${worker.id}"`;
+  const linuxWorkDir = `/var/lib/hookcode/workers/${worker.id}`;
+  const systemdEnvPath = `/etc/hookcode-worker/${worker.id}.env`;
+  const systemdUnitName = `hookcode-worker-${worker.id}.service`;
   const workerName = worker.name || 'HookCode Worker';
   const concurrency = String(worker.maxConcurrency || 1);
   const installCommand = `npm install -g @hookvibe/hookcode-worker@${requiredVersion}`;
+  const linuxEnvFile = [
+    `HOOKCODE_WORK_DIR=${linuxWorkDir}`,
+    `HOOKCODE_WORKER_BIND_CODE='${info.bindCode}'`,
+    'HOOKCODE_WORKER_KIND=remote',
+    `HOOKCODE_WORKER_NAME='${workerName.replace(/'/g, `'\\''`)}'`,
+    `HOOKCODE_WORKER_MAX_CONCURRENCY='${concurrency}'`
+  ].join('\n');
+  const linuxSystemdUnit = [
+    '[Unit]',
+    `Description=HookCode Worker (${workerName})`,
+    'After=network-online.target',
+    'Wants=network-online.target',
+    '',
+    '[Service]',
+    'Type=simple',
+    `EnvironmentFile=${systemdEnvPath}`,
+    `WorkingDirectory=${linuxWorkDir}`,
+    'ExecStart=/usr/bin/env hookcode-worker run',
+    'Restart=always',
+    'RestartSec=5',
+    '',
+    '[Install]',
+    'WantedBy=multi-user.target'
+  ].join('\n');
 
   return {
     macos: [
@@ -106,6 +133,22 @@ const buildInstallScripts = (info: WorkerBindInfo) => {
       `HOOKCODE_WORK_DIR=${unixWorkDir} HOOKCODE_WORKER_BIND_CODE='${info.bindCode}' hookcode-worker configure`,
       `HOOKCODE_WORK_DIR=${unixWorkDir} HOOKCODE_WORKER_KIND=remote HOOKCODE_WORKER_NAME='${workerName.replace(/'/g, `'\\''`)}' HOOKCODE_WORKER_MAX_CONCURRENCY='${concurrency}' hookcode-worker run`
     ].join('\n'),
+    linuxSystemdSetup: [
+      `sudo mkdir -p /etc/hookcode-worker ${linuxWorkDir}`,
+      `sudo ${installCommand}`,
+      `sudo tee ${systemdEnvPath} >/dev/null <<'EOF'`,
+      linuxEnvFile,
+      'EOF',
+      `sudo tee /etc/systemd/system/${systemdUnitName} >/dev/null <<'EOF'`,
+      linuxSystemdUnit,
+      'EOF',
+      'sudo systemctl daemon-reload',
+      `sudo systemctl enable --now ${systemdUnitName}`,
+      `sudo systemctl status ${systemdUnitName} --no-pager`
+    ].join('\n'),
+    linuxSystemdEnv: linuxEnvFile,
+    linuxSystemdUnit,
+    linuxSystemdUnitName: systemdUnitName,
     windows: [
       `$workDir = ${windowsWorkDir}`,
       'New-Item -ItemType Directory -Force $workDir | Out-Null',
@@ -140,6 +183,7 @@ export const SettingsWorkersPanel: FC = () => {
   const [resetForm] = Form.useForm<{ backendUrl: string }>();
   const [prepareForm] = Form.useForm<{ providers: string[] }>();
   const [resetOpen, setResetOpen] = useState<WorkerRecord | null>(null);
+  const globalDefaultWorker = useMemo(() => workers.find((worker) => worker.isGlobalDefault) ?? null, [workers]);
 
   const loadWorkers = useCallback(async () => {
     setLoading(true);
@@ -188,6 +232,20 @@ export const SettingsWorkersPanel: FC = () => {
     setRowLoadingId(worker.id);
     try {
       await updateWorker(worker.id, { status });
+      message.success(t('workers.toast.updated'));
+      await loadWorkers();
+    } catch (error) {
+      console.error(error);
+      message.error(getApiErrorMessage(error) || t('workers.toast.updateFailed'));
+    } finally {
+      setRowLoadingId(null);
+    }
+  }, [loadWorkers, message, t]);
+
+  const handleToggleGlobalDefault = useCallback(async (worker: WorkerRecord, nextIsGlobalDefault: boolean) => {
+    setRowLoadingId(worker.id);
+    try {
+      await updateWorker(worker.id, { isGlobalDefault: nextIsGlobalDefault });
       message.success(t('workers.toast.updated'));
       await loadWorkers();
     } catch (error) {
@@ -288,6 +346,7 @@ export const SettingsWorkersPanel: FC = () => {
             <Space size={8} wrap>
               <WorkerSummaryTag worker={record} />
               {record.systemManaged ? <Tag>{t('workers.common.systemManaged')}</Tag> : null}
+              {record.isGlobalDefault ? <Tag color="gold">{t('workers.common.globalDefault')}</Tag> : null}
               {record.preview ? <Tag color="geekblue">{t('workers.common.preview')}</Tag> : null}
               {requiresWorkerUpgrade(record) ? <Tag color="red">{t('workers.version.upgradeRequired')}</Tag> : null}
             </Space>
@@ -345,8 +404,16 @@ export const SettingsWorkersPanel: FC = () => {
           const isPreparing = prepareLoadingId === record.id;
           const nextStatus = record.status === 'disabled' ? 'offline' : 'disabled';
           const toggleLabel = record.status === 'disabled' ? t('workers.action.enable') : t('workers.action.disable');
+          const defaultToggleLabel = record.isGlobalDefault ? t('workers.action.unsetDefault') : t('workers.action.setDefault');
           return (
             <Space size={8} wrap>
+              <Button
+                size="small"
+                loading={isBusy}
+                onClick={() => void handleToggleGlobalDefault(record, !record.isGlobalDefault)}
+              >
+                {defaultToggleLabel}
+              </Button>
               <Button
                 size="small"
                 loading={isPreparing}
@@ -382,7 +449,7 @@ export const SettingsWorkersPanel: FC = () => {
         }
       }
     ],
-    [handleDelete, handlePrepareRuntime, handleResetBindCode, handleUpdateStatus, locale, prepareForm, prepareLoadingId, rowLoadingId, t, versionRequirement]
+    [handleDelete, handlePrepareRuntime, handleResetBindCode, handleToggleGlobalDefault, handleUpdateStatus, locale, prepareForm, prepareLoadingId, rowLoadingId, t, versionRequirement]
   );
 
   const installScripts = installInfo ? buildInstallScripts(installInfo) : null;
@@ -390,6 +457,17 @@ export const SettingsWorkersPanel: FC = () => {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Alert showIcon type="info" message={t('workers.help.title')} description={t('workers.help.desc')} />
+      {!globalDefaultWorker ? (
+        <Alert showIcon type="warning" message={t('workers.default.missingTitle')} description={t('workers.default.missingDesc')} />
+      ) : null}
+      {globalDefaultWorker && globalDefaultWorker.status !== 'online' ? (
+        <Alert
+          showIcon
+          type="error"
+          message={t('workers.default.offlineTitle', { name: globalDefaultWorker.name })}
+          description={t('workers.default.offlineDesc')}
+        />
+      ) : null}
       {versionRequirement ? (
         <Alert
           showIcon
@@ -559,7 +637,21 @@ export const SettingsWorkersPanel: FC = () => {
             <Tabs
               items={[
                 { key: 'macos', label: 'macOS', children: <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.macos}</pre> },
-                { key: 'linux', label: 'Linux', children: <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.linux}</pre> },
+                {
+                  key: 'linux-systemd',
+                  label: 'Linux (systemd)',
+                  children: (
+                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                      <Alert showIcon type="success" message={t('workers.install.systemdTitle')} description={t('workers.install.systemdDesc')} />
+                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.linuxSystemdSetup}</pre>
+                      <Typography.Text strong>{t('workers.install.systemdEnvFile')}</Typography.Text>
+                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.linuxSystemdEnv}</pre>
+                      <Typography.Text strong>{t('workers.install.systemdService')}</Typography.Text>
+                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.linuxSystemdUnit}</pre>
+                    </Space>
+                  )
+                },
+                { key: 'linux', label: 'Linux (manual)', children: <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.linux}</pre> },
                 { key: 'windows', label: 'Windows', children: <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.windows}</pre> }
               ]}
             />

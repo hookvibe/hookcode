@@ -52,7 +52,7 @@ HookCode 是一个通过对话和 Webhook 优雅触发 CLI 编码助手的智能
 <!-- Reorganize command-first quick start workflows for Docker and local development clarity. docs/en/developer/plans/readmecmd20260227/task_plan.md readmecmd20260227 -->
 ## Docker 部署（推荐）
 
-使用 Docker Compose 一次启动 **数据库 + backend + worker + frontend**。
+使用 Docker Compose 一次启动 **数据库 + backend + frontend**。生产 worker 在栈启动后单独绑定。
 
 <!-- Document Docker work-root and named-volume behavior so deployment docs stay aligned with HOOKCODE_WORK_DIR. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 -->
 
@@ -67,7 +67,7 @@ cp docker/.env.example docker/.env
 - `AUTH_ADMIN_USERNAME`
 - `AUTH_ADMIN_PASSWORD`
 - 如需修改容器内工作根目录，再调整 `HOOKCODE_WORK_DIR`（必须保持绝对路径，例如 `/var/lib/hookcode`）
-- 如不想继续使用示例 Docker worker 绑定码，请修改 `HOOKCODE_SYSTEM_WORKER_BIND_CODE`
+- 如需让 worker 固定通过某个公网地址回连 backend，请设置 `HOOKCODE_WORKER_CONNECT_API_BASE_URL`
 
 ### 2）构建并启动全部服务
 
@@ -75,7 +75,7 @@ cp docker/.env.example docker/.env
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-如果希望 backend 仅等待独立部署的远程 worker，请只启动 `db backend frontend`，不要带上同 Compose 的 `worker` 服务。
+栈启动后，请到 **Settings → Workers** 创建远程 worker，并在 Linux 服务器上把它作为独立 `systemd` 服务绑定启动。
 
 ### 3）查看运行状态和日志
 
@@ -84,7 +84,7 @@ docker compose -f docker/docker-compose.yml ps
 ```
 
 ```bash
-docker compose -f docker/docker-compose.yml logs -f backend worker frontend
+docker compose -f docker/docker-compose.yml logs -f backend frontend
 ```
 
 ### 4）日常运维命令
@@ -95,10 +95,10 @@ docker compose -f docker/docker-compose.yml logs -f backend worker frontend
 docker compose -f docker/docker-compose.yml restart
 ```
 
-后端代码变更后，只重建并重启 backend/worker：
+后端代码变更后，只重建并重启 backend：
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d --build backend worker
+docker compose -f docker/docker-compose.yml up -d --build backend
 ```
 
 前端代码变更后，只重建并重启 frontend：
@@ -139,8 +139,9 @@ docker compose -f docker/docker-compose.yml down -v
   - 主栈环境变量文件：`docker/.env`
 - 端口覆盖：`HOOKCODE_FRONTEND_PORT`、`HOOKCODE_BACKEND_PORT`、`HOOKCODE_DB_PORT`
 - 数据库凭据：`DB_USER`、`DB_PASSWORD`、`DB_NAME`
-- 运行时存储：`HOOKCODE_WORK_DIR`（Docker Compose 会把 backend/worker 各自的命名卷挂到这个容器内绝对路径）
-- 默认 Docker worker 模式：backend 以 `HOOKCODE_SYSTEM_WORKER_MODE=external` 启动，可选的同 Compose `worker` 服务会在首次启动时消费同一个 `HOOKCODE_SYSTEM_WORKER_BIND_CODE`，随后从 `HOOKCODE_WORK_DIR` 中持久化的凭据继续启动
+- 运行时存储：`HOOKCODE_WORK_DIR`（Docker Compose 会把 backend 状态挂到这个容器内绝对路径；推荐的远程 worker 也应使用自己的绝对工作目录）
+- 默认 Docker worker 模式：backend 以 `HOOKCODE_SYSTEM_WORKER_MODE=disabled` 启动，生产环境通过手动绑定的远程 worker 执行任务，而不是同 Compose 内置 worker
+- 推荐生产 worker 托管方式：在当前 Linux 服务器上安装 `@hookvibe/hookcode-worker`，并使用 **Settings → Workers** 提供的 `systemd` 模板单独托管
 - Cloudflare 单端口路由：
   - 保持 `VITE_API_BASE_URL=/api`
   - 通过 `https://<你的域名>/api/...` 访问 API（不要用 `:8000`）
@@ -170,6 +171,12 @@ pnpm dev
 pnpm dev:db
 ```
 
+为源码模式后端/前端准备独立本地 Postgres：
+
+```bash
+pnpm dev:db:local
+```
+
 仅启动后端（默认 `4000`）：
 
 ```bash
@@ -182,9 +189,9 @@ pnpm dev:backend
 pnpm dev:frontend
 ```
 
-### 4）本地开发接远程数据库（可选）
+### 4）本地开发使用独立数据库（推荐）
 
-复制 `backend/.env.example` 为 `backend/.env`，保持本地前后端端口不变，然后将数据库配置指向远程 Postgres（`DB_HOST`、`DB_PORT`、`DB_USER`、`DB_PASSWORD`、`DB_NAME`，或直接设置 `DATABASE_URL`）。
+复制 `backend/.env.example` 为 `backend/.env`，本地开发建议始终使用独立本地数据库。`pnpm dev:db:local` 会启动与示例配置匹配的本地 Postgres（`127.0.0.1:55432`），而 `pnpm dev:backend` 现在默认拒绝非本机数据库。除非你明确设置 `HOOKCODE_ALLOW_REMOTE_DEV_DB=true`，否则不要让源码模式的本地 worker 连接共享/生产数据库执行任务。
 
 ### 5）登录与注册说明
 
@@ -196,7 +203,7 @@ pnpm dev:frontend
 
 ## 环境变量
 
-- **后端**：`backend/.env.example`。复制为 `backend/.env` 用于本地开发或部署（勿提交真实密钥）。开发环境若使用远程 DB，可覆盖 `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`（或直接设置 `DATABASE_URL`）
+- **后端**：`backend/.env.example`。复制为 `backend/.env` 用于本地开发或部署（勿提交真实密钥）。源码模式本地 worker 建议只连本地独立 DB；生产环境建议使用 `HOOKCODE_SYSTEM_WORKER_MODE=disabled` 并手动绑定远程 worker。
 - **前端**：`frontend/.env.example`（Vite 的 `VITE_*` 变量在构建时注入；设置 `VITE_API_BASE_URL` 为后端 API Base，例如 `http://localhost:4000/api`）
 - **仓库配置**：Robot/token 已支持通过控制台（数据库）管理；不再支持 env token 兜底，请在控制台按 Robot/账号/仓库维度配置 token
 

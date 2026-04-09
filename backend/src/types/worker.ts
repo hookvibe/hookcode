@@ -37,6 +37,7 @@ export interface WorkerSummary {
   name: string;
   kind: WorkerKind;
   status: WorkerStatus;
+  isGlobalDefault: boolean;
   preview?: boolean;
 }
 
