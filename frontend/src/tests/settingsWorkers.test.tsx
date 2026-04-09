@@ -49,6 +49,7 @@ describe('SettingsWorkersPanel', () => {
           name: 'Local worker',
           kind: 'local',
           status: 'online',
+          isGlobalDefault: false,
           systemManaged: true,
           version: TEST_WORKER_VERSION,
           versionState: { currentVersion: TEST_WORKER_VERSION, status: 'compatible', upgradeRequired: false },
@@ -67,6 +68,7 @@ describe('SettingsWorkersPanel', () => {
         name: 'Remote worker',
         kind: 'remote',
         status: 'offline',
+        isGlobalDefault: false,
         systemManaged: false,
         versionState: { status: 'unknown', upgradeRequired: true },
         maxConcurrency: 1,
@@ -134,9 +136,35 @@ describe('SettingsWorkersPanel', () => {
 
     await waitFor(() => expect(api.createWorker).toHaveBeenCalledWith({ name: 'Remote worker', maxConcurrency: 1, backendUrl: defaultBackendUrl }));
     expect(await screen.findByText('Manual deployment')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Linux (systemd)' })).toBeInTheDocument();
     expect(screen.getAllByText(/hcw1\.bind-code/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(new RegExp(`npm install -g @hookvibe/hookcode-worker@${TEST_WORKER_VERSION.replace(/\./g, '\\.')}`)).length).toBeGreaterThan(0);
     expect(screen.getByText(new RegExp(defaultBackendUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))).toBeInTheDocument();
+  });
+
+  test('allows promoting a worker as the global default', async () => {
+    const ui = userEvent.setup();
+    vi.mocked(api.updateWorker).mockResolvedValue({
+      worker: {
+        id: 'w_local',
+        name: 'Local worker',
+        kind: 'local',
+        status: 'online',
+        isGlobalDefault: true,
+        systemManaged: true,
+        versionState: { currentVersion: TEST_WORKER_VERSION, status: 'compatible', upgradeRequired: false },
+        maxConcurrency: 2,
+        currentConcurrency: 0,
+        createdAt: '2026-03-07T00:00:00.000Z',
+        updatedAt: '2026-03-07T00:00:00.000Z'
+      } as any
+    });
+    renderPanel();
+
+    await waitFor(() => expect(api.fetchWorkersRegistry).toHaveBeenCalled());
+    await ui.click(screen.getByRole('button', { name: 'Set default' }));
+
+    await waitFor(() => expect(api.updateWorker).toHaveBeenCalledWith('w_local', { isGlobalDefault: true }));
   });
 
   test('allows overriding the backend url before generating the bind code', async () => {

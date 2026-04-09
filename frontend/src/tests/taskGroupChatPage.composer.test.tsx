@@ -1,7 +1,7 @@
 // Split TaskGroupChatPage composer tests into a focused spec file. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderTaskGroupChatPage, setupTaskGroupChatMocks } from './taskGroupChatPageTestUtils';
 import * as api from '../api';
@@ -46,17 +46,10 @@ describe('TaskGroupChatPage composer', () => {
   });
 
   test('shows bound AI provider in the robot selector', async () => {
-    const ui = userEvent.setup();
     renderTaskGroupChatPage();
 
     await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
-    await openComposerActions(ui);
-
-    const robotSelect = await screen.findByLabelText('Robot');
-    await waitFor(() => {
-      const selectRoot = robotSelect.closest('.ant-select');
-      expect(selectRoot).toHaveTextContent('Robot 1 / codex');
-    });
+    expect(await screen.findByText('Robot 1 / codex')).toBeInTheDocument();
   });
 
   test('submits a chat task with an explicit worker override for admins', async () => {
@@ -66,12 +59,10 @@ describe('TaskGroupChatPage composer', () => {
     renderTaskGroupChatPage();
 
     await waitFor(() => expect(api.fetchWorkers).toHaveBeenCalled());
-    await openComposerActions(ui);
-
-    const workerSelect = await screen.findByLabelText('Worker');
-    const workerRoot = workerSelect.closest('.ant-select');
+    const workerPill = await screen.findByText('Auto worker');
+    const workerRoot = workerPill.closest('.hc-pill');
     expect(workerRoot).toBeTruthy();
-    fireEvent.mouseDown(workerRoot as HTMLElement);
+    await ui.click(workerRoot as HTMLElement);
     await ui.click(await screen.findByText(/Worker 1/i));
 
     const textarea = await screen.findByPlaceholderText(chatComposerPlaceholder);

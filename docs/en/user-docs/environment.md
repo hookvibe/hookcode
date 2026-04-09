@@ -110,9 +110,9 @@ Only expose these ports on trusted networks.
 
 ### Worker mode
 
-{/* Document the new backend system-worker modes so source deployments, bundled Docker workers, and separately deployed remote workers share one configuration model. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
+{/* Document the new backend system-worker modes so source deployments use a local supervisor while production deployments rely on manually bound remote workers. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
 - `HOOKCODE_SYSTEM_WORKER_MODE=local`: source-mode default; backend starts its local supervised worker runtime.
-- `HOOKCODE_SYSTEM_WORKER_MODE=external`: backend adopts one default external worker from env (`HOOKCODE_SYSTEM_WORKER_BIND_CODE`, `HOOKCODE_SYSTEM_WORKER_NAME`, `HOOKCODE_SYSTEM_WORKER_MAX_CONCURRENCY`).
-- `HOOKCODE_SYSTEM_WORKER_MODE=disabled`: backend does not auto-provision a default worker.
-- `HOOKCODE_WORKER_IMAGE` / `HOOKCODE_WORKER_IMAGE_TAG`: choose which published worker container image the Docker worker service should pull.
+- `HOOKCODE_SYSTEM_WORKER_MODE=disabled`: backend does not auto-provision any worker and expects manually bound remote workers.
+- `HOOKCODE_WORKER_CONNECT_API_BASE_URL`: explicit public API base URL embedded into worker bind codes and reconnect instructions.
+- `HOOKCODE_WORKER_IMAGE` / `HOOKCODE_WORKER_IMAGE_TAG`: optional manual container deployment metadata for standalone workers.
 - `INLINE_WORKER_ENABLED` now only controls the legacy backend-inline fallback path for commandless local tasks; it is no longer the primary worker-mode switch.

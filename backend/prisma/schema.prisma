@@ -589,6 +589,7 @@ model Worker {
   kind               String
   status             String
   systemManaged      Boolean   @default(false) @map("system_managed")
+  isGlobalDefault    Boolean   @default(false) @map("is_global_default")
   version            String?
   platform           String?
   arch               String?

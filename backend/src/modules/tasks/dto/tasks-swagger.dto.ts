@@ -396,6 +396,9 @@ export class WorkerSummaryDto {
   @ApiProperty({ enum: ['online', 'offline', 'disabled'] })
   status!: 'online' | 'offline' | 'disabled';
 
+  @ApiProperty()
+  isGlobalDefault!: boolean;
+
   @ApiPropertyOptional()
   preview?: boolean;
 }

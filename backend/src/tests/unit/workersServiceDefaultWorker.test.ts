@@ -5,46 +5,59 @@ jest.mock('../../db', () => ({
   db: {
     taskGroup: { findUnique: jest.fn() },
     repoRobot: { findUnique: jest.fn() },
-    worker: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    worker: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     task: { findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() }
   }
 }));
 
 import { db } from '../../db';
 import { WorkersService } from '../../modules/workers/workers.service';
-import { getWorkerVersionRequirement } from '../../modules/workers/worker-version-policy';
 
 describe('WorkersService default worker routing', () => {
   const logWriter = {
     logSystem: jest.fn(),
     logExecution: jest.fn()
   };
-  const requiredVersion = getWorkerVersionRequirement().requiredVersion;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (db.worker.findFirst as jest.Mock).mockReset();
+    (db.worker.findMany as jest.Mock).mockReset();
+    (db.taskGroup.findUnique as jest.Mock).mockReset();
+    (db.repoRobot.findUnique as jest.Mock).mockReset();
     (db.taskGroup.findUnique as jest.Mock).mockResolvedValue(null);
     (db.repoRobot.findUnique as jest.Mock).mockResolvedValue(null);
   });
 
-  test('prefers an online external system worker when the local system worker is offline', async () => {
-    // Keep Docker/production routing on the reachable external system worker even if a stale local row still exists in the shared DB. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    (db.worker.findMany as jest.Mock).mockResolvedValue([
-      { id: '22222222-2222-4222-8222-222222222222', kind: 'local', status: 'offline', version: requiredVersion },
-      { id: '11111111-1111-4111-8111-111111111111', kind: 'remote', status: 'online', version: requiredVersion }
-    ]);
+  test('prefers the configured global default worker before any local fallback', async () => {
+    (db.worker.findFirst as jest.Mock)
+      .mockResolvedValueOnce({ id: '11111111-1111-4111-8111-111111111111' })
+      .mockResolvedValueOnce(null);
 
     const service = new WorkersService(logWriter as any);
     await expect(service.findEffectiveWorkerId({})).resolves.toBe('11111111-1111-4111-8111-111111111111');
   });
 
-  test('falls back to the local system worker when both local and remote workers are online', async () => {
-    (db.worker.findMany as jest.Mock).mockResolvedValue([
-      { id: '22222222-2222-4222-8222-222222222222', kind: 'local', status: 'online', version: requiredVersion },
-      { id: '11111111-1111-4111-8111-111111111111', kind: 'remote', status: 'online', version: requiredVersion }
-    ]);
+  test('falls back to the local system worker when no global default worker is configured', async () => {
+    (db.worker.findFirst as jest.Mock)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: '22222222-2222-4222-8222-222222222222' });
 
     const service = new WorkersService(logWriter as any);
     await expect(service.findEffectiveWorkerId({})).resolves.toBe('22222222-2222-4222-8222-222222222222');
+  });
+
+  test('marks stale online workers offline during startup reconciliation', async () => {
+    (db.worker.findMany as jest.Mock).mockResolvedValue([
+      { id: 'stale-worker', lastSeenAt: new Date('2026-04-09T00:00:00.000Z') },
+      { id: 'fresh-worker', lastSeenAt: new Date('2026-04-09T00:00:50.000Z') }
+    ]);
+
+    const service = new WorkersService(logWriter as any);
+    const markOfflineSpy = jest.spyOn(service, 'markWorkerOffline').mockResolvedValue(undefined);
+
+    await expect(service.reconcileStaleWorkers(new Date('2026-04-09T00:01:00.000Z'))).resolves.toBe(1);
+    expect(markOfflineSpy).toHaveBeenCalledWith('stale-worker', 'startup_stale_reconcile');
+    expect(markOfflineSpy).not.toHaveBeenCalledWith('fresh-worker', expect.anything());
   });
 });

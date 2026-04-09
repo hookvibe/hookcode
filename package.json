@@ -14,6 +14,7 @@
     "dev:tools": "pnpm --filter hookcode-backend dev:tools",
     "dev:frontend": "pnpm --filter hookcode-frontend dev",
     "dev:db": "docker compose -f docker/docker-compose.yml up db -d",
+    "dev:db:local": "node scripts/run-local-dev-db.cjs",
     "sync:worker-version": "node scripts/update-worker-version.cjs",
     "dev:doc": "pnpm --filter hookcode-docs dev",
     "build:doc": "pnpm --filter hookcode-docs build",

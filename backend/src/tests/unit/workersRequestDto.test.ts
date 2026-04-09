@@ -13,9 +13,9 @@ describe('Workers request DTOs', () => {
   test('preserves update-worker fields with ValidationPipe whitelist', async () => {
     // Verify worker update DTO fields survive whitelist validation so admin status toggles and rename requests keep their payload. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     const pipe = new ValidationPipe({ whitelist: true, transform: true });
-    const payload = { name: '  renamed worker  ', status: 'disabled', maxConcurrency: 3 };
+    const payload = { name: '  renamed worker  ', status: 'disabled', maxConcurrency: 3, isGlobalDefault: true };
     const result = await pipe.transform(payload, { type: 'body', metatype: UpdateWorkerRequestDto });
-    expect(result).toMatchObject({ name: 'renamed worker', status: 'disabled', maxConcurrency: 3 });
+    expect(result).toMatchObject({ name: 'renamed worker', status: 'disabled', maxConcurrency: 3, isGlobalDefault: true });
   });
 
   test('preserves provider arrays for runtime preparation requests', async () => {

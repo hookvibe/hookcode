@@ -21,17 +21,22 @@ Docker deployment assets live under `docker/`.
      - `AUTH_TOKEN_SECRET`
      - `AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD`
      - `HOOKCODE_WORK_DIR` if you want a different container work root (keep it absolute, for example `/var/lib/hookcode`)
-     - `HOOKCODE_SYSTEM_WORKER_BIND_CODE` if you do not want to keep the example Docker worker bind code
+     - `HOOKCODE_WORKER_CONNECT_API_BASE_URL` if workers should reconnect through a fixed public backend URL
 2. Start services:
    ```bash
    docker compose -f docker/docker-compose.yml up -d --build
    ```
-3. Open the console:
+3. Create and bind the production worker:
+   - Open **Settings → Workers**
+   - Create one remote worker
+   - Mark it as the **global default**
+   - Copy the generated Linux `systemd` script and run it on the server
+4. Open the console:
    - `http://localhost` (or `http://localhost:<HOOKCODE_FRONTEND_PORT>`)
-4. Log in with the admin credentials you set in `docker/.env`.
+5. Log in with the admin credentials you set in `docker/.env`.
 
 {/* Document Docker's explicit work-root mount semantics so operators know `HOOKCODE_WORK_DIR` is persisted via named volumes and must stay absolute. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307 */}
-Docker Compose persists backend and standalone-worker runtime state through separate named volumes mounted at `HOOKCODE_WORK_DIR`. In Docker deployments, keep `HOOKCODE_WORK_DIR` as an absolute container path because Docker volume targets do not expand `~`. The Docker quickstart defaults to `HOOKCODE_SYSTEM_WORKER_MODE=external`, so backend adopts one default external worker and the published worker image uses the same bind code on first boot, then restarts from persisted credentials.
+Docker Compose persists backend runtime state through a named volume mounted at `HOOKCODE_WORK_DIR`. In Docker deployments, keep `HOOKCODE_WORK_DIR` as an absolute container path because Docker volume targets do not expand `~`. The Docker quickstart now defaults to `HOOKCODE_SYSTEM_WORKER_MODE=disabled`, so production routing depends on a manually bound remote worker instead of a bundled compose worker.
 
 ## Local development (source mode)
 
@@ -44,6 +49,8 @@ Docker Compose persists backend and standalone-worker runtime state through sepa
    ```bash
    pnpm dev
    ```
+
+Use a dedicated local database for source-mode local workers. Avoid pointing local development at a shared production database.
 
 > For detailed configuration, see [Environment variables & config](./environment).
 

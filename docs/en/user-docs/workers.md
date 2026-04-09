@@ -29,7 +29,7 @@ Notes:
 
 ## Remote workers
 
-Remote workers are useful when you want HookCode to run commands on another machine.
+Remote workers are the recommended production path. A remote worker can run on the same Linux server as backend/frontend or on another reachable machine.
 
 Typical examples:
 
@@ -49,6 +49,14 @@ Save the bind code immediately. Each bind code can only be consumed once.
 ### Start a remote worker
 
 The worker is now shipped as an external npm package and GHCR image.
+
+#### Recommended: Linux `systemd` service
+
+Create the worker in **Settings → Workers**, then use the generated Linux `systemd` snippet from the UI. The recommended production shape is:
+
+- Docker Compose runs `db + backend + frontend`
+- the worker runs separately as a `systemd` service
+- one remote worker is marked as the **global default worker**
 
 #### Option A: Run the published npm package directly
 
@@ -109,11 +117,12 @@ Behavior in v1:
 
 Task routing follows this model:
 
-- each backend has one default **system worker**
-- source-mode backends default to the local supervised worker, while Docker/production deployments can default to a configured external worker
-- new chat/webhook tasks execute on the current backend's selected system worker by default
+- task groups stay pinned to their original worker
+- explicit chat/task worker overrides win next
 - admins can override worker selection when creating chat tasks
 - repo robots can define a **default worker** for future tasks
+- when no repo robot default exists, HookCode uses the **global default worker**
+- source-mode local backends fall back to their local supervised worker only when no global default worker exists
 - tasks and task groups keep the selected worker id for traceability
 
 ## Health and failure behavior
@@ -130,6 +139,7 @@ If a worker goes offline:
 
 - tasks assigned to that worker stop receiving new work
 - task groups bound to that worker stop accepting new execution until the worker is back
+- new tasks that rely on the offline global default worker fail fast instead of silently hopping to another worker
 - the UI shows the worker status on task/task-group surfaces
 
 ## Current limitations

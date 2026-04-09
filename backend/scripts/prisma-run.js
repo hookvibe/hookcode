@@ -2,6 +2,7 @@
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { buildDatabaseUrl, ensureDatabaseUrl } = require('./database-url.cjs');
 
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -16,32 +17,6 @@ const WINDOWS_PRISMA_GENERATE_RETRY_DELAY_MS = 250;
 // Retry transient Windows Prisma DLL rename locks so backend pretest no longer fails sporadically before Jest even starts. docs/en/developer/plans/package-json-cross-platform-20260318/task_plan.md package-json-cross-platform-20260318
 const WINDOWS_ENGINE_RENAME_LOCK_PATTERN =
   /EPERM:\s*operation not permitted,\s*rename .*query_engine-windows\.dll\.node\.tmp\d+'.*query_engine-windows\.dll\.node'/i;
-
-const buildDatabaseUrl = (env = process.env) => {
-  if (env.DATABASE_URL) return env.DATABASE_URL;
-
-  const host = env.DB_HOST || 'localhost';
-  const port = Number(env.DB_PORT || 5432);
-  const user = env.DB_USER || 'hookcode';
-  const password = env.DB_PASSWORD || 'hookcode';
-  const database = env.DB_NAME || 'hookcode';
-
-  const url = new URL('postgresql://localhost');
-  url.hostname = host;
-  url.port = String(port);
-  url.username = user;
-  url.password = password;
-  url.pathname = `/${database}`;
-  url.searchParams.set('schema', 'public');
-  return url.toString();
-};
-
-const ensureDatabaseUrl = (env = process.env) => {
-  if (!env.DATABASE_URL) {
-    env.DATABASE_URL = buildDatabaseUrl(env);
-  }
-  return env;
-};
 
 const sleepSync = (ms) => {
   if (!Number.isFinite(ms) || ms <= 0) return;
