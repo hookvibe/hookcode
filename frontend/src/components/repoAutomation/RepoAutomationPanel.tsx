@@ -1,6 +1,6 @@
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Space, Switch, Tabs, Tag, Typography, message } from 'antd';
-import type { AutomationClause, AutomationEventKey, AutomationRule, RepoAutomationConfig, RepoAutomationConfigV2, RepoRobot, Repository } from '../../api';
+import type { AutomationClause, AutomationEventKey, AutomationRule, AvailableRobot, RepoAutomationConfig, RepoAutomationConfigV2, Repository } from '../../api';
 import { useT } from '../../i18n';
 import { ScrollableTable } from '../ScrollableTable';
 import { TriggerRuleModal } from './TriggerRuleModal';
@@ -22,7 +22,7 @@ import { formatTimeWindowLabel } from '../../utils/timeWindow';
 
 interface Props {
   repo?: Repository;
-  robots: RepoRobot[];
+  robots: AvailableRobot[];
   value: RepoAutomationConfig;
   onChange: (next: RepoAutomationConfig) => void;
   onSave: (next: RepoAutomationConfig) => Promise<void>;

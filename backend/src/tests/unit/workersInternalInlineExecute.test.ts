@@ -28,6 +28,7 @@ describe('WorkersInternalController.executeInlineTask', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
       {} as any
     );
     return { controller, workersService, taskService, taskRunner, task };

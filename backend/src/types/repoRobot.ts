@@ -10,6 +10,8 @@ export type RobotPermission = 'read' | 'write';
 export type RobotDefaultBranchRole = 'main' | 'dev' | 'test';
 
 export interface RepoRobot {
+  // Mark repo-owned robots explicitly so mixed-scope APIs and UI can label the origin without heuristics. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  scope: 'repo';
   id: string;
   repoId: string;
   name: string;
@@ -28,11 +30,13 @@ export interface RepoRobot {
    * - robot: use `repo_robots.token` (per-robot secret stored in DB)
    * - user: use the account-level credential profile selected by `repoCredentialProfileId`
    * - repo: use the repo-scoped credential profile selected by `repoCredentialProfileId`
+   * - global: use the admin-managed global credential profile selected by `repoCredentialProfileId`
    *
    * Change record:
    * - 2026-01-14: Added `repoCredentialSource` to disambiguate profile ids now that both user/repo credentials can be multi-profile.
+   * - 2026-04-13: Added `global` so robots can consume admin-managed credential profiles. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
    */
-  repoCredentialSource?: 'robot' | 'user' | 'repo';
+  repoCredentialSource?: 'robot' | 'user' | 'repo' | 'global';
   /**
    * User-defined note for the repo provider credential used by this robot.
    *

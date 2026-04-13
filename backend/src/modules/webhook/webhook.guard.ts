@@ -1,9 +1,15 @@
 import { getBotUsernames } from '../../agent/robots';
-import type { RepoRobot } from '../../types/repoRobot';
 import type { TaskEventType } from '../../types/task';
 import type { CreateGuardResult } from './webhook.types';
 import { extractSubType } from './webhook.automation';
 import { hasNewCommits, isGitlabZeroSha, shouldIgnorePushByCherryPick, shouldIgnorePushByMergeCommit } from './webhook.commit';
+
+type WebhookRobotCandidate = {
+  name?: string | null;
+  repoTokenUsername?: string | null;
+  repoTokenUserName?: string | null;
+  repoTokenUserId?: string | null;
+};
 
 // Split webhook guard helpers into a dedicated module for reuse across providers. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
 export const isInlineWorkerEnabled = (): boolean => {
@@ -35,7 +41,7 @@ const isBotActorGitlab = (payload: any, botUsernames: string[]) => {
 export const canCreateGitlabAutomationTask = (
   eventType: TaskEventType,
   payload: any,
-  robots: RepoRobot[]
+  robots: WebhookRobotCandidate[]
 ): CreateGuardResult => {
   const botUsernames = getBotUsernames(robots);
   const subType = extractSubType(payload);
@@ -98,7 +104,7 @@ export const canCreateGitlabAutomationTask = (
 export const canCreateGithubAutomationTask = (
   eventType: TaskEventType,
   payload: any,
-  robots: RepoRobot[]
+  robots: WebhookRobotCandidate[]
 ): CreateGuardResult => {
   const botUsernames = getBotUsernames(robots);
   const subType = extractSubType(payload);

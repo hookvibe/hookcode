@@ -22,6 +22,7 @@ import {
 } from 'antd';
 import { ApiOutlined, GlobalOutlined, KeyOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import type {
+  AvailableRobot,
   CodexRobotProviderConfigPublic,
   ClaudeCodeRobotProviderConfigPublic,
   GeminiCliRobotProviderConfigPublic,
@@ -62,6 +63,7 @@ import {
   fetchRepoPreviewConfig,
   fetchWorkers,
   fetchTaskGroups,
+  listAvailableRepoRobots,
   listMyModelProviderModels,
   listRepoInvites,
   listRepoMembers,
@@ -94,7 +96,7 @@ import { TemplateEditor } from '../components/TemplateEditor';
 import { ScrollableTable } from '../components/ScrollableTable';
 import { PageNav, type PageNavMenuAction } from '../components/nav/PageNav';
 import { buildWebhookUrl } from '../utils/webhook';
-import { getRobotProviderLabel } from '../utils/robot';
+import { formatRobotOptionLabel, getRobotProviderLabel } from '../utils/robot';
 import { extractTaskGroupIdFromTokenName } from '../utils/apiTokens';
 import { RepoDetailSidebar } from '../components/repos/RepoDetailSidebar';
 import { RepoDetailSkeleton } from '../components/skeletons/RepoDetailSkeleton';
@@ -150,7 +152,7 @@ type ModelProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
 
 type RobotFormValues = {
   name: string;
-  repoCredentialSource: 'user' | 'repo' | 'robot';
+  repoCredentialSource: 'user' | 'repo' | 'robot' | 'global';
   repoCredentialProfileId?: string | null;
   repoCredentialRemark?: string | null;
   token?: string;
@@ -174,7 +176,7 @@ type RobotFormValues = {
   };
   modelProvider: ModelProvider;
   modelProviderConfig: Partial<CodexRobotProviderConfigPublic | ClaudeCodeRobotProviderConfigPublic | GeminiCliRobotProviderConfigPublic> & {
-    credentialSource?: 'user' | 'repo' | 'robot';
+    credentialSource?: 'user' | 'repo' | 'robot' | 'global';
     credentialProfileId?: string | null;
     credential?: { apiBaseUrl?: string; apiKey?: string; hasApiKey?: boolean; remark?: string };
     sandbox_workspace_write?: { network_access?: boolean };
@@ -235,9 +237,9 @@ const parseHashQuery = (hash: string): URLSearchParams => {
   return new URLSearchParams(hash.slice(idx + 1));
 };
 
-const normalizeCredentialSource = (value: unknown): 'user' | 'repo' | 'robot' => {
+const normalizeCredentialSource = (value: unknown): 'user' | 'repo' | 'robot' | 'global' => {
   const v = String(value ?? '').trim();
-  if (v === 'repo' || v === 'robot') return v;
+  if (v === 'repo' || v === 'robot' || v === 'global') return v;
   return 'user';
 };
 
@@ -293,6 +295,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
   const [loading, setLoading] = useState(false);
   const [repo, setRepo] = useState<Repository | null>(null);
   const [robots, setRobots] = useState<RepoRobot[]>([]);
+  const [availableRobots, setAvailableRobots] = useState<AvailableRobot[]>([]);
   const [automationConfig, setAutomationConfig] = useState<RepoAutomationConfig | null>(null);
   const [webhookSecret, setWebhookSecret] = useState<string | null>(null);
   const [webhookPathRaw, setWebhookPathRaw] = useState<string | null>(null);
@@ -446,6 +449,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       return String(a.name ?? '').localeCompare(String(b.name ?? ''));
     });
   }, [robots]);
+
+  const availableRobotsSorted = useMemo(() => {
+    const list = Array.isArray(availableRobots) ? availableRobots : [];
+    return [...list].sort((a, b) => {
+      if (a.scope !== b.scope) return a.scope === 'repo' ? -1 : 1;
+      if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+      return String(a.name ?? '').localeCompare(String(b.name ?? ''));
+    });
+  }, [availableRobots]);
 
 
   useEffect(() => {
@@ -607,13 +619,31 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     }
   }, [repoId]);
 
+  const refreshAvailableRobots = useCallback(async (targetRepoId: string) => {
+    if (!targetRepoId) {
+      setAvailableRobots([]);
+      return;
+    }
+    try {
+      const data = await listAvailableRepoRobots(targetRepoId);
+      setAvailableRobots(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setAvailableRobots([]);
+    }
+  }, []);
+
   const refresh = useCallback(async () => {
     if (!repoId) return;
     setLoading(true);
     try {
-      const data = await fetchRepo(repoId);
+      const [data, availableRobotData] = await Promise.all([
+        fetchRepo(repoId),
+        listAvailableRepoRobots(repoId)
+      ]);
       setRepo(data.repo);
       setRobots(Array.isArray(data.robots) ? data.robots : []);
+      setAvailableRobots(Array.isArray(availableRobotData) ? availableRobotData : []);
       setAutomationConfig(data.automationConfig ?? null);
       setWebhookSecret(data.webhookSecret ?? null);
       setWebhookPathRaw(data.webhookPath ?? null);
@@ -631,6 +661,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       message.error(t('toast.repos.detailFetchFailed'));
       setRepo(null);
       setRobots([]);
+      setAvailableRobots([]);
       setAutomationConfig(null);
       setWebhookSecret(null);
       setWebhookPathRaw(null);
@@ -1163,11 +1194,23 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     if (!robotModalOpen) return;
     if (!repo?.provider) return;
 
-    const source = watchedRepoCredentialSource === 'robot' ? 'robot' : watchedRepoCredentialSource === 'repo' ? 'repo' : 'user';
+    const source = normalizeCredentialSource(watchedRepoCredentialSource);
     const currentProfileId = typeof watchedRepoCredentialProfileId === 'string' ? watchedRepoCredentialProfileId.trim() : '';
 
     if (source === 'robot') {
       if (currentProfileId) {
+        robotForm.setFieldsValue({ repoCredentialProfileId: null });
+      }
+      return;
+    }
+
+    if (source === 'global') {
+      const editingGlobalProfileId =
+        editingRobot && normalizeCredentialSource(editingRobot.repoCredentialSource) === 'global'
+          ? String(editingRobot.repoCredentialProfileId ?? '').trim()
+          : '';
+      // Clear stale repo/user profile ids when the editor switches to admin-managed global credentials. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+      if (!editingGlobalProfileId && currentProfileId) {
         robotForm.setFieldsValue({ repoCredentialProfileId: null });
       }
       return;
@@ -1189,6 +1232,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
     if (!nextId || nextId === currentProfileId) return;
     robotForm.setFieldsValue({ repoCredentialProfileId: nextId });
   }, [
+    editingRobot,
     repo?.provider,
     repoScopedCredentials?.repoProvider,
     robotForm,
@@ -1217,6 +1261,20 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       return;
     }
 
+    if (source === 'global') {
+      const editingGlobalProfileId =
+        editingRobot &&
+        String(editingRobot.modelProvider ?? '').trim() === provider &&
+        normalizeCredentialSource((editingRobot.modelProviderConfig as any)?.credentialSource) === 'global'
+          ? String((editingRobot.modelProviderConfig as any)?.credentialProfileId ?? '').trim()
+          : '';
+      // Preserve the stored global profile id for existing robots but drop stale repo/user ids on source switches. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+      if (!editingGlobalProfileId && currentProfileId) {
+        robotForm.setFieldsValue({ modelProviderConfig: { credentialProfileId: null } as any });
+      }
+      return;
+    }
+
     const providerCredentials =
       source === 'user'
         ? ((userModelCredentials as any)?.[provider] as any)
@@ -1235,6 +1293,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
 
     robotForm.setFieldsValue({ modelProviderConfig: { credentialProfileId: String(nextId) } as any });
   }, [
+    editingRobot,
     repoScopedCredentials?.modelProvider,
     robotForm,
     robotModalOpen,
@@ -1311,7 +1370,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       const cfg = (robot.modelProviderConfig ?? {}) as any;
       const repoCredentialSource = (() => {
         const explicit = String(robot.repoCredentialSource ?? '').trim();
-        if (explicit === 'robot' || explicit === 'user' || explicit === 'repo') return explicit;
+        if (explicit === 'robot' || explicit === 'user' || explicit === 'repo' || explicit === 'global') return explicit;
         return robot.hasToken ? 'robot' : robot.repoCredentialProfileId ? 'user' : 'repo';
       })();
       const providerDefaults = buildDefaultModelProviderConfig(modelProvider);
@@ -1449,9 +1508,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
 
       setRobotSubmitting(true);
       try {
-        const repoCredentialSource =
-          values.repoCredentialSource === 'robot' ? 'robot' : values.repoCredentialSource === 'repo' ? 'repo' : 'user';
-        const repoCredentialProfileId = typeof values.repoCredentialProfileId === 'string' ? values.repoCredentialProfileId.trim() : '';
+        const repoCredentialSource = normalizeCredentialSource(values.repoCredentialSource);
+        const repoCredentialProfileIdInput = typeof values.repoCredentialProfileId === 'string' ? values.repoCredentialProfileId.trim() : '';
+        // Preserve existing global profile bindings when the repo editor cannot enumerate admin-managed profiles. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+        const repoCredentialProfileId =
+          repoCredentialSource === 'global'
+            ? editingRobot && normalizeCredentialSource(editingRobot.repoCredentialSource) === 'global'
+              ? String(editingRobot.repoCredentialProfileId ?? '').trim()
+              : ''
+            : repoCredentialProfileIdInput;
 
         const shouldSendToken = repoCredentialSource !== 'robot' ? true : !editingRobot || !editingRobot.hasToken || robotChangingToken;
         const tokenValue = typeof values.token === 'string' && values.token.trim() ? values.token.trim() : null;
@@ -1510,7 +1575,15 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
           }
         }
 
-        const modelCredentialProfileId = typeof cfg?.credentialProfileId === 'string' ? cfg.credentialProfileId.trim() : '';
+        const modelCredentialProfileIdInput = typeof cfg?.credentialProfileId === 'string' ? cfg.credentialProfileId.trim() : '';
+        const modelCredentialProfileId =
+          credentialSource === 'global'
+            ? editingRobot &&
+              String(editingRobot.modelProvider ?? '').trim() === normalizedModelProvider &&
+              normalizeCredentialSource((editingRobot.modelProviderConfig as any)?.credentialSource) === 'global'
+              ? String((editingRobot.modelProviderConfig as any)?.credentialProfileId ?? '').trim()
+              : ''
+            : modelCredentialProfileIdInput;
 
         // Model provider credential validation (codex / claude_code / gemini_cli).
         if (credentialSource === 'user' || credentialSource === 'repo') {
@@ -1591,7 +1664,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
           ...(shouldSendToken ? { token: repoCredentialSource === 'robot' ? tokenValue : null } : {}),
           cloneUsername: repoCredentialSource === 'robot' ? (values.cloneUsername?.trim() ? values.cloneUsername.trim() : null) : null,
           repoCredentialSource,
-          repoCredentialProfileId: repoCredentialSource === 'robot' ? null : repoCredentialProfileId,
+          repoCredentialProfileId: repoCredentialSource === 'robot' ? null : repoCredentialProfileId || null,
           // Change record (2026-01-15): only send repoCredentialRemark when repoCredentialSource=robot to satisfy backend validation.
           repoCredentialRemark:
             repoCredentialSource === 'robot' ? (values.repoCredentialRemark?.trim() ? values.repoCredentialRemark.trim() : null) : undefined,
@@ -1601,7 +1674,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
           modelProviderConfig: isCodex
             ? {
                 credentialSource,
-                credentialProfileId: credentialSource === 'robot' ? undefined : modelCredentialProfileId,
+                credentialProfileId: credentialSource === 'robot' ? undefined : modelCredentialProfileId || undefined,
                 credential:
                   credentialSource === 'robot'
                     ? {
@@ -1622,7 +1695,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
               }
             : {
                 credentialSource,
-                credentialProfileId: credentialSource === 'robot' ? undefined : modelCredentialProfileId,
+                credentialProfileId: credentialSource === 'robot' ? undefined : modelCredentialProfileId || undefined,
                 credential:
                   credentialSource === 'robot'
                     ? {
@@ -1660,6 +1733,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
           const created = await createRepoRobot(repo.id, payload);
           setRobots((prev) => [...prev, created]);
         }
+        void refreshAvailableRobots(repo.id);
 
         message.success(t('toast.repos.saved'));
         setRobotModalOpen(false);
@@ -1679,7 +1753,8 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       robotChangingModelApiKey,
       robotChangingToken,
       t,
-      userModelCredentials
+      userModelCredentials,
+      refreshAvailableRobots
     ]
   );
 
@@ -1691,6 +1766,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       try {
         const result = await testRepoRobot(repo.id, robot.id);
         setRobots((prev) => prev.map((r) => (r.id === robot.id ? result.robot : r)));
+        void refreshAvailableRobots(repo.id);
         if (result.ok) {
           message.success(t('repos.robots.test.success'));
         } else {
@@ -1703,7 +1779,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
         setRobotTestingId(null);
       }
     },
-    [message, repo, repoReadOnly, t]
+    [message, repo, repoReadOnly, t, refreshAvailableRobots]
   );
 
   const handleTestRobotWorkflow = useCallback(
@@ -1719,7 +1795,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       if (!editingRobot?.id) {
         const repoCredentialSourceRaw = robotForm.getFieldValue('repoCredentialSource');
         const repoCredentialSource =
-          repoCredentialSourceRaw === 'robot' ? 'robot' : repoCredentialSourceRaw === 'repo' ? 'repo' : 'user';
+          repoCredentialSourceRaw === 'robot'
+            ? 'robot'
+            : repoCredentialSourceRaw === 'repo'
+              ? 'repo'
+              : repoCredentialSourceRaw === 'global'
+                ? 'global'
+                : 'user';
         const tokenRaw = robotForm.getFieldValue('token');
         const tokenValue = typeof tokenRaw === 'string' ? tokenRaw.trim() : '';
         if (repoCredentialSource === 'robot' && !tokenValue) {
@@ -1735,7 +1817,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
           : await (async () => {
               const repoCredentialSourceRaw = robotForm.getFieldValue('repoCredentialSource');
               const repoCredentialSource =
-                repoCredentialSourceRaw === 'robot' ? 'robot' : repoCredentialSourceRaw === 'repo' ? 'repo' : 'user';
+                repoCredentialSourceRaw === 'robot'
+                  ? 'robot'
+                  : repoCredentialSourceRaw === 'repo'
+                    ? 'repo'
+                    : repoCredentialSourceRaw === 'global'
+                      ? 'global'
+                      : 'user';
               const profileRaw = robotForm.getFieldValue('repoCredentialProfileId');
               const repoCredentialProfileId =
                 typeof profileRaw === 'string' && profileRaw.trim() ? profileRaw.trim() : null;
@@ -1875,6 +1963,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       try {
         const saved = await updateRepoRobot(repo.id, robot.id, { enabled: !robot.enabled });
         setRobots((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+        void refreshAvailableRobots(repo.id);
         message.success(t('toast.repos.saved'));
       } catch (err: any) {
         console.error(err);
@@ -1883,7 +1972,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
         setRobotTogglingId(null);
       }
     },
-    [message, repo, repoReadOnly, t]
+    [message, repo, repoReadOnly, t, refreshAvailableRobots]
   );
 
   const handleDeleteRobot = useCallback(
@@ -1895,6 +1984,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
       try {
         await deleteRepoRobot(repo.id, robot.id);
         setRobots((prev) => prev.filter((r) => r.id !== robot.id));
+        void refreshAvailableRobots(repo.id);
         message.success(t('repos.robots.deleted'));
       } catch (err: any) {
         const code = String(err?.response?.data?.code ?? '').trim();
@@ -2014,7 +2104,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
             onboardingOpen && !repoReadOnly && !onboardingAlreadyConfigured ? (
               <RepoOnboardingWizard
                 repo={repo}
-                robots={robotsSorted}
+                robots={availableRobotsSorted}
                 repoScopedCredentials={repoScopedCredentials}
                 userModelCredentials={userModelCredentials}
                 userModelCredentialsLoading={userModelCredentialsLoading}
@@ -2421,7 +2511,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                     {repoArchived ? <Alert type="warning" showIcon message={t('repos.archive.banner')} style={{ marginBottom: 12 }} /> : null}
                     <RepoAutomationPanel
                       repo={repo}
-                      robots={robotsSorted}
+                      robots={availableRobotsSorted}
                       value={automationConfig ?? defaultAutomationConfig()}
                       readOnly={repoReadOnly}
                       onChange={(next) => setAutomationConfig(next)}
@@ -3047,23 +3137,24 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                   rules={[{ required: true, message: t('repos.robotForm.repoCredential.sourceRequired') }]}
                 >
                   <Select
-                    options={[
-                      { value: 'user', label: t('repos.robotForm.repoCredential.source.user') },
-                      { value: 'repo', label: t('repos.robotForm.repoCredential.source.repo') },
-                      { value: 'robot', label: t('repos.robotForm.repoCredential.source.robot') }
-                    ]}
-                  />
+                            options={[
+                              { value: 'user', label: t('repos.robotForm.repoCredential.source.user') },
+                              { value: 'repo', label: t('repos.robotForm.repoCredential.source.repo') },
+                              { value: 'global', label: t('repos.shared.useGlobalCredential') },
+                              { value: 'robot', label: t('repos.robotForm.repoCredential.source.robot') }
+                            ]}
+                          />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
                 <Form.Item label={t('repos.robotForm.repoCredential.profile')} name="repoCredentialProfileId">
                   <Select
-                    disabled={watchedRepoCredentialSource === 'robot'}
+                    disabled={normalizeCredentialSource(watchedRepoCredentialSource) === 'robot' || normalizeCredentialSource(watchedRepoCredentialSource) === 'global'}
                     loading={userModelCredentialsLoading && watchedRepoCredentialSource === 'user'}
                     placeholder={t('repos.robotForm.repoCredential.profilePlaceholder')}
                     options={(() => {
-                      const source = watchedRepoCredentialSource === 'repo' ? 'repo' : watchedRepoCredentialSource === 'robot' ? 'robot' : 'user';
-                      if (source === 'robot') return [];
+                      const source = normalizeCredentialSource(watchedRepoCredentialSource);
+                      if (source === 'robot' || source === 'global') return [];
 
                       const providerCredentials =
                         source === 'user'
@@ -3082,7 +3173,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
             <Form.Item shouldUpdate noStyle>
               {({ getFieldValue }) => {
                 const source = getFieldValue('repoCredentialSource') as string;
-                const normalizedSource = source === 'robot' || source === 'repo' ? source : 'user';
+                const normalizedSource = normalizeCredentialSource(source);
                 const hasToken = Boolean(editingRobot?.hasToken);
                 const tokenDisabled = normalizedSource !== 'robot' || (Boolean(editingRobot) && hasToken && !robotChangingToken);
 
@@ -3146,6 +3237,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                         ? t('repos.robotForm.repoCredential.repoConfigured')
                         : t('repos.robotForm.repoCredential.repoNotConfigured')
                     }
+                    style={{ marginBottom: 12 }}
+                  />
+                ) : normalizedSource === 'global' ? (
+                  <Alert
+                    type="info"
+                    showIcon
+                    message={t('repos.robotForm.repoCredential.globalTip')}
                     style={{ marginBottom: 12 }}
                   />
                 ) : (
@@ -3300,6 +3398,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                             options={[
                               { value: 'user', label: userSourceLabel },
                               { value: 'repo', label: t('repos.robotForm.modelCredential.source.repo') },
+                              { value: 'global', label: t('repos.shared.useGlobalCredential') },
                               { value: 'robot', label: t('repos.robotForm.modelCredential.source.robot') }
                             ]}
                           />
@@ -3307,7 +3406,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                       </Col>
                     </Row>
 
-                    {source !== 'robot' ? (
+                    {source === 'user' || source === 'repo' ? (
                       <Row gutter={16}>
                         <Col xs={24} md={12}>
                           <Form.Item
@@ -3416,6 +3515,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                           </Button>
                         ) : null}
                       </Space>
+                    ) : source === 'global' ? (
+                      <Alert
+                        type="info"
+                        showIcon
+                        message={t('repos.robotForm.modelCredential.globalTip')}
+                        style={{ marginBottom: 12 }}
+                      />
                     ) : (
                       <Alert
                         type={userHasApiKey ? 'info' : 'warning'}
@@ -3431,7 +3537,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                           {/* Use the bound picker field so model clicks update the form value. docs/en/developer/plans/b8fucnmey62u0muyn7i0/task_plan.md b8fucnmey62u0muyn7i0 */}
                           {/* Disable model picker when repo is read-only. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226 */}
                           <ModelPickerField
-                            pickerDisabled={repoReadOnly || (source === 'robot' && apiKeyDisabled)}
+                            pickerDisabled={repoReadOnly || source === 'global' || (source === 'robot' && apiKeyDisabled)}
                             loadModels={async ({ forceRefresh }) => {
                               // Load models based on the selected credential source so robot config avoids hardcoded model ids. b8fucnmey62u0muyn7i0
                               const credentialSource = normalizeCredentialSource(watchedModelCredentialSource);
@@ -3453,6 +3559,10 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                                 });
                               }
 
+                              if (credentialSource === 'global') {
+                                throw new Error(t('repos.robotForm.modelCredential.globalListUnsupported'));
+                              }
+
                               const apiKey = String(robotForm.getFieldValue(['modelProviderConfig', 'credential', 'apiKey']) ?? '').trim();
                               const apiBaseUrl = String(robotForm.getFieldValue(['modelProviderConfig', 'credential', 'apiBaseUrl']) ?? '').trim();
 
@@ -3466,7 +3576,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                         </Form.Item>
                       </Col>
                       <Col xs={24} md={12}>
-                        {/* Use provider-specific sandbox labels for Claude/Gemini to match their tool-based permission model. docs/en/developer/plans/<SESSION_HASH>/task_plan.md <SESSION_HASH> */}
+                        {/* Use provider-specific sandbox labels for Claude/Gemini to match their tool-based permission model. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa */}
                         <Form.Item label={t('repos.robotForm.sandbox')} name={['modelProviderConfig', 'sandbox']} rules={[{ required: true, message: t('panel.validation.required') }]}>
                           <Select
                             options={
@@ -3507,7 +3617,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                       {/* Hide network access toggle for Codex because it is always enabled. docs/en/developer/plans/codexnetaccess20260127/task_plan.md codexnetaccess20260127 */}
                       {!isCodex ? (
                         <Col xs={24} md={24}>
-                          {/* Use simplified network access label for Claude/Gemini providers. docs/en/developer/plans/<SESSION_HASH>/task_plan.md <SESSION_HASH> */}
+                          {/* Use simplified network access label for Claude/Gemini providers. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa */}
                           <Form.Item label={t('repos.robotForm.networkAccessClaude')} name={['modelProviderConfig', 'sandbox_workspace_write', 'network_access']} valuePropName="checked">
                             <Switch disabled={networkAccessDisabled} />
                           </Form.Item>

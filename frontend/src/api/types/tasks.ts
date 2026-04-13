@@ -23,7 +23,9 @@ export interface TaskRepoSummary {
 
 export interface TaskRobotSummary {
   id: string;
-  repoId: string;
+  // Surface robot scope so mixed repo/global task payloads remain explicit in the UI. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  scope: 'repo' | 'global';
+  repoId?: string;
   name: string;
   permission: RobotPermission;
   // Expose robot model provider on task summaries for UI display. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128

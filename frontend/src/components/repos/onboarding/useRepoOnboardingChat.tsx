@@ -1,11 +1,11 @@
 // Extract onboarding chat test logic into a dedicated hook. docs/en/developer/plans/split-long-files-20260203/task_plan.md split-long-files-20260203
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RepoRobot, Repository } from '../../../api';
+import type { AvailableRobot, Repository } from '../../../api';
 import { executeChat, fetchTask, type Task } from '../../../api';
 import type { TFunction } from '../../../i18n';
 import { extractTaskResultText, isTerminalStatus } from '../../../utils/task';
-import { formatRobotLabelWithProvider } from '../../../utils/robot';
+import { formatRobotOptionLabel } from '../../../utils/robot';
 
 export type ChatMessage = {
   id: string;
@@ -21,7 +21,7 @@ export const useRepoOnboardingChat = ({
   t
 }: {
   repo: Repository;
-  robots: RepoRobot[];
+  robots: AvailableRobot[];
   t: TFunction;
 }) => {
   const enabledRobots = useMemo(() => (robots ?? []).filter((r) => Boolean(r?.enabled)), [robots]);
@@ -29,8 +29,8 @@ export const useRepoOnboardingChat = ({
     () =>
       enabledRobots.map((r) => ({
         value: r.id,
-        // Add bound AI provider to robot selection labels in onboarding chat. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
-        label: formatRobotLabelWithProvider(r.name || r.id, r.modelProvider)
+        // Add provider + scope labels so onboarding can distinguish repo robots from global robots. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+        label: formatRobotOptionLabel(r)
       })),
     [enabledRobots]
   );

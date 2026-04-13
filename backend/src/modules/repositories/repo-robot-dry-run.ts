@@ -27,6 +27,7 @@ import {
   updateProviderRoutingAttempt
 } from '../../providerRouting/providerRouting.service';
 import type { ProviderRoutingResult, RoutedProviderKey } from '../../providerRouting/providerRouting.types';
+import type { GlobalRobotWithTokenLike } from '../../types/globalRobot';
 import type { RepoScopedModelProviderCredentials } from './repository.service';
 import type { RepoRobotWithToken } from './repo-robot.service';
 import type { UserModelCredentials } from '../users/user.service';
@@ -100,6 +101,8 @@ type DryRunInternal = {
   buildRoutingPlan?: typeof buildProviderRoutingPlan;
 };
 
+type DryRunRobot = RepoRobotWithToken | GlobalRobotWithTokenLike;
+
 const safeTrim = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
 const normalizeMode = (value: unknown): RepoRobotDryRunMode =>
@@ -150,9 +153,9 @@ const buildModelProviderConfig = (params: {
 
 const buildEffectiveRobot = (params: {
   repoId: string;
-  existingRobot?: RepoRobotWithToken | null;
+  existingRobot?: DryRunRobot | null;
   draft?: RepoRobotDryRunDraftInput | null;
-}): RepoRobotWithToken => {
+}): DryRunRobot => {
   const now = new Date().toISOString();
   const existing = params.existingRobot ?? null;
   const provider = pickProvider(params.draft?.modelProvider, existing?.modelProvider);
@@ -163,12 +166,10 @@ const buildEffectiveRobot = (params: {
     draft: params.draft?.modelProviderConfig
   });
 
-  return {
+  const base = {
     id: existing?.id ?? 'dry-run-robot',
-    repoId: params.repoId,
     name: safeTrim(params.draft?.name) || existing?.name || 'dry-run-robot',
     permission: normalizePermission(params.draft?.permission ?? existing?.permission),
-    hasToken: Boolean(existing?.hasToken),
     promptDefault: safeTrim(params.draft?.promptDefault) || existing?.promptDefault || '',
     language: safeTrim(params.draft?.language) || existing?.language || undefined,
     modelProvider: provider,
@@ -178,6 +179,47 @@ const buildEffectiveRobot = (params: {
     isDefault: Boolean(existing?.isDefault),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now
+  };
+
+  if (existing?.scope === 'global') {
+    // Preserve global robot identity during dry runs so shared-robot selectors and task metadata stay consistent. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    return {
+      ...existing,
+      ...base,
+      scope: 'global',
+      repoCredentialSource: existing.repoCredentialSource,
+      repoCredentialProfileId: existing.repoCredentialProfileId,
+      defaultWorkerId: existing.defaultWorkerId,
+      dependencyConfig: existing.dependencyConfig,
+      defaultBranch: existing.defaultBranch,
+      defaultBranchRole: existing.defaultBranchRole,
+      repoWorkflowMode: existing.repoWorkflowMode,
+      timeWindow: existing.timeWindow
+    };
+  }
+
+  return {
+    ...(existing ?? {}),
+    ...base,
+    scope: 'repo',
+    repoId: existing?.repoId ?? params.repoId,
+    hasToken: Boolean(existing?.hasToken),
+    repoCredentialSource: existing?.repoCredentialSource,
+    repoCredentialProfileId: existing?.repoCredentialProfileId,
+    repoCredentialRemark: existing?.repoCredentialRemark,
+    cloneUsername: existing?.cloneUsername,
+    repoTokenUserId: existing?.repoTokenUserId,
+    repoTokenUsername: existing?.repoTokenUsername,
+    repoTokenUserName: existing?.repoTokenUserName,
+    repoTokenUserEmail: existing?.repoTokenUserEmail,
+    repoTokenRepoRole: existing?.repoTokenRepoRole,
+    repoTokenRepoRoleDetails: existing?.repoTokenRepoRoleDetails,
+    token: existing?.token,
+    dependencyConfig: existing?.dependencyConfig,
+    defaultBranch: existing?.defaultBranch,
+    defaultBranchRole: existing?.defaultBranchRole,
+    repoWorkflowMode: existing?.repoWorkflowMode,
+    timeWindow: existing?.timeWindow
   };
 };
 
@@ -469,11 +511,12 @@ const executeDryRunModel = async (params: {
 // Reuse the production prompt/provider pipeline for robot playground previews while isolating execution side effects. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
 export const runRepoRobotDryRun = async (params: {
   repo: Repository;
-  existingRobot?: RepoRobotWithToken | null;
+  existingRobot?: DryRunRobot | null;
   input?: RepoRobotDryRunInput | null;
   userCredentials?: UserModelCredentials | null;
+  globalCredentials?: UserModelCredentials | null;
   repoScopedCredentials?: RepoScopedModelProviderCredentials | null;
-  robotsInRepo?: RepoRobotWithToken[];
+  robotsInRepo?: DryRunRobot[];
   skillPromptPrefix?: string;
   __internal?: DryRunInternal;
 }): Promise<RepoRobotDryRunResponse> => {
@@ -502,6 +545,7 @@ export const runRepoRobotDryRun = async (params: {
     primaryProvider: pickProvider(robot.modelProvider),
     primaryConfigRaw: robot.modelProviderConfigRaw,
     userCredentials: params.userCredentials,
+    globalCredentials: params.globalCredentials,
     repoScopedCredentials: params.repoScopedCredentials,
     __internal: { resolveCredential }
   });
@@ -523,6 +567,7 @@ export const runRepoRobotDryRun = async (params: {
     provider: selectedAttempt.provider,
     robotConfigRaw: selectedAttempt.providerConfigRaw,
     userCredentials: params.userCredentials,
+    globalCredentials: params.globalCredentials,
     repoScopedCredentials: params.repoScopedCredentials
   });
   routing = updateProviderRoutingAttempt(routing, selectedAttempt.provider, {
@@ -567,6 +612,7 @@ export const runRepoRobotDryRun = async (params: {
           provider: attempt.provider,
           robotConfigRaw: attempt.providerConfigRaw,
           userCredentials: params.userCredentials,
+          globalCredentials: params.globalCredentials,
           repoScopedCredentials: params.repoScopedCredentials
         });
         routing = updateProviderRoutingAttempt(routing, attempt.provider, {

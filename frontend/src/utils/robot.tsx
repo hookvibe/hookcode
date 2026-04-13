@@ -1,4 +1,5 @@
-import type { ModelProvider } from '../api';
+import type { AvailableRobot, ModelProvider, TaskRobotSummary } from '../api';
+import { getLocale, translate } from '../i18n';
 
 const PROVIDER_LABELS: Record<string, string> = {
   codex: 'codex',
@@ -25,4 +26,25 @@ export const formatRobotLabelWithProvider = (name: string, provider?: ModelProvi
   if (!providerLabel) return trimmed;
   if (!trimmed) return providerLabel;
   return `${trimmed} / ${providerLabel}`;
+};
+
+const getRobotScopeLabel = (scope?: 'repo' | 'global' | null): string => {
+  // Translate mixed-scope labels through the shared locale store so repo/global badges follow the active UI language. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  if (scope === 'global') return translate(getLocale(), 'repos.shared.scope.global');
+  return translate(getLocale(), 'repos.shared.scope.repo');
+};
+
+export const formatRobotOptionLabel = (robot: Pick<AvailableRobot, 'name' | 'id' | 'modelProvider' | 'scope'>): string => {
+  // Label mixed-scope robot options with provider + origin so repo/global choices stay obvious in selectors. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  const base = formatRobotLabelWithProvider(robot.name || robot.id, robot.modelProvider);
+  return `${base} / ${getRobotScopeLabel(robot.scope)}`;
+};
+
+export const formatTaskRobotSummaryLabel = (robot: Pick<TaskRobotSummary, 'name' | 'id' | 'modelProvider' | 'scope'>): string => {
+  return formatRobotOptionLabel({
+    id: robot.id,
+    name: robot.name,
+    modelProvider: robot.modelProvider,
+    scope: robot.scope
+  } as AvailableRobot);
 };

@@ -1,5 +1,6 @@
 import { api, getCached, invalidateRepoCaches, invalidateTaskCaches } from './client';
 import type {
+  AvailableRobot,
   ArchiveScope,
   ModelProvider,
   RepoAutomationConfig,
@@ -78,6 +79,12 @@ export const unarchiveRepo = async (
 export const listRepoRobots = async (repoId: string): Promise<RepoRobot[]> => {
   // Cache repo robot lists to reduce repeated robot picker loads. docs/en/developer/plans/repo-page-slow-requests-20260128/task_plan.md repo-page-slow-requests-20260128
   const data = await getCached<{ robots: RepoRobot[] }>(`/repos/${repoId}/robots`, { cacheTtlMs: 5000 });
+  return data.robots;
+};
+
+export const listAvailableRepoRobots = async (repoId: string): Promise<AvailableRobot[]> => {
+  // Load repo + global robot options through one API so task/chat selectors can label shared robots explicitly. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  const data = await getCached<{ robots: AvailableRobot[] }>(`/repos/${repoId}/available-robots`, { cacheTtlMs: 5000 });
   return data.robots;
 };
 
@@ -260,7 +267,7 @@ export const createRepoRobot = async (
   params: {
     name: string;
     token?: string | null;
-    repoCredentialSource?: 'robot' | 'user' | 'repo' | null;
+    repoCredentialSource?: 'robot' | 'user' | 'repo' | 'global' | null;
     cloneUsername?: string | null;
     repoCredentialProfileId?: string | null;
     repoCredentialRemark?: string | null;
@@ -294,7 +301,7 @@ export const updateRepoRobot = async (
   params: Partial<{
     name: string;
     token: string | null;
-    repoCredentialSource: 'robot' | 'user' | 'repo' | null;
+    repoCredentialSource: 'robot' | 'user' | 'repo' | 'global' | null;
     cloneUsername: string | null;
     repoCredentialProfileId: string | null;
     repoCredentialRemark: string | null;
@@ -364,7 +371,7 @@ export const testRepoWorkflow = async (
   repoId: string,
   params?: {
     mode?: 'auto' | 'direct' | 'fork' | null;
-    repoCredentialSource?: 'robot' | 'user' | 'repo' | null;
+    repoCredentialSource?: 'robot' | 'user' | 'repo' | 'global' | null;
     repoCredentialProfileId?: string | null;
     token?: string | null;
     permission?: 'read' | 'write' | null;

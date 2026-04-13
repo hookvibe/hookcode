@@ -41,11 +41,18 @@ describe('taskService.listTasks', () => {
     (db.repository.findMany as any).mockResolvedValue([
       { id: 'r1', provider: 'gitlab', name: 'group/project', enabled: true }
     ]);
-    (db.repoRobot.findMany as any).mockResolvedValue([
-      { id: 'rb1', repoId: 'r1', name: 'hookcode-review', permission: 'read', enabled: true }
-    ]);
+    const robotCatalogService = {
+      buildTaskRobotSummaryMap: jest.fn().mockResolvedValue(
+        new Map([
+          [
+            'rb1',
+            { id: 'rb1', scope: 'repo', repoId: 'r1', name: 'hookcode-review', permission: 'read', enabled: true }
+          ]
+        ])
+      )
+    };
 
-    const tasks = await taskService.listTasks({ status: 'success', includeMeta: true });
+    const tasks = await new TaskService(undefined, undefined, robotCatalogService as any).listTasks({ status: 'success', includeMeta: true });
 
     expect(db.$queryRaw).toHaveBeenCalled();
     expect(tasks).toHaveLength(1);

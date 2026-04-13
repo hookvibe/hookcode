@@ -5,91 +5,26 @@ import { db } from '../../db';
 import type { RepoRobot, RobotPermission, RobotDefaultBranchRole } from '../../types/repoRobot';
 import type { RobotDependencyConfig } from '../../types/dependency';
 import type { TimeWindow } from '../../types/timeWindow';
-import {
-  CODEX_PROVIDER_KEY,
-  mergeCodexRobotProviderConfig,
-  normalizeCodexRobotProviderConfig,
-  toPublicCodexRobotProviderConfig
-} from '../../modelProviders/codex';
-import {
-  CLAUDE_CODE_PROVIDER_KEY,
-  mergeClaudeCodeRobotProviderConfig,
-  normalizeClaudeCodeRobotProviderConfig,
-  toPublicClaudeCodeRobotProviderConfig
-} from '../../modelProviders/claudeCode';
-import {
-  GEMINI_CLI_PROVIDER_KEY,
-  mergeGeminiCliRobotProviderConfig,
-  normalizeGeminiCliRobotProviderConfig,
-  toPublicGeminiCliRobotProviderConfig
-} from '../../modelProviders/geminiCli';
-import { inferRobotPermission } from '../../services/robotPermission';
+import { CODEX_PROVIDER_KEY } from '../../modelProviders/codex';
 import { normalizeRepoWorkflowMode } from '../../services/repoWorkflowMode';
-import { normalizeTimeWindow } from '../../utils/timeWindow';
+import {
+  buildTimeWindow,
+  mergeModelProviderConfig,
+  normalizeDefaultBranch,
+  normalizeDefaultBranchRole,
+  normalizeDependencyConfig,
+  normalizeLanguage,
+  normalizeModelProvider,
+  normalizePermission,
+  normalizeRobotName,
+  normalizeSharedRobotConfig,
+  toIso,
+  toPublicModelProviderConfig
+} from './robot-config.shared';
 
-const toIso = (value: unknown): string => {
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'string') return value;
-  return new Date().toISOString();
-};
-
-const normalizeRobotName = (name: string): string => {
-  const trimmed = String(name ?? '').trim();
-  if (!trimmed) return '';
-  return trimmed.startsWith('@') ? trimmed.slice(1).trim() : trimmed;
-};
-
-const normalizePermission = (value: string): RobotPermission => {
-  const raw = value.trim().toLowerCase();
-  if (raw === 'read' || raw === 'write') return raw;
-  throw new Error('permission must be read or write');
-};
-
-const normalizeDefaultBranchRole = (value: unknown): RobotDefaultBranchRole | undefined => {
-  if (value === undefined || value === null) return undefined;
-  const raw = String(value).trim().toLowerCase();
-  if (!raw) return undefined;
-  if (raw === 'main' || raw === 'dev' || raw === 'test') return raw;
-  return undefined;
-};
-
-const normalizeDefaultBranch = (value: unknown): string | undefined => {
-  if (value === undefined || value === null) return undefined;
-  const raw = String(value).trim();
-  return raw ? raw : undefined;
-};
-
-const normalizeLanguage = (value: unknown): string | undefined => {
-  if (value === undefined || value === null) return undefined;
-  const raw = String(value).trim();
-  return raw ? raw : undefined;
-};
-
-const buildTimeWindow = (start: unknown, end: unknown): TimeWindow | undefined => {
-  // Normalize stored hour columns into a scheduling window for API output. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
-  const normalized = normalizeTimeWindow({ startHour: start, endHour: end });
-  return normalized ?? undefined;
-};
-
-const normalizeDependencyConfig = (value: unknown): RobotDependencyConfig | null | undefined => {
-  // Normalize robot dependency overrides for storage and API output. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  if (typeof value !== 'object') throw new Error('dependencyConfig must be an object');
-  const raw = value as Record<string, unknown>;
-  const enabled = typeof raw.enabled === 'boolean' ? raw.enabled : undefined;
-  const allowCustomInstall = typeof raw.allowCustomInstall === 'boolean' ? raw.allowCustomInstall : undefined;
-  const failureModeRaw = typeof raw.failureMode === 'string' ? raw.failureMode.trim().toLowerCase() : '';
-  if (failureModeRaw && failureModeRaw !== 'soft' && failureModeRaw !== 'hard') {
-    throw new Error('dependencyConfig.failureMode must be soft or hard');
-  }
-  const failureMode = failureModeRaw ? (failureModeRaw as RobotDependencyConfig['failureMode']) : undefined;
-  return { enabled, allowCustomInstall, failureMode };
-};
-
-const normalizeRepoCredentialSource = (value: unknown): 'robot' | 'user' | 'repo' | undefined => {
+const normalizeRepoCredentialSource = (value: unknown): 'robot' | 'user' | 'repo' | 'global' | undefined => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (raw === 'robot' || raw === 'user' || raw === 'repo') return raw;
+  if (raw === 'robot' || raw === 'user' || raw === 'repo' || raw === 'global') return raw;
   return undefined;
 };
 
@@ -100,39 +35,9 @@ const normalizeRepoCredentialRemark = (value: unknown): string | null | undefine
   return raw ? raw : null;
 };
 
-const normalizeModelProvider = (value: unknown): string => {
-  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (!raw) return CODEX_PROVIDER_KEY;
-  if (raw === CODEX_PROVIDER_KEY) return CODEX_PROVIDER_KEY;
-  // Change record: allow selecting Claude Code as a model provider for repo robots.
-  if (raw === CLAUDE_CODE_PROVIDER_KEY) return CLAUDE_CODE_PROVIDER_KEY;
-  // Change record: allow selecting Gemini CLI as a model provider for repo robots.
-  if (raw === GEMINI_CLI_PROVIDER_KEY) return GEMINI_CLI_PROVIDER_KEY;
-  throw new Error('modelProvider must be codex, claude_code, or gemini_cli');
-};
-
-const normalizeModelProviderConfig = (provider: string, value: unknown): any => {
-  if (provider === CODEX_PROVIDER_KEY) return normalizeCodexRobotProviderConfig(value) as any;
-  if (provider === CLAUDE_CODE_PROVIDER_KEY) return normalizeClaudeCodeRobotProviderConfig(value) as any;
-  if (provider === GEMINI_CLI_PROVIDER_KEY) return normalizeGeminiCliRobotProviderConfig(value) as any;
-  return null;
-};
-
-const mergeModelProviderConfig = (provider: string, params: { existing: unknown; next: unknown }): any => {
-  if (provider === CODEX_PROVIDER_KEY) return mergeCodexRobotProviderConfig(params) as any;
-  if (provider === CLAUDE_CODE_PROVIDER_KEY) return mergeClaudeCodeRobotProviderConfig(params) as any;
-  if (provider === GEMINI_CLI_PROVIDER_KEY) return mergeGeminiCliRobotProviderConfig(params) as any;
-  return normalizeModelProviderConfig(provider, params.next);
-};
-
-const toPublicModelProviderConfig = (provider: string, value: unknown): unknown => {
-  if (provider === CODEX_PROVIDER_KEY) return toPublicCodexRobotProviderConfig(value);
-  if (provider === CLAUDE_CODE_PROVIDER_KEY) return toPublicClaudeCodeRobotProviderConfig(value);
-  if (provider === GEMINI_CLI_PROVIDER_KEY) return toPublicGeminiCliRobotProviderConfig(value);
-  return undefined;
-};
-
 const recordToRobot = (row: any): RepoRobot => ({
+  // Mark repo-owned robots explicitly so mixed-scope APIs can label the source without inferring from context. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  scope: 'repo',
   id: String(row.id),
   repoId: String(row.repoId),
   name: String(row.name),
@@ -189,7 +94,7 @@ export interface CreateRepoRobotInput {
   token?: string | null;
   cloneUsername?: string | null;
   defaultWorkerId?: string | null;
-  repoCredentialSource?: 'robot' | 'user' | 'repo' | string | null;
+  repoCredentialSource?: 'robot' | 'user' | 'repo' | 'global' | string | null;
   repoCredentialProfileId?: string | null;
   repoCredentialRemark?: string | null;
   promptDefault: string;
@@ -211,7 +116,7 @@ export interface UpdateRepoRobotInput {
   token?: string | null;
   cloneUsername?: string | null;
   defaultWorkerId?: string | null;
-  repoCredentialSource?: 'robot' | 'user' | 'repo' | string | null;
+  repoCredentialSource?: 'robot' | 'user' | 'repo' | 'global' | string | null;
   repoCredentialProfileId?: string | null;
   repoCredentialRemark?: string | null;
   promptDefault?: string;
@@ -293,36 +198,23 @@ export class RepoRobotService {
     if (repoCredentialSource === 'robot') {
       if (repoCredentialProfileId) throw new Error('repoCredentialProfileId must be null when repoCredentialSource=robot');
     } else {
-      if (token) throw new Error('token must be null when repoCredentialSource is user/repo');
-      if (!repoCredentialProfileId) {
+      if (token) throw new Error('token must be null when repoCredentialSource is user/repo/global');
+      if (repoCredentialSource !== 'global' && !repoCredentialProfileId) {
         throw new Error('repoCredentialProfileId is required when repoCredentialSource is user/repo');
       }
     }
     const promptDefault = String(input.promptDefault ?? '').trim();
     if (!promptDefault) throw new Error('promptDefault is required');
     const language = input.language === undefined ? null : input.language ? String(input.language).trim() : null;
-    const modelProvider = normalizeModelProvider(input.modelProvider);
-    const modelProviderConfig = normalizeModelProviderConfig(modelProvider, input.modelProviderConfig);
-    // Normalize dependency overrides before persisting robot configuration. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
-    const dependencyConfig = normalizeDependencyConfig(input.dependencyConfig);
-    const permission = inferRobotPermission({ modelProvider, modelProviderConfig });
-    const defaultBranch =
-      input.defaultBranch === undefined ? null : input.defaultBranch ? String(input.defaultBranch).trim() : null;
-    const defaultBranchRole = input.defaultBranchRole === undefined ? null : input.defaultBranchRole;
-    // Normalize explicit workflow mode input for robot creation (auto/direct/fork). docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
-    const repoWorkflowModeRaw = input.repoWorkflowMode === undefined ? null : input.repoWorkflowMode;
-    const repoWorkflowMode =
-      repoWorkflowModeRaw === null ? null : normalizeRepoWorkflowMode(repoWorkflowModeRaw);
-    if (repoWorkflowModeRaw !== null && !repoWorkflowMode) {
-      throw new Error('repoWorkflowMode must be auto, direct, or fork');
-    }
-    // Normalize robot-level time windows for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
-    const timeWindowInput = input.timeWindow;
-    const timeWindow =
-      timeWindowInput === undefined || timeWindowInput === null ? null : normalizeTimeWindow(timeWindowInput);
-    if (timeWindowInput !== undefined && timeWindowInput !== null && !timeWindow) {
-      throw new Error('timeWindow must include startHour/endHour between 0 and 23');
-    }
+    const sharedConfig = normalizeSharedRobotConfig({
+      modelProvider: input.modelProvider,
+      modelProviderConfig: input.modelProviderConfig,
+      dependencyConfig: input.dependencyConfig,
+      defaultBranch: input.defaultBranch,
+      defaultBranchRole: input.defaultBranchRole,
+      repoWorkflowMode: input.repoWorkflowMode,
+      timeWindow: input.timeWindow
+    });
     // New robots default to "pending activation": they can only be enabled after the token test passes.
     const enabled = false;
     const isDefault = input.isDefault === undefined ? false : Boolean(input.isDefault);
@@ -332,7 +224,7 @@ export class RepoRobotService {
         id,
         repoId,
         name,
-        permission,
+        permission: sharedConfig.permission,
         token: repoCredentialSource === 'robot' ? token : null,
         cloneUsername,
         defaultWorkerId,
@@ -346,17 +238,17 @@ export class RepoRobotService {
         repoTokenRepoRole: null,
         repoTokenRepoRoleJson: Prisma.DbNull,
         // Persist repo workflow mode so task execution can enforce direct/fork selection. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
-        repoWorkflowMode: repoWorkflowMode ?? null,
+        repoWorkflowMode: sharedConfig.repoWorkflowMode ?? null,
         // Persist robot-level time window hours for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
-        timeWindowStartHour: timeWindow ? timeWindow.startHour : null,
-        timeWindowEndHour: timeWindow ? timeWindow.endHour : null,
+        timeWindowStartHour: sharedConfig.timeWindow ? sharedConfig.timeWindow.startHour : null,
+        timeWindowEndHour: sharedConfig.timeWindow ? sharedConfig.timeWindow.endHour : null,
         promptDefault,
         language,
-        modelProvider,
-        modelProviderConfig,
-        dependencyConfig: dependencyConfig === undefined ? null : (dependencyConfig as any),
-        defaultBranchRole,
-        defaultBranch,
+        modelProvider: sharedConfig.modelProvider,
+        modelProviderConfig: sharedConfig.modelProviderConfig,
+        dependencyConfig: sharedConfig.dependencyConfig === undefined ? null : (sharedConfig.dependencyConfig as any),
+        defaultBranchRole: sharedConfig.defaultBranchRole ?? null,
+        defaultBranch: sharedConfig.defaultBranch ?? null,
         activatedAt: null,
         lastTestAt: null,
         lastTestOk: null,
@@ -440,8 +332,8 @@ export class RepoRobotService {
         input.token !== undefined &&
         input.token !== null &&
         String(input.token ?? '').trim();
-      if (tokenProvided) throw new Error('token must be null when repoCredentialSource is user/repo');
-      if (!nextRepoCredentialProfileId) {
+      if (tokenProvided) throw new Error('token must be null when repoCredentialSource is user/repo/global');
+      if (nextRepoCredentialSource !== 'global' && !nextRepoCredentialProfileId) {
         throw new Error('repoCredentialProfileId is required when repoCredentialSource is user/repo');
       }
     }
@@ -463,46 +355,23 @@ export class RepoRobotService {
       input.modelProviderConfig === undefined
         ? (existing.modelProviderConfigRaw ?? null)
         : mergeModelProviderConfig(nextModelProvider, { existing: existing.modelProviderConfigRaw ?? null, next: input.modelProviderConfig });
-    // Apply dependency override updates when the robot is patched. docs/en/developer/plans/depmanimpl20260124/task_plan.md depmanimpl20260124
-    const nextDependencyConfig =
-      input.dependencyConfig === undefined ? normalizeDependencyConfig(existing.dependencyConfig ?? null) : normalizeDependencyConfig(input.dependencyConfig);
-    const nextPermission = inferRobotPermission({ modelProvider: nextModelProvider, modelProviderConfig: nextModelProviderConfig });
-    const nextDefaultBranch =
-      input.defaultBranch === undefined
-        ? existing.defaultBranch ?? null
-        : input.defaultBranch
-          ? String(input.defaultBranch).trim()
-          : null;
-    const nextDefaultBranchRole =
-      input.defaultBranchRole === undefined
-        ? existing.defaultBranchRole ?? null
-        : input.defaultBranchRole;
-    // Normalize workflow mode updates while keeping legacy robots on auto by default. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
-    const nextRepoWorkflowModeRaw =
-      input.repoWorkflowMode === undefined ? existing.repoWorkflowMode ?? null : input.repoWorkflowMode;
-    const nextRepoWorkflowMode =
-      nextRepoWorkflowModeRaw === null ? null : normalizeRepoWorkflowMode(nextRepoWorkflowModeRaw);
-    if (nextRepoWorkflowModeRaw !== null && !nextRepoWorkflowMode) {
-      throw new Error('repoWorkflowMode must be auto, direct, or fork');
-    }
-    // Normalize robot-level time window updates for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
-    const nextTimeWindowInput = input.timeWindow;
-    const nextTimeWindow =
-      nextTimeWindowInput === undefined
-        ? existing.timeWindow ?? null
-        : nextTimeWindowInput === null
-          ? null
-          : normalizeTimeWindow(nextTimeWindowInput);
-    if (nextTimeWindowInput !== undefined && nextTimeWindowInput !== null && !nextTimeWindow) {
-      throw new Error('timeWindow must include startHour/endHour between 0 and 23');
-    }
+    const nextSharedConfig = normalizeSharedRobotConfig({
+      modelProvider: nextModelProvider,
+      modelProviderConfig: nextModelProviderConfig,
+      dependencyConfig:
+        input.dependencyConfig === undefined ? normalizeDependencyConfig(existing.dependencyConfig ?? null) : input.dependencyConfig,
+      defaultBranch: input.defaultBranch === undefined ? existing.defaultBranch ?? null : input.defaultBranch,
+      defaultBranchRole: input.defaultBranchRole === undefined ? existing.defaultBranchRole ?? null : input.defaultBranchRole,
+      repoWorkflowMode: input.repoWorkflowMode === undefined ? existing.repoWorkflowMode ?? null : input.repoWorkflowMode,
+      timeWindow: input.timeWindow === undefined ? existing.timeWindow ?? null : input.timeWindow
+    });
     const timeWindowUpdate =
-      nextTimeWindowInput === undefined
+      input.timeWindow === undefined
         ? {}
         : {
             // Persist robot-level time window updates for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126
-            timeWindowStartHour: nextTimeWindow ? nextTimeWindow.startHour : null,
-            timeWindowEndHour: nextTimeWindow ? nextTimeWindow.endHour : null
+            timeWindowStartHour: nextSharedConfig.timeWindow ? nextSharedConfig.timeWindow.startHour : null,
+            timeWindowEndHour: nextSharedConfig.timeWindow ? nextSharedConfig.timeWindow.endHour : null
           };
     const sourceChanged = input.repoCredentialSource !== undefined && nextRepoCredentialSource !== existingSource;
     const profileChanged =
@@ -533,7 +402,7 @@ export class RepoRobotService {
       where: { id },
       data: {
         name: nextName,
-        permission: nextPermission,
+        permission: nextSharedConfig.permission,
         token: nextRepoCredentialSource === 'robot' ? nextToken : null,
         cloneUsername: nextCloneUsername,
         defaultWorkerId: nextDefaultWorkerId,
@@ -542,13 +411,13 @@ export class RepoRobotService {
         repoCredentialProfileId: nextRepoCredentialSource === 'robot' ? null : nextRepoCredentialProfileId,
         promptDefault: nextPromptDefault,
         language: nextLanguage,
-        modelProvider: nextModelProvider,
-        modelProviderConfig: nextModelProviderConfig as any,
-        dependencyConfig: nextDependencyConfig === undefined ? undefined : (nextDependencyConfig as any),
-        defaultBranch: nextDefaultBranch,
-        defaultBranchRole: nextDefaultBranchRole as any,
+        modelProvider: nextSharedConfig.modelProvider,
+        modelProviderConfig: nextSharedConfig.modelProviderConfig as any,
+        dependencyConfig: nextSharedConfig.dependencyConfig === undefined ? undefined : (nextSharedConfig.dependencyConfig as any),
+        defaultBranch: nextSharedConfig.defaultBranch ?? null,
+        defaultBranchRole: (nextSharedConfig.defaultBranchRole ?? null) as any,
         // Store the chosen workflow mode so agent workflows can honor it. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
-        repoWorkflowMode: nextRepoWorkflowMode ?? null,
+        repoWorkflowMode: nextSharedConfig.repoWorkflowMode ?? null,
         ...timeWindowUpdate,
         activatedAt: nextActivatedAt ? new Date(nextActivatedAt) : nextActivatedAt,
         lastTestAt: nextLastTestAt ? new Date(nextLastTestAt) : nextLastTestAt,

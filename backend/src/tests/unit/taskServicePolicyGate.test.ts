@@ -45,6 +45,10 @@ describe('taskService policy gate integration', () => {
     const now = new Date('2026-03-13T00:00:00.000Z');
     const policyEngine = { evaluateTask: jest.fn().mockResolvedValue(makePolicyEvaluation()) };
     const approvalQueue = { enqueueApproval: jest.fn().mockResolvedValue(undefined) };
+    const workersService = {
+      findEffectiveWorkerId: jest.fn().mockResolvedValue('worker-1'),
+      requireWorkerReadyForNewTask: jest.fn().mockResolvedValue({ ok: true })
+    };
 
     (db.taskGroup.upsert as any).mockResolvedValue({ id: groupId });
     (db.task.create as any).mockResolvedValue({
@@ -71,7 +75,7 @@ describe('taskService policy gate integration', () => {
       updatedAt: now
     });
 
-    const service = new TaskService(undefined, undefined, undefined, undefined, policyEngine as any, approvalQueue as any);
+    const service = new TaskService(undefined, undefined, undefined, undefined, workersService as any, policyEngine as any, approvalQueue as any);
     jest.spyOn(service as any, 'getTask').mockResolvedValue({
       id: taskId,
       groupId,
@@ -114,6 +118,10 @@ describe('taskService policy gate integration', () => {
     const now = new Date('2026-03-13T00:00:00.000Z');
     const policyEngine = { evaluateTask: jest.fn().mockResolvedValue(makePolicyEvaluation()) };
     const approvalQueue = { enqueueApproval: jest.fn().mockResolvedValue(undefined) };
+    const workersService = {
+      findEffectiveWorkerId: jest.fn().mockResolvedValue('worker-1'),
+      requireWorkerReadyForNewTask: jest.fn().mockResolvedValue({ ok: true })
+    };
 
     (db.task.findUnique as any).mockResolvedValue({
       id: taskId,
@@ -160,7 +168,7 @@ describe('taskService policy gate integration', () => {
       updatedAt: now
     });
 
-    const service = new TaskService(undefined, undefined, undefined, undefined, policyEngine as any, approvalQueue as any);
+    const service = new TaskService(undefined, undefined, undefined, undefined, workersService as any, policyEngine as any, approvalQueue as any);
     jest.spyOn(service as any, 'getTask').mockResolvedValue({
       id: taskId,
       groupId: '33333333-3333-3333-3333-333333333333',

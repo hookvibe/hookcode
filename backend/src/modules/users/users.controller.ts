@@ -26,6 +26,7 @@ import {
 import type { Request } from 'express';
 import { isAccountEditDisabled } from '../../config/features';
 import { UserService } from './user.service';
+import { UserCredentialValidationError } from './user.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateModelCredentialsDto } from './dto/update-model-credentials.dto';
@@ -53,6 +54,15 @@ export class UsersController {
     // Log user/account changes with system log writer. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
     private readonly logWriter: LogWriterService
   ) {}
+
+  private buildCredentialValidationBadRequest(err: InstanceType<typeof UserCredentialValidationError>): BadRequestException {
+    // Convert user credential service validation errors into stable 400 payloads so account credential editing no longer depends on message matching. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    return new BadRequestException({
+      error: err.message,
+      code: err.code,
+      ...(err.details ? { details: err.details } : {})
+    });
+  }
 
   @Patch('me')
   @ApiOperation({
@@ -220,9 +230,8 @@ export class UsersController {
       return { credentials };
     } catch (err: any) {
       if (err instanceof HttpException) throw err;
-      const message = err?.message ? String(err.message) : '';
-      if (message.includes('repo provider credential profile remark is required') || message.includes('model provider credential profile remark is required')) {
-        throw new BadRequestException({ error: message });
+      if (err instanceof UserCredentialValidationError) {
+        throw this.buildCredentialValidationBadRequest(err);
       }
       console.error('[users] update model credentials failed', err);
       throw new InternalServerErrorException({ error: 'Failed to update model credentials' });

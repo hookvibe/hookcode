@@ -25,9 +25,9 @@ describe('Webhook verification marker', () => {
         markWebhookVerified: jest.fn().mockResolvedValue(true),
         updateRepository: jest.fn().mockResolvedValue({ repo: null })
       },
-      repoRobotService: {
-        listByRepo: jest.fn().mockResolvedValue([]),
-        listByRepoWithToken: jest.fn().mockResolvedValue([])
+      robotCatalogService: {
+        listAvailableByRepo: jest.fn().mockResolvedValue([]),
+        listAvailableByRepoWithToken: jest.fn().mockResolvedValue([])
       },
       repoAutomationService: {
         getConfig: jest.fn().mockResolvedValue({ version: 2, events: {} })

@@ -1,5 +1,5 @@
 import type { Task } from '../types/task';
-import type { RepoRobot } from '../types/repoRobot';
+import type { RobotPermission } from '../types/repoRobot';
 
 /**
  * Robot/permission selection and text matching (multi-repo):
@@ -7,7 +7,18 @@ import type { RepoRobot } from '../types/repoRobot';
  * - Unlike the legacy version: we no longer hardcode hookcode-review/hookcode-build; we select from repo config (DB) or env fallback robots.
  */
 
-export const detectRobotInText = <T extends Pick<RepoRobot, 'name' | 'repoTokenUsername' | 'repoTokenUserName'>>(
+type RobotSelectionCandidate = {
+  name?: string | null;
+  repoTokenUsername?: string | null;
+  repoTokenUserName?: string | null;
+  repoTokenUserId?: string | null;
+  isDefault?: boolean | null;
+  enabled?: boolean | null;
+  permission: RobotPermission;
+};
+
+// Accept shared robot shapes so repo and global robots participate in the same selection pipeline. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+export const detectRobotInText = <T extends Pick<RobotSelectionCandidate, 'name' | 'repoTokenUsername' | 'repoTokenUserName'>>(
   text: string | undefined,
   robots: T[]
 ): T | undefined => {
@@ -44,16 +55,16 @@ export const detectRobotInText = <T extends Pick<RepoRobot, 'name' | 'repoTokenU
   });
 };
 
-const getDefaultRobot = <T extends Pick<RepoRobot, 'isDefault' | 'enabled'>>(
+const getDefaultRobot = <T extends Pick<RobotSelectionCandidate, 'isDefault' | 'enabled'>>(
   robots: T[]
 ): T | undefined => robots.find((r) => Boolean(r.enabled) && Boolean((r as any).isDefault));
 
-const pickFirstEnabled = <T extends Pick<RepoRobot, 'enabled'>>(robots: T[]): T | undefined =>
+const pickFirstEnabled = <T extends Pick<RobotSelectionCandidate, 'enabled'>>(robots: T[]): T | undefined =>
   robots.find((r) => Boolean(r.enabled));
 
-export const pickRobotByPermission = <T extends RepoRobot>(
+export const pickRobotByPermission = <T extends RobotSelectionCandidate>(
   robots: T[],
-  permission: RepoRobot['permission']
+  permission: RobotSelectionCandidate['permission']
 ): T | undefined => {
   const candidates = robots.filter((r) => r.permission === permission && r.enabled);
   return getDefaultRobot(candidates) ?? pickFirstEnabled(candidates);
@@ -87,7 +98,7 @@ const issueHasBuildLabel = (payload: any): boolean =>
     return lower === 'bug' || lower === 'feature';
   });
 
-export const selectRobotForTask = <T extends RepoRobot>(
+export const selectRobotForTask = <T extends RobotSelectionCandidate>(
   task: Pick<Task, 'eventType' | 'title'>,
   payload: any,
   robots: T[],
@@ -117,7 +128,7 @@ export const selectRobotForTask = <T extends RepoRobot>(
 };
 
 export const getBotUsernames = (
-  robots: Array<Pick<RepoRobot, 'name' | 'repoTokenUsername' | 'repoTokenUserName' | 'repoTokenUserId'>> = []
+  robots: Array<Pick<RobotSelectionCandidate, 'name' | 'repoTokenUsername' | 'repoTokenUserName' | 'repoTokenUserId'>> = []
 ) => {
   const fromRobots = robots.flatMap((r) => {
     const username = String(r.repoTokenUsername ?? '').trim().toLowerCase();

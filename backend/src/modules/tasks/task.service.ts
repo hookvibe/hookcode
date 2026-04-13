@@ -21,6 +21,7 @@ import type { TaskScheduleSnapshot } from '../../types/timeWindow';
 import { isUuidLike } from '../../utils/uuid'; // Share UUID validation across pagination and list filters. docs/en/developer/plans/pagination-impl-20260227/task_plan.md pagination-impl-20260227
 import { EventStreamService } from '../events/event-stream.service';
 import { LogWriterService } from '../logs/log-writer.service';
+import { RobotCatalogService } from '../repositories/robot-catalog.service';
 import { WorkersService } from '../workers/workers.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
 import { ApprovalQueueService } from '../../policyEngine/approvalQueue.service';
@@ -373,6 +374,7 @@ export class TaskService {
   constructor(
     private readonly eventStream?: EventStreamService,
     private readonly logWriter?: LogWriterService,
+    private readonly robotCatalogService?: RobotCatalogService,
     private readonly notificationRecipients?: NotificationRecipientService,
     private readonly workersService?: WorkersService,
     private readonly policyEngine?: PolicyEngineService,
@@ -494,24 +496,20 @@ export class TaskService {
 
   private async attachMeta(tasks: TaskWithMeta[]): Promise<TaskWithMeta[]> {
     type RepoMetaRow = { id: string; provider: string; name: string; enabled: boolean };
-    type RobotMetaRow = { id: string; repoId: string; name: string; permission: string; enabled: boolean };
 
     const repoIds = Array.from(new Set(tasks.map((t) => t.repoId).filter(Boolean))) as string[];
     const robotIds = Array.from(new Set(tasks.map((t) => t.robotId).filter(Boolean))) as string[];
 
-    const [repos, robots, withWorkers, approvalMap] = await Promise.all([
+    const [repos, robotMap, withWorkers, approvalMap] = await Promise.all([
       repoIds.length
         ? db.repository.findMany({
             where: { id: { in: repoIds } },
             select: { id: true, provider: true, name: true, enabled: true }
           })
         : Promise.resolve<RepoMetaRow[]>([]),
-      robotIds.length
-        ? db.repoRobot.findMany({
-            where: { id: { in: robotIds } },
-            select: { id: true, repoId: true, name: true, permission: true, enabled: true }
-          })
-        : Promise.resolve<RobotMetaRow[]>([]),
+      this.robotCatalogService
+        ? this.robotCatalogService.buildTaskRobotSummaryMap(robotIds)
+        : Promise.resolve(new Map<string, TaskRobotSummary>()),
       this.workersService ? this.workersService.attachWorkerSummaries(tasks) : Promise.resolve(tasks),
       this.approvalQueue ? this.approvalQueue.getLatestApprovalsForTaskIds(tasks.map((task) => task.id)) : Promise.resolve(new Map())
     ] as const);
@@ -527,19 +525,6 @@ export class TaskService {
         }
       ])
     );
-    const robotMap = new Map<string, TaskRobotSummary>(
-      robots.map((r: RobotMetaRow): [string, TaskRobotSummary] => [
-        String(r.id),
-        {
-          id: String(r.id),
-          repoId: String(r.repoId),
-          name: String(r.name),
-          permission: String(r.permission) as TaskRobotSummary['permission'],
-          enabled: Boolean(r.enabled)
-        }
-      ])
-    );
-
     return withWorkers.map((task) => {
       const next: TaskWithMeta = { ...task };
       if (task.repoId && repoMap.has(task.repoId)) next.repo = repoMap.get(task.repoId);
@@ -843,25 +828,21 @@ export class TaskService {
 
   private async attachGroupMeta(groups: TaskGroupWithMeta[]): Promise<TaskGroupWithMeta[]> {
     type RepoMetaRow = { id: string; provider: string; name: string; enabled: boolean };
-    type RobotMetaRow = { id: string; repoId: string; name: string; permission: string; enabled: boolean };
 
     const repoIds = Array.from(new Set(groups.map((g) => g.repoId).filter(Boolean))) as string[];
     const robotIds = Array.from(new Set(groups.map((g) => g.robotId).filter(Boolean))) as string[];
     const workerIds = Array.from(new Set(groups.map((g) => g.workerId).filter(Boolean))) as string[];
 
-    const [repos, robots, workers] = await Promise.all([
+    const [repos, robotMap, workers] = await Promise.all([
       repoIds.length
         ? db.repository.findMany({
             where: { id: { in: repoIds } },
             select: { id: true, provider: true, name: true, enabled: true }
           })
         : Promise.resolve<RepoMetaRow[]>([]),
-      robotIds.length
-        ? db.repoRobot.findMany({
-            where: { id: { in: robotIds } },
-            select: { id: true, repoId: true, name: true, permission: true, enabled: true }
-          })
-        : Promise.resolve<RobotMetaRow[]>([]),
+      this.robotCatalogService
+        ? this.robotCatalogService.buildTaskRobotSummaryMap(robotIds)
+        : Promise.resolve(new Map<string, TaskRobotSummary>()),
       workerIds.length ? db.worker.findMany({ where: { id: { in: workerIds } } }) : Promise.resolve<any[]>([])
     ] as const);
 
@@ -872,18 +853,6 @@ export class TaskService {
           id: String(r.id),
           provider: String(r.provider) as RepoProvider,
           name: String(r.name),
-          enabled: Boolean(r.enabled)
-        }
-      ])
-    );
-    const robotMap = new Map<string, TaskRobotSummary>(
-      robots.map((r: RobotMetaRow): [string, TaskRobotSummary] => [
-        String(r.id),
-        {
-          id: String(r.id),
-          repoId: String(r.repoId),
-          name: String(r.name),
-          permission: String(r.permission) as TaskRobotSummary['permission'],
           enabled: Boolean(r.enabled)
         }
       ])

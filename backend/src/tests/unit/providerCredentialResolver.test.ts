@@ -133,6 +133,39 @@ describe('providerCredentialResolver', () => {
     await rm(fakeHome, { recursive: true, force: true });
   });
 
+  // Preserve cross-layer fallback while preventing explicit global profile ids from silently selecting a different shared API key. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  test('falls back to the user profile instead of silently switching to a different global profile when the explicit global profile id is missing', async () => {
+    const fakeHome = await mkdtemp(path.join(os.tmpdir(), 'hookcode-provider-home-'));
+    jest.spyOn(os, 'homedir').mockReturnValue(fakeHome);
+
+    const resolved = await resolveProviderExecutionCredential({
+      provider: CODEX_PROVIDER_KEY,
+      robotConfigRaw: {
+        credentialSource: 'global',
+        credentialProfileId: 'missing-global-profile'
+      },
+      globalCredentials: {
+        codex: {
+          profiles: [{ id: 'global-default', remark: 'global', apiKey: 'sk-global-codex' }],
+          defaultProfileId: 'global-default'
+        }
+      } as any,
+      userCredentials: {
+        codex: {
+          profiles: [{ id: 'user-1', remark: 'user', apiKey: 'sk-user-codex' }],
+          defaultProfileId: 'user-1'
+        }
+      } as any
+    });
+
+    expect(resolved.requestedStoredSource).toBe('global');
+    expect(resolved.resolvedLayer).toBe('user');
+    expect(resolved.resolvedMethod).toBe('user_profile');
+    expect(resolved.profileId).toBe('user-1');
+    expect(resolved.fallbackUsed).toBe(true);
+    await rm(fakeHome, { recursive: true, force: true });
+  });
+
   test('detects local Gemini OAuth auth from the copied home directory source', async () => {
     const fakeHome = await mkdtemp(path.join(os.tmpdir(), 'hookcode-provider-home-'));
     try {

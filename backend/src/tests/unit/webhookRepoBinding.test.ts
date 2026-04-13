@@ -12,9 +12,9 @@ const createDeps = () => ({
     markWebhookVerified: jest.fn(),
     updateRepository: jest.fn()
   },
-  repoRobotService: {
-    listByRepo: jest.fn().mockResolvedValue([]),
-    listByRepoWithToken: jest.fn().mockResolvedValue([])
+  robotCatalogService: {
+    listAvailableByRepo: jest.fn().mockResolvedValue([]),
+    listAvailableByRepoWithToken: jest.fn().mockResolvedValue([])
   },
   repoAutomationService: {
     getConfig: jest.fn().mockResolvedValue({ version: 2, events: {} })

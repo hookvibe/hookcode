@@ -2,6 +2,7 @@ import type { RepoRobot } from '../../types/repoRobot';
 import { detectRobotInText, selectRobotForTask } from '../../agent/robots';
 
 const makeRobot = (partial: Partial<RepoRobot>): RepoRobot => ({
+  scope: 'repo',
   id: partial.id ?? 'r1',
   repoId: partial.repoId ?? 'repo',
   name: partial.name ?? 'robot',

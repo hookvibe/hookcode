@@ -10,6 +10,11 @@ jest.mock('../../db', () => ({
 }));
 
 describe('Repository repo-scoped credentials', () => {
+  beforeEach(() => {
+    // Reset repository credential mocks between cases so merge and validation assertions do not leak prior db.update calls. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    jest.clearAllMocks();
+  });
+
   test('getRepoScopedCredentials returns normalized + public redacted shape', async () => {
     const { db } = await import('../../db');
     const { RepositoryService } = await import('../../modules/repositories/repository.service');
@@ -140,5 +145,93 @@ describe('Repository repo-scoped credentials', () => {
         })
       })
     );
+  });
+
+  test('updateRepository rejects repo-scoped repo provider patches without a remark using a stable validation code', async () => {
+    const { db } = await import('../../db');
+    const { RepoScopedCredentialValidationError, RepositoryService } = await import('../../modules/repositories/repository.service');
+    const repositoryService = new RepositoryService();
+
+    (db.repository.findUnique as jest.Mock)
+      .mockResolvedValueOnce({
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'group/project',
+        externalId: '123',
+        apiBaseUrl: 'https://gitlab.example.com',
+        branches: null,
+        webhookSecret: 's3cr3t',
+        webhookVerifiedAt: null,
+        visibility: 'private',
+        basicInfoVisibility: 'public',
+        robotConfigVisibility: 'public',
+        triggerVisibility: 'public',
+        enabled: true,
+        createdBy: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        createdByUser: null
+      })
+      .mockResolvedValueOnce({
+        repoProviderCredentials: { profiles: [], defaultProfileId: undefined },
+        modelProviderCredentials: null
+      });
+
+    await expect(
+      repositoryService.updateRepository('r1', {
+        repoProviderCredential: { profiles: [{ id: 'gl-1', token: 'glpat-1', remark: '' }] }
+      })
+    ).rejects.toMatchObject<Partial<InstanceType<typeof RepoScopedCredentialValidationError>>>({
+      name: 'CredentialValidationError',
+      message: 'repo provider credential profile remark is required',
+      code: 'REPO_SCOPED_CREDENTIAL_REPO_PROFILE_REMARK_REQUIRED',
+      details: { scope: 'repo_scoped', provider: 'gitlab', profileId: 'gl-1' }
+    });
+
+    expect(db.repository.update).not.toHaveBeenCalled();
+  });
+
+  test('updateRepository rejects repo-scoped model provider patches without a remark using a stable validation code', async () => {
+    const { db } = await import('../../db');
+    const { RepoScopedCredentialValidationError, RepositoryService } = await import('../../modules/repositories/repository.service');
+    const repositoryService = new RepositoryService();
+
+    (db.repository.findUnique as jest.Mock)
+      .mockResolvedValueOnce({
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'group/project',
+        externalId: '123',
+        apiBaseUrl: 'https://gitlab.example.com',
+        branches: null,
+        webhookSecret: 's3cr3t',
+        webhookVerifiedAt: null,
+        visibility: 'private',
+        basicInfoVisibility: 'public',
+        robotConfigVisibility: 'public',
+        triggerVisibility: 'public',
+        enabled: true,
+        createdBy: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        createdByUser: null
+      })
+      .mockResolvedValueOnce({
+        repoProviderCredentials: null,
+        modelProviderCredentials: { codex: { profiles: [], defaultProfileId: undefined } }
+      });
+
+    await expect(
+      repositoryService.updateRepository('r1', {
+        modelProviderCredential: { codex: { profiles: [{ id: 'codex-1', apiKey: 'secret-1', remark: null }] } }
+      })
+    ).rejects.toMatchObject<Partial<InstanceType<typeof RepoScopedCredentialValidationError>>>({
+      name: 'CredentialValidationError',
+      message: 'model provider credential profile remark is required',
+      code: 'REPO_SCOPED_CREDENTIAL_MODEL_PROFILE_REMARK_REQUIRED',
+      details: { scope: 'repo_scoped', provider: 'codex', profileId: 'codex-1' }
+    });
+
+    expect(db.repository.update).not.toHaveBeenCalled();
   });
 });

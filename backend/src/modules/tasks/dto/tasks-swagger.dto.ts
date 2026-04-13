@@ -348,14 +348,21 @@ export class TaskRobotSummaryDto {
   @ApiProperty()
   id!: string;
 
-  @ApiProperty()
-  repoId!: string;
+  @ApiProperty({ enum: ['repo', 'global'] })
+  // Surface robot scope so task detail pages can distinguish repository robots from global robots. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  scope!: 'repo' | 'global';
+
+  @ApiPropertyOptional({ nullable: true })
+  repoId?: string;
 
   @ApiProperty()
   name!: string;
 
   @ApiProperty({ enum: ['read', 'write'] })
   permission!: 'read' | 'write';
+
+  @ApiPropertyOptional({ nullable: true })
+  modelProvider?: string;
 
   @ApiProperty()
   enabled!: boolean;

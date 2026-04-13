@@ -18,7 +18,7 @@ import {
 import { buildPrompt } from './promptBuilder';
 import { resolveProviderExecutionCredential, type ResolvedProviderCredential } from '../modelProviders/providerCredentialResolver';
 import { postToProvider } from './reporter';
-import type { RepoRobotWithToken } from '../modules/repositories/repo-robot.service';
+import type { GlobalRobot } from '../types/globalRobot';
 import type { RepoProvider, Repository } from '../types/repository';
 import type { RepoRobot } from '../types/repoRobot';
 import { selectRobotForTask } from './robots';
@@ -52,7 +52,8 @@ import type {
   RepoScopedRepoProviderCredentials,
   RepositoryService
 } from '../modules/repositories/repository.service';
-import type { RepoRobotService } from '../modules/repositories/repo-robot.service';
+import type { GlobalCredentialService } from '../modules/repositories/global-credentials.service';
+import type { RobotCatalogService, SharedRobotWithToken } from '../modules/repositories/robot-catalog.service';
 import type { TaskService } from '../modules/tasks/task.service';
 import type { TaskLogStream } from '../modules/tasks/task-log-stream.service';
 import type { TaskLogsService } from '../modules/tasks/task-logs.service';
@@ -115,7 +116,8 @@ let taskService: TaskService;
 let taskLogStream: TaskLogStream;
 let taskLogsService: TaskLogsService;
 let repositoryService: RepositoryService;
-let repoRobotService: RepoRobotService;
+let robotCatalogService: RobotCatalogService;
+let globalCredentialService: GlobalCredentialService;
 let userService: UserService;
 let userApiTokenService: UserApiTokenService;
 let runtimeService: RuntimeService;
@@ -127,7 +129,8 @@ export const setAgentServices = (services: {
   taskLogStream: TaskLogStream;
   taskLogsService: TaskLogsService;
   repositoryService: RepositoryService;
-  repoRobotService: RepoRobotService;
+  robotCatalogService: RobotCatalogService;
+  globalCredentialService: GlobalCredentialService;
   userService: UserService;
   userApiTokenService: UserApiTokenService;
   runtimeService: RuntimeService;
@@ -139,7 +142,8 @@ export const setAgentServices = (services: {
   taskLogStream = services.taskLogStream;
   taskLogsService = services.taskLogsService; // Register task log persistence for the new log table. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
   repositoryService = services.repositoryService;
-  repoRobotService = services.repoRobotService;
+  robotCatalogService = services.robotCatalogService;
+  globalCredentialService = services.globalCredentialService;
   userService = services.userService;
   userApiTokenService = services.userApiTokenService;
   runtimeService = services.runtimeService;
@@ -154,7 +158,8 @@ const assertAgentServicesReady = () => {
     !taskLogStream ||
     !taskLogsService ||
     !repositoryService ||
-    !repoRobotService ||
+    !robotCatalogService ||
+    !globalCredentialService ||
     !userService ||
     !userApiTokenService ||
     !runtimeService ||
@@ -889,7 +894,8 @@ export const resolveCheckoutRef = (params: {
   task: Task;
   payload: any;
   repo: Repository | null;
-  robot: RepoRobot;
+  // Accept repo or global robots because checkout defaults can now come from shared robots. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  robot: RepoRobot | GlobalRobot;
 }): { ref?: string; source: 'event' | 'robot' | 'repo' | 'payload' | 'none' } => {
   const eventRef = safeTrim(formatRef(params.task.ref ?? params.payload?.ref));
   if (eventRef) return { ref: eventRef, source: 'event' };
@@ -908,6 +914,17 @@ export const resolveCheckoutRef = (params: {
 
   return { source: 'none' };
 };
+
+const getRepoRobotRole = (robot: SharedRobotWithToken): string | undefined =>
+  robot.scope === 'repo' ? robot.repoTokenRepoRole : undefined;
+
+const getRepoRobotIdentity = (robot: SharedRobotWithToken): { userName?: string; userEmail?: string } =>
+  robot.scope === 'repo'
+    ? {
+        userName: safeTrim(robot.repoTokenUserName) || undefined,
+        userEmail: safeTrim(robot.repoTokenUserEmail) || undefined
+      }
+    : {};
 
 const isHttpUrl = (value: string): boolean => /^https?:\/\//i.test(value);
 
@@ -1059,8 +1076,9 @@ interface ResolvedExecution {
     repoProvider: RepoScopedRepoProviderCredentials;
     modelProvider: RepoScopedModelProviderCredentials;
   };
-  robotsInRepo: RepoRobot[];
-  robot: RepoRobotWithToken;
+  globalCredentials?: UserModelCredentials | null;
+  robotsInRepo: SharedRobotWithToken[];
+  robot: SharedRobotWithToken;
   userId: string;
   userCredentials: UserModelCredentials | null;
   gitlab?: GitlabService;
@@ -1120,7 +1138,7 @@ export const resolveExecution = async (
     if (!repo) throw new Error(`repo not found: ${task.repoId}`);
     if (!repo.enabled) throw new Error(`repo disabled: ${task.repoId}`);
 
-    const robots = (await repoRobotService.listByRepoWithToken(repo.id)).filter((r) => r.enabled);
+    const robots = (await robotCatalogService.listAvailableByRepoWithToken(repo.id)).filter((r) => r.enabled);
     const noteText = getNoteText(repo.provider, payload);
 
     let selected = task.robotId ? robots.find((r) => r.id === task.robotId) : undefined;
@@ -1137,12 +1155,14 @@ export const resolveExecution = async (
     const defaultCreds = await userService.getDefaultUserCredentialsRaw();
     const userId = defaultCreds?.userId ?? '';
     const userCredentials = defaultCreds?.credentials ?? null;
+    const globalCredentials = await globalCredentialService.getCredentialsRaw();
     const repoScopedCredentials = await repositoryService.getRepoScopedCredentials(repo.id);
     const repoCredentialSource = inferRobotRepoProviderCredentialSource(selected);
     const providerToken = resolveRobotProviderToken({
       provider,
       robot: selected,
       userCredentials,
+      globalCredentials,
       repoCredentials: repoScopedCredentials?.repoProvider ?? null,
       source: repoCredentialSource
     });
@@ -1162,6 +1182,7 @@ export const resolveExecution = async (
       repoScopedCredentials: repoScopedCredentials
         ? { repoProvider: repoScopedCredentials.repoProvider, modelProvider: repoScopedCredentials.modelProvider }
         : undefined,
+      globalCredentials,
       robotsInRepo: robots,
       robot: selected,
       userId,
@@ -1191,6 +1212,7 @@ const buildRemoteRepoWorkflow = async (params: {
     provider: params.execution.provider,
     robot: params.execution.robot,
     userCredentials: params.execution.userCredentials,
+    globalCredentials: params.execution.globalCredentials,
     repoCredentials: params.execution.repoScopedCredentials?.repoProvider ?? null,
     source: repoCredentialSource
   });
@@ -1233,7 +1255,7 @@ const buildRemoteRepoWorkflow = async (params: {
 
   const workflowMode = resolveRepoWorkflowMode((params.execution.robot as any)?.repoWorkflowMode);
   const writeEnabled = params.execution.robot.permission === 'write';
-  const upstreamCanPush = canTokenPushToUpstream(params.execution.provider, params.execution.robot.repoTokenRepoRole);
+  const upstreamCanPush = canTokenPushToUpstream(params.execution.provider, getRepoRobotRole(params.execution.robot));
 
   if (workflowMode === 'direct') {
     return {
@@ -1374,6 +1396,7 @@ export const buildRemoteExecutionBundle = async (task: Task): Promise<RemoteExec
     primaryProvider: resolvedExecutionPlan.provider,
     primaryConfigRaw: resolvedExecutionPlan.configRaw,
     userCredentials: execution.userCredentials,
+    globalCredentials: execution.globalCredentials,
     repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
   });
   const providerRouting = toProviderRoutingResult(routingPlan);
@@ -1392,6 +1415,7 @@ export const buildRemoteExecutionBundle = async (task: Task): Promise<RemoteExec
         provider: attempt.provider,
         robotConfigRaw: attempt.providerConfigRaw,
         userCredentials: execution.userCredentials,
+        globalCredentials: execution.globalCredentials,
         repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
       })
     }))
@@ -1402,6 +1426,7 @@ export const buildRemoteExecutionBundle = async (task: Task): Promise<RemoteExec
     provider: execution.provider,
     robot: execution.robot,
     userCredentials: execution.userCredentials,
+    globalCredentials: execution.globalCredentials,
     repoCredentials: execution.repoScopedCredentials?.repoProvider ?? null,
     source: repoCredentialSource
   });
@@ -1413,8 +1438,9 @@ export const buildRemoteExecutionBundle = async (task: Task): Promise<RemoteExec
     repoUrl
   });
   const requiresGitIdentity = attempts.some(({ runConfig }) => runConfig.sandbox === 'workspace-write');
-  const tokenUserName = safeTrim(execution.robot.repoTokenUserName);
-  const tokenUserEmail = safeTrim(execution.robot.repoTokenUserEmail);
+  const repoRobotIdentity = getRepoRobotIdentity(execution.robot);
+  const tokenUserName = repoRobotIdentity.userName ?? '';
+  const tokenUserEmail = repoRobotIdentity.userEmail ?? '';
 
   return {
     taskId: task.id,
@@ -1843,6 +1869,7 @@ async function callAgent(
       provider: execution.provider,
       robot: execution.robot,
       userCredentials: execution.userCredentials,
+      globalCredentials: execution.globalCredentials,
       repoCredentials: execution.repoScopedCredentials?.repoProvider ?? null,
       source: repoCredentialSource
     });
@@ -1980,6 +2007,7 @@ exit 0
         provider: execution!.provider,
         robot: execution!.robot,
         userCredentials: execution!.userCredentials,
+        globalCredentials: execution!.globalCredentials,
         repoCredentials: execution!.repoScopedCredentials?.repoProvider ?? null,
         source: repoCredentialSource
       });
@@ -2029,7 +2057,7 @@ exit 0
       // Resolve the robot-configured workflow mode (auto/direct/fork) for this run. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
       const workflowMode = resolveRepoWorkflowMode((execution!.robot as any)?.repoWorkflowMode);
       const writeEnabled = execution!.robot.permission === 'write';
-      const upstreamCanPush = canTokenPushToUpstream(execution!.provider, execution!.robot.repoTokenRepoRole);
+      const upstreamCanPush = canTokenPushToUpstream(execution!.provider, getRepoRobotRole(execution!.robot));
 
       // Always reset origin push URL first to avoid stale fork pushUrl when workflow changes. docs/en/developer/plans/robotpullmode20260124/task_plan.md robotpullmode20260124
       await streamRepoCommand(`git remote set-url --push origin ${shDoubleQuote(upstreamInjected.execUrl)}`, {
@@ -2287,6 +2315,7 @@ exit 0
       primaryProvider,
       primaryConfigRaw,
       userCredentials: execution.userCredentials,
+      globalCredentials: execution.globalCredentials,
       repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
     });
     providerRouting = toProviderRoutingResult(routingPlan);
@@ -2313,8 +2342,9 @@ exit 0
     }
 
     // Enforce a repo-local git identity for workspace-write runs to ensure commits match the token owner.
-    const tokenUserName = safeTrim(execution.robot.repoTokenUserName);
-    const tokenUserEmail = safeTrim(execution.robot.repoTokenUserEmail);
+    const repoRobotIdentity = getRepoRobotIdentity(execution.robot);
+    const tokenUserName = repoRobotIdentity.userName ?? '';
+    const tokenUserEmail = repoRobotIdentity.userEmail ?? '';
     let gitUserName = '';
     let gitUserEmail = '';
 
@@ -2388,6 +2418,7 @@ exit 0
           provider: attempt.provider,
           robotConfigRaw: attempt.providerConfigRaw,
           userCredentials: execution.userCredentials,
+          globalCredentials: execution.globalCredentials,
           repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
         });
         providerRouting = updateProviderRoutingAttempt(providerRouting!, attempt.provider, {

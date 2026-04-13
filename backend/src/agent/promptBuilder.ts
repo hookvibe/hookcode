@@ -1,6 +1,7 @@
 import { Task } from '../types/task';
 import type { Repository } from '../types/repository';
 import type { RepoRobot } from '../types/repoRobot';
+import type { GlobalRobot } from '../types/globalRobot';
 import { getBotUsernames } from './robots';
 import { renderTemplate } from './template';
 import type { GitlabCommitComment, GitlabIssue, GitlabNote } from '../services/gitlabService';
@@ -15,8 +16,10 @@ import { getGithubRepoSlugFromPayload, getGitlabProjectIdFromPayload } from '../
  * - Prompt templates come from the robot (DB field `promptDefault`), and automation patch/override can generate task.promptCustom.
  */
 
+type PromptRobot = RepoRobot | GlobalRobot;
+
 export interface PromptContext {
-  robot: RepoRobot;
+  robot: PromptRobot;
   body: string;
 }
 
@@ -25,8 +28,9 @@ export interface BuildPromptInput {
   payload: any;
   repo: Repository | null;
   checkout?: { branch: string; source: string };
-  robot: RepoRobot;
-  robotsInRepo: RepoRobot[];
+  // Accept repo and global robots so shared robots render the same prompt variables inside repo-scoped executions. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  robot: PromptRobot;
+  robotsInRepo: PromptRobot[];
   gitlab?: GitlabService;
   github?: GithubService;
 }

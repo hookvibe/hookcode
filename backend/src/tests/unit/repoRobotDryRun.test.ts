@@ -15,6 +15,7 @@ const baseRepo = (): Repository => ({
 });
 
 const baseRobot = (): RepoRobotWithToken => ({
+  scope: 'repo',
   id: 'robot-1',
   repoId: 'repo-1',
   name: 'hookcode-review',

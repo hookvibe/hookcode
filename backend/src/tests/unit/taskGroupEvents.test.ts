@@ -9,7 +9,7 @@ describe('TaskService task-group SSE', () => {
       resolveRecipientsForTask: jest.fn().mockResolvedValue(['u1', 'u1', 'u2'])
     };
 
-    const service = new TaskService(eventStream as any, logWriter as any, notificationRecipients as any);
+    const service = new TaskService(eventStream as any, logWriter as any, undefined, notificationRecipients as any);
     const task = {
       id: 't1',
       groupId: 'g1',
@@ -45,7 +45,7 @@ describe('TaskService task-group SSE', () => {
       resolveRecipientsForTask: jest.fn().mockResolvedValue([])
     };
 
-    const service = new TaskService(eventStream as any, logWriter as any, notificationRecipients as any);
+    const service = new TaskService(eventStream as any, logWriter as any, undefined, notificationRecipients as any);
     const task = {
       id: 't2',
       groupId: 'g2',

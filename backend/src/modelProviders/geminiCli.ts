@@ -14,7 +14,7 @@ import {
 
 export const GEMINI_CLI_PROVIDER_KEY = 'gemini_cli' as const;
 
-export type GeminiCliCredentialSource = 'user' | 'repo' | 'robot';
+export type GeminiCliCredentialSource = 'user' | 'repo' | 'global' | 'robot';
 
 export interface GeminiCliCredential {
   /**
@@ -86,6 +86,7 @@ const normalizeCredentialProfileId = (value: unknown): string | undefined => {
 const normalizeCredentialSource = (value: unknown): GeminiCliCredentialSource => {
   const raw = asString(value).trim().toLowerCase();
   if (raw === 'robot') return 'robot';
+  if (raw === 'global') return 'global';
   if (raw === 'repo') return 'repo';
   return 'user';
 };

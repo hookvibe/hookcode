@@ -1566,6 +1566,15 @@
                     "expanded": false
                   },
                   {
+                    "group": "Global robots, global credentials, and first hardening batch (52d0x2aa8umrjgjklgwa)",
+                    "pages": [
+                      "en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan",
+                      "en/developer/plans/52d0x2aa8umrjgjklgwa/findings",
+                      "en/developer/plans/52d0x2aa8umrjgjklgwa/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
                     "group": "Repo activity list UI redesign (4wrx55jmsm8z5fuqlfdc)",
                     "pages": [
                       "en/developer/plans/4wrx55jmsm8z5fuqlfdc/task_plan",
@@ -1643,6 +1652,15 @@
                       "en/developer/plans/1vm5eh8mg4zuc2m3wiy8/task_plan",
                       "en/developer/plans/1vm5eh8mg4zuc2m3wiy8/findings",
                       "en/developer/plans/1vm5eh8mg4zuc2m3wiy8/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
+                    "group": "harden-github-actions-checkout-retries (15244rp0z2hnlpc3vmxm)",
+                    "pages": [
+                      "en/developer/plans/15244rp0z2hnlpc3vmxm/task_plan",
+                      "en/developer/plans/15244rp0z2hnlpc3vmxm/findings",
+                      "en/developer/plans/15244rp0z2hnlpc3vmxm/progress"
                     ],
                     "expanded": false
                   },

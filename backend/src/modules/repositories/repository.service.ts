@@ -6,6 +6,7 @@ import type { RepoProvider, Repository, RepositoryBranch } from '../../types/rep
 import { CODEX_PROVIDER_KEY } from '../../modelProviders/codex';
 import { CLAUDE_CODE_PROVIDER_KEY } from '../../modelProviders/claudeCode';
 import { GEMINI_CLI_PROVIDER_KEY } from '../../modelProviders/geminiCli';
+import { CredentialValidationError, createCredentialProfileRemarkRequiredError } from '../../utils/credentialValidation';
 import { normalizeHttpBaseUrl } from '../../utils/url';
 import { envValueHasFixedPort } from '../../utils/previewEnv';
 import type { UpdatedAtCursor } from '../../utils/pagination';
@@ -33,6 +34,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 const asTrimmedString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
+export const RepoScopedCredentialValidationError = CredentialValidationError;
 
 const normalizeBranches = (value: unknown): RepositoryBranch[] => {
   if (!Array.isArray(value)) return [];
@@ -724,6 +727,7 @@ export class RepositoryService {
     const nextBranches =
       input.branches === undefined ? existing.repo.branches ?? null : normalizeBranches(input.branches);
     const nextEnabled = input.enabled === undefined ? existing.repo.enabled : Boolean(input.enabled);
+    const repoProviderKey = String(existing.repo.provider ?? '').trim().toLowerCase() || 'repo_provider';
 
     const existingRepoScopedCredentials = await this.getRepoScopedCredentials(id);
     if (!existingRepoScopedCredentials) return null;
@@ -780,7 +784,14 @@ export class RepositoryService {
             : profilePatch.remark === null
               ? ''
               : asTrimmedString(profilePatch.remark);
-        if (!remark) throw new Error('repo provider credential profile remark is required');
+        if (!remark) {
+          throw createCredentialProfileRemarkRequiredError({
+            scope: 'repo_scoped',
+            kind: 'repo',
+            provider: repoProviderKey,
+            profileId: patchId
+          });
+        }
 
         const token =
           profilePatch.token === undefined
@@ -848,6 +859,7 @@ export class RepositoryService {
       if (patch === null) return null;
 
       const applyProviderUpdate = (
+        providerKey: 'codex' | 'claude_code' | 'gemini_cli',
         currentProvider: RepoScopedModelProviderCredentialsByProvider,
         update: any
       ): RepoScopedModelProviderCredentialsByProvider => {
@@ -881,7 +893,14 @@ export class RepositoryService {
               : profilePatch.remark === null
                 ? ''
                 : asTrimmedString(profilePatch.remark);
-          if (!remark) throw new Error('model provider credential profile remark is required');
+          if (!remark) {
+            throw createCredentialProfileRemarkRequiredError({
+              scope: 'repo_scoped',
+              kind: 'model',
+              provider: providerKey,
+              profileId: patchId
+            });
+          }
 
           const apiKey =
             profilePatch.apiKey === undefined
@@ -921,9 +940,9 @@ export class RepositoryService {
 
       // Change record: repo-scoped model provider credentials now support multiple profiles per provider.
       const next: RepoScopedModelProviderCredentials = {
-        codex: applyProviderUpdate(current.codex, patch.codex),
-        claude_code: applyProviderUpdate(current.claude_code, patch.claude_code),
-        gemini_cli: applyProviderUpdate(current.gemini_cli, patch.gemini_cli)
+        codex: applyProviderUpdate('codex', current.codex, patch.codex),
+        claude_code: applyProviderUpdate('claude_code', current.claude_code, patch.claude_code),
+        gemini_cli: applyProviderUpdate('gemini_cli', current.gemini_cli, patch.gemini_cli)
       };
 
       return toJson(next);
