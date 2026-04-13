@@ -306,6 +306,55 @@
   - backend/src/tests/unit/usersModelCredentialsController.test.ts
   - backend/src/tests/unit/repositoriesControllerCredentialValidation.test.ts
 
+### Phase 17: Frontend Test Failure Scope
+- **Status:** complete
+- **Started:** 2026-04-13 (continued after commit `29340a0`)
+- Actions taken:
+  - Reused the same session after backend hardening commit `29340a0` and narrowed the next continuation to root test failures caused by stale frontend available-robot mocks.
+  - Confirmed `TaskDetailPage`, `RepoDetailPage`, and task-group chat coverage had drifted from `listRepoRobots` to `listAvailableRepoRobots`, and mapped the remaining stale assertions to the new mixed-scope robot label format.
+  - Confirmed the root rerun would also need a second-wave fix for backend preview tests whose current filesystem and localhost assumptions are incompatible with the sandboxed environment.
+- Files created/modified:
+  - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md
+  - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/findings.md
+  - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/progress.md
+
+### Phase 18: Test Stabilization Fixes
+- **Status:** complete
+- **Started:** 2026-04-13 (continued after commit `29340a0`)
+- Actions taken:
+  - Fixed stale frontend `../api` mocks and helpers so `appShell`, `TaskDetailPage`, `RepoDetailPage`, and task-group chat tests now use `listAvailableRepoRobots` and the current mixed-scope robot label format.
+  - Made `previewService`, `previewPortPool`, and `previewWsProxy` tests hermetic inside the sandbox through tmp-root path redirection plus mocked or in-memory port and socket behavior.
+  - Kept the stabilization work test-only so production frontend and preview runtime behavior did not need to change.
+- Files created/modified:
+  - frontend/src/tests/appShell.test.tsx
+  - frontend/src/tests/taskDetailPage.test.tsx
+  - frontend/src/tests/repoDetailPage.test.tsx
+  - frontend/src/tests/taskGroupChatPage.composer.test.tsx
+  - frontend/src/tests/taskGroupChatPageTestUtils.tsx
+  - backend/src/tests/unit/previewService.test.ts
+  - backend/src/tests/unit/previewPortPool.test.ts
+  - backend/src/tests/unit/previewWsProxy.test.ts
+
+### Phase 19: Validation & Commit Prep
+- **Status:** complete
+- **Started:** 2026-04-13 (continued after commit `29340a0`)
+- Actions taken:
+  - Ran focused frontend tests for `appShell` and `TaskDetailPage`, focused backend preview tests, focused frontend tests for `RepoDetailPage` and task-group chat, the full frontend test suite, and finally the root `pnpm run test` command.
+  - Confirmed the root test flow now passes successfully inside the current sandboxed environment after the frontend stale-mock fixes and backend preview-test hermeticity changes.
+  - Recorded that there are no unresolved risks for this stabilization batch because the root test run is now green in the target environment.
+- Files created/modified:
+  - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md
+  - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/findings.md
+  - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/progress.md
+  - frontend/src/tests/appShell.test.tsx
+  - frontend/src/tests/taskDetailPage.test.tsx
+  - frontend/src/tests/repoDetailPage.test.tsx
+  - frontend/src/tests/taskGroupChatPage.composer.test.tsx
+  - frontend/src/tests/taskGroupChatPageTestUtils.tsx
+  - backend/src/tests/unit/previewService.test.ts
+  - backend/src/tests/unit/previewPortPool.test.ts
+  - backend/src/tests/unit/previewWsProxy.test.ts
+
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
 | Test | Input | Expected | Actual | Status |
@@ -335,6 +384,11 @@
 | Backend build after shared credential validation hardening | `pnpm --filter hookcode-backend build` | Backend build still passes after centralizing missing-remark validation into a shared helper across global, user, and repository flows | Build passed | pass |
 | Focused shared credential validation tests | `pnpm --filter hookcode-backend test -- --runInBand src/tests/unit/globalCredentialService.test.ts src/tests/unit/globalRobotsController.test.ts src/tests/unit/userModelCredentials.test.ts src/tests/unit/usersModelCredentialsController.test.ts src/tests/unit/repoScopedCredentials.test.ts src/tests/unit/repositoriesControllerCredentialValidation.test.ts` | Shared service/controller validation coverage passes across global, user, and repository credential update APIs | Tests passed | pass |
 | Full backend suite after shared credential validation hardening | `pnpm --filter hookcode-backend test` | Full backend suite still passes after replacing message-based credential remark validation across global, user, and repository flows | Test suite passed (`130 suites / 515 tests`) | pass |
+| Focused frontend tests after initial available-robot mock fixes | `pnpm --filter hookcode-frontend test -- src/tests/appShell.test.tsx src/tests/taskDetailPage.test.tsx` | The initial `listAvailableRepoRobots` mock fixes unblock app shell and task detail coverage | Tests passed | pass |
+| Focused backend preview tests after hermeticity fixes | `pnpm --filter hookcode-backend test -- src/tests/unit/previewService.test.ts src/tests/unit/previewPortPool.test.ts src/tests/unit/previewWsProxy.test.ts` | Preview tests pass inside the sandbox without real home-directory or localhost dependencies | Tests passed | pass |
+| Focused frontend tests after repo/chat stale-mock fixes | `pnpm --filter hookcode-frontend test -- src/tests/repoDetailPage.test.tsx src/tests/taskGroupChatPage.composer.test.tsx src/tests/taskGroupChatPage.timeline.test.tsx` | Repo detail and task-group chat coverage pass with the new available-robot mocks and mixed-scope labels | Tests passed | pass |
+| Full frontend suite after test stabilization | `pnpm --filter hookcode-frontend test` | Full frontend suite still passes after the stale mock and assertion updates | Tests passed | pass |
+| Root test flow after sandbox-safe test stabilization | `pnpm run test` | Root test execution completes successfully inside the current sandboxed environment | Tests passed | pass |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
@@ -349,17 +403,19 @@
 | 2026-04-13 (continued after commit `c00eeb6`) | `GlobalRobotsController` test coverage initially failed because controller-side validation error detection missed `repoCredentialProfileId` when the message casing varied. | 1 | Normalized the validation error detection in the controller for the first hardening batch, then replaced that brittle matching path with service-level validation codes in the later hardening batch. |
 | 2026-04-13 (continued after commit `04bf5de`) | The shared credential-validation refactor initially failed backend build because `repository.service` referenced an out-of-scope repository-provider variable when building repository-scoped validation details. | 1 | Lifted `repoProviderKey` to the outer `updateRepository` scope and reran the shared-validation build successfully. |
 | 2026-04-13 (continued after commit `04bf5de`) | `repoScopedCredentials.test` initially leaked repository mocks between cases during the shared validation rollout. | 1 | Cleared repository mocks between cases so the new shared helper assertions run against isolated test state. |
+| 2026-04-13 (continued after commit `29340a0`) | Initial root reruns surfaced additional stale frontend mocks in `RepoDetailPage` and task-group chat coverage after the first `appShell` and task-detail fixes. | 1 | Patched those tests and shared helpers to use `listAvailableRepoRobots` plus the current mixed-scope robot label format. |
+| 2026-04-13 (continued after commit `29340a0`) | Initial root reruns also surfaced preview backend tests that wrote to `~/.hookcode` or bound localhost sockets. | 1 | Converted those preview tests to tmp-root filesystem redirection and mocked or in-memory port/socket strategies so they pass in the sandbox. |
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}
 {/* If you can answer these, context is solid */}
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 16: Validation & Commit Prep is complete for the shared credential validation hardening batch. |
-| Where am I going? | The current batch is finalized; any next continuation would likely target broader credential-storage hardening or remaining non-credential message-matching branches. |
-| What's the goal? | Continue the same hardening session after commit `04bf5de`, focusing on the remaining user and repository credential validation paths that still relied on message matching. |
-| What have I learned? | One shared `CredentialValidationError` helper is sufficient for global, user, and repository missing-remark validation flows, and the remaining follow-up risks are now outside this specific batch. |
-| What have I done? | Reused the same session across the feature delivery and every follow-up hardening batch, then completed the shared credential validation rollout with focused regression coverage, backend build verification, and a passing full backend suite. |
+| Where am I? | Phase 19: Validation & Commit Prep is complete for the current test-stabilization batch. |
+| Where am I going? | The current stabilization batch is finalized; any next continuation would be a new follow-up area rather than unfinished work from this root-test repair. |
+| What's the goal? | Continue the same session after commit `29340a0`, focusing on root `pnpm run test` failures caused by stale frontend available-robot mocks and sandbox-incompatible backend preview tests. |
+| What have I learned? | The remaining root-test failures were a mix of stale frontend `listAvailableRepoRobots` mocks and non-hermetic preview tests, and both could be fixed safely at the test layer without changing production behavior. |
+| What have I done? | Reused the same session again, stabilized the affected frontend tests and backend preview tests, and re-verified the full frontend suite plus the root `pnpm run test` flow inside the sandbox. |
 
 ---
 {/* REMINDER: - Update after completing each phase or encountering errors - Be detailed - this is your "what happened" log - Include timestamps for errors to track when issues occurred */}
