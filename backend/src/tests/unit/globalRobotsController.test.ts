@@ -4,7 +4,7 @@ import { BadRequestException, ForbiddenException, HttpException, InternalServerE
 import { Test } from '@nestjs/testing';
 import { LogWriterService } from '../../modules/logs/log-writer.service';
 import { GlobalCredentialService } from '../../modules/repositories/global-credentials.service';
-import { GlobalRobotService } from '../../modules/repositories/global-robot.service';
+import { GlobalRobotService, GlobalRobotValidationError } from '../../modules/repositories/global-robot.service';
 import { GlobalRobotsController } from '../../modules/system/global-robots.controller';
 
 describe('GlobalRobotsController', () => {
@@ -88,7 +88,12 @@ describe('GlobalRobotsController', () => {
       ]
     }).compile();
     const controller = moduleRef.get(GlobalRobotsController);
-    globalRobotService.createRobot.mockRejectedValueOnce(new Error('repoCredentialProfileId does not exist in global credentials'));
+    globalRobotService.createRobot.mockRejectedValueOnce(
+      new GlobalRobotValidationError('repoCredentialProfileId does not exist in global credentials', {
+        code: 'GLOBAL_ROBOT_REPO_CREDENTIAL_PROFILE_NOT_FOUND',
+        details: { repoCredentialProfileId: 'missing-profile' }
+      })
+    );
 
     try {
       await controller.createGlobalRobot(adminReq(), {
@@ -101,7 +106,13 @@ describe('GlobalRobotsController', () => {
     } catch (err) {
       expect(err).toBeInstanceOf(BadRequestException);
       expect((err as HttpException).getStatus()).toBe(400);
-      expect((err as HttpException).getResponse()).toEqual(expect.objectContaining({ error: 'repoCredentialProfileId does not exist in global credentials' }));
+      expect((err as HttpException).getResponse()).toEqual(
+        expect.objectContaining({
+          error: 'repoCredentialProfileId does not exist in global credentials',
+          code: 'GLOBAL_ROBOT_REPO_CREDENTIAL_PROFILE_NOT_FOUND',
+          details: { repoCredentialProfileId: 'missing-profile' }
+        })
+      );
     }
 
     await moduleRef.close();

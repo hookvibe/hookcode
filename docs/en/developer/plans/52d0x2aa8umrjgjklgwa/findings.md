@@ -26,6 +26,8 @@
 - Reuse the existing session after baseline commit `c00eeb6` instead of starting a new session for the first hardening batch.
 - Finish the first hardening batch with DTO validation for system global robot create and update, controller tests, DTO tests, and i18n cleanup for the new global robot and global credential UI strings.
 - Validate the first hardening batch and prepare a clean follow-up commit once the changes land.
+- Continue the same hardening session after first hardening batch commit `0249536` instead of starting a separate session.
+- Focus the next hardening batch on disabled-global-robot execution guards and stronger backend error handling.
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
@@ -166,6 +168,17 @@
 - `pnpm --filter hookcode-frontend build` now passes after the i18n cleanup, so the new locale keys and repository or global scope labels are wired correctly on the frontend side.
 - The targeted backend tests and backend build currently fail in `global-robots.controller` because `CreateGlobalRobotDto` leaves `name` and `promptDefault` optional while `createRobot` still expects required strings.
 - The backend update path also fails because `UpdateGlobalRobotDto.dependencyConfig` is currently typed as `unknown` while `updateRobot` expects `RobotDependencyConfig | null | undefined`.
+- The current worktree is code-clean; only `docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md` is modified by the recorder flow at this point.
+- `RobotCatalogService.getByIdWithToken` still falls through from `repoRobotService.getByIdWithToken(id)` directly to `globalRobotService.getByIdWithConfig(id)`.
+- That fallback bypasses the enabled-only list methods, so disabled global robots may still be resolved in runtime execution paths when referenced by id.
+- `RobotCatalogService.listAvailableByRepo` and `listAvailableByRepoWithToken` already use `globalRobotService.listEnabled` and `listEnabledWithConfig`, so picker and webhook list flows stay on enabled global robots only.
+- `RobotCatalogService.getByIdWithToken` still returns `globalRobotService.getByIdWithConfig(id)` without any enabled check.
+- Webhook execution loads enabled robots by repository list and then filters `robot.enabled` again, so the higher-risk gap is in direct-id execution callers rather than in normal automation listing.
+- The only mixed-scope direct-id lookup is `RobotCatalogService.getByIdWithToken`, which is used by `RepositoriesController.getAvailableRobotWithConfig` for dry-run and saved-robot helper flows.
+- `ChatController` uses `robotCatalogService.getById` and then explicitly rejects disabled robots, so it is not currently the bypass path.
+- Worker internal and webhook execution paths consume enabled-only robot lists, which already exclude disabled global robots.
+- The baseline feature commit `c00eeb6` and the first hardening batch commit `0249536` are complete, so the next batch starts from that combined baseline rather than from the original feature boundary.
+- The next likely high-priority fixes are preventing disabled global robots from being executed through mixed-scope direct-id runtime lookups and reducing brittle error mapping in the global robot admin controller.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}
@@ -201,6 +214,9 @@
 | Put the new UI message keys into the `repos` i18n domain files instead of the root locale aggregators. | The frontend message packs are organized by domain, and the new robot or credential strings belong to repository and settings flows rather than to the top-level locale bootstrap. |
 | Treat the current hardening continuation as a narrow cleanup batch rather than a second feature expansion. | The user scoped the next work to DTO cleanup, controller and DTO tests, i18n extraction, validation, and commit prep, so the plan should stay tightly bounded to those items. |
 | Align DTO, controller, and service types directly instead of reintroducing `any` or unsafe casts. | The current first-batch validation failures are narrow typing mismatches between the new request DTOs and the existing global robot service contract, so the fix should preserve the type-safety goal of the batch. |
+| Guard runtime id-based global robot resolution with enabled-state checks. | Falling through from repository lookup straight to `globalRobotService.getByIdWithConfig` can bypass the enabled-only catalog paths, so the next hardening change should block disabled global robots from being resolved by id. |
+| Treat commit `0249536` as the new baseline for the next hardening batch. | The user explicitly said the baseline feature commit `c00eeb6` and the first hardening batch commit `0249536` are complete, so the next planning and validation work should start after those changes. |
+| Prioritize disabled global robot execution guards and stronger backend error handling next. | The current audit already narrowed the remaining likely bugs to direct-id disabled global robot resolution and brittle controller error mapping. |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}
@@ -244,6 +260,9 @@
 | The review classification is now ready for user-facing severity ranking. | The remaining task is to report that raw error logging and stale explicit global profile handling look like the immediate fixes, while the other findings fall into lower-priority hardening, broader architecture, or non-blocking UX buckets. |
 | The next implementation blocker is procedural rather than architectural. | The baseline feature and hardening state are already committed in `c00eeb6`, so the current batch can proceed directly to DTO, controller-test, DTO-test, and i18n cleanup work. |
 | The current first-batch blocker is a DTO-to-service typing mismatch in the backend global robot controller path. | Align `CreateGlobalRobotDto` and `UpdateGlobalRobotDto` with the service expectations before rerunning targeted backend tests and the backend build, while keeping the type surface strict. |
+| Disabled global robots may still be executable through direct id-based runtime lookup. | Inspect the exact runtime callers of `RobotCatalogService.getByIdWithToken` and add a guard plus regression coverage before changing the behavior, so the fix matches real execution paths instead of only hardening the catalog in theory. |
+| Enabled-list flows and direct-id flows should be treated separately in the next hardening step. | Repository pickers and webhook list paths already stay on enabled global robots, so the least-breaking fix is to tighten the direct-id lookup path and its callers instead of changing the enabled-list behavior that already matches product expectations. |
+| Patch `RobotCatalogService.getByIdWithToken` directly and cover the behavior with regression tests. | The direct-id mixed-scope bypass is now scoped to one catalog method used by repository dry-run and saved-robot helper flows, so fixing that method is the narrowest change with the highest payoff. |
 
 ## Resources
 {/* WHAT: URLs, file paths, API references, documentation links you've found useful. WHY: Easy reference for later. Don't lose important links in context. WHEN: Add as you discover useful resources. EXAMPLE: - Python argparse docs: https://docs.python.org/3/library/argparse.html - Project structure: src/main.py, src/utils.py */}
@@ -285,6 +304,15 @@
 - `pnpm --filter hookcode-backend test -- --runInBand src/tests/unit/globalRobotsRequestDto.test.ts src/tests/unit/globalRobotsController.test.ts`
 - `pnpm --filter hookcode-backend build`
 - `pnpm --filter hookcode-frontend build`
+- `git status --short`
+- `rg -n "getByIdWithToken|getByIdWithConfig|listEnabledWithConfig|listAllWithConfig|RobotCatalogService|globalRobotService" backend/src`
+- `backend/src/modules/repositories/robot-catalog.service.ts`
+- `backend/src/modules/repositories/global-robot.service.ts`
+- `backend/src/modules/webhook/webhook.execution.ts`
+- `rg -n "robotCatalogService.getByIdWithToken\\(|getByIdWithToken\\(" backend/src/modules backend/src/tests | sort`
+- `backend/src/modules/repositories/repositories.controller.ts`
+- `backend/src/modules/tasks/chat.controller.ts`
+- `backend/src/modules/workers/workers-internal.controller.ts`
 - `backend/src/services/repoRobotAccess.ts`
 - `backend/src/modules/repositories/repo-robot-dry-run.ts`
 - `backend/src/modules/repositories/global-robot.service.ts`

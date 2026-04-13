@@ -1566,7 +1566,7 @@
                     "expanded": false
                   },
                   {
-                    "group": "Global robots and global provider credentials (52d0x2aa8umrjgjklgwa)",
+                    "group": "Global robots, global credentials, and first hardening batch (52d0x2aa8umrjgjklgwa)",
                     "pages": [
                       "en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan",
                       "en/developer/plans/52d0x2aa8umrjgjklgwa/findings",

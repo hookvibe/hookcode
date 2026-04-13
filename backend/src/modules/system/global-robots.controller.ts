@@ -29,7 +29,7 @@ import { LogWriterService } from '../logs/log-writer.service';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { AuthScopeGroup } from '../auth/auth.decorator';
 import { GlobalCredentialService } from '../repositories/global-credentials.service';
-import { GlobalRobotService } from '../repositories/global-robot.service';
+import { GlobalRobotService, GlobalRobotValidationError } from '../repositories/global-robot.service';
 import { CreateGlobalRobotDto, UpdateGlobalRobotDto } from './dto/global-robots.dto';
 import { UpdateModelCredentialsDto } from '../users/dto/update-model-credentials.dto';
 
@@ -56,18 +56,13 @@ export class GlobalRobotsController {
     console.error(`[system] ${context}: ${sanitized}`);
   }
 
-  private isGlobalRobotValidationError(message: string): boolean {
-    // Normalize service error text before controller mapping so repo/global credential profile failures still become 400 responses after wording changes. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
-    const normalized = message.trim().toLowerCase();
-    return (
-      normalized.includes('name is required') ||
-      normalized.includes('promptdefault is required') ||
-      normalized.includes('credentialprofileid') ||
-      normalized.includes('defaultworkerid') ||
-      normalized.includes('repoworkflowmode') ||
-      normalized.includes('timewindow') ||
-      normalized.includes('modelprovider')
-    );
+  private buildGlobalRobotBadRequest(err: GlobalRobotValidationError): BadRequestException {
+    // Translate service-level global-robot validation codes into stable API errors so controller behavior does not depend on message text matching. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    return new BadRequestException({
+      error: err.message,
+      code: err.code,
+      ...(err.details ? { details: err.details } : {})
+    });
   }
 
   private requireAdmin(req: Request) {
@@ -177,10 +172,9 @@ export class GlobalRobotsController {
       });
       return { robot };
     } catch (err: any) {
-      const message = err?.message ? String(err.message) : '';
       if (err instanceof UnauthorizedException || err instanceof ForbiddenException) throw err;
-      if (this.isGlobalRobotValidationError(message)) {
-        throw new BadRequestException({ error: message });
+      if (err instanceof GlobalRobotValidationError) {
+        throw this.buildGlobalRobotBadRequest(err);
       }
       this.logSanitizedFailure('create global robot failed', err);
       throw new InternalServerErrorException({ error: 'Failed to create global robot' });
@@ -211,10 +205,9 @@ export class GlobalRobotsController {
       });
       return { robot };
     } catch (err: any) {
-      const message = err?.message ? String(err.message) : '';
       if (err instanceof UnauthorizedException || err instanceof ForbiddenException || err instanceof NotFoundException) throw err;
-      if (this.isGlobalRobotValidationError(message)) {
-        throw new BadRequestException({ error: message });
+      if (err instanceof GlobalRobotValidationError) {
+        throw this.buildGlobalRobotBadRequest(err);
       }
       this.logSanitizedFailure('update global robot failed', err);
       throw new InternalServerErrorException({ error: 'Failed to update global robot' });

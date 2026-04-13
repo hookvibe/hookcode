@@ -43,7 +43,10 @@ export class RobotCatalogService {
   async getByIdWithToken(id: string): Promise<SharedRobotWithToken | null> {
     const repoRobot = await this.repoRobotService.getByIdWithToken(id);
     if (repoRobot) return repoRobot;
-    return await this.globalRobotService.getByIdWithConfig(id);
+    const globalRobot = await this.globalRobotService.getByIdWithConfig(id);
+    // Prevent disabled global robots from re-entering execution-oriented direct-id lookups even when the caller bypasses the enabled-only list endpoints. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    if (!globalRobot || !globalRobot.enabled) return null;
+    return globalRobot;
   }
 
   async buildTaskRobotSummaryMap(robotIds: string[]): Promise<Map<string, TaskRobotSummary>> {

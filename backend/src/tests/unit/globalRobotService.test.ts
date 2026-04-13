@@ -13,7 +13,7 @@ jest.mock('../../db', () => ({
 }));
 
 import { db } from '../../db';
-import { GlobalRobotService } from '../../modules/repositories/global-robot.service';
+import { GlobalRobotService, GlobalRobotValidationError } from '../../modules/repositories/global-robot.service';
 
 const createService = (globalCredentials: unknown) =>
   new GlobalRobotService({
@@ -68,7 +68,11 @@ describe('global robot service', () => {
         repoCredentialSource: 'global',
         repoCredentialProfileId: 'missing-profile'
       })
-    ).rejects.toThrow('repoCredentialProfileId does not exist in global credentials');
+    ).rejects.toMatchObject<Partial<GlobalRobotValidationError>>({
+      name: 'GlobalRobotValidationError',
+      message: 'repoCredentialProfileId does not exist in global credentials',
+      code: 'GLOBAL_ROBOT_REPO_CREDENTIAL_PROFILE_NOT_FOUND'
+    });
 
     expect(db.globalRobot.create).not.toHaveBeenCalled();
   });
@@ -88,7 +92,11 @@ describe('global robot service', () => {
           model: 'gpt-5.1-codex-max'
         }
       })
-    ).rejects.toThrow('codex credentialProfileId does not exist in global credentials');
+    ).rejects.toMatchObject<Partial<GlobalRobotValidationError>>({
+      name: 'GlobalRobotValidationError',
+      message: 'codex credentialProfileId does not exist in global credentials',
+      code: 'GLOBAL_ROBOT_MODEL_CREDENTIAL_PROFILE_NOT_FOUND'
+    });
 
     expect(db.globalRobot.update).not.toHaveBeenCalled();
   });
