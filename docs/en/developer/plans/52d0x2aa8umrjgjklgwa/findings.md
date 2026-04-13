@@ -193,6 +193,44 @@
 - `user.service.updateModelCredentials` still throws raw `Error` strings for missing model-provider and repo-provider profile remarks, and `repository.service.updateRepository` still throws the same raw strings for repository-scoped credential profile remarks.
 - `users.controller` and `repositories.controller` still convert those failures into `400` responses via `message.includes(...)` matching.
 - `user.service.updateModelCredentials` and `repository.service.updateRepository` now look close enough to the already-hardened global flow that a shared credential-validation helper is likely the cleanest next step instead of another pair of local error classes.
+- Backend hardening commits through `29340a0` are complete, so the next continuation can stay tightly scoped to the frontend Vitest regression introduced after `TaskDetailPage` started calling `listAvailableRepoRobots`.
+- `frontend/src/pages/TaskDetailPage.tsx` now imports and calls `listAvailableRepoRobots(repoIdResolved)` in a `useEffect` to recover task robot metadata when the task payload is missing pieces such as `modelProvider`.
+- `frontend/src/tests/appShell.test.tsx` still mocks `../api` with `listRepoRobots` only and omits `listAvailableRepoRobots`, which causes the current missing-export failure while rendering routes that include `TaskDetailPage`.
+- `frontend/src/api.ts` re-exports `frontend/src/api/repos.ts`, and the real `listAvailableRepoRobots` export already exists there, so the current regression is a stale test-mock contract rather than a missing product export.
+- `frontend/src/tests/taskDetailPage.test.tsx` also mocks `../api` and still references `listRepoRobots`, so the first repair batch should patch both the `appShell` and `taskDetailPage` mocks together.
+- `TaskDetailPage` only needs `listAvailableRepoRobots` as a fallback when `task.robot.modelProvider` is missing, so baseline rendering can use an empty array, but the existing provider-label assertion path in `taskDetailPage.test.tsx` needs a matching available-robot entry instead.
+- `taskDetailPage.test.tsx` currently waits for `api.listRepoRobots` and asserts the summary strip shows the provider label `codex`, so both the mocked function name and the expectation must move to `listAvailableRepoRobots` to match the current component behavior.
+- Returning an available robot object with id `bot1`, scope `repo`, repoId `r1`, and modelProvider `codex` is enough to preserve the existing provider-label assertion path without changing product code.
+- `frontend/src/utils/robot.tsx` now formats task robot labels as `${name} / ${provider} / ${scopeLabel}`.
+- `frontend/src/pages/TaskDetailPage.tsx` also renders separate permission, scope, and provider tags before that formatted label, so the old exact-text assertion `Robot bot1` no longer matches the current summary strip content.
+- The remaining frontend failure is therefore a stale UI assertion rather than another missing API mock surface.
+- The correct repair is in `taskDetailPage.test.tsx`: assert the current combined label or assert the name/provider/scope pieces separately, rather than reverting the page back to the old summary text.
+- The updated assertion should avoid brittle exact-text matching across tag wrappers because `TaskDetailPage` now splits the visual summary into multiple rendered nodes.
+- `frontend/src/tests/repoDetailPage.test.tsx` also mocks `../api` without `listAvailableRepoRobots`, so `RepoDetailPage` effects now fail there for the same stale-export reason.
+- `frontend/src/tests/taskGroupChatPage.composer.test.tsx` still waits on `api.listRepoRobots` and still expects the older robot-label format, so its failure is a stale helper plus stale assertion combination rather than a product regression.
+- `frontend/src/tests/taskGroupChatPageTestUtils.tsx` is the shared mock source for task-group chat specs, and it still defines and resets `listRepoRobots` instead of `listAvailableRepoRobots`.
+- `frontend/src/pages/taskGroupChatPage/useTaskGroupWorkspaceData.ts` now builds robot labels via `formatRobotOptionLabel`, so visible selector text is `Robot 1 / codex / Repo` instead of the older `Robot 1 / codex`.
+- The current frontend blockers are therefore narrower than the earlier scan suggested: `appShell` and `taskDetailPage` are no longer the active blockers once they include the new export, while `repoDetailPage` still needs the local export and task-group chat still needs its shared helper plus composer assertions updated.
+- A `repoDetailPage` fix only needs the missing `listAvailableRepoRobots` export added to its local `../api` mock, while the task-group chat fix must update both the shared test helper and the composer assertions that still reflect the old selector label format.
+- After the frontend stale-mock and stale-assertion fixes, the remaining root test failures now come from backend preview tests that assume unrestricted filesystem and localhost socket access in ways that the current sandbox does not allow.
+- `backend/src/tests/unit/previewService.test.ts` creates real workspaces via `buildTaskGroupWorkspaceDir(...)`, which currently resolves under `~/.hookcode/task-groups/...` and fails with `EPERM` in the sandboxed environment.
+- `backend/src/tests/unit/previewPortPool.test.ts` relies on real localhost port availability checks, so allocating from hard-coded local port ranges can fail nondeterministically in the shared environment even when the product logic is correct.
+- `backend/src/tests/unit/previewWsProxy.test.ts` starts real HTTP or WebSocket listeners on `127.0.0.1` and fails with `listen EPERM` in this environment.
+- These preview failures are test hermeticity problems rather than product regressions, so the fastest safe repair path is to redirect preview workspace roots into temporary directories and stub port or socket probing where the behavior under test does not require real OS resources.
+- The next preview-test pass should inspect production override points first instead of rewriting preview runtime behavior just to satisfy the sandbox.
+- `backend/src/agent/agent.ts` already exports `TASK_GROUP_WORKSPACE_ROOT` and the related workspace builders, and existing coverage in `buildRootResolution.test.ts` shows the workspace root can already be redirected through test-controlled configuration.
+- There are no existing tests that stub `PreviewPortPool` port probing or `PreviewWsProxyService` socket behavior, which confirms the current failures are still coming from real OS resource usage rather than from hermetic test doubles.
+- The cleanest preview-test repair path is now clearer: redirect `previewService` workspace creation into a temporary root, stub `PreviewPortPool.isPortAvailable` to deterministic values, and replace `previewWsProxy` real socket servers with mocked net/http interactions when localhost binds are blocked.
+- The remaining preview-test discovery question is how `resolveTaskGroupWorkspaceRoot` is configured at module-import time so `previewService.test.ts` can override it safely before the tested module is loaded.
+- `backend/src/modules/tasks/preview.service.ts` imports `buildTaskGroupRootDir` and `buildTaskGroupWorkspaceDir` directly from `../../agent/agent`, so `previewService` tests can redirect workspace paths by mocking that module instead of changing production root-path resolution.
+- `agent.ts` derives `TASK_GROUP_WORKSPACE_ROOT` through `backend/src/utils/workDir.ts`, and there is no separate standalone `resolveTaskGroupWorkspaceRoot` module to override directly.
+- That means the safest backend fix for `previewService` remains test-level module mocking around the agent workspace builders rather than adding a new production seam just for test control.
+- The remaining open preview question is whether `previewWsProxy` has any existing auth/socket seam in its current imports; if not, that test should also move to mocked net/http behavior instead of binding real localhost listeners.
+- `preview.service.ts` uses `buildTaskGroupWorkspaceDir` during task scanning and `buildTaskGroupRootDir` for the fallback group-root scan, so a path-only hermetic test fix must override both builders together to keep all `previewService` cases inside a temporary root.
+- `previewWsProxy` still needs its own seam because it binds sockets directly instead of going through the `PreviewService` workspace helpers.
+- `backend/src/tests/unit/previewService.test.ts` uses `buildTaskGroupWorkspaceDir` in exactly four tests, which matches the four `EPERM` failures seen in the root test run.
+- The repo-preview display test near the end of `previewService.test.ts` follows the same workspace-builder pattern, so one file-scope tmp-root redirection helper or spy setup should cover every currently failing `previewService` case consistently.
+- No additional `previewService` cases currently appear to depend on the real `~/.hookcode` root, so test-level redirection looks low risk.
 - The shared credential-validation refactor is now the active implementation path, and the controller-side `instanceof` mapping pattern is already validated by a passing `UsersController` credential validation test.
 - The current mechanical failure set is narrow: `repository.service` references an out-of-scope repository-provider variable when building repository-scoped validation details, and several tests still assert the older global-only error name/message shape instead of the new stable code/details contract.
 - The repository-provider lookup issue is the only currently reported build-blocking TypeScript error in the shared refactor pass.
@@ -244,6 +282,18 @@
 | Prefer a shared credential-validation helper for the remaining user and repository flows if the test surface stays small enough. | The user/repository services now repeat the same missing-remark validation pattern that was just hardened in the global flow, so one reusable helper is likely cleaner than another round of duplicated local error classes. |
 | Keep the shared `CredentialValidationError` code/details contract stable while updating adjacent tests. | The refactor already proves the shared helper shape works conceptually, so the remaining work is mechanical alignment in `repository.service` and test assertions rather than another error-contract redesign. |
 | Reuse the same `CredentialValidationError` helper across global, user, and repository credential update flows. | The targeted and full backend validation now pass with one shared helper and controller-side `instanceof` mapping, so the common abstraction is proven and should remain centralized. |
+| Patch the stale frontend `../api` mocks before changing product code. | The real `listAvailableRepoRobots` export already exists in `frontend/src/api.ts`, so the current frontend regression is caused by test doubles that lag behind the live API surface. |
+| Keep the first frontend repair batch limited to `appShell.test.tsx` and `taskDetailPage.test.tsx`. | The current scans show no direct test references to `listAvailableRepoRobots`, so the failure comes from the shared mocked module surface used by those two tests. |
+| Use one repo-scoped available robot fixture in `taskDetailPage.test.tsx` to preserve the provider-label assertion path. | `TaskDetailPage` only needs the fallback API when `task.robot.modelProvider` is missing, so a minimal `bot1` / `r1` / `codex` available-robot entry keeps the existing assertion meaningful without broadening the mock surface. |
+| Update the remaining `TaskDetailPage` assertion to match the current composite summary output instead of reverting UI behavior. | The page now intentionally renders separate tags plus a formatted robot label, so the stable fix is a test assertion that follows the current UI contract without depending on one old exact string. |
+| Patch task-group chat through its shared test helper rather than per-test local mocks. | `taskGroupChatPageTestUtils.tsx` is the shared mock source for the chat specs, so fixing that helper once is the narrowest way to unblock the composer suite consistently. |
+| Update chat composer assertions to the current `formatRobotOptionLabel` output instead of the old provider-only label. | The selector text now intentionally includes scope as `Robot 1 / codex / Repo`, so the correct repair is test-side alignment with the current UI contract. |
+| Keep `repoDetailPage` on a local mock-only fix path. | `RepoDetailPage` only needs the missing `listAvailableRepoRobots` export added to its own `../api` mock, so there is no need to widen that part of the repair into shared helper changes. |
+| Prefer sandbox-safe override points in preview tests instead of changing preview production behavior. | The current `previewService`, `previewPortPool`, and `previewWsProxy` failures come from test interactions with real home-directory paths and localhost listeners, so test-only workspace and probe overrides are the fastest safe repair path. |
+| Reuse the existing workspace-root override path exported from `agent.ts` for preview-service tests when possible. | Current agent/root-resolution coverage already proves the workspace builders can run against alternative roots, so preview tests should piggyback on that supported override instead of inventing a second filesystem seam. |
+| Prefer module-level mocking of `../../agent/agent` in `previewService` tests over new production root-path configuration. | `preview.service.ts` already imports the workspace builders directly from that module, so test-level mocking is the narrowest safe fix and avoids unnecessary production behavior changes. |
+| Override both preview workspace builders together in `previewService` tests. | The service reaches both `buildTaskGroupWorkspaceDir` and `buildTaskGroupRootDir`, so mocking only one path would still leave fallback scans pointed at sandbox-restricted locations. |
+| Use one file-scope tmp-root helper in `previewService.test.ts` for all current workspace-related failures. | The same builder pattern now underlies all four `EPERM` failures plus the repo-preview display case, so one shared setup should keep the fix small and consistent. |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}
@@ -313,6 +363,22 @@
 - `pnpm --filter hookcode-backend build`
 - `pnpm --filter hookcode-backend test -- --runInBand ...`
 - `pnpm --filter hookcode-backend test`
+- `frontend/src/tests/appShell.test.tsx`
+- `frontend/src/tests/taskDetailPage.test.tsx`
+- `frontend/src/tests/repoDetailPage.test.tsx`
+- `frontend/src/tests/taskGroupChatPage.composer.test.tsx`
+- `frontend/src/tests/taskGroupChatPageTestUtils.tsx`
+- `frontend/src/pages/TaskDetailPage.tsx`
+- `frontend/src/pages/taskGroupChatPage/useTaskGroupWorkspaceData.ts`
+- `frontend/src/api.ts`
+- `frontend/src/api/repos.ts`
+- `backend/src/tests/unit/previewService.test.ts`
+- `backend/src/tests/unit/previewPortPool.test.ts`
+- `backend/src/tests/unit/previewWsProxy.test.ts`
+- `backend/src/tests/unit/buildRootResolution.test.ts`
+- `backend/src/agent/agent.ts`
+- `backend/src/modules/tasks/preview.service.ts`
+- `backend/src/utils/workDir.ts`
 - `backend/prisma/schema.prisma`
 - `backend/src/types/repoRobot.ts`
 - `backend/src/modules/repositories/repositories.controller.ts`

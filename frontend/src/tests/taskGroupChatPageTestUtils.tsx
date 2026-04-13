@@ -22,6 +22,7 @@ vi.mock('../api', () => {
 
   const robot = {
     id: 'bot1',
+    scope: 'repo',
     repoId: 'r1',
     name: 'Robot 1',
     permission: 'read',
@@ -102,6 +103,8 @@ vi.mock('../api', () => {
     fetchAllRepos: vi.fn(async () => [repo]),
     fetchWorkers: vi.fn(async () => [{ id: 'w1', name: 'Worker 1', kind: 'remote', status: 'online', isGlobalDefault: false, systemManaged: false, maxConcurrency: 1, currentConcurrency: 0, createdAt: mockNow, updatedAt: mockNow }]),
     listRepoRobots: vi.fn(async () => [robot]),
+    // Keep chat page tests aligned with the mixed-scope robot catalog fetch used by the composer. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    listAvailableRepoRobots: vi.fn(async () => [robot]),
     // Mock stop/edit/reorder APIs for the task-group workspace controls. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     stopTask: vi.fn(async (id: string) => ({ ...makeTask(id), status: 'failed', result: { stopReason: 'manual_stop' } })),
     retryTask: vi.fn(async (id: string) => makeTask(id)),
@@ -160,10 +163,26 @@ export const setupTaskGroupChatMocks = () => {
   vi.mocked(api.listRepoRobots).mockResolvedValue([
     {
       id: 'bot1',
+      scope: 'repo',
       repoId: 'r1',
       name: 'Robot 1',
       permission: 'read',
       // Include bound AI provider to exercise robot label formatting. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
+      modelProvider: 'codex',
+      enabled: true,
+      isDefault: true,
+      createdAt: NOW,
+      updatedAt: NOW
+    } as any
+  ]);
+  vi.mocked(api.listAvailableRepoRobots).mockResolvedValue([
+    {
+      id: 'bot1',
+      scope: 'repo',
+      repoId: 'r1',
+      name: 'Robot 1',
+      permission: 'read',
+      // Keep available-robot labels stable for mixed-scope chat selector coverage. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
       modelProvider: 'codex',
       enabled: true,
       isDefault: true,

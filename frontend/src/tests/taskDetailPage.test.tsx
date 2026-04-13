@@ -192,9 +192,10 @@ vi.mock('../api', () => {
       },
       actions: []
     })),
-    // Provide robot provider lookup for task detail provider labels. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
-    listRepoRobots: vi.fn(async () => [
-      { id: 'bot1', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true, modelProvider: 'codex' }
+    listRepoRobots: vi.fn(async () => []),
+    // Match TaskDetailPage's available-robot provider lookup so provider-label assertions stay valid. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    listAvailableRepoRobots: vi.fn(async () => [
+      { id: 'bot1', scope: 'repo', repoId: 'r1', name: 'Robot bot1', permission: 'write', enabled: true, modelProvider: 'codex' }
     ])
   };
 });
@@ -218,7 +219,7 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     renderPage({ taskId: 't1' });
 
     await waitFor(() => expect(api.fetchTask).toHaveBeenCalled());
-    await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
+    await waitFor(() => expect(api.listAvailableRepoRobots).toHaveBeenCalled());
     // Align header title selector with the updated PageNav markup. docs/en/developer/plans/frontendtestfix20260205/task_plan.md frontendtestfix20260205
     expect(await screen.findByText('Task t1', { selector: '.hc-modern-nav__title' })).toBeInTheDocument();
 
@@ -230,7 +231,8 @@ describe('TaskDetailPage (frontend-chat migration)', () => {
     expect(stripScope.getByText('Robot')).toBeInTheDocument();
     expect(stripScope.getByText('Author')).toBeInTheDocument();
     expect(stripScope.getByText('Repo r1')).toBeInTheDocument();
-    expect(stripScope.getByText('Robot bot1')).toBeInTheDocument();
+    // Assert the mixed-scope robot summary label with its current scope suffix. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    expect(stripScope.getByText('Robot bot1 / Repo')).toBeInTheDocument();
     // Ensure bound AI provider is visible in the task summary strip. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
     expect(stripScope.getByText('codex')).toBeInTheDocument();
     expect(stripScope.getByText('Alice')).toBeInTheDocument();

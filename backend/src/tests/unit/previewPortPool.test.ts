@@ -2,9 +2,19 @@ import { PreviewPortPool } from '../../modules/tasks/previewPortPool';
 
 // Validate preview port pool allocation/release behavior. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
 
+const mockPortAvailability = (pool: PreviewPortPool): void => {
+  // Stub OS port probes so preview port-pool tests stay deterministic inside sandboxed runs. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  jest.spyOn(pool as any, 'isPortAvailable').mockResolvedValue(true);
+};
+
 describe('PreviewPortPool', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test('allocates and releases ports', async () => {
     const pool = new PreviewPortPool(12000, 12010);
+    mockPortAvailability(pool);
     const port = await pool.allocatePort('group-1');
     expect(port).toBeGreaterThanOrEqual(12000);
     expect(port).toBeLessThanOrEqual(12010);
@@ -17,6 +27,7 @@ describe('PreviewPortPool', () => {
 
   test('releases all group ports', async () => {
     const pool = new PreviewPortPool(12020, 12030);
+    mockPortAvailability(pool);
     const portA = await pool.allocatePort('group-2');
     const portB = await pool.allocatePort('group-2');
 
@@ -29,6 +40,7 @@ describe('PreviewPortPool', () => {
   test('returns deterministic allocation snapshots', async () => {
     // Validate admin preview management can read range/capacity/allocation snapshots. docs/en/developer/plans/preview-management-dashboard-20260303/task_plan.md preview-management-dashboard-20260303
     const pool = new PreviewPortPool(12100, 12102);
+    mockPortAvailability(pool);
     const first = await pool.allocatePort('group-a');
     const second = await pool.allocatePort('group-b');
 

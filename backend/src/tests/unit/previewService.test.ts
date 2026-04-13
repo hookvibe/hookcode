@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from 'fs/promises';
 import path from 'path';
-import { buildTaskGroupWorkspaceDir } from '../../agent/agent';
+import * as agentHelpers from '../../agent/agent';
 import { installDependencies } from '../../agent/dependencyInstaller';
 import { PreviewLogStream } from '../../modules/tasks/preview-log-stream.service';
 import { PreviewService } from '../../modules/tasks/preview.service';
@@ -14,17 +14,42 @@ jest.mock('../../agent/dependencyInstaller', () => ({
   DependencyInstallerError: class DependencyInstallerError extends Error {}
 }));
 
+const PREVIEW_TEST_ROOT = path.join(process.cwd(), '.tmp-preview-tests');
+
+const buildPreviewTestRootDir = (params: { taskGroupId?: string | null; taskId: string }): string =>
+  path.join(PREVIEW_TEST_ROOT, params.taskGroupId?.trim() || params.taskId.trim() || 'task');
+
+const buildPreviewTestWorkspaceDir = (params: { taskGroupId?: string | null; taskId: string; repoSlug: string }): string => {
+  const segments = String(params.repoSlug ?? '')
+    .split('__')
+    .filter(Boolean);
+  const repoFolder = segments.length > 0 ? segments[segments.length - 1] : 'repo';
+  return path.join(buildPreviewTestRootDir(params), repoFolder);
+};
+
 describe('PreviewService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Redirect preview workspace builders into a sandbox-safe test root so preview tests avoid ~/.hookcode writes. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    jest.spyOn(agentHelpers, 'buildTaskGroupRootDir').mockImplementation(buildPreviewTestRootDir);
+    jest.spyOn(agentHelpers, 'buildTaskGroupWorkspaceDir').mockImplementation(buildPreviewTestWorkspaceDir);
+  });
+
+  afterEach(async () => {
+    jest.restoreAllMocks();
+    await rm(PREVIEW_TEST_ROOT, { recursive: true, force: true });
+  });
+
   test('returns config_invalid when preview config validation fails', async () => {
     const taskGroupId = 'group-preview-invalid';
     const taskId = 'task-preview-invalid';
     const repoSlug = 'org__repo';
-    const workspaceDir = buildTaskGroupWorkspaceDir({
+    const workspaceDir = buildPreviewTestWorkspaceDir({
       taskGroupId,
       taskId,
       provider: 'github',
       repoSlug
-    });
+    } as any);
 
     await mkdir(workspaceDir, { recursive: true });
     await writeFile(path.join(workspaceDir, '.hookcode.yml'), 'version: 1\npreview:\n  instances: []\n', 'utf8');
@@ -91,12 +116,12 @@ describe('PreviewService', () => {
     const taskIdOld = 'task-preview-old';
     const taskIdNew = 'task-preview-new';
     const repoSlug = 'org__repo';
-    const workspaceDir = buildTaskGroupWorkspaceDir({
+    const workspaceDir = buildPreviewTestWorkspaceDir({
       taskGroupId,
       taskId: taskIdOld,
       provider: 'github',
       repoSlug
-    });
+    } as any);
 
     await mkdir(workspaceDir, { recursive: true });
     await writeFile(
@@ -143,12 +168,12 @@ describe('PreviewService', () => {
     const taskGroupId = 'group-preview-install';
     const taskId = 'task-preview-install';
     const repoSlug = 'org__repo';
-    const workspaceDir = buildTaskGroupWorkspaceDir({
+    const workspaceDir = buildPreviewTestWorkspaceDir({
       taskGroupId,
       taskId,
       provider: 'github',
       repoSlug
-    });
+    } as any);
 
     await mkdir(workspaceDir, { recursive: true });
     await writeFile(
@@ -445,12 +470,12 @@ describe('PreviewService', () => {
     const taskId = 'task-preview-repo-display';
     const repoSlug = 'org__repo_display';
     const repoId = 'repo-display';
-    const workspaceDir = buildTaskGroupWorkspaceDir({
+    const workspaceDir = buildPreviewTestWorkspaceDir({
       taskGroupId,
       taskId,
       provider: 'github',
       repoSlug
-    });
+    } as any);
 
     await mkdir(workspaceDir, { recursive: true });
     await writeFile(

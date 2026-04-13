@@ -25,7 +25,7 @@ describe('TaskGroupChatPage composer', () => {
 
     // Expect chat page repo fetch to use the shared repo loader before submitting. docs/en/developer/plans/taskgroup-ui-refactor-20260306/task_plan.md taskgroup-ui-refactor-20260306
     await waitFor(() => expect(api.fetchAllRepos).toHaveBeenCalled());
-    await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
+    await waitFor(() => expect(api.listAvailableRepoRobots).toHaveBeenCalled());
 
     const textarea = await screen.findByPlaceholderText(chatComposerPlaceholder);
     await ui.type(textarea, 'Hello from test');
@@ -48,8 +48,9 @@ describe('TaskGroupChatPage composer', () => {
   test('shows bound AI provider in the robot selector', async () => {
     renderTaskGroupChatPage();
 
-    await waitFor(() => expect(api.listRepoRobots).toHaveBeenCalled());
-    expect(await screen.findByText('Robot 1 / codex')).toBeInTheDocument();
+    await waitFor(() => expect(api.listAvailableRepoRobots).toHaveBeenCalled());
+    // Assert the mixed-scope robot label so chat selector coverage matches the current formatter. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    expect(await screen.findByText('Robot 1 / codex / Repo')).toBeInTheDocument();
   });
 
   test('submits a chat task with an explicit worker override for admins', async () => {
