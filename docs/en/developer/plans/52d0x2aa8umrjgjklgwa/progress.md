@@ -248,7 +248,7 @@
   - backend/src/tests/unit/globalRobotsController.test.ts
 
 ### Phase 14: User & Repository Credential Validation Scope
-- **Status:** in_progress
+- **Status:** complete
 - **Started:** 2026-04-13 (continued after commit `04bf5de`)
 - Actions taken:
   - Reused the same session after commit `04bf5de` to inspect the remaining user and repository credential validation paths that still rely on message matching.
@@ -258,6 +258,53 @@
   - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md
   - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/findings.md
   - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/progress.md
+
+### Phase 15: User & Repository Credential Validation Hardening
+- **Status:** complete
+- **Started:** 2026-04-13 (continued after commit `04bf5de`)
+- Actions taken:
+  - Extracted a shared `CredentialValidationError` helper plus a common remark-required factory so global, user, and repository credential update services emit the same stable code/details contract for missing profile remarks.
+  - Updated `GlobalRobotsController`, `UsersController`, and `RepositoriesController` to map those service errors with `instanceof` checks instead of message substring matching.
+  - Added focused regression coverage across the shared helper rollout for global, user, and repository credential validation behavior.
+- Files created/modified:
+  - backend/src/utils/credentialValidation.ts
+  - backend/src/modules/repositories/global-credentials.service.ts
+  - backend/src/modules/users/user.service.ts
+  - backend/src/modules/repositories/repository.service.ts
+  - backend/src/modules/system/global-robots.controller.ts
+  - backend/src/modules/users/users.controller.ts
+  - backend/src/modules/repositories/repositories.controller.ts
+  - backend/src/tests/unit/globalCredentialService.test.ts
+  - backend/src/tests/unit/globalRobotsController.test.ts
+  - backend/src/tests/unit/userModelCredentials.test.ts
+  - backend/src/tests/unit/repoScopedCredentials.test.ts
+  - backend/src/tests/unit/usersModelCredentialsController.test.ts
+  - backend/src/tests/unit/repositoriesControllerCredentialValidation.test.ts
+
+### Phase 16: Validation & Commit Prep
+- **Status:** complete
+- **Started:** 2026-04-13 (continued after commit `04bf5de`)
+- Actions taken:
+  - Ran backend build, focused shared-validation regression tests, and the full backend suite; all validation passed for the shared credential validation hardening batch.
+  - Resolved the repository-service compile issue by lifting `repoProviderKey` to the outer `updateRepository` scope and fixed a mock leak in `repoScopedCredentials.test` by clearing repository mocks between cases.
+  - Recorded the remaining follow-up risks: credential storage is still plain JSONB without app-level encryption, and some non-credential validation branches in user/repository update controllers still use older message matching.
+- Files created/modified:
+  - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md
+  - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/findings.md
+  - docs/en/developer/plans/52d0x2aa8umrjgjklgwa/progress.md
+  - backend/src/utils/credentialValidation.ts
+  - backend/src/modules/repositories/global-credentials.service.ts
+  - backend/src/modules/users/user.service.ts
+  - backend/src/modules/repositories/repository.service.ts
+  - backend/src/modules/system/global-robots.controller.ts
+  - backend/src/modules/users/users.controller.ts
+  - backend/src/modules/repositories/repositories.controller.ts
+  - backend/src/tests/unit/globalCredentialService.test.ts
+  - backend/src/tests/unit/globalRobotsController.test.ts
+  - backend/src/tests/unit/userModelCredentials.test.ts
+  - backend/src/tests/unit/repoScopedCredentials.test.ts
+  - backend/src/tests/unit/usersModelCredentialsController.test.ts
+  - backend/src/tests/unit/repositoriesControllerCredentialValidation.test.ts
 
 ## Test Results
 {/* WHAT: Table of tests you ran, what you expected, what actually happened. WHY: Documents verification of functionality. Helps catch regressions. WHEN: Update as you test features, especially during Phase 4 (Testing & Verification). EXAMPLE: | Add task | python todo.py add "Buy milk" | Task added | Task added successfully | ✓ | | List tasks | python todo.py list | Shows all tasks | Shows all tasks | ✓ | */}
@@ -285,6 +332,9 @@
 | Backend build after global-credentials validation hardening | `pnpm --filter hookcode-backend build` | Backend build still passes after replacing message-based global-credentials `PATCH` validation with stable service errors | Build passed | pass |
 | Focused global-credentials validation tests | `pnpm --filter hookcode-backend test -- --runInBand src/tests/unit/globalCredentialService.test.ts src/tests/unit/globalRobotsController.test.ts` | Service/controller validation coverage passes for the global-credentials `PATCH` hardening batch | Tests passed | pass |
 | Full backend suite after global-credentials validation hardening | `pnpm --filter hookcode-backend test` | Full backend suite still passes after the stable global-credentials validation error changes | Test suite passed (`128 suites / 509 tests`) | pass |
+| Backend build after shared credential validation hardening | `pnpm --filter hookcode-backend build` | Backend build still passes after centralizing missing-remark validation into a shared helper across global, user, and repository flows | Build passed | pass |
+| Focused shared credential validation tests | `pnpm --filter hookcode-backend test -- --runInBand src/tests/unit/globalCredentialService.test.ts src/tests/unit/globalRobotsController.test.ts src/tests/unit/userModelCredentials.test.ts src/tests/unit/usersModelCredentialsController.test.ts src/tests/unit/repoScopedCredentials.test.ts src/tests/unit/repositoriesControllerCredentialValidation.test.ts` | Shared service/controller validation coverage passes across global, user, and repository credential update APIs | Tests passed | pass |
+| Full backend suite after shared credential validation hardening | `pnpm --filter hookcode-backend test` | Full backend suite still passes after replacing message-based credential remark validation across global, user, and repository flows | Test suite passed (`130 suites / 515 tests`) | pass |
 
 ## Error Log
 {/* WHAT: Detailed log of every error encountered, with timestamps and resolution attempts. WHY: More detailed than task_plan.md's error table. Helps you learn from mistakes. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | 2026-01-15 10:35 | FileNotFoundError | 1 | Added file existence check | | 2026-01-15 10:37 | JSONDecodeError | 2 | Added empty file handling | */}
@@ -297,17 +347,19 @@
 | 2026-04-13 15:02:00 +0800 | `prisma migrate diff` could not be used to generate the schema migration in this environment. | 1 | Added `backend/prisma/migrations/20260413000100_global_robot_and_credentials/migration.sql` manually because diffing from migrations requires a shadow database URL here. |
 | 2026-04-13 (continued after commit `c00eeb6`) | Targeted backend validation and build failed during the first hardening batch because the system global robot DTOs still allowed optional or overly wide values that did not satisfy the service contracts. | 1 | Fixed the create/update DTO typing by requiring the needed create fields, using `PartialType` for update behavior, and narrowing enum-like values before rerunning validation. |
 | 2026-04-13 (continued after commit `c00eeb6`) | `GlobalRobotsController` test coverage initially failed because controller-side validation error detection missed `repoCredentialProfileId` when the message casing varied. | 1 | Normalized the validation error detection in the controller for the first hardening batch, then replaced that brittle matching path with service-level validation codes in the later hardening batch. |
+| 2026-04-13 (continued after commit `04bf5de`) | The shared credential-validation refactor initially failed backend build because `repository.service` referenced an out-of-scope repository-provider variable when building repository-scoped validation details. | 1 | Lifted `repoProviderKey` to the outer `updateRepository` scope and reran the shared-validation build successfully. |
+| 2026-04-13 (continued after commit `04bf5de`) | `repoScopedCredentials.test` initially leaked repository mocks between cases during the shared validation rollout. | 1 | Cleared repository mocks between cases so the new shared helper assertions run against isolated test state. |
 
 ## 5-Question Reboot Check
 {/* WHAT: Five questions that verify your context is solid. If you can answer these, you're on track. WHY: This is the "reboot test" - if you can answer all 5, you can resume work effectively. WHEN: Update periodically, especially when resuming after a break or context reset. THE 5 QUESTIONS: 1. Where am I? → Current phase in task_plan.md 2. Where am I going? → Remaining phases 3. What's the goal? → Goal statement in task_plan.md 4. What have I learned? → See findings.md 5. What have I done? → See progress.md (this file) */}
 {/* If you can answer these, context is solid */}
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 14: User & Repository Credential Validation Scope is in progress. |
-| Where am I going? | The next planned work is to decide whether the remaining user/repository credential validation hardening should use a shared helper and then implement that batch with focused plus full validation. |
-| What's the goal? | Continue the same hardening session after commit `04bf5de`, focusing on the remaining user and repository credential validation paths that still rely on message matching. |
-| What have I learned? | The global credential path is now hardened with stable validation codes, while the same remark-validation pattern still exists in `user.service`, `repository.service`, `users.controller`, and `repositories.controller`, making a shared helper the likely next clean step. |
-| What have I done? | Reused the same session across the feature delivery, the stored-profile/logging hardening, the DTO/controller/i18n cleanup batch, the disabled-global-robot guard batch, the global-credentials validation batch, and the start of the remaining user/repository validation audit. |
+| Where am I? | Phase 16: Validation & Commit Prep is complete for the shared credential validation hardening batch. |
+| Where am I going? | The current batch is finalized; any next continuation would likely target broader credential-storage hardening or remaining non-credential message-matching branches. |
+| What's the goal? | Continue the same hardening session after commit `04bf5de`, focusing on the remaining user and repository credential validation paths that still relied on message matching. |
+| What have I learned? | One shared `CredentialValidationError` helper is sufficient for global, user, and repository missing-remark validation flows, and the remaining follow-up risks are now outside this specific batch. |
+| What have I done? | Reused the same session across the feature delivery and every follow-up hardening batch, then completed the shared credential validation rollout with focused regression coverage, backend build verification, and a passing full backend suite. |
 
 ---
 {/* REMINDER: - Update after completing each phase or encountering errors - Be detailed - this is your "what happened" log - Include timestamps for errors to track when issues occurred */}

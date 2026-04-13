@@ -130,17 +130,17 @@ Phase 14
 
 ### Phase 16: Validation & Commit Prep
 {/* WHAT: Verify the next user/repository credential hardening batch and prepare it for commit. WHY: The current session should keep each hardening slice fully validated before another handoff. */}
-- [ ] Run targeted and full validation for the user and repository credential hardening batch
-- [ ] Summarize remaining risks after the user/repository validation changes
-- [ ] Prepare the next hardening batch for a clean commit
-- **Status:** in_progress
+- [x] Run targeted and full validation for the user and repository credential hardening batch
+- [x] Summarize remaining risks after the user/repository validation changes
+- [x] Prepare the next hardening batch for a clean commit
+- **Status:** complete
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
 1. Which user and repository credential validation paths still rely on raw message matching after commit `04bf5de`?
 2. How should the shared credential-validation helper expose stable code and details so user, repository, and already-hardened global flows stay aligned?
-3. Do any full-suite regressions remain after the shared refactor now passes targeted coverage and backend build validation?
-4. What full validation and remaining risk review are required before the current user/repository credential hardening batch is ready to commit?
+3. Which remaining non-credential validation branches in user and repository update flows still rely on older message matching and may need a later batch?
+4. What broader credential-storage hardening remains outside this validation-focused patch set?
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
@@ -165,6 +165,7 @@ Phase 14
 | Move the next batch to the user and repository credential validation flows without reopening the already-hardened global credential path. | The current adjacent gap is controller-side message matching in `users.controller` and `repositories.controller`, while the global credential `PATCH` flow was just stabilized in commit `04bf5de`. |
 | Reuse one shared credential-validation helper instead of adding more one-off local error classes. | `user.service`, `repository.service`, and the already-hardened global credential flow now share the same missing-remark validation pattern, so one helper keeps code/details aligned across adjacent APIs. |
 | Advance the current batch to validation after the shared credential-validation helper compiled and passed targeted coverage. | The service/controller refactor is now implemented across global, user, and repository flows, so the remaining work is full-suite validation and final risk review rather than more design churn. |
+| Keep the shared `CredentialValidationError` helper as the common missing-remark contract across global, user, and repository credential update flows. | The targeted and full backend validation now pass with one shared helper plus `instanceof`-based controller mapping, so the abstraction is proven and should stay centralized. |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}

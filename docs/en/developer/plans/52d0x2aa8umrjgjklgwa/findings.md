@@ -196,6 +196,10 @@
 - The shared credential-validation refactor is now the active implementation path, and the controller-side `instanceof` mapping pattern is already validated by a passing `UsersController` credential validation test.
 - The current mechanical failure set is narrow: `repository.service` references an out-of-scope repository-provider variable when building repository-scoped validation details, and several tests still assert the older global-only error name/message shape instead of the new stable code/details contract.
 - The repository-provider lookup issue is the only currently reported build-blocking TypeScript error in the shared refactor pass.
+- The shared credential-validation refactor now compiles and passes targeted coverage after fixing the repository-provider closure variable and a missing mock reset in `repoScopedCredentials.test`.
+- Global, user, and repository credential patch/update flows now share `CredentialValidationError` plus a common remark-required factory helper.
+- `UsersController` and `RepositoriesController` now map those service errors via `instanceof` instead of `message.includes(...)` substring checks.
+- The full backend suite now passes for the shared credential validation rollout, so the remaining risks are no longer in validation mechanics but in broader follow-up areas such as storage hardening and older non-credential controller branches.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}
@@ -239,6 +243,7 @@
 | Treat commit `04bf5de` as the next baseline for the current adjacent hardening slice. | The user explicitly said commits `c00eeb6`, `0249536`, `4b2afe3`, and `04bf5de` are complete before checking the remaining user and repository credential validation paths. |
 | Prefer a shared credential-validation helper for the remaining user and repository flows if the test surface stays small enough. | The user/repository services now repeat the same missing-remark validation pattern that was just hardened in the global flow, so one reusable helper is likely cleaner than another round of duplicated local error classes. |
 | Keep the shared `CredentialValidationError` code/details contract stable while updating adjacent tests. | The refactor already proves the shared helper shape works conceptually, so the remaining work is mechanical alignment in `repository.service` and test assertions rather than another error-contract redesign. |
+| Reuse the same `CredentialValidationError` helper across global, user, and repository credential update flows. | The targeted and full backend validation now pass with one shared helper and controller-side `instanceof` mapping, so the common abstraction is proven and should remain centralized. |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}
@@ -301,8 +306,13 @@
 - `backend/src/modules/repositories/global-credentials.service.ts`
 - `backend/src/tests/unit/globalCredentialService.test.ts`
 - `backend/src/tests/unit/globalRobotsController.test.ts`
+- `backend/src/tests/unit/userModelCredentials.test.ts`
+- `backend/src/tests/unit/usersModelCredentialsController.test.ts`
+- `backend/src/tests/unit/repoScopedCredentials.test.ts`
+- `backend/src/tests/unit/repositoriesControllerCredentialValidation.test.ts`
 - `pnpm --filter hookcode-backend build`
 - `pnpm --filter hookcode-backend test -- --runInBand ...`
+- `pnpm --filter hookcode-backend test`
 - `backend/prisma/schema.prisma`
 - `backend/src/types/repoRobot.ts`
 - `backend/src/modules/repositories/repositories.controller.ts`
