@@ -40,6 +40,19 @@ const toStoredCredentialPayload = (credentials: UserModelCredentials): {
 
 @Injectable()
 export class GlobalCredentialService {
+  // Use stable service-level validation errors so admin credential APIs do not depend on fragile message matching. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  static ValidationError = class GlobalCredentialValidationError extends Error {
+    readonly code: string;
+    readonly details?: Record<string, unknown>;
+
+    constructor(message: string, params: { code: string; details?: Record<string, unknown> }) {
+      super(message);
+      this.name = 'GlobalCredentialValidationError';
+      this.code = params.code;
+      this.details = params.details;
+    }
+  };
+
   private mergeStoredCredentialPayload(row: {
     modelProviderCredentials?: unknown;
     repoProviderCredentials?: unknown;
@@ -90,6 +103,7 @@ export class GlobalCredentialService {
     const next: UserModelCredentials = { ...current };
 
     const applyModelProviderUpdate = (
+      providerKey: 'codex' | 'claude_code' | 'gemini_cli',
       currentProvider: UserModelProviderCredentials | undefined,
       update:
         | UpdateUserModelCredentialsInput['codex']
@@ -127,7 +141,10 @@ export class GlobalCredentialService {
               ? ''
               : asTrimmedString(patch.remark);
         if (!remark) {
-          throw new Error('model provider credential profile remark is required');
+          throw new GlobalCredentialService.ValidationError('model provider credential profile remark is required', {
+            code: 'GLOBAL_CREDENTIAL_MODEL_PROFILE_REMARK_REQUIRED',
+            details: { provider: providerKey, profileId: patchId }
+          });
         }
 
         const apiKey =
@@ -166,6 +183,7 @@ export class GlobalCredentialService {
     };
 
     const applyRepoProviderUpdate = (
+      providerKey: 'gitlab' | 'github',
       currentProvider: UserRepoProviderCredentials | undefined,
       update: UpdateUserModelCredentialsInput['gitlab'] | UpdateUserModelCredentialsInput['github']
     ): UserRepoProviderCredentials => {
@@ -200,7 +218,10 @@ export class GlobalCredentialService {
               ? ''
               : asTrimmedString(patch.remark);
         if (!remark) {
-          throw new Error('repo provider credential profile remark is required');
+          throw new GlobalCredentialService.ValidationError('repo provider credential profile remark is required', {
+            code: 'GLOBAL_CREDENTIAL_REPO_PROFILE_REMARK_REQUIRED',
+            details: { provider: providerKey, profileId: patchId }
+          });
         }
 
         const token =
@@ -240,19 +261,19 @@ export class GlobalCredentialService {
 
     if (input.codex !== undefined) {
       // Reuse the account-style profile patch semantics for admin-managed Codex credentials. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
-      next.codex = applyModelProviderUpdate(current.codex, input.codex);
+      next.codex = applyModelProviderUpdate('codex', current.codex, input.codex);
     }
     if (input.claude_code !== undefined) {
-      next.claude_code = applyModelProviderUpdate(current.claude_code, input.claude_code);
+      next.claude_code = applyModelProviderUpdate('claude_code', current.claude_code, input.claude_code);
     }
     if (input.gemini_cli !== undefined) {
-      next.gemini_cli = applyModelProviderUpdate(current.gemini_cli, input.gemini_cli);
+      next.gemini_cli = applyModelProviderUpdate('gemini_cli', current.gemini_cli, input.gemini_cli);
     }
     if (input.gitlab !== undefined) {
-      next.gitlab = applyRepoProviderUpdate(current.gitlab, input.gitlab);
+      next.gitlab = applyRepoProviderUpdate('gitlab', current.gitlab, input.gitlab);
     }
     if (input.github !== undefined) {
-      next.github = applyRepoProviderUpdate(current.github, input.github);
+      next.github = applyRepoProviderUpdate('github', current.github, input.github);
     }
 
     const stored = toStoredCredentialPayload(next);
@@ -276,3 +297,5 @@ export class GlobalCredentialService {
     return toPublicUserModelCredentials(next);
   }
 }
+
+export const GlobalCredentialValidationError = GlobalCredentialService.ValidationError;

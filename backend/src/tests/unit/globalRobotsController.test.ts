@@ -3,7 +3,7 @@ export {};
 import { BadRequestException, ForbiddenException, HttpException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LogWriterService } from '../../modules/logs/log-writer.service';
-import { GlobalCredentialService } from '../../modules/repositories/global-credentials.service';
+import { GlobalCredentialService, GlobalCredentialValidationError } from '../../modules/repositories/global-credentials.service';
 import { GlobalRobotService, GlobalRobotValidationError } from '../../modules/repositories/global-robot.service';
 import { GlobalRobotsController } from '../../modules/system/global-robots.controller';
 
@@ -153,6 +153,45 @@ describe('GlobalRobotsController', () => {
     );
 
     consoleError.mockRestore();
+    await moduleRef.close();
+  });
+
+  test('maps global credential validation failures to 400 responses with stable codes', async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [GlobalRobotsController],
+      providers: [
+        { provide: GlobalRobotService, useValue: globalRobotService },
+        { provide: GlobalCredentialService, useValue: globalCredentialService },
+        { provide: LogWriterService, useValue: logWriter }
+      ]
+    }).compile();
+    const controller = moduleRef.get(GlobalRobotsController);
+    globalCredentialService.updateCredentials.mockRejectedValueOnce(
+      new GlobalCredentialValidationError('repo provider credential profile remark is required', {
+        code: 'GLOBAL_CREDENTIAL_REPO_PROFILE_REMARK_REQUIRED',
+        details: { provider: 'github', profileId: 'github-1' }
+      })
+    );
+
+    try {
+      await controller.patchGlobalCredentials(adminReq(), {
+        github: {
+          profiles: [{ id: 'github-1', remark: '' }]
+        }
+      } as any);
+      throw new Error('expected patchGlobalCredentials to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as HttpException).getStatus()).toBe(400);
+      expect((err as HttpException).getResponse()).toEqual(
+        expect.objectContaining({
+          error: 'repo provider credential profile remark is required',
+          code: 'GLOBAL_CREDENTIAL_REPO_PROFILE_REMARK_REQUIRED',
+          details: { provider: 'github', profileId: 'github-1' }
+        })
+      );
+    }
+
     await moduleRef.close();
   });
 });

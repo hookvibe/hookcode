@@ -28,7 +28,7 @@ import type { Request } from 'express';
 import { LogWriterService } from '../logs/log-writer.service';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { AuthScopeGroup } from '../auth/auth.decorator';
-import { GlobalCredentialService } from '../repositories/global-credentials.service';
+import { GlobalCredentialService, GlobalCredentialValidationError } from '../repositories/global-credentials.service';
 import { GlobalRobotService, GlobalRobotValidationError } from '../repositories/global-robot.service';
 import { CreateGlobalRobotDto, UpdateGlobalRobotDto } from './dto/global-robots.dto';
 import { UpdateModelCredentialsDto } from '../users/dto/update-model-credentials.dto';
@@ -58,6 +58,15 @@ export class GlobalRobotsController {
 
   private buildGlobalRobotBadRequest(err: GlobalRobotValidationError): BadRequestException {
     // Translate service-level global-robot validation codes into stable API errors so controller behavior does not depend on message text matching. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    return new BadRequestException({
+      error: err.message,
+      code: err.code,
+      ...(err.details ? { details: err.details } : {})
+    });
+  }
+
+  private buildGlobalCredentialBadRequest(err: InstanceType<typeof GlobalCredentialValidationError>): BadRequestException {
+    // Translate service-level global-credential validation codes into stable API errors so admin credential patching no longer depends on substring matching. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
     return new BadRequestException({
       error: err.message,
       code: err.code,
@@ -131,10 +140,9 @@ export class GlobalRobotsController {
       });
       return { credentials };
     } catch (err: any) {
-      const message = err?.message ? String(err.message) : '';
       if (err instanceof UnauthorizedException || err instanceof ForbiddenException) throw err;
-      if (message.includes('remark is required')) {
-        throw new BadRequestException({ error: message });
+      if (err instanceof GlobalCredentialValidationError) {
+        throw this.buildGlobalCredentialBadRequest(err);
       }
       this.logSanitizedFailure('patch global credentials failed', err);
       throw new InternalServerErrorException({ error: 'Failed to update global credentials' });
