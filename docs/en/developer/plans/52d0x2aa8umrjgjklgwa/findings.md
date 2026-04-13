@@ -23,6 +23,9 @@
 - Expose explicit origin information in selection UIs so users can tell whether a bot comes from the repository scope or the global scope.
 - Expose explicit origin information in APIs so downstream clients can make the same distinction reliably.
 - Reuse the existing session hash and keep the resulting planning documents authoritative for continued implementation work.
+- Reuse the existing session after baseline commit `c00eeb6` instead of starting a new session for the first hardening batch.
+- Finish the first hardening batch with DTO validation for system global robot create and update, controller tests, DTO tests, and i18n cleanup for the new global robot and global credential UI strings.
+- Validate the first hardening batch and prepare a clean follow-up commit once the changes land.
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
@@ -147,6 +150,22 @@
 - `repoRobotAccess` currently resolves explicit profile ids by falling back to the default or first profile within the same store, which can silently swap credentials after a profile deletion.
 - `providerCredentialResolver` has the same exact-profile fallback behavior for model-provider credentials before it decides whether cross-layer fallback is needed.
 - `GlobalRobotService` can be extended with `GlobalCredentialService` validation to reject stale explicit global profile ids at save time without changing repository or user profile semantics.
+- The current worktree already contains the full global robots and global credentials implementation across backend, frontend, migration, tests, docs, and planning artifacts.
+- A small hardening follow-up set remained outside the earlier finalized snapshot: the `credentialProfiles` helper, exact-profile resolution updates, global robot save-time validation, sanitized controller logging, and the new focused unit test.
+- The worktree is now clean after commit `c00eeb6`, so the first follow-up batch starts from a committed shared-global and hardening baseline.
+- There are no existing controller tests for `GlobalRobotsController`, so the first-batch backend coverage work will need a new focused unit test file rather than extending an existing controller test.
+- Frontend i18n messages are centralized in `frontend/src/i18n/messages/en-US.ts` and `frontend/src/i18n/messages/zh-CN.ts`.
+- Existing DTOs live under `backend/src/modules/system/dto` and `backend/src/modules/repositories/dto`, so the new system global robot DTOs should follow that placement pattern.
+- `GlobalRobotsController` still uses broad `ApiBody` schemas and `body: any` for the create and update global robot endpoints.
+- Existing repository robot DTOs already cover most of the same shape, including `modelProviderConfig`, `dependencyConfig`, and `timeWindow` fields, so the new system DTOs can mirror that structure with a narrower source union.
+- Controller unit tests in this codebase commonly instantiate controllers with `Nest TestingModule` plus direct provider mocks, which fits a focused `GlobalRobotsController` unit test file.
+- Frontend message composition is split by domain under `frontend/src/i18n/messages/en-US` and `frontend/src/i18n/messages/zh-CN`, so the new strings should be added under the `repos` domain pack rather than the root aggregator files.
+- The active continuation context says the current in-progress hardening batch already includes DTO validation, controller tests, DTO tests, and i18n cleanup, so the remaining planning problem is finishing and verifying that bounded set rather than reopening broad feature work.
+- Uncommitted backend changes in the first hardening batch are currently limited to global robot request DTO and controller wiring plus two new unit test files.
+- Uncommitted frontend changes in the first hardening batch are currently limited to repository and global scope i18n cleanup in `RepoDetailPage`, `UserSettingsPage`, `robot.tsx`, and the `repos` locale files.
+- `pnpm --filter hookcode-frontend build` now passes after the i18n cleanup, so the new locale keys and repository or global scope labels are wired correctly on the frontend side.
+- The targeted backend tests and backend build currently fail in `global-robots.controller` because `CreateGlobalRobotDto` leaves `name` and `promptDefault` optional while `createRobot` still expects required strings.
+- The backend update path also fails because `UpdateGlobalRobotDto.dependencyConfig` is currently typed as `unknown` while `updateRobot` expects `RobotDependencyConfig | null | undefined`.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}
@@ -176,6 +195,12 @@
 | Recommend immediate fixes only for raw error logging and stale explicit global profile handling. | Those two findings describe concrete feature-adjacent correctness or observability gaps, while the remaining report items are lower-priority hardening or non-blocking improvements. |
 | Use exact-match semantics when `credentialProfileId` is explicitly provided. | Falling back to a default or first profile after an explicit id stops matching can silently switch credentials, so explicit ids should fail fast while no-id requests keep the current default or first-profile behavior. |
 | Add focused unit coverage for explicit-profile resolution and save-time validation. | The follow-up fixes touch both repository-provider and model-provider credential paths plus global robot save validation, so narrow tests will guard the intended semantics directly. |
+| Capture the current workspace in one commit before starting the next cleanup batch. | The user explicitly wants the full shared-global implementation plus the explicit-profile and logging hardening committed together before DTO cleanup, controller tests, and i18n extraction begin. |
+| Implement the first follow-up batch with new system DTOs, a new controller unit test file, and extracted i18n message keys. | The workspace is clean after commit `c00eeb6`, existing DTOs already follow module-local patterns, and the frontend message catalogs are centralized in the shared locale files. |
+| Mirror the repository robot DTO shape when introducing system global robot DTOs. | The repository DTOs already capture the needed robot editor fields, so reusing that shape with a tighter system-specific source union minimizes contract drift. |
+| Put the new UI message keys into the `repos` i18n domain files instead of the root locale aggregators. | The frontend message packs are organized by domain, and the new robot or credential strings belong to repository and settings flows rather than to the top-level locale bootstrap. |
+| Treat the current hardening continuation as a narrow cleanup batch rather than a second feature expansion. | The user scoped the next work to DTO cleanup, controller and DTO tests, i18n extraction, validation, and commit prep, so the plan should stay tightly bounded to those items. |
+| Align DTO, controller, and service types directly instead of reintroducing `any` or unsafe casts. | The current first-batch validation failures are narrow typing mismatches between the new request DTOs and the existing global robot service contract, so the fix should preserve the type-safety goal of the batch. |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}
@@ -217,6 +242,8 @@
 | A few high-severity audit findings still need one more execution-path check before they can be classified confidently. | Read the exact `getByIdWithToken` call sites and the remaining runtime resolution paths to decide whether disabled global robots can actually be executed or whether the issue is mainly consistency hardening. |
 | The UX and i18n findings from the audit report are mixed in confidence and severity. | Treat the manual-model helper text and direct `Global` or `Repo` labels as likely acceptable for this feature unless a repo-wide i18n standard is being enforced consistently elsewhere. |
 | The review classification is now ready for user-facing severity ranking. | The remaining task is to report that raw error logging and stale explicit global profile handling look like the immediate fixes, while the other findings fall into lower-priority hardening, broader architecture, or non-blocking UX buckets. |
+| The next implementation blocker is procedural rather than architectural. | The baseline feature and hardening state are already committed in `c00eeb6`, so the current batch can proceed directly to DTO, controller-test, DTO-test, and i18n cleanup work. |
+| The current first-batch blocker is a DTO-to-service typing mismatch in the backend global robot controller path. | Align `CreateGlobalRobotDto` and `UpdateGlobalRobotDto` with the service expectations before rerunning targeted backend tests and the backend build, while keeping the type surface strict. |
 
 ## Resources
 {/* WHAT: URLs, file paths, API references, documentation links you've found useful. WHY: Easy reference for later. Don't lose important links in context. WHEN: Add as you discover useful resources. EXAMPLE: - Python argparse docs: https://docs.python.org/3/library/argparse.html - Project structure: src/main.py, src/utils.py */}
@@ -241,6 +268,23 @@
 - `backend/src/modules/repositories/dto/repositories-swagger.dto.ts`
 - `frontend/src/api/types/repos.ts`
 - `backend/src/modelProviders/providerCredentialResolver.ts`
+- `git status --short`
+- `git diff --stat`
+- `backend/src/modules/system/global-robots.controller.ts`
+- `frontend/src/i18n/messages/en-US.ts`
+- `frontend/src/i18n/messages/zh-CN.ts`
+- `backend/src/modules/system/dto`
+- `backend/src/modules/repositories/dto`
+- `backend/src/modules/repositories/dto/create-repo-robot.dto.ts`
+- `backend/src/modules/repositories/dto/update-repo-robot.dto.ts`
+- `backend/src/tests/unit/repoArchivedReadOnlyApi.test.ts`
+- `frontend/src/i18n/messages/en-US/repos.ts`
+- `frontend/src/i18n/messages/zh-CN/repos.ts`
+- `git status --short`
+- `git diff --stat`
+- `pnpm --filter hookcode-backend test -- --runInBand src/tests/unit/globalRobotsRequestDto.test.ts src/tests/unit/globalRobotsController.test.ts`
+- `pnpm --filter hookcode-backend build`
+- `pnpm --filter hookcode-frontend build`
 - `backend/src/services/repoRobotAccess.ts`
 - `backend/src/modules/repositories/repo-robot-dry-run.ts`
 - `backend/src/modules/repositories/global-robot.service.ts`

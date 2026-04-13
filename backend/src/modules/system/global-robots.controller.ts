@@ -30,6 +30,7 @@ import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { AuthScopeGroup } from '../auth/auth.decorator';
 import { GlobalCredentialService } from '../repositories/global-credentials.service';
 import { GlobalRobotService } from '../repositories/global-robot.service';
+import { CreateGlobalRobotDto, UpdateGlobalRobotDto } from './dto/global-robots.dto';
 import { UpdateModelCredentialsDto } from '../users/dto/update-model-credentials.dto';
 
 @AuthScopeGroup('system') // Scope admin global robot/credential management under system-level PAT permissions. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
@@ -53,6 +54,20 @@ export class GlobalRobotsController {
           : String(err ?? 'Unknown error');
     const sanitized = message.replace(/(api[_-]?key|token|authorization|password|secret)(\s*[:=]\s*|\s+)(\S+)/gi, '$1$2[REDACTED]');
     console.error(`[system] ${context}: ${sanitized}`);
+  }
+
+  private isGlobalRobotValidationError(message: string): boolean {
+    // Normalize service error text before controller mapping so repo/global credential profile failures still become 400 responses after wording changes. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    const normalized = message.trim().toLowerCase();
+    return (
+      normalized.includes('name is required') ||
+      normalized.includes('promptdefault is required') ||
+      normalized.includes('credentialprofileid') ||
+      normalized.includes('defaultworkerid') ||
+      normalized.includes('repoworkflowmode') ||
+      normalized.includes('timewindow') ||
+      normalized.includes('modelprovider')
+    );
   }
 
   private requireAdmin(req: Request) {
@@ -143,15 +158,15 @@ export class GlobalRobotsController {
 
   @Post('global-robots')
   @ApiOperation({ summary: 'Create global robot', description: 'Create an admin-managed globally shared robot.', operationId: 'system_global_robots_create' })
-  @ApiBody({ schema: { type: 'object' } })
+  @ApiBody({ type: CreateGlobalRobotDto })
   @ApiOkResponse({ description: 'OK', schema: { type: 'object', properties: { robot: { type: 'object' } } } })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
-  async createGlobalRobot(@Req() req: Request, @Body() body: any) {
+  async createGlobalRobot(@Req() req: Request, @Body() body: CreateGlobalRobotDto) {
     try {
       const user = this.requireAdmin(req);
-      const robot = await this.globalRobotService.createRobot(user, body ?? {});
+      const robot = await this.globalRobotService.createRobot(user, body);
       if (robot.isDefault) await this.globalRobotService.setDefaultRobot(robot.id);
       void this.logWriter.logOperation({
         level: 'info',
@@ -164,15 +179,7 @@ export class GlobalRobotsController {
     } catch (err: any) {
       const message = err?.message ? String(err.message) : '';
       if (err instanceof UnauthorizedException || err instanceof ForbiddenException) throw err;
-      if (
-        message.includes('name is required') ||
-        message.includes('promptDefault is required') ||
-        message.includes('credentialProfileId') ||
-        message.includes('defaultWorkerId') ||
-        message.includes('repoWorkflowMode') ||
-        message.includes('timeWindow') ||
-        message.includes('modelProvider')
-      ) {
+      if (this.isGlobalRobotValidationError(message)) {
         throw new BadRequestException({ error: message });
       }
       this.logSanitizedFailure('create global robot failed', err);
@@ -182,17 +189,17 @@ export class GlobalRobotsController {
 
   @Patch('global-robots/:id')
   @ApiOperation({ summary: 'Update global robot', description: 'Update an admin-managed globally shared robot.', operationId: 'system_global_robots_update' })
-  @ApiBody({ schema: { type: 'object' } })
+  @ApiBody({ type: UpdateGlobalRobotDto })
   @ApiOkResponse({ description: 'OK', schema: { type: 'object', properties: { robot: { type: 'object' } } } })
   @ApiBadRequestResponse({ description: 'Bad Request', type: ErrorResponseDto })
   @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
   @ApiForbiddenResponse({ description: 'Forbidden', type: ErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
-  async updateGlobalRobot(@Req() req: Request, @Body() body: any) {
+  async updateGlobalRobot(@Req() req: Request, @Body() body: UpdateGlobalRobotDto) {
     try {
       const user = this.requireAdmin(req);
       const id = String(req.params.id ?? '').trim();
-      const robot = await this.globalRobotService.updateRobot(id, body ?? {});
+      const robot = await this.globalRobotService.updateRobot(id, body);
       if (!robot) throw new NotFoundException({ error: 'Robot not found' });
       if (robot.isDefault) await this.globalRobotService.setDefaultRobot(robot.id);
       void this.logWriter.logOperation({
@@ -206,15 +213,7 @@ export class GlobalRobotsController {
     } catch (err: any) {
       const message = err?.message ? String(err.message) : '';
       if (err instanceof UnauthorizedException || err instanceof ForbiddenException || err instanceof NotFoundException) throw err;
-      if (
-        message.includes('name is required') ||
-        message.includes('promptDefault is required') ||
-        message.includes('credentialProfileId') ||
-        message.includes('defaultWorkerId') ||
-        message.includes('repoWorkflowMode') ||
-        message.includes('timeWindow') ||
-        message.includes('modelProvider')
-      ) {
+      if (this.isGlobalRobotValidationError(message)) {
         throw new BadRequestException({ error: message });
       }
       this.logSanitizedFailure('update global robot failed', err);

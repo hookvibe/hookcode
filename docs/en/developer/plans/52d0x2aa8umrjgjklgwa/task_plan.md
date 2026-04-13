@@ -1,5 +1,5 @@
-<!-- Record the implementation plan for shared global robots and global provider credentials. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa -->
-# Task Plan: Global robots and global provider credentials
+<!-- Record the implementation plan for shared global robots, global credentials, and the first hardening batch. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa -->
+# Task Plan: Global robots, global credentials, and first hardening batch
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. 52d0x2aa8umrjgjklgwa */}
@@ -11,11 +11,11 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Continue implementing shared global robots and global provider credentials so repositories can select repository or global robots with source labels, and global credentials can be used across repository execution flows.
+Continue the existing global robots and global credentials hardening task, finish the first batch of fixes, validate the code, and prepare a clean follow-up commit.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-Phase 5
+Phase 6
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -58,12 +58,33 @@ Phase 5
 - [x] Finalize the recorder session and changelog entry
 - **Status:** complete
 
+### Phase 6: Follow-up Scope Lock
+{/* WHAT: Reopen the completed session for the first hardening batch. WHY: The user wants to continue from the committed baseline instead of starting a new feature session. */}
+- [x] Confirm the baseline feature state that was committed in `c00eeb6`
+- [x] Identify the concrete DTO, controller-test, DTO-test, and i18n files for the first hardening batch
+- [x] Record the first-batch scope without overwriting the original delivery history
+- **Status:** complete
+
+### Phase 7: First Hardening Batch
+{/* WHAT: Implement the requested follow-up cleanup. WHY: Keep the next scope narrow and traceable. */}
+- [ ] Add DTO validation for system global robot create and update endpoints
+- [ ] Add focused controller-level tests and DTO tests for the system global robot APIs
+- [ ] Extract the new global robot and global credential UI strings into i18n message files
+- **Status:** in_progress
+
+### Phase 8: Follow-up Verification & Commit Prep
+{/* WHAT: Verify the follow-up batch and prepare a clean commit. WHY: The user explicitly wants the new batch validated before the next commit. */}
+- [ ] Run targeted and full validation for the first hardening batch
+- [ ] Summarize the follow-up changes and any remaining risks
+- [ ] Prepare the follow-up batch for a clean commit
+- **Status:** pending
+
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
-1. Which frontend API clients and page surfaces still need mixed-scope robot and global credential wiring?
-2. What targeted and full-suite tests are still required to validate frontend behavior and end-to-end mixed-scope execution?
-3. Are any migrations or validation updates still missing before the session can be finalized?
-4. What recorder, docs, and changelog updates remain once implementation and tests are complete?
+1. Which DTOs should define the system global robot create and update contract after the baseline feature and hardening pass?
+2. Which controller-level and DTO-level tests are still missing for the system global robot APIs?
+3. Which UI strings added by the shared-global feature and hardening pass still need extraction into i18n message files?
+4. What validation and clean-commit steps remain once the first hardening batch lands?
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
@@ -78,6 +99,8 @@ Phase 5
 | Check in a manually authored Prisma migration for the new global tables in this environment. | `prisma migrate diff` required a shadow database URL here, so writing the SQL explicitly was the practical way to preserve schema traceability. |
 | Require exact-match semantics when `credentialProfileId` is explicitly provided during stored credential resolution. | Falling back to a default or first profile after an explicit profile id stops matching can silently switch credentials, so the follow-up hardening should fail fast for explicit ids while preserving the current implicit default behavior. |
 | Validate explicit global repo and model credential profile ids at save time for shared robots. | Rejecting stale explicit profile ids in `GlobalRobotService` prevents misconfigured global robots from silently drifting to different global credentials at runtime. |
+| Reuse the same session after baseline commit `c00eeb6` instead of opening a new planning thread for the hardening batch. | The user explicitly framed the new work as a continuation of the same shared-global task, so one session should carry the original implementation, hardening, and cleanup history. |
+| Implement the first hardening batch with dedicated system DTOs, new controller and DTO tests, and i18n extraction in the existing locale domain files. | The current worktree is already committed at `c00eeb6`, existing DTO patterns are module-local, and the frontend locale structure already has a domain-based organization to extend. |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}

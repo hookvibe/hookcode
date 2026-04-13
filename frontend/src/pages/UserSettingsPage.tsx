@@ -305,6 +305,16 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     [t]
   );
 
+  const getSharedScopeLabel = useCallback(
+    (scope: 'global' | 'user' | 'repo') => {
+      // Reuse one translated scope label mapping across global settings cards, tags, and modal titles. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+      if (scope === 'global') return t('repos.shared.scope.global');
+      if (scope === 'repo') return t('repos.shared.scope.repo');
+      return t('repos.shared.scope.user');
+    },
+    [t]
+  );
+
   const apiTokenScopeLabelMap = useMemo(() => {
     const map = new Map<ApiTokenScopeGroup, string>();
     apiTokenScopeGroups.forEach((group) => map.set(group.key, group.label));
@@ -1103,7 +1113,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       await refreshGlobalRobotsData();
     } catch (err: any) {
       if (err instanceof SyntaxError) {
-        message.error('Invalid JSON in global robot configuration.');
+        message.error(t('repos.settings.globalRobots.invalidJson'));
       } else if (!err?.errorFields) {
         console.error(err);
         message.error(err?.response?.data?.error || t('toast.repos.saveFailed'));
@@ -1116,8 +1126,8 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const removeGlobalRobotRecord = useCallback(
     (robot: GlobalRobot) => {
       Modal.confirm({
-        title: 'Delete global robot',
-        content: `Remove ${robot.name || robot.id} from the global robot catalog?`,
+        title: t('repos.settings.globalRobots.deleteTitle'),
+        content: t('repos.settings.globalRobots.deleteContent', { name: robot.name || robot.id }),
         okText: t('panel.credentials.profile.removeOk'),
         okButtonProps: { danger: true },
         cancelText: t('common.cancel'),
@@ -1301,13 +1311,13 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
                 <Divider style={{ margin: '24px 0' }} />
                 <div className="hc-panel-section">
                   <div className="hc-panel-section-title">
-                    <Space size={8}><KeyOutlined /><span>Global Model Provider Credentials</span></Space>
+                    <Space size={8}><KeyOutlined /><span>{t('repos.settings.globalModelCredentials.title')}</span></Space>
                     <Button size="small" onClick={() => startEditModelProfile('global', undefined, null)} disabled={globalCredentialsSaving || !canUseAccountApis}>
                       {t('panel.credentials.profile.add')}
                     </Button>
                   </div>
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-                    Manage shared model-provider profiles that global robots and repo robots can reuse.
+                    {t('repos.settings.globalModelCredentials.description')}
                   </Typography.Paragraph>
                   {globalCredentialsLoading ? (
                     <Skeleton active paragraph={{ rows: 3 }} />
@@ -1320,7 +1330,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
                               <div className="hc-credential-name" title={profile.remark || profile.id}>{profile.remark || profile.id}</div>
                               <div className="hc-credential-detail" title={profile.apiBaseUrl || '-'}>{profile.apiBaseUrl || '-'}</div>
                             </div>
-                            <Tag color="gold" style={{ margin: 0 }}>Global</Tag>
+                            <Tag color="gold" style={{ margin: 0 }}>{t('repos.shared.scope.global')}</Tag>
                           </div>
                           <div className="hc-credential-tags">
                             <Tag color="geekblue" style={{ margin: 0 }}>{modelProviderLabel(provider, t)}</Tag>
@@ -1338,20 +1348,20 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
                     </div>
                   ) : (
                     <div style={{ padding: 16, textAlign: 'center', background: 'var(--surface-hover)', borderRadius: 8 }}>
-                      <Typography.Text type="secondary">No global model provider profiles configured.</Typography.Text>
+                      <Typography.Text type="secondary">{t('repos.settings.globalModelCredentials.empty')}</Typography.Text>
                     </div>
                   )}
                 </div>
                 <Divider style={{ margin: '24px 0' }} />
                 <div className="hc-panel-section">
                   <div className="hc-panel-section-title">
-                    <Space size={8}><GlobalOutlined /><span>Global Repo Provider Credentials</span></Space>
+                    <Space size={8}><GlobalOutlined /><span>{t('repos.settings.globalRepoCredentials.title')}</span></Space>
                     <Button size="small" onClick={() => startEditRepoProfile('global', undefined, null)} disabled={globalCredentialsSaving || !canUseAccountApis}>
                       {t('panel.credentials.profile.add')}
                     </Button>
                   </div>
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-                    Manage shared GitHub and GitLab credential profiles for globally shared robots.
+                    {t('repos.settings.globalRepoCredentials.description')}
                   </Typography.Paragraph>
                   {globalCredentialsLoading ? (
                     <Skeleton active paragraph={{ rows: 3 }} />
@@ -1364,7 +1374,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
                               <div className="hc-credential-name" title={profile.remark || profile.id}>{profile.remark || profile.id}</div>
                               <div className="hc-credential-detail" title={profile.cloneUsername || '-'}>{profile.cloneUsername || '-'}</div>
                             </div>
-                            <Tag color="gold" style={{ margin: 0 }}>Global</Tag>
+                            <Tag color="gold" style={{ margin: 0 }}>{t('repos.shared.scope.global')}</Tag>
                           </div>
                           <div className="hc-credential-tags">
                             <Tag color="geekblue" style={{ margin: 0 }}>{providerLabel(provider)}</Tag>
@@ -1382,20 +1392,20 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
                     </div>
                   ) : (
                     <div style={{ padding: 16, textAlign: 'center', background: 'var(--surface-hover)', borderRadius: 8 }}>
-                      <Typography.Text type="secondary">No global repo provider profiles configured.</Typography.Text>
+                      <Typography.Text type="secondary">{t('repos.settings.globalRepoCredentials.empty')}</Typography.Text>
                     </div>
                   )}
                 </div>
                 <Divider style={{ margin: '24px 0' }} />
                 <div className="hc-panel-section">
                   <div className="hc-panel-section-title">
-                    <Space size={8}><ApiOutlined /><span>Global Robots</span></Space>
+                    <Space size={8}><ApiOutlined /><span>{t('repos.settings.globalRobots.title')}</span></Space>
                     <Button size="small" onClick={openCreateGlobalRobot} disabled={globalRobotSubmitting || !canUseAccountApis}>
                       {t('panel.credentials.profile.add')}
                     </Button>
                   </div>
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-                    Create globally shared robots that repositories can select alongside repo-owned robots.
+                    {t('repos.settings.globalRobots.description')}
                   </Typography.Paragraph>
                   {globalRobotsLoading ? (
                     <Skeleton active paragraph={{ rows: 4 }} />
@@ -1406,15 +1416,15 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
                           <div className="hc-credential-header">
                             <div className="hc-credential-info">
                               <div className="hc-credential-name" title={robot.name || robot.id}>{robot.name || robot.id}</div>
-                              <div className="hc-credential-detail">{robot.promptDefault ? 'Prompt configured' : 'Prompt missing'}</div>
+                              <div className="hc-credential-detail">{robot.promptDefault ? t('repos.settings.globalRobots.promptConfigured') : t('repos.settings.globalRobots.promptMissing')}</div>
                             </div>
-                            <Tag color="gold" style={{ margin: 0 }}>Global</Tag>
+                            <Tag color="gold" style={{ margin: 0 }}>{t('repos.shared.scope.global')}</Tag>
                           </div>
                           <div className="hc-credential-tags">
                             <Tag color="geekblue" style={{ margin: 0 }}>{modelProviderLabel((robot.modelProvider as ModelProviderKey) || 'codex', t)}</Tag>
                             <Tag color={robot.enabled ? 'green' : 'default'} style={{ margin: 0 }}>{robot.enabled ? t('common.enabled') : t('common.disabled')}</Tag>
                             {robot.isDefault ? <Tag color="blue" style={{ margin: 0 }}>{t('panel.credentials.profile.defaultTag')}</Tag> : null}
-                            <Tag color="purple" style={{ margin: 0 }}>{robot.repoCredentialSource || 'global'}</Tag>
+                            <Tag color="purple" style={{ margin: 0 }}>{getSharedScopeLabel((robot.repoCredentialSource as 'global' | 'user' | 'repo') || 'global')}</Tag>
                           </div>
                           <div className="hc-credential-actions">
                             <Button size="small" onClick={() => openEditGlobalRobot(robot)}>{t('common.manage')}</Button>
@@ -1425,7 +1435,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
                     </div>
                   ) : (
                     <div style={{ padding: 16, textAlign: 'center', background: 'var(--surface-hover)', borderRadius: 8 }}>
-                      <Typography.Text type="secondary">No global robots configured.</Typography.Text>
+                      <Typography.Text type="secondary">{t('repos.settings.globalRobots.empty')}</Typography.Text>
                     </div>
                   )}
                 </div>
@@ -1706,7 +1716,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
 
       {/* Sub-modals for editing credential profiles — kept as standard AntD Modals. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */}
       <Modal
-        title={`${repoProfileScope === 'global' ? 'Global' : 'User'} ${repoProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}`}
+        title={`${getSharedScopeLabel(repoProfileScope)} ${repoProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}`}
         open={repoProfileFormOpen}
         onCancel={() => { setRepoProfileFormOpen(false); setRepoProfileEditing(null); }}
         okText={t('common.save')}
@@ -1766,7 +1776,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       </Modal>
 
       <Modal
-        title={`${modelProfileScope === 'global' ? 'Global' : 'User'} ${modelProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}`}
+        title={`${getSharedScopeLabel(modelProfileScope)} ${modelProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}`}
         open={modelProfileFormOpen}
         onCancel={() => { setModelProfileFormOpen(false); setModelProfileEditing(null); }}
         okText={t('common.save')}
@@ -1848,7 +1858,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       </Modal>
 
       <Modal
-        title={globalRobotEditing ? 'Edit Global Robot' : 'Add Global Robot'}
+        title={globalRobotEditing ? t('repos.settings.globalRobots.modal.editTitle') : t('repos.settings.globalRobots.modal.addTitle')}
         open={globalRobotFormOpen}
         onCancel={() => { setGlobalRobotFormOpen(false); setGlobalRobotEditing(null); }}
         okText={t('common.save')}
@@ -1858,16 +1868,16 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         destroyOnHidden
       >
         <Form form={globalRobotForm} layout="vertical" requiredMark={false} size="middle">
-          <Form.Item label="Name" name="name" rules={[{ required: true, message: t('panel.validation.required') }]}>
-            <Input placeholder="Global robot name" />
+          <Form.Item label={t('repos.robotForm.name')} name="name" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Input placeholder={t('repos.settings.globalRobots.modal.namePlaceholder')} />
           </Form.Item>
-          <Form.Item label="Prompt" name="promptDefault" rules={[{ required: true, message: t('panel.validation.required') }]}>
-            <Input.TextArea autoSize={{ minRows: 6, maxRows: 14 }} placeholder="Default prompt for the global robot" />
+          <Form.Item label={t('repos.robotForm.promptDefault')} name="promptDefault" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Input.TextArea autoSize={{ minRows: 6, maxRows: 14 }} placeholder={t('repos.settings.globalRobots.modal.promptPlaceholder')} />
           </Form.Item>
-          <Form.Item label="Permission" name="permission" rules={[{ required: true, message: t('panel.validation.required') }]}>
-            <Radio.Group options={[{ value: 'read', label: 'Read' }, { value: 'write', label: 'Write' }]} />
+          <Form.Item label={t('repos.robots.permission')} name="permission" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Radio.Group options={[{ value: 'read', label: t('panel.apiTokens.scopeLevel.read') }, { value: 'write', label: t('panel.apiTokens.scopeLevel.write') }]} />
           </Form.Item>
-          <Form.Item label="Model Provider" name="modelProvider" rules={[{ required: true, message: t('panel.validation.required') }]}>
+          <Form.Item label={t('repos.robotForm.modelProvider')} name="modelProvider" rules={[{ required: true, message: t('panel.validation.required') }]}>
             <Select
               options={[
                 { value: 'codex', label: modelProviderLabel('codex', t) },
@@ -1881,38 +1891,38 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
               }}
             />
           </Form.Item>
-          <Form.Item label="Repo Credential Source" name="repoCredentialSource" rules={[{ required: true, message: t('panel.validation.required') }]}>
+          <Form.Item label={t('repos.settings.globalRobots.modal.repoCredentialSourceLabel')} name="repoCredentialSource" rules={[{ required: true, message: t('panel.validation.required') }]}>
             <Select
               options={[
-                { value: 'global', label: 'Global' },
-                { value: 'user', label: 'User' },
-                { value: 'repo', label: 'Repo' }
+                { value: 'global', label: getSharedScopeLabel('global') },
+                { value: 'user', label: getSharedScopeLabel('user') },
+                { value: 'repo', label: getSharedScopeLabel('repo') }
               ]}
             />
           </Form.Item>
-          <Form.Item label="Repo Credential Profile Id" name="repoCredentialProfileId">
-            <Input placeholder="Optional profile id; leave empty to use the default profile" />
+          <Form.Item label={t('repos.settings.globalRobots.modal.repoCredentialProfileIdLabel')} name="repoCredentialProfileId">
+            <Input placeholder={t('repos.settings.globalRobots.modal.repoCredentialProfileIdPlaceholder')} />
           </Form.Item>
-          <Form.Item label="Language" name="language">
-            <Input placeholder="en-US" />
+          <Form.Item label={t('repos.robotForm.language')} name="language">
+            <Input placeholder={t('repos.settings.globalRobots.modal.languagePlaceholder')} />
           </Form.Item>
-          <Form.Item label="Default Branch" name="defaultBranch">
-            <Input placeholder="main" />
+          <Form.Item label={t('repos.robotForm.defaultBranch')} name="defaultBranch">
+            <Input placeholder={t('repos.settings.globalRobots.modal.defaultBranchPlaceholder')} />
           </Form.Item>
-          <Form.Item label="Workflow Mode" name="repoWorkflowMode" rules={[{ required: true, message: t('panel.validation.required') }]}>
-            <Radio.Group options={[{ value: 'auto', label: 'Auto' }, { value: 'direct', label: 'Direct' }, { value: 'fork', label: 'Fork' }]} />
+          <Form.Item label={t('repos.robotForm.workflowMode')} name="repoWorkflowMode" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Radio.Group options={[{ value: 'auto', label: t('repos.settings.globalRobots.modal.workflowMode.auto') }, { value: 'direct', label: t('repos.settings.globalRobots.modal.workflowMode.direct') }, { value: 'fork', label: t('repos.settings.globalRobots.modal.workflowMode.fork') }]} />
           </Form.Item>
-          <Form.Item label="Model Provider Config JSON" name="modelProviderConfigJson" rules={[{ required: true, message: t('panel.validation.required') }]}>
+          <Form.Item label={t('repos.settings.globalRobots.modal.modelProviderConfigLabel')} name="modelProviderConfigJson" rules={[{ required: true, message: t('panel.validation.required') }]}>
             <Input.TextArea autoSize={{ minRows: 8, maxRows: 18 }} placeholder={EMPTY_JSON_OBJECT} />
           </Form.Item>
-          <Form.Item label="Dependency Config JSON" name="dependencyConfigJson">
+          <Form.Item label={t('repos.settings.globalRobots.modal.dependencyConfigLabel')} name="dependencyConfigJson">
             <Input.TextArea autoSize={{ minRows: 4, maxRows: 10 }} placeholder='{"enabled":true,"failureMode":"soft"}' />
           </Form.Item>
           <Space size={24}>
-            <Form.Item label="Enabled" name="enabled" valuePropName="checked" style={{ marginBottom: 0 }}>
+            <Form.Item label={t('common.enabled')} name="enabled" valuePropName="checked" style={{ marginBottom: 0 }}>
               <Switch />
             </Form.Item>
-            <Form.Item label="Default Robot" name="isDefault" valuePropName="checked" style={{ marginBottom: 0 }}>
+            <Form.Item label={t('repos.settings.globalRobots.modal.defaultRobotLabel')} name="isDefault" valuePropName="checked" style={{ marginBottom: 0 }}>
               <Switch />
             </Form.Item>
           </Space>

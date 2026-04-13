@@ -3137,13 +3137,13 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                   rules={[{ required: true, message: t('repos.robotForm.repoCredential.sourceRequired') }]}
                 >
                   <Select
-                    options={[
-                      { value: 'user', label: t('repos.robotForm.repoCredential.source.user') },
-                      { value: 'repo', label: t('repos.robotForm.repoCredential.source.repo') },
-                      { value: 'global', label: 'Use global credential' },
-                      { value: 'robot', label: t('repos.robotForm.repoCredential.source.robot') }
-                    ]}
-                  />
+                            options={[
+                              { value: 'user', label: t('repos.robotForm.repoCredential.source.user') },
+                              { value: 'repo', label: t('repos.robotForm.repoCredential.source.repo') },
+                              { value: 'global', label: t('repos.shared.useGlobalCredential') },
+                              { value: 'robot', label: t('repos.robotForm.repoCredential.source.robot') }
+                            ]}
+                          />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
@@ -3243,7 +3243,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                   <Alert
                     type="info"
                     showIcon
-                    message="Uses the admin-managed global provider credential."
+                    message={t('repos.robotForm.repoCredential.globalTip')}
                     style={{ marginBottom: 12 }}
                   />
                 ) : (
@@ -3398,7 +3398,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                             options={[
                               { value: 'user', label: userSourceLabel },
                               { value: 'repo', label: t('repos.robotForm.modelCredential.source.repo') },
-                              { value: 'global', label: 'Use global credential' },
+                              { value: 'global', label: t('repos.shared.useGlobalCredential') },
                               { value: 'robot', label: t('repos.robotForm.modelCredential.source.robot') }
                             ]}
                           />
@@ -3519,7 +3519,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                       <Alert
                         type="info"
                         showIcon
-                        message="Uses the admin-managed global model credential."
+                        message={t('repos.robotForm.modelCredential.globalTip')}
                         style={{ marginBottom: 12 }}
                       />
                     ) : (
@@ -3560,7 +3560,7 @@ export const RepoDetailPage: FC<RepoDetailPageProps> = ({ repoId, repoTab, userP
                               }
 
                               if (credentialSource === 'global') {
-                                throw new Error('Global credentials do not support model listing from the repo editor');
+                                throw new Error(t('repos.robotForm.modelCredential.globalListUnsupported'));
                               }
 
                               const apiKey = String(robotForm.getFieldValue(['modelProviderConfig', 'credential', 'apiKey']) ?? '').trim();

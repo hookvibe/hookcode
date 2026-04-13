@@ -1,4 +1,5 @@
 import type { AvailableRobot, ModelProvider, TaskRobotSummary } from '../api';
+import { getLocale, translate } from '../i18n';
 
 const PROVIDER_LABELS: Record<string, string> = {
   codex: 'codex',
@@ -28,8 +29,9 @@ export const formatRobotLabelWithProvider = (name: string, provider?: ModelProvi
 };
 
 const getRobotScopeLabel = (scope?: 'repo' | 'global' | null): string => {
-  if (scope === 'global') return 'Global';
-  return 'Repo';
+  // Translate mixed-scope labels through the shared locale store so repo/global badges follow the active UI language. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  if (scope === 'global') return translate(getLocale(), 'repos.shared.scope.global');
+  return translate(getLocale(), 'repos.shared.scope.repo');
 };
 
 export const formatRobotOptionLabel = (robot: Pick<AvailableRobot, 'name' | 'id' | 'modelProvider' | 'scope'>): string => {
