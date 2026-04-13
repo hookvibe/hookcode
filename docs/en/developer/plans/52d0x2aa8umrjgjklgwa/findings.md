@@ -231,6 +231,8 @@
 - `backend/src/tests/unit/previewService.test.ts` uses `buildTaskGroupWorkspaceDir` in exactly four tests, which matches the four `EPERM` failures seen in the root test run.
 - The repo-preview display test near the end of `previewService.test.ts` follows the same workspace-builder pattern, so one file-scope tmp-root redirection helper or spy setup should cover every currently failing `previewService` case consistently.
 - No additional `previewService` cases currently appear to depend on the real `~/.hookcode` root, so test-level redirection looks low risk.
+- The stabilized test batch ultimately resolved both stale frontend available-robot mocks and sandbox-incompatible preview-test resource usage without requiring product-code behavior changes.
+- Root `pnpm run test` execution now completes successfully in the current sandboxed environment, so this stabilization slice has no remaining known risks.
 - The shared credential-validation refactor is now the active implementation path, and the controller-side `instanceof` mapping pattern is already validated by a passing `UsersController` credential validation test.
 - The current mechanical failure set is narrow: `repository.service` references an out-of-scope repository-provider variable when building repository-scoped validation details, and several tests still assert the older global-only error name/message shape instead of the new stable code/details contract.
 - The repository-provider lookup issue is the only currently reported build-blocking TypeScript error in the shared refactor pass.
