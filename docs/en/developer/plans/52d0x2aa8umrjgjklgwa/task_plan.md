@@ -1,5 +1,5 @@
 <!-- Record the implementation plan for shared global robots, global credentials, and the next hardening batch. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa -->
-# Task Plan: Global robots, global credentials, and ongoing hardening batches
+# Task Plan: Global robots, global credentials, ongoing hardening, and test stabilization
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. 52d0x2aa8umrjgjklgwa */}
@@ -11,11 +11,11 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Continue the same shared global robots and global credentials hardening session after commit `04bf5de`, focusing next on the remaining user and repository credential validation paths that still rely on message matching.
+Continue the same shared global robots and global credentials session after commit `29340a0`, focusing next on the root `pnpm run test` failures caused by stale frontend `listAvailableRepoRobots` mocks and sandbox-incompatible backend preview tests.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-Phase 14
+Phase 19
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -135,12 +135,33 @@ Phase 14
 - [x] Prepare the next hardening batch for a clean commit
 - **Status:** complete
 
+### Phase 17: Frontend Test Failure Scope
+{/* WHAT: Lock the next continuation scope after commit `29340a0`. WHY: The current blocker has shifted from backend hardening to a frontend Vitest regression around the `src/api` mock surface. */}
+- [x] Confirm the next baseline now includes backend hardening commits through `29340a0`
+- [x] Identify the exact mock/export gap causing `appShell` and `TaskDetailPage` frontend tests to fail
+- [x] Record the smallest safe frontend test-fix touch points before implementation starts
+- **Status:** complete
+
+### Phase 18: Test Stabilization Fixes
+{/* WHAT: Fix the stale test assumptions surfaced by the root rerun. WHY: The current failures span stale frontend available-robot mocks and backend preview tests that are not hermetic under the sandbox. */}
+- [x] Add the missing `listAvailableRepoRobots` export to the affected frontend API mocks and helpers
+- [x] Update affected frontend assertions to the current mixed-scope robot label behavior
+- [x] Make preview backend tests hermetic with tmp-root filesystem redirection and mocked port or socket behavior instead of real OS dependencies
+- **Status:** complete
+
+### Phase 19: Validation & Commit Prep
+{/* WHAT: Verify the test-stabilization fixes and prepare the batch for handoff. WHY: The current continuation should end with the root test flow green inside the sandboxed environment. */}
+- [x] Run the affected frontend tests and preview backend tests after the stabilization fixes
+- [x] Run the broader frontend and root test validation needed to confirm the batch
+- [x] Summarize the test-stabilization fix and prepare the batch for a clean commit
+- **Status:** complete
+
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
-1. Which user and repository credential validation paths still rely on raw message matching after commit `04bf5de`?
-2. How should the shared credential-validation helper expose stable code and details so user, repository, and already-hardened global flows stay aligned?
-3. Which remaining non-credential validation branches in user and repository update flows still rely on older message matching and may need a later batch?
-4. What broader credential-storage hardening remains outside this validation-focused patch set?
+1. Which remaining root-test failures are caused by stale frontend mocks versus backend preview-test hermeticity gaps?
+2. Which shared frontend helpers need `listAvailableRepoRobots` so all mixed-scope robot selectors stay aligned in tests?
+3. Which preview tests can be stabilized through tmp-root and mocked port/socket seams without changing production behavior?
+4. What validation is sufficient to confirm the root `pnpm run test` flow is green in the current sandbox?
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
@@ -166,6 +187,12 @@ Phase 14
 | Reuse one shared credential-validation helper instead of adding more one-off local error classes. | `user.service`, `repository.service`, and the already-hardened global credential flow now share the same missing-remark validation pattern, so one helper keeps code/details aligned across adjacent APIs. |
 | Advance the current batch to validation after the shared credential-validation helper compiled and passed targeted coverage. | The service/controller refactor is now implemented across global, user, and repository flows, so the remaining work is full-suite validation and final risk review rather than more design churn. |
 | Keep the shared `CredentialValidationError` helper as the common missing-remark contract across global, user, and repository credential update flows. | The targeted and full backend validation now pass with one shared helper plus `instanceof`-based controller mapping, so the abstraction is proven and should stay centralized. |
+| Treat commit `29340a0` as the next baseline for the current frontend stabilization slice. | The user explicitly said backend hardening commits through `29340a0` are complete, so the next continuation should focus only on the frontend test regression introduced afterward. |
+| Keep the first frontend repair batch narrowly scoped to stale `../api` mocks in `appShell` and `TaskDetailPage` tests. | The current Vitest failure points to a specific export mismatch around `listAvailableRepoRobots`, so the safest next step is to patch those mocks before widening the search surface. |
+| Return one matching available-robot entry from `taskDetailPage.test.tsx` and update its expectation to `listAvailableRepoRobots`. | `TaskDetailPage` now uses `listAvailableRepoRobots` to recover provider labels, so one repo-scoped `bot1` / `codex` mock entry preserves the existing assertion path with the smallest test-only change. |
+| Fix the remaining `TaskDetailPage` failure in the test assertion instead of reverting the current UI summary rendering. | The page now intentionally shows separate permission/scope/provider tags plus a formatted robot label, so the correct repair is a less brittle assertion on the current output rather than changing product behavior back to the old text. |
+| Widen the current frontend repair batch to all stale `../api` mocks and helpers that still assume `listRepoRobots`-only behavior. | The root rerun now shows the same export-drift pattern in `RepoDetailPage` and task-group chat composer coverage, so patching only `appShell` and `TaskDetailPage` would leave the suite red. |
+| Keep the preview-test fixes test-only through tmp-root filesystem redirection and mocked port/socket behavior. | The preview failures come from sandbox-incompatible OS access in tests, so the fastest safe repair path is hermetic test setup rather than production behavior changes. |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
@@ -173,6 +200,7 @@ Phase 14
 |-------|---------|------------|
 | The first initialization turn was interrupted after creating the session directory but before the planning docs were populated. | 1 | Reused the same session hash and continued filling the planning files instead of creating a duplicate session. |
 | The shared credential-validation refactor introduced one build-blocking TypeScript error in `repository.service` plus stale test assertions against the old global-only error shape. | 1 | Patched the out-of-scope repository-provider lookup, updated the affected assertions to the stable code/details contract, and moved the batch forward after targeted coverage plus backend build passed. |
+| Root test reruns surfaced stale frontend mocks and backend preview tests that depended on real home-directory paths or localhost sockets. | 1 | Updated the stale frontend mock surfaces to `listAvailableRepoRobots`, aligned assertions with mixed-scope robot labels, and converted preview tests to tmp-root plus mocked port/socket behavior so root test execution passes in the sandbox. |
 
 ## Notes
 {/* REMINDERS: - Update phase status as you progress: pending → in_progress → complete - Re-read this plan before major decisions (attention manipulation) - Log ALL errors - they help avoid repetition - Never repeat a failed action - mutate your approach instead */}

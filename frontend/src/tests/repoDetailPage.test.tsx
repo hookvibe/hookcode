@@ -106,6 +106,8 @@ vi.mock('../api', () => {
       merges: { items: [], page: 1, pageSize: 5, hasMore: false },
       issues: { items: [], page: 1, pageSize: 5, hasMore: false }
     })), // Mock activity fetch for the provider activity row. kzxac35mxk0fg358i7zs
+    // Keep repo detail tests aligned with the mixed-scope robot catalog fetch used by the page. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    listAvailableRepoRobots: vi.fn(async () => []),
     // Mock preview config discovery for repo detail Phase 2 UI. docs/en/developer/plans/3ldcl6h5d61xj2hsu6as/task_plan.md 3ldcl6h5d61xj2hsu6as
     fetchRepoPreviewConfig: vi.fn(async () => ({ available: false, instances: [], reason: 'config_missing' }))
   };

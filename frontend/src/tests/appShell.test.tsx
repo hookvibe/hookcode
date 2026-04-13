@@ -124,6 +124,8 @@ vi.mock('../api', () => {
     archiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksArchived: 0, taskGroupsArchived: 0 })),
     unarchiveRepo: vi.fn(async () => ({ repo: { id: 'r1' }, tasksRestored: 0, taskGroupsRestored: 0 })),
     listRepoRobots: vi.fn(async () => []),
+    // Keep AppShell route tests aligned with TaskDetailPage's available-robot lookup. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    listAvailableRepoRobots: vi.fn(async () => []),
     fetchRepo: vi.fn(async (id: string) => ({
       repo: { id, provider: 'gitlab', name: `Repo ${id}`, enabled: true, createdAt: '', updatedAt: '2026-01-11T00:00:00.000Z' },
       robots: [],
