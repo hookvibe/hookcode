@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { setAgentServices, callAgent, buildRemoteExecutionBundle, postRemoteExecutionResult } from '../../agent/agent';
 import { Task } from '../../types/task';
+import { GlobalCredentialService } from '../repositories/global-credentials.service';
+import { RobotCatalogService } from '../repositories/robot-catalog.service';
 import { RepositoryService } from '../repositories/repository.service';
-import { RepoRobotService } from '../repositories/repo-robot.service';
 import { UserService } from '../users/user.service';
 import { UserApiTokenService } from '../users/user-api-token.service';
 import { TaskLogStream } from './task-log-stream.service';
@@ -19,7 +20,8 @@ export class AgentService {
     taskLogStream: TaskLogStream,
     taskLogsService: TaskLogsService,
     repositoryService: RepositoryService,
-    repoRobotService: RepoRobotService,
+    robotCatalogService: RobotCatalogService,
+    globalCredentialService: GlobalCredentialService,
     userService: UserService,
     // Provide PAT issuance to the agent runtime for task-group .env generation. docs/en/developer/plans/taskgroups-reorg-20260131/task_plan.md taskgroups-reorg-20260131
     userApiTokenService: UserApiTokenService,
@@ -33,7 +35,8 @@ export class AgentService {
       taskLogStream,
       taskLogsService, // Wire task-log persistence for DB-backed log storage. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       repositoryService,
-      repoRobotService,
+      robotCatalogService,
+      globalCredentialService,
       userService,
       userApiTokenService,
       runtimeService,

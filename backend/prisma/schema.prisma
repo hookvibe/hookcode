@@ -582,6 +582,55 @@ model RepoRobot {
   @@index([defaultWorkerId], map: "repo_robots_default_worker_id_idx")
 }
 
+model GlobalRobot {
+  id                    String    @id @db.Uuid
+  /// Persist the default worker override for globally shared robots so cross-repo tasks can target remote executors. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  defaultWorkerId       String?   @map("default_worker_id") @db.Uuid
+  name                  String
+  permission            String
+  /// Allow global robots to reference global/user/repo provider credentials without embedding repo-specific tokens. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  repoCredentialProfileId String? @map("repo_credential_profile_id")
+  repoCredentialSource  String?   @map("repo_credential_source")
+  /// Store explicit robot workflow mode (auto/direct/fork) for repo pull control. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  repoWorkflowMode      String?   @map("repo_workflow_mode")
+  /// Store robot-level time windows for hour-based execution scheduling. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  timeWindowStartHour   Int?      @map("time_window_start_hour")
+  /// Store robot-level time windows for hour-based execution scheduling. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  timeWindowEndHour     Int?      @map("time_window_end_hour")
+  promptDefault         String?   @map("prompt_default")
+  language              String?
+  modelProvider         String    @default("codex") @map("model_provider")
+  modelProviderConfig   Json?     @map("model_provider_config_json") @db.JsonB
+  /// Store dependency management overrides per global robot. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  dependencyConfig      Json?     @map("dependency_config_json") @db.JsonB
+  defaultBranchRole     String?   @map("default_branch_role")
+  defaultBranch         String?   @map("default_branch")
+  enabled               Boolean   @default(true)
+  isDefault             Boolean   @default(false) @map("is_default")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  /// Link globally shared robots to their preferred worker for effective worker resolution. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  defaultWorker Worker? @relation("GlobalRobotDefaultWorker", fields: [defaultWorkerId], references: [id], onDelete: SetNull)
+
+  @@map("global_robots")
+  @@index([enabled, createdAt], map: "global_robots_enabled_created_at_idx")
+  @@index([isDefault, permission], map: "global_robots_default_permission_idx")
+  @@index([defaultWorkerId], map: "global_robots_default_worker_id_idx")
+}
+
+model GlobalCredentialSettings {
+  id                     String   @id
+  /// Store global provider-token profiles so admin-managed robots can resolve repo/model credentials without per-repo setup. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  repoProviderCredentials Json?   @map("repo_provider_credentials_json") @db.JsonB
+  /// Store global model-provider API key profiles for shared robot execution. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  modelProviderCredentials Json?  @map("model_provider_credentials_json") @db.JsonB
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("global_credential_settings")
+}
+
 /// Track local and remote execution workers that can receive HookCode tasks. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
 model Worker {
   id                 String    @id @db.Uuid
@@ -613,6 +662,8 @@ model Worker {
   tasks        Task[]
   taskGroups   TaskGroup[]
   defaultRobots RepoRobot[] @relation("RepoRobotDefaultWorker")
+  /// Track globally shared robots that default to this worker for execution routing. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  defaultGlobalRobots GlobalRobot[] @relation("GlobalRobotDefaultWorker")
 
   @@map("workers")
   @@index([status, updatedAt], map: "workers_status_updated_at_idx")

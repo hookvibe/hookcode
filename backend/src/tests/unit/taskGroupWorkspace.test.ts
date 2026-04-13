@@ -274,7 +274,8 @@ describe('ensureTaskGroupPat', () => {
       taskLogStream: { publish: jest.fn(), subscribe: jest.fn() } as any,
       taskLogsService: { appendLog: jest.fn() } as any, // Stub task_logs persistence for agent service wiring. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       repositoryService: {} as any,
-      repoRobotService: {} as any,
+      robotCatalogService: { listAvailableByRepoWithToken: jest.fn().mockResolvedValue([]) } as any,
+      globalCredentialService: { getCredentialsRaw: jest.fn().mockResolvedValue({}) } as any,
       userService: userService as any,
       userApiTokenService: { verifyToken, createToken } as any,
       runtimeService: {} as any,
@@ -308,7 +309,8 @@ describe('ensureTaskGroupPat', () => {
       taskLogStream: { publish: jest.fn(), subscribe: jest.fn() } as any,
       taskLogsService: { appendLog: jest.fn() } as any, // Stub task_logs persistence for agent service wiring. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
       repositoryService: {} as any,
-      repoRobotService: {} as any,
+      robotCatalogService: { listAvailableByRepoWithToken: jest.fn().mockResolvedValue([]) } as any,
+      globalCredentialService: { getCredentialsRaw: jest.fn().mockResolvedValue({}) } as any,
       userService: userService as any,
       userApiTokenService: { verifyToken, createToken } as any,
       runtimeService: {} as any,

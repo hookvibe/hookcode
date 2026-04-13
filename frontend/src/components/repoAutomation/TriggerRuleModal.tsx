@@ -1,6 +1,6 @@
 import { FC, useEffect, useMemo, useState } from 'react';
 import { Alert, Input, Space, Switch, Typography } from 'antd';
-import type { AutomationClause, AutomationEventKey, AutomationRule, RepoRobot, Repository, TimeWindow } from '../../api';
+import type { AutomationClause, AutomationEventKey, AutomationRule, AvailableRobot, Repository, TimeWindow } from '../../api';
 import { useT } from '../../i18n';
 import { getTemplateVariableGroups } from '../templateEditorVariables';
 import { ResponsiveDialog } from '../dialogs/ResponsiveDialog';
@@ -24,7 +24,7 @@ import { TriggerRuleScheduleSection } from './triggerRuleModal/TriggerRuleSchedu
 interface Props {
   open: boolean;
   eventKey: AutomationEventKey;
-  robots: RepoRobot[];
+  robots: AvailableRobot[];
   repo?: Repository;
   value?: AutomationRule | null;
   readOnly?: boolean;

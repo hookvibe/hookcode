@@ -48,19 +48,26 @@ import {
 import {
   changeMyPassword,
   createMyApiToken,
+  createGlobalRobot,
+  deleteGlobalRobot,
   fetchAdminToolsMeta,
   fetchSystemRuntimes,
+  fetchGlobalCredentials,
   fetchMe,
   fetchMyApiTokens,
   fetchMyModelCredentials,
   fetchMyProviderRuntimeStatuses,
+  listGlobalRobots,
   listMyModelProviderModels,
   revokeMyApiToken,
+  updateGlobalCredentials,
+  updateGlobalRobot,
   updateMe,
   updateMyApiToken,
   updateMyModelCredentials,
   type ApiTokenScopeGroup,
   type ApiTokenScopeLevel,
+  type GlobalRobot,
   type UserApiTokenPublic,
   type RuntimeInfo,
   type ProviderRuntimeMethod,
@@ -107,8 +114,25 @@ type ApiTokenFormValues = {
   expiryPreset: ApiTokenExpiryPreset;
   expiryCustomDays?: number;
 };
+type CredentialEditorScope = 'user' | 'global';
+type GlobalRobotFormValues = {
+  name: string;
+  promptDefault: string;
+  permission: 'read' | 'write';
+  repoCredentialSource: 'global' | 'user' | 'repo';
+  repoCredentialProfileId?: string;
+  language?: string;
+  modelProvider: ModelProviderKey;
+  defaultBranch?: string;
+  repoWorkflowMode: 'auto' | 'direct' | 'fork';
+  enabled: boolean;
+  isDefault: boolean;
+  modelProviderConfigJson: string;
+  dependencyConfigJson?: string;
+};
 
 const DEFAULT_PORTS = { prisma: 7215, swagger: 7216 } as const;
+const EMPTY_JSON_OBJECT = '{}';
 
 const providerLabel = (provider: ProviderKey) => (provider === 'github' ? 'GitHub' : 'GitLab');
 const modelProviderLabel = (provider: ModelProviderKey, t: ReturnType<typeof useT>) => {
@@ -172,6 +196,11 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const [credLoading, setCredLoading] = useState(false);
   const [providerRuntimeLoading, setProviderRuntimeLoading] = useState(false);
   const [credentials, setCredentials] = useState<UserModelCredentialsPublic | null>(null);
+  const [globalCredentialsLoading, setGlobalCredentialsLoading] = useState(false);
+  const [globalCredentialsSaving, setGlobalCredentialsSaving] = useState(false);
+  const [globalCredentials, setGlobalCredentials] = useState<UserModelCredentialsPublic | null>(null);
+  const [globalRobotsLoading, setGlobalRobotsLoading] = useState(false);
+  const [globalRobots, setGlobalRobots] = useState<GlobalRobot[]>([]);
   const [providerRuntime, setProviderRuntime] = useState<ProviderRuntimeStatusesResponse | null>(null);
   const [savingCred, setSavingCred] = useState(false);
 
@@ -196,6 +225,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const [repoProfileFormOpen, setRepoProfileFormOpen] = useState(false);
   const [repoProfileProvider, setRepoProfileProvider] = useState<ProviderKey>('gitlab');
   const [repoProfileEditing, setRepoProfileEditing] = useState<UserRepoProviderCredentialProfilePublic | null>(null);
+  const [repoProfileScope, setRepoProfileScope] = useState<CredentialEditorScope>('user');
   const [repoProfileSubmitting, setRepoProfileSubmitting] = useState(false);
   const [repoProfileSetDefault, setRepoProfileSetDefault] = useState(false);
   const [repoProfileForm] = Form.useForm<{ remark: string; token?: string; cloneUsername?: string }>();
@@ -204,10 +234,16 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
   const [modelProfileFormOpen, setModelProfileFormOpen] = useState(false);
   const [modelProfileProvider, setModelProfileProvider] = useState<ModelProviderKey>('codex');
   const [modelProfileEditing, setModelProfileEditing] = useState<UserModelProviderCredentialProfilePublic | null>(null);
+  const [modelProfileScope, setModelProfileScope] = useState<CredentialEditorScope>('user');
   const [modelProfileSubmitting, setModelProfileSubmitting] = useState(false);
   const [modelProfileSetDefault, setModelProfileSetDefault] = useState(false);
   const [modelProfileForm] = Form.useForm<{ remark: string; apiKey?: string; apiBaseUrl?: string }>();
   const [modelProfileApiKeyMode, setModelProfileApiKeyMode] = useState<'keep' | 'set'>('keep');
+
+  const [globalRobotFormOpen, setGlobalRobotFormOpen] = useState(false);
+  const [globalRobotEditing, setGlobalRobotEditing] = useState<GlobalRobot | null>(null);
+  const [globalRobotSubmitting, setGlobalRobotSubmitting] = useState(false);
+  const [globalRobotForm] = Form.useForm<GlobalRobotFormValues>();
 
   const [displayNameForm] = Form.useForm<{ displayName: string }>();
   const [passwordForm] = Form.useForm<{ currentPassword: string; newPassword: string; confirm: string }>();
@@ -335,6 +371,36 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     }
   }, [canUseAccountApis, message, t, token]);
 
+  const refreshGlobalCredentialsData = useCallback(async () => {
+    if (!canUseAccountApis || !isAdmin) return;
+    setGlobalCredentialsLoading(true);
+    try {
+      const data = await fetchGlobalCredentials();
+      setGlobalCredentials(data);
+    } catch (err) {
+      console.error(err);
+      message.error('Failed to fetch global credentials.');
+      setGlobalCredentials(null);
+    } finally {
+      setGlobalCredentialsLoading(false);
+    }
+  }, [canUseAccountApis, isAdmin, message]);
+
+  const refreshGlobalRobotsData = useCallback(async () => {
+    if (!canUseAccountApis || !isAdmin) return;
+    setGlobalRobotsLoading(true);
+    try {
+      const data = await listGlobalRobots();
+      setGlobalRobots(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      message.error('Failed to fetch global robots.');
+      setGlobalRobots([]);
+    } finally {
+      setGlobalRobotsLoading(false);
+    }
+  }, [canUseAccountApis, isAdmin, message]);
+
   // Refresh local provider runtime cards alongside stored profiles so the settings page mirrors local-first execution. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
   const refreshProviderRuntime = useCallback(async () => {
     if (!canUseAccountApis) return;
@@ -410,10 +476,25 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       void refreshCredentials();
       void refreshProviderRuntime();
       void refreshApiTokens();
+      if (isAdmin) {
+        void refreshGlobalCredentialsData();
+        void refreshGlobalRobotsData();
+      }
     }
     if (activeTab === 'tools') void refreshToolsMeta();
     if (activeTab === 'environment') void refreshRuntimes();
-  }, [activeTab, refreshApiTokens, refreshCredentials, refreshProviderRuntime, refreshRuntimes, refreshToolsMeta, refreshUser]);
+  }, [
+    activeTab,
+    isAdmin,
+    refreshApiTokens,
+    refreshCredentials,
+    refreshGlobalCredentialsData,
+    refreshGlobalRobotsData,
+    refreshProviderRuntime,
+    refreshRuntimes,
+    refreshToolsMeta,
+    refreshUser
+  ]);
 
   // ---- Action callbacks ----
 
@@ -424,11 +505,27 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       await refreshCredentials();
       await refreshProviderRuntime();
       await refreshApiTokens();
+      if (isAdmin) {
+        await refreshGlobalCredentialsData();
+        await refreshGlobalRobotsData();
+      }
     }
     if (activeTab === 'tools') await refreshToolsMeta();
     if (activeTab === 'environment') await refreshRuntimes();
     if (activeTab === 'costs') setCostsReloadToken((prev) => prev + 1);
-  }, [activeTab, canUseAccountApis, refreshApiTokens, refreshCredentials, refreshProviderRuntime, refreshRuntimes, refreshToolsMeta, refreshUser]);
+  }, [
+    activeTab,
+    canUseAccountApis,
+    isAdmin,
+    refreshApiTokens,
+    refreshCredentials,
+    refreshGlobalCredentialsData,
+    refreshGlobalRobotsData,
+    refreshProviderRuntime,
+    refreshRuntimes,
+    refreshToolsMeta,
+    refreshUser
+  ]);
 
   const toolCards = useMemo(
     () => [
@@ -482,12 +579,25 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     return { gitlab: gitlabProfiles, github: githubProfiles };
   }, [credentials?.github?.profiles, credentials?.gitlab?.profiles]);
 
+  const globalRepoProviderProfiles = useMemo(() => {
+    const gitlabProfiles = normalizeRepoProfiles(globalCredentials?.gitlab?.profiles);
+    const githubProfiles = normalizeRepoProfiles(globalCredentials?.github?.profiles);
+    return { gitlab: gitlabProfiles, github: githubProfiles };
+  }, [globalCredentials?.github?.profiles, globalCredentials?.gitlab?.profiles]);
+
   const modelProviderProfiles = useMemo(() => {
     const codexProfiles = normalizeModelProfiles(credentials?.codex?.profiles);
     const claudeProfiles = normalizeModelProfiles(credentials?.claude_code?.profiles);
     const geminiProfiles = normalizeModelProfiles(credentials?.gemini_cli?.profiles);
     return { codex: codexProfiles, claude_code: claudeProfiles, gemini_cli: geminiProfiles };
   }, [credentials?.claude_code?.profiles, credentials?.codex?.profiles, credentials?.gemini_cli?.profiles]);
+
+  const globalModelProviderProfiles = useMemo(() => {
+    const codexProfiles = normalizeModelProfiles(globalCredentials?.codex?.profiles);
+    const claudeProfiles = normalizeModelProfiles(globalCredentials?.claude_code?.profiles);
+    const geminiProfiles = normalizeModelProfiles(globalCredentials?.gemini_cli?.profiles);
+    return { codex: codexProfiles, claude_code: claudeProfiles, gemini_cli: geminiProfiles };
+  }, [globalCredentials?.claude_code?.profiles, globalCredentials?.codex?.profiles, globalCredentials?.gemini_cli?.profiles]);
 
   const providerStatusItems = useMemo(
     () =>
@@ -509,6 +619,16 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     [credentials, repoProviderProfiles]
   );
 
+  const globalRepoProviderProfileItems = useMemo(
+    () =>
+      (['gitlab', 'github'] as ProviderKey[]).flatMap((provider) => {
+        const profiles = globalRepoProviderProfiles[provider];
+        const defaultId = String((globalCredentials as any)?.[provider]?.defaultProfileId ?? '').trim();
+        return profiles.map((profile) => ({ provider, profile, defaultId }));
+      }),
+    [globalCredentials, globalRepoProviderProfiles]
+  );
+
   const modelProviderProfileItems = useMemo(
     () =>
       (['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).flatMap((provider) => {
@@ -519,36 +639,59 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     [credentials, modelProviderProfiles]
   );
 
+  const globalModelProviderProfileItems = useMemo(
+    () =>
+      (['codex', 'claude_code', 'gemini_cli'] as ModelProviderKey[]).flatMap((provider) => {
+        const profiles = globalModelProviderProfiles[provider];
+        const defaultId = String((globalCredentials as any)?.[provider]?.defaultProfileId ?? '').trim();
+        return profiles.map((profile) => ({ provider, profile, defaultId }));
+      }),
+    [globalCredentials, globalModelProviderProfiles]
+  );
+
+  const globalRobotsSorted = useMemo(
+    () =>
+      [...globalRobots].sort((a, b) => {
+        if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+        return String(a.name ?? '').localeCompare(String(b.name ?? ''));
+      }),
+    [globalRobots]
+  );
+
   const startEditRepoProfile = useCallback(
-    (provider?: ProviderKey, profile?: UserRepoProviderCredentialProfilePublic | null) => {
+    (scope: CredentialEditorScope = 'user', provider?: ProviderKey, profile?: UserRepoProviderCredentialProfilePublic | null) => {
+      const sourceCredentials = scope === 'global' ? globalCredentials : credentials;
       const nextProvider = provider ?? repoProfileProvider ?? 'gitlab';
+      setRepoProfileScope(scope);
       setRepoProfileProvider(nextProvider);
       setRepoProfileEditing(profile ?? null);
       setRepoProfileFormOpen(true);
       setRepoProfileTokenMode(profile?.hasToken ? 'keep' : 'set');
-      const defaultId = String((credentials as any)?.[nextProvider]?.defaultProfileId ?? '').trim();
+      const defaultId = String((sourceCredentials as any)?.[nextProvider]?.defaultProfileId ?? '').trim();
       setRepoProfileSetDefault(Boolean(profile?.id && profile.id === defaultId));
       repoProfileForm.setFieldsValue({ remark: profile?.remark ?? '', cloneUsername: profile?.cloneUsername ?? '', token: '' });
     },
-    [credentials, repoProfileForm, repoProfileProvider]
+    [credentials, globalCredentials, repoProfileForm, repoProfileProvider]
   );
 
   const startEditModelProfile = useCallback(
-    (provider?: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
+    (scope: CredentialEditorScope = 'user', provider?: ModelProviderKey, profile?: UserModelProviderCredentialProfilePublic | null) => {
+      const sourceCredentials = scope === 'global' ? globalCredentials : credentials;
       const nextProvider = provider ?? modelProfileProvider ?? 'codex';
+      setModelProfileScope(scope);
       setModelProfileProvider(nextProvider);
       setModelProfileEditing(profile ?? null);
       setModelProfileFormOpen(true);
       setModelProfileApiKeyMode(profile?.hasApiKey ? 'keep' : 'set');
-      const defaultId = String((credentials as any)?.[nextProvider]?.defaultProfileId ?? '').trim();
+      const defaultId = String((sourceCredentials as any)?.[nextProvider]?.defaultProfileId ?? '').trim();
       setModelProfileSetDefault(Boolean(profile?.id && profile.id === defaultId));
       modelProfileForm.setFieldsValue({ remark: profile?.remark ?? '', apiBaseUrl: profile?.apiBaseUrl ?? '', apiKey: '' });
     },
-    [credentials, modelProfileForm, modelProfileProvider]
+    [credentials, globalCredentials, modelProfileForm, modelProfileProvider]
   );
 
   const removeProfile = useCallback(
-    async (provider: ProviderKey | ModelProviderKey, id: string) => {
+    async (scope: CredentialEditorScope, provider: ProviderKey | ModelProviderKey, id: string) => {
       Modal.confirm({
         title: t('panel.credentials.profile.removeTitle'),
         content: t('panel.credentials.profile.removeDesc'),
@@ -556,22 +699,38 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
         okButtonProps: { danger: true },
         cancelText: t('common.cancel'),
         onOk: async () => {
-          if (savingCred) return;
-          setSavingCred(true);
+          if (scope === 'global') {
+            if (globalCredentialsSaving) return;
+            setGlobalCredentialsSaving(true);
+          } else {
+            if (savingCred) return;
+            setSavingCred(true);
+          }
           try {
-            const next = await updateMyModelCredentials({ [provider]: { removeProfileIds: [id] } } as any);
-            setCredentials(next);
+            const next =
+              scope === 'global'
+                ? await updateGlobalCredentials({ [provider]: { removeProfileIds: [id] } } as any)
+                : await updateMyModelCredentials({ [provider]: { removeProfileIds: [id] } } as any);
+            if (scope === 'global') {
+              setGlobalCredentials(next);
+            } else {
+              setCredentials(next);
+            }
             message.success(t('toast.credentials.saved'));
           } catch (err: any) {
             console.error(err);
             message.error(err?.response?.data?.error || t('toast.credentials.saveFailed'));
           } finally {
-            setSavingCred(false);
+            if (scope === 'global') {
+              setGlobalCredentialsSaving(false);
+            } else {
+              setSavingCred(false);
+            }
           }
         }
       });
     },
-    [message, savingCred, t]
+    [globalCredentialsSaving, message, savingCred, t]
   );
 
   const submitRepoProfileForm = useCallback(async () => {
@@ -583,7 +742,8 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       const cloneUsername = String(values.cloneUsername ?? '').trim();
       const tokenValue = String(values.token ?? '').trim();
       const shouldSendToken = repoProfileTokenMode === 'set';
-      const currentDefaultId = String((credentials as any)?.[repoProfileProvider]?.defaultProfileId ?? '').trim();
+      const sourceCredentials = repoProfileScope === 'global' ? globalCredentials : credentials;
+      const currentDefaultId = String((sourceCredentials as any)?.[repoProfileProvider]?.defaultProfileId ?? '').trim();
       const profileId = repoProfileEditing?.id ?? generateUuid();
       const payload = {
         id: profileId,
@@ -598,8 +758,15 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       } else if (isEditingDefault) {
         updatePayload[repoProfileProvider].defaultProfileId = null;
       }
-      const next = await updateMyModelCredentials(updatePayload as any);
-      setCredentials(next);
+      const next =
+        repoProfileScope === 'global'
+          ? await updateGlobalCredentials(updatePayload as any)
+          : await updateMyModelCredentials(updatePayload as any);
+      if (repoProfileScope === 'global') {
+        setGlobalCredentials(next);
+      } else {
+        setCredentials(next);
+      }
       setRepoProfileFormOpen(false);
       setRepoProfileEditing(null);
       message.success(t('toast.credentials.saved'));
@@ -611,7 +778,19 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     } finally {
       setRepoProfileSubmitting(false);
     }
-  }, [credentials, message, repoProfileEditing?.id, repoProfileForm, repoProfileProvider, repoProfileSubmitting, repoProfileSetDefault, repoProfileTokenMode, t]);
+  }, [
+    credentials,
+    globalCredentials,
+    message,
+    repoProfileEditing?.id,
+    repoProfileForm,
+    repoProfileProvider,
+    repoProfileScope,
+    repoProfileSubmitting,
+    repoProfileSetDefault,
+    repoProfileTokenMode,
+    t
+  ]);
 
   const submitModelProfileForm = useCallback(async () => {
     if (modelProfileSubmitting) return;
@@ -622,7 +801,8 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       const apiBaseUrl = String(values.apiBaseUrl ?? '').trim();
       const apiKey = String(values.apiKey ?? '').trim();
       const shouldSendApiKey = modelProfileApiKeyMode === 'set';
-      const currentDefaultId = String((credentials as any)?.[modelProfileProvider]?.defaultProfileId ?? '').trim();
+      const sourceCredentials = modelProfileScope === 'global' ? globalCredentials : credentials;
+      const currentDefaultId = String((sourceCredentials as any)?.[modelProfileProvider]?.defaultProfileId ?? '').trim();
       const profileId = modelProfileEditing?.id ?? generateUuid();
       const payload = {
         id: profileId,
@@ -637,8 +817,15 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       } else if (isEditingDefault) {
         updatePayload[modelProfileProvider].defaultProfileId = null;
       }
-      const next = await updateMyModelCredentials(updatePayload as any);
-      setCredentials(next);
+      const next =
+        modelProfileScope === 'global'
+          ? await updateGlobalCredentials(updatePayload as any)
+          : await updateMyModelCredentials(updatePayload as any);
+      if (modelProfileScope === 'global') {
+        setGlobalCredentials(next);
+      } else {
+        setCredentials(next);
+      }
       setModelProfileFormOpen(false);
       setModelProfileEditing(null);
       message.success(t('toast.credentials.saved'));
@@ -650,7 +837,19 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     } finally {
       setModelProfileSubmitting(false);
     }
-  }, [credentials, message, modelProfileApiKeyMode, modelProfileEditing?.id, modelProfileForm, modelProfileProvider, modelProfileSubmitting, modelProfileSetDefault, t]);
+  }, [
+    credentials,
+    globalCredentials,
+    message,
+    modelProfileApiKeyMode,
+    modelProfileEditing?.id,
+    modelProfileForm,
+    modelProfileProvider,
+    modelProfileScope,
+    modelProfileSubmitting,
+    modelProfileSetDefault,
+    t
+  ]);
 
   // PAT form helpers. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301
   const buildScopeLevelDefaults = useCallback(
@@ -795,6 +994,148 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
     }
   }, [accountEditDisabled, canUseAccountApis, message, passwordForm, savingPassword, t]);
 
+  const buildDefaultGlobalRobotProviderConfig = useCallback((provider: ModelProviderKey): Record<string, unknown> => {
+    if (provider === 'claude_code') {
+      return {
+        credentialSource: 'global',
+        model: 'claude-sonnet-4-5-20250929',
+        sandbox: 'read-only',
+        sandbox_workspace_write: { network_access: false },
+        routingConfig: { mode: 'fixed', failoverPolicy: 'disabled' }
+      };
+    }
+    if (provider === 'gemini_cli') {
+      return {
+        credentialSource: 'global',
+        model: 'gemini-2.5-pro',
+        sandbox: 'read-only',
+        sandbox_workspace_write: { network_access: false },
+        routingConfig: { mode: 'fixed', failoverPolicy: 'disabled' }
+      };
+    }
+    return {
+      credentialSource: 'global',
+      model: 'gpt-5.1-codex-max',
+      sandbox: 'read-only',
+      model_reasoning_effort: 'medium',
+      routingConfig: { mode: 'fixed', failoverPolicy: 'disabled' }
+    };
+  }, []);
+
+  const openCreateGlobalRobot = useCallback(() => {
+    setGlobalRobotEditing(null);
+    setGlobalRobotFormOpen(true);
+    globalRobotForm.setFieldsValue({
+      name: '',
+      promptDefault: '',
+      permission: 'read',
+      repoCredentialSource: 'global',
+      repoCredentialProfileId: '',
+      language: locale,
+      modelProvider: 'codex',
+      defaultBranch: '',
+      repoWorkflowMode: 'auto',
+      enabled: true,
+      isDefault: false,
+      modelProviderConfigJson: JSON.stringify(buildDefaultGlobalRobotProviderConfig('codex'), null, 2),
+      dependencyConfigJson: ''
+    });
+  }, [buildDefaultGlobalRobotProviderConfig, globalRobotForm, locale]);
+
+  const openEditGlobalRobot = useCallback(
+    (robot: GlobalRobot) => {
+      const provider = robot.modelProvider === 'claude_code' ? 'claude_code' : robot.modelProvider === 'gemini_cli' ? 'gemini_cli' : 'codex';
+      setGlobalRobotEditing(robot);
+      setGlobalRobotFormOpen(true);
+      globalRobotForm.setFieldsValue({
+        name: robot.name ?? '',
+        promptDefault: robot.promptDefault ?? '',
+        permission: robot.permission ?? 'read',
+        repoCredentialSource: robot.repoCredentialSource === 'user' || robot.repoCredentialSource === 'repo' ? robot.repoCredentialSource : 'global',
+        repoCredentialProfileId: robot.repoCredentialProfileId ?? '',
+        language: robot.language ?? locale,
+        modelProvider: provider,
+        defaultBranch: robot.defaultBranch ?? '',
+        repoWorkflowMode: robot.repoWorkflowMode ?? 'auto',
+        enabled: Boolean(robot.enabled),
+        isDefault: Boolean(robot.isDefault),
+        modelProviderConfigJson: JSON.stringify(robot.modelProviderConfig ?? buildDefaultGlobalRobotProviderConfig(provider), null, 2),
+        dependencyConfigJson: robot.dependencyConfig ? JSON.stringify(robot.dependencyConfig, null, 2) : ''
+      });
+    },
+    [buildDefaultGlobalRobotProviderConfig, globalRobotForm, locale]
+  );
+
+  const submitGlobalRobotForm = useCallback(async () => {
+    if (globalRobotSubmitting) return;
+    const values = await globalRobotForm.validateFields();
+    setGlobalRobotSubmitting(true);
+    try {
+      const modelProvider = values.modelProvider === 'claude_code' ? 'claude_code' : values.modelProvider === 'gemini_cli' ? 'gemini_cli' : 'codex';
+      const modelProviderConfigText = String(values.modelProviderConfigJson ?? '').trim() || EMPTY_JSON_OBJECT;
+      const dependencyConfigText = String(values.dependencyConfigJson ?? '').trim();
+      const modelProviderConfig = JSON.parse(modelProviderConfigText);
+      const dependencyConfig = dependencyConfigText ? JSON.parse(dependencyConfigText) : undefined;
+      // Keep the admin global robot editor lightweight by treating advanced provider settings as validated JSON blocks. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+      const payload = {
+        name: String(values.name ?? '').trim(),
+        promptDefault: String(values.promptDefault ?? '').trim(),
+        permission: values.permission,
+        repoCredentialSource: values.repoCredentialSource,
+        repoCredentialProfileId: String(values.repoCredentialProfileId ?? '').trim() || null,
+        language: String(values.language ?? '').trim() || null,
+        modelProvider,
+        modelProviderConfig,
+        dependencyConfig,
+        defaultBranch: String(values.defaultBranch ?? '').trim() || null,
+        repoWorkflowMode: values.repoWorkflowMode,
+        enabled: Boolean(values.enabled),
+        isDefault: Boolean(values.isDefault)
+      };
+      if (globalRobotEditing) {
+        await updateGlobalRobot(globalRobotEditing.id, payload);
+      } else {
+        await createGlobalRobot(payload);
+      }
+      setGlobalRobotFormOpen(false);
+      setGlobalRobotEditing(null);
+      message.success(t('toast.repos.saved'));
+      await refreshGlobalRobotsData();
+    } catch (err: any) {
+      if (err instanceof SyntaxError) {
+        message.error('Invalid JSON in global robot configuration.');
+      } else if (!err?.errorFields) {
+        console.error(err);
+        message.error(err?.response?.data?.error || t('toast.repos.saveFailed'));
+      }
+    } finally {
+      setGlobalRobotSubmitting(false);
+    }
+  }, [createGlobalRobot, globalRobotEditing, globalRobotForm, globalRobotSubmitting, message, refreshGlobalRobotsData, t]);
+
+  const removeGlobalRobotRecord = useCallback(
+    (robot: GlobalRobot) => {
+      Modal.confirm({
+        title: 'Delete global robot',
+        content: `Remove ${robot.name || robot.id} from the global robot catalog?`,
+        okText: t('panel.credentials.profile.removeOk'),
+        okButtonProps: { danger: true },
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          try {
+            await deleteGlobalRobot(robot.id);
+            message.success(t('toast.repos.saved'));
+            await refreshGlobalRobotsData();
+          } catch (err: any) {
+            console.error(err);
+            message.error(err?.response?.data?.error || t('toast.repos.saveFailed'));
+          }
+        }
+      });
+    },
+    [message, refreshGlobalRobotsData, t]
+  );
+
   // ---- Content renderers ----
 
   const renderContent = () => {
@@ -890,7 +1231,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
             <div className="hc-panel-section">
               <div className="hc-panel-section-title">
                 <Space size={8}><KeyOutlined /><span>{t('panel.credentials.modelProviderTitle')}</span></Space>
-                <Button size="small" onClick={() => startEditModelProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>{t('panel.credentials.profile.add')}</Button>
+                <Button size="small" onClick={() => startEditModelProfile('user', undefined, null)} disabled={savingCred || !canUseAccountApis}>{t('panel.credentials.profile.add')}</Button>
               </div>
               <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>{t('panel.credentials.modelProviderTip')}</Typography.Paragraph>
               {modelProviderProfileItems.length ? (
@@ -909,8 +1250,8 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
                         <Tag color={profile.hasApiKey ? 'green' : 'default'} style={{ margin: 0 }}>{profile.hasApiKey ? t('common.configured') : t('common.notConfigured')}</Tag>
                       </div>
                       <div className="hc-credential-actions">
-                        <Button size="small" onClick={() => startEditModelProfile(provider, profile)}>{t('common.manage')}</Button>
-                        <Button size="small" danger onClick={() => void removeProfile(provider, profile.id)} disabled={!canUseAccountApis}>{t('panel.credentials.profile.remove')}</Button>
+                        <Button size="small" onClick={() => startEditModelProfile('user', provider, profile)}>{t('common.manage')}</Button>
+                        <Button size="small" danger onClick={() => void removeProfile('user', provider, profile.id)} disabled={!canUseAccountApis}>{t('panel.credentials.profile.remove')}</Button>
                       </div>
                     </div>
                   ))}
@@ -925,7 +1266,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
             <div className="hc-panel-section">
               <div className="hc-panel-section-title">
                 <Space size={8}><GlobalOutlined /><span>{t('panel.credentials.repoTitle')}</span></Space>
-                <Button size="small" onClick={() => startEditRepoProfile(undefined, null)} disabled={savingCred || !canUseAccountApis}>{t('panel.credentials.profile.add')}</Button>
+                <Button size="small" onClick={() => startEditRepoProfile('user', undefined, null)} disabled={savingCred || !canUseAccountApis}>{t('panel.credentials.profile.add')}</Button>
               </div>
               {repoProviderProfileItems.length ? (
                 <div className="hc-credential-grid">
@@ -943,8 +1284,8 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
                         <Tag color={profile.hasToken ? 'green' : 'default'} style={{ margin: 0 }}>{profile.hasToken ? t('common.configured') : t('common.notConfigured')}</Tag>
                       </div>
                       <div className="hc-credential-actions">
-                        <Button size="small" onClick={() => startEditRepoProfile(provider, profile)}>{t('common.manage')}</Button>
-                        <Button size="small" danger onClick={() => void removeProfile(provider, profile.id)} disabled={!canUseAccountApis}>{t('panel.credentials.profile.remove')}</Button>
+                        <Button size="small" onClick={() => startEditRepoProfile('user', provider, profile)}>{t('common.manage')}</Button>
+                        <Button size="small" danger onClick={() => void removeProfile('user', provider, profile.id)} disabled={!canUseAccountApis}>{t('panel.credentials.profile.remove')}</Button>
                       </div>
                     </div>
                   ))}
@@ -955,6 +1296,141 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
                 </div>
               )}
             </div>
+            {isAdmin ? (
+              <>
+                <Divider style={{ margin: '24px 0' }} />
+                <div className="hc-panel-section">
+                  <div className="hc-panel-section-title">
+                    <Space size={8}><KeyOutlined /><span>Global Model Provider Credentials</span></Space>
+                    <Button size="small" onClick={() => startEditModelProfile('global', undefined, null)} disabled={globalCredentialsSaving || !canUseAccountApis}>
+                      {t('panel.credentials.profile.add')}
+                    </Button>
+                  </div>
+                  <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                    Manage shared model-provider profiles that global robots and repo robots can reuse.
+                  </Typography.Paragraph>
+                  {globalCredentialsLoading ? (
+                    <Skeleton active paragraph={{ rows: 3 }} />
+                  ) : globalModelProviderProfileItems.length ? (
+                    <div className="hc-credential-grid">
+                      {globalModelProviderProfileItems.map(({ provider, profile, defaultId }) => (
+                        <div key={`global-${provider}-${profile.id}`} className="hc-credential-card">
+                          <div className="hc-credential-header">
+                            <div className="hc-credential-info">
+                              <div className="hc-credential-name" title={profile.remark || profile.id}>{profile.remark || profile.id}</div>
+                              <div className="hc-credential-detail" title={profile.apiBaseUrl || '-'}>{profile.apiBaseUrl || '-'}</div>
+                            </div>
+                            <Tag color="gold" style={{ margin: 0 }}>Global</Tag>
+                          </div>
+                          <div className="hc-credential-tags">
+                            <Tag color="geekblue" style={{ margin: 0 }}>{modelProviderLabel(provider, t)}</Tag>
+                            {defaultId === profile.id && <Tag color="blue" style={{ margin: 0 }}>{t('panel.credentials.profile.defaultTag')}</Tag>}
+                            <Tag color={profile.hasApiKey ? 'green' : 'default'} style={{ margin: 0 }}>{profile.hasApiKey ? t('common.configured') : t('common.notConfigured')}</Tag>
+                          </div>
+                          <div className="hc-credential-actions">
+                            <Button size="small" onClick={() => startEditModelProfile('global', provider, profile)}>{t('common.manage')}</Button>
+                            <Button size="small" danger onClick={() => void removeProfile('global', provider, profile.id)} disabled={!canUseAccountApis || globalCredentialsSaving}>
+                              {t('panel.credentials.profile.remove')}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ padding: 16, textAlign: 'center', background: 'var(--surface-hover)', borderRadius: 8 }}>
+                      <Typography.Text type="secondary">No global model provider profiles configured.</Typography.Text>
+                    </div>
+                  )}
+                </div>
+                <Divider style={{ margin: '24px 0' }} />
+                <div className="hc-panel-section">
+                  <div className="hc-panel-section-title">
+                    <Space size={8}><GlobalOutlined /><span>Global Repo Provider Credentials</span></Space>
+                    <Button size="small" onClick={() => startEditRepoProfile('global', undefined, null)} disabled={globalCredentialsSaving || !canUseAccountApis}>
+                      {t('panel.credentials.profile.add')}
+                    </Button>
+                  </div>
+                  <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                    Manage shared GitHub and GitLab credential profiles for globally shared robots.
+                  </Typography.Paragraph>
+                  {globalCredentialsLoading ? (
+                    <Skeleton active paragraph={{ rows: 3 }} />
+                  ) : globalRepoProviderProfileItems.length ? (
+                    <div className="hc-credential-grid">
+                      {globalRepoProviderProfileItems.map(({ provider, profile, defaultId }) => (
+                        <div key={`global-${provider}-${profile.id}`} className="hc-credential-card">
+                          <div className="hc-credential-header">
+                            <div className="hc-credential-info">
+                              <div className="hc-credential-name" title={profile.remark || profile.id}>{profile.remark || profile.id}</div>
+                              <div className="hc-credential-detail" title={profile.cloneUsername || '-'}>{profile.cloneUsername || '-'}</div>
+                            </div>
+                            <Tag color="gold" style={{ margin: 0 }}>Global</Tag>
+                          </div>
+                          <div className="hc-credential-tags">
+                            <Tag color="geekblue" style={{ margin: 0 }}>{providerLabel(provider)}</Tag>
+                            {defaultId === profile.id && <Tag color="blue" style={{ margin: 0 }}>{t('panel.credentials.profile.defaultTag')}</Tag>}
+                            <Tag color={profile.hasToken ? 'green' : 'default'} style={{ margin: 0 }}>{profile.hasToken ? t('common.configured') : t('common.notConfigured')}</Tag>
+                          </div>
+                          <div className="hc-credential-actions">
+                            <Button size="small" onClick={() => startEditRepoProfile('global', provider, profile)}>{t('common.manage')}</Button>
+                            <Button size="small" danger onClick={() => void removeProfile('global', provider, profile.id)} disabled={!canUseAccountApis || globalCredentialsSaving}>
+                              {t('panel.credentials.profile.remove')}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ padding: 16, textAlign: 'center', background: 'var(--surface-hover)', borderRadius: 8 }}>
+                      <Typography.Text type="secondary">No global repo provider profiles configured.</Typography.Text>
+                    </div>
+                  )}
+                </div>
+                <Divider style={{ margin: '24px 0' }} />
+                <div className="hc-panel-section">
+                  <div className="hc-panel-section-title">
+                    <Space size={8}><ApiOutlined /><span>Global Robots</span></Space>
+                    <Button size="small" onClick={openCreateGlobalRobot} disabled={globalRobotSubmitting || !canUseAccountApis}>
+                      {t('panel.credentials.profile.add')}
+                    </Button>
+                  </div>
+                  <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                    Create globally shared robots that repositories can select alongside repo-owned robots.
+                  </Typography.Paragraph>
+                  {globalRobotsLoading ? (
+                    <Skeleton active paragraph={{ rows: 4 }} />
+                  ) : globalRobotsSorted.length ? (
+                    <div className="hc-credential-grid">
+                      {globalRobotsSorted.map((robot) => (
+                        <div key={robot.id} className="hc-credential-card">
+                          <div className="hc-credential-header">
+                            <div className="hc-credential-info">
+                              <div className="hc-credential-name" title={robot.name || robot.id}>{robot.name || robot.id}</div>
+                              <div className="hc-credential-detail">{robot.promptDefault ? 'Prompt configured' : 'Prompt missing'}</div>
+                            </div>
+                            <Tag color="gold" style={{ margin: 0 }}>Global</Tag>
+                          </div>
+                          <div className="hc-credential-tags">
+                            <Tag color="geekblue" style={{ margin: 0 }}>{modelProviderLabel((robot.modelProvider as ModelProviderKey) || 'codex', t)}</Tag>
+                            <Tag color={robot.enabled ? 'green' : 'default'} style={{ margin: 0 }}>{robot.enabled ? t('common.enabled') : t('common.disabled')}</Tag>
+                            {robot.isDefault ? <Tag color="blue" style={{ margin: 0 }}>{t('panel.credentials.profile.defaultTag')}</Tag> : null}
+                            <Tag color="purple" style={{ margin: 0 }}>{robot.repoCredentialSource || 'global'}</Tag>
+                          </div>
+                          <div className="hc-credential-actions">
+                            <Button size="small" onClick={() => openEditGlobalRobot(robot)}>{t('common.manage')}</Button>
+                            <Button size="small" danger onClick={() => removeGlobalRobotRecord(robot)}>{t('panel.credentials.profile.remove')}</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ padding: 16, textAlign: 'center', background: 'var(--surface-hover)', borderRadius: 8 }}>
+                      <Typography.Text type="secondary">No global robots configured.</Typography.Text>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : null}
             <Divider style={{ margin: '24px 0' }} />
             <div className="hc-panel-section">
               <div className="hc-panel-section-title">
@@ -1230,7 +1706,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
 
       {/* Sub-modals for editing credential profiles — kept as standard AntD Modals. docs/en/developer/plans/user-panel-page-20260301/task_plan.md user-panel-page-20260301 */}
       <Modal
-        title={repoProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
+        title={`${repoProfileScope === 'global' ? 'Global' : 'User'} ${repoProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}`}
         open={repoProfileFormOpen}
         onCancel={() => { setRepoProfileFormOpen(false); setRepoProfileEditing(null); }}
         okText={t('common.save')}
@@ -1278,7 +1754,11 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           </Form.Item>
           <Form.Item label={t('panel.credentials.profile.setDefault')}>
             <Space direction="vertical" size={4} style={{ width: '100%' }}>
-              <Switch checked={repoProfileSetDefault} onChange={(checked) => setRepoProfileSetDefault(checked)} disabled={savingCred || !canUseAccountApis} />
+              <Switch
+                checked={repoProfileSetDefault}
+                onChange={(checked) => setRepoProfileSetDefault(checked)}
+                disabled={(repoProfileScope === 'global' ? globalCredentialsSaving : savingCred) || !canUseAccountApis}
+              />
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t('panel.credentials.profile.setDefaultDesc')}</Typography.Text>
             </Space>
           </Form.Item>
@@ -1286,7 +1766,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
       </Modal>
 
       <Modal
-        title={modelProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}
+        title={`${modelProfileScope === 'global' ? 'Global' : 'User'} ${modelProfileEditing ? t('panel.credentials.profile.editTitle') : t('panel.credentials.profile.addTitle')}`}
         open={modelProfileFormOpen}
         onCancel={() => { setModelProfileFormOpen(false); setModelProfileEditing(null); }}
         okText={t('common.save')}
@@ -1339,7 +1819,7 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           </Form.Item>
           <Form.Item label={t('modelCatalog.title')}>
             <ModelProviderModelsButton
-              disabled={savingCred || !canUseAccountApis}
+              disabled={modelProfileScope === 'global' || savingCred || !canUseAccountApis}
               buttonProps={{ size: 'small' }}
               loadModels={async ({ forceRefresh }) => {
                 const apiBaseUrl = String(modelProfileForm.getFieldValue('apiBaseUrl') ?? '').trim();
@@ -1356,10 +1836,86 @@ export const UserSettingsPage: FC<UserSettingsPageProps> = ({
           </Form.Item>
           <Form.Item label={t('panel.credentials.profile.setDefault')}>
             <Space direction="vertical" size={4} style={{ width: '100%' }}>
-              <Switch checked={modelProfileSetDefault} onChange={(checked) => setModelProfileSetDefault(checked)} disabled={savingCred || !canUseAccountApis} />
+              <Switch
+                checked={modelProfileSetDefault}
+                onChange={(checked) => setModelProfileSetDefault(checked)}
+                disabled={(modelProfileScope === 'global' ? globalCredentialsSaving : savingCred) || !canUseAccountApis}
+              />
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>{t('panel.credentials.profile.setDefaultDesc')}</Typography.Text>
             </Space>
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={globalRobotEditing ? 'Edit Global Robot' : 'Add Global Robot'}
+        open={globalRobotFormOpen}
+        onCancel={() => { setGlobalRobotFormOpen(false); setGlobalRobotEditing(null); }}
+        okText={t('common.save')}
+        cancelText={t('common.cancel')}
+        confirmLoading={globalRobotSubmitting}
+        onOk={() => void submitGlobalRobotForm()}
+        destroyOnHidden
+      >
+        <Form form={globalRobotForm} layout="vertical" requiredMark={false} size="middle">
+          <Form.Item label="Name" name="name" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Input placeholder="Global robot name" />
+          </Form.Item>
+          <Form.Item label="Prompt" name="promptDefault" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Input.TextArea autoSize={{ minRows: 6, maxRows: 14 }} placeholder="Default prompt for the global robot" />
+          </Form.Item>
+          <Form.Item label="Permission" name="permission" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Radio.Group options={[{ value: 'read', label: 'Read' }, { value: 'write', label: 'Write' }]} />
+          </Form.Item>
+          <Form.Item label="Model Provider" name="modelProvider" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Select
+              options={[
+                { value: 'codex', label: modelProviderLabel('codex', t) },
+                { value: 'claude_code', label: modelProviderLabel('claude_code', t) },
+                { value: 'gemini_cli', label: modelProviderLabel('gemini_cli', t) }
+              ]}
+              onChange={(value) => {
+                const provider = value === 'claude_code' ? 'claude_code' : value === 'gemini_cli' ? 'gemini_cli' : 'codex';
+                // Reset provider-specific defaults when admins switch the global robot runtime. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+                globalRobotForm.setFieldValue('modelProviderConfigJson', JSON.stringify(buildDefaultGlobalRobotProviderConfig(provider), null, 2));
+              }}
+            />
+          </Form.Item>
+          <Form.Item label="Repo Credential Source" name="repoCredentialSource" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Select
+              options={[
+                { value: 'global', label: 'Global' },
+                { value: 'user', label: 'User' },
+                { value: 'repo', label: 'Repo' }
+              ]}
+            />
+          </Form.Item>
+          <Form.Item label="Repo Credential Profile Id" name="repoCredentialProfileId">
+            <Input placeholder="Optional profile id; leave empty to use the default profile" />
+          </Form.Item>
+          <Form.Item label="Language" name="language">
+            <Input placeholder="en-US" />
+          </Form.Item>
+          <Form.Item label="Default Branch" name="defaultBranch">
+            <Input placeholder="main" />
+          </Form.Item>
+          <Form.Item label="Workflow Mode" name="repoWorkflowMode" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Radio.Group options={[{ value: 'auto', label: 'Auto' }, { value: 'direct', label: 'Direct' }, { value: 'fork', label: 'Fork' }]} />
+          </Form.Item>
+          <Form.Item label="Model Provider Config JSON" name="modelProviderConfigJson" rules={[{ required: true, message: t('panel.validation.required') }]}>
+            <Input.TextArea autoSize={{ minRows: 8, maxRows: 18 }} placeholder={EMPTY_JSON_OBJECT} />
+          </Form.Item>
+          <Form.Item label="Dependency Config JSON" name="dependencyConfigJson">
+            <Input.TextArea autoSize={{ minRows: 4, maxRows: 10 }} placeholder='{"enabled":true,"failureMode":"soft"}' />
+          </Form.Item>
+          <Space size={24}>
+            <Form.Item label="Enabled" name="enabled" valuePropName="checked" style={{ marginBottom: 0 }}>
+              <Switch />
+            </Form.Item>
+            <Form.Item label="Default Robot" name="isDefault" valuePropName="checked" style={{ marginBottom: 0 }}>
+              <Switch />
+            </Form.Item>
+          </Space>
         </Form>
       </Modal>
 

@@ -210,7 +210,7 @@ const normalizeRepoProviderCredentials = (raw: unknown): UserRepoProviderCredent
   };
 };
 
-const normalizeUserModelCredentials = (raw: unknown): UserModelCredentials => {
+export const normalizeUserModelCredentials = (raw: unknown): UserModelCredentials => {
   // Business intent: always return a stable object shape so callers can rely on `profiles` arrays.
   if (!isRecord(raw)) {
     return {
@@ -231,7 +231,7 @@ const normalizeUserModelCredentials = (raw: unknown): UserModelCredentials => {
   return { codex, claude_code, gemini_cli, gitlab, github };
 };
 
-const toPublicUserModelCredentials = (raw: unknown): UserModelCredentialsPublic => {
+export const toPublicUserModelCredentials = (raw: unknown): UserModelCredentialsPublic => {
   const normalized = normalizeUserModelCredentials(raw);
   const toPublicModelProvider = (creds: UserModelProviderCredentials | undefined): UserModelProviderCredentialsPublic => {
     const profiles = (creds?.profiles ?? []).map((p) => {

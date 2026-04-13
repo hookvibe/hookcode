@@ -52,7 +52,7 @@ describe('taskService.takeNextQueued', () => {
       resolveRecipientsForTask: jest.fn().mockResolvedValue(['u1'])
     };
 
-    const taskService = new TaskService(eventStream as any, logWriter as any, notificationRecipients as any);
+    const taskService = new TaskService(eventStream as any, logWriter as any, undefined, notificationRecipients as any);
     const claimed = await taskService.takeNextQueued();
     await new Promise((resolve) => setImmediate(resolve));
 

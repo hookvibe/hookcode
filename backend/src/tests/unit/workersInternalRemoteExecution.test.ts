@@ -30,6 +30,7 @@ describe('WorkersInternalController remote execution endpoints', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
       {} as any
     );
     return { controller, agentService, task };

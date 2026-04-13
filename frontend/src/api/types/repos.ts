@@ -109,12 +109,14 @@ export interface RepoPreviewEnvConfigPublic {
 } // Repo-scoped preview env config payload for repo settings. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
 
 export interface RepoRobot {
+  // Mark repo-owned robots explicitly so mixed-scope selectors can label the source without heuristics. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  scope: 'repo';
   id: string;
   repoId: string;
   name: string;
   permission: RobotPermission;
   hasToken: boolean;
-  repoCredentialSource?: 'robot' | 'user' | 'repo';
+  repoCredentialSource?: 'robot' | 'user' | 'repo' | 'global';
   repoCredentialProfileId?: string;
   repoCredentialRemark?: string;
   cloneUsername?: string;
@@ -149,6 +151,33 @@ export interface RepoRobot {
   updatedAt: string;
   defaultWorker?: WorkerSummary;
 }
+
+export interface GlobalRobot {
+  // Mark globally shared robots explicitly so selectors and task summaries can show origin. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  scope: 'global';
+  id: string;
+  name: string;
+  permission: RobotPermission;
+  repoCredentialSource?: 'global' | 'user' | 'repo';
+  repoCredentialProfileId?: string;
+  promptDefault?: string;
+  language?: string;
+  modelProvider?: ModelProvider;
+  modelProviderConfig?: CodexRobotProviderConfigPublic | ClaudeCodeRobotProviderConfigPublic | GeminiCliRobotProviderConfigPublic;
+  dependencyConfig?: { enabled?: boolean; failureMode?: 'soft' | 'hard'; allowCustomInstall?: boolean };
+  defaultBranch?: string;
+  defaultBranchRole?: 'main' | 'dev' | 'test';
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork';
+  timeWindow?: TimeWindow;
+  defaultWorkerId?: string | null;
+  enabled: boolean;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+  defaultWorker?: WorkerSummary;
+}
+
+export type AvailableRobot = RepoRobot | GlobalRobot;
 
 // Mirror the repo robot playground API so the editor can preview prompt/provider resolution before saving. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
 export type RepoRobotDryRunMode = 'render_only' | 'execute_no_side_effect';

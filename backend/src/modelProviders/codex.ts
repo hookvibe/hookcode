@@ -22,7 +22,7 @@ export type CodexModel = string;
 export type CodexSandbox = 'read-only' | 'workspace-write' | 'danger-full-access';
 export type CodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 
-export type CodexCredentialSource = 'user' | 'repo' | 'robot';
+export type CodexCredentialSource = 'user' | 'repo' | 'global' | 'robot';
 
 export interface CodexCredential {
   apiBaseUrl?: string;
@@ -188,6 +188,7 @@ const normalizeCredentialProfileId = (value: unknown): string | undefined => {
 const normalizeCredentialSource = (value: unknown): CodexCredentialSource => {
   const raw = asString(value).trim().toLowerCase();
   if (raw === 'robot') return 'robot';
+  if (raw === 'global') return 'global';
   if (raw === 'repo') return 'repo';
   return 'user';
 };

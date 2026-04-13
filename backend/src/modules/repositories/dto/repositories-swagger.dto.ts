@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, getSchemaPath } from '@nestjs/swagger';
 import { TimeWindowDto } from '../../common/dto/time-window.dto';
 import {
   ModelProviderCredentialsPublicDto,
@@ -276,6 +276,9 @@ export class RepoProviderActivityResponseDto {
 }
 
 export class RepoRobotSwaggerDto {
+  @ApiProperty({ enum: ['repo'] })
+  scope!: 'repo';
+
   @ApiProperty()
   id!: string;
 
@@ -291,8 +294,8 @@ export class RepoRobotSwaggerDto {
   @ApiProperty()
   hasToken!: boolean;
 
-  @ApiPropertyOptional({ nullable: true, enum: ['robot', 'user', 'repo'] })
-  repoCredentialSource?: 'robot' | 'user' | 'repo' | null;
+  @ApiPropertyOptional({ nullable: true, enum: ['robot', 'user', 'repo', 'global'] })
+  repoCredentialSource?: 'robot' | 'user' | 'repo' | 'global' | null;
 
   @ApiPropertyOptional({ nullable: true })
   repoCredentialProfileId?: string | null;
@@ -366,6 +369,69 @@ export class RepoRobotSwaggerDto {
 
   @ApiPropertyOptional({ nullable: true })
   lastTestMessage?: string | null;
+
+  @ApiProperty()
+  enabled!: boolean;
+
+  @ApiProperty()
+  isDefault!: boolean;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string;
+}
+
+export class GlobalRobotSwaggerDto {
+  @ApiProperty({ enum: ['global'] })
+  // Describe globally shared robots separately so repo APIs can document mixed-scope selectors. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  scope!: 'global';
+
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ enum: ['read', 'write'] })
+  permission!: 'read' | 'write';
+
+  @ApiPropertyOptional({ nullable: true, enum: ['global', 'user', 'repo'] })
+  repoCredentialSource?: 'global' | 'user' | 'repo' | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  repoCredentialProfileId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  promptDefault?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  language?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  modelProvider?: string | null;
+
+  @ApiPropertyOptional()
+  modelProviderConfig?: unknown;
+
+  @ApiPropertyOptional()
+  dependencyConfig?: unknown;
+
+  @ApiPropertyOptional({ nullable: true })
+  defaultBranch?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  defaultWorkerId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, enum: ['main', 'dev', 'test'] })
+  defaultBranchRole?: 'main' | 'dev' | 'test' | null;
+
+  @ApiPropertyOptional({ nullable: true, enum: ['auto', 'direct', 'fork'] })
+  repoWorkflowMode?: 'auto' | 'direct' | 'fork' | null;
+
+  @ApiPropertyOptional({ type: TimeWindowDto, nullable: true })
+  timeWindow?: TimeWindowDto | null;
 
   @ApiProperty()
   enabled!: boolean;
@@ -489,6 +555,19 @@ export class AcceptRepoInviteResponseDto {
 export class ListRepoRobotsResponseDto {
   @ApiProperty({ type: RepoRobotSwaggerDto, isArray: true })
   robots!: RepoRobotSwaggerDto[];
+}
+
+export class ListAvailableRobotsResponseDto {
+  @ApiProperty({
+    type: 'array',
+    items: {
+      oneOf: [
+        { $ref: getSchemaPath(RepoRobotSwaggerDto) },
+        { $ref: getSchemaPath(GlobalRobotSwaggerDto) }
+      ]
+    }
+  })
+  robots!: Array<RepoRobotSwaggerDto | GlobalRobotSwaggerDto>;
 }
 
 export class CreateRepoRobotResponseDto {

@@ -1,6 +1,6 @@
 import { App } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
-import type { RepoRobot, Repository, SkillSelectionKey, SkillSelectionState, Task, TaskGroup, TimeWindow, WorkerRecord } from '../../api';
+import type { AvailableRobot, Repository, SkillSelectionKey, SkillSelectionState, Task, TaskGroup, TimeWindow, WorkerRecord } from '../../api';
 import {
   executeChat,
   fetchTask,
@@ -9,12 +9,12 @@ import {
   fetchTaskGroupTasks,
   fetchAllRepos,
   fetchWorkers,
-  listRepoRobots,
+  listAvailableRepoRobots,
   updateTaskGroupSkillSelection
 } from '../../api';
 import type { TFunction } from '../../i18n';
 import { buildTaskGroupHash } from '../../router';
-import { formatRobotLabelWithProvider } from '../../utils/robot';
+import { formatRobotOptionLabel } from '../../utils/robot';
 import { formatWorkerOptionLabel } from '../../utils/workers';
 import { getStoredUser } from '../../auth';
 import { createAuthedEventSource } from '../../utils/sse';
@@ -92,7 +92,7 @@ export const useTaskGroupWorkspaceData = ({
   const [repos, setRepos] = useState<Repository[]>([]);
   const [repoId, setRepoId] = useState('');
   const [robotsLoading, setRobotsLoading] = useState(false);
-  const [robots, setRobots] = useState<RepoRobot[]>([]);
+  const [robots, setRobots] = useState<AvailableRobot[]>([]);
   const [robotId, setRobotId] = useState('');
   const [workersLoading, setWorkersLoading] = useState(false);
   const [workers, setWorkers] = useState<WorkerRecord[]>([]);
@@ -173,7 +173,7 @@ export const useTaskGroupWorkspaceData = ({
 
   const robotOptions = useMemo<SelectOption[]>(() => enabledRobots.map((robot) => ({
     value: robot.id,
-    label: formatRobotLabelWithProvider(robot.name || robot.id, robot.modelProvider)
+    label: formatRobotOptionLabel(robot)
   })), [enabledRobots]);
 
   const workerLocked = Boolean(taskGroupId && group?.workerId);
@@ -249,7 +249,7 @@ export const useTaskGroupWorkspaceData = ({
     }
     setRobotsLoading(true);
     try {
-      const data = await listRepoRobots(targetRepoId);
+      const data = await listAvailableRepoRobots(targetRepoId);
       const list = Array.isArray(data) ? data : [];
       setRobots(list);
       const enabled = list.filter((robot) => Boolean(robot?.enabled));

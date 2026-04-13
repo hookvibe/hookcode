@@ -3,6 +3,7 @@ import type { RepoRobot } from '../../types/repoRobot';
 import type { RepoAutomationConfig } from '../../types/automation';
 
 const robotA: RepoRobot = {
+  scope: 'repo',
   id: 'r-a',
   repoId: 'repo-1',
   name: 'robot-a',
@@ -18,6 +19,7 @@ const robotA: RepoRobot = {
 };
 
 const robotB: RepoRobot = {
+  scope: 'repo',
   id: 'r-b',
   repoId: 'repo-1',
   name: 'robot-b',

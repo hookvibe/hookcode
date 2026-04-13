@@ -202,6 +202,7 @@ export const buildProviderRoutingPlan = async (
     primaryProvider: RoutedProviderKey;
     primaryConfigRaw: unknown;
     userCredentials?: UserModelCredentials | null;
+    globalCredentials?: UserModelCredentials | null;
     repoScopedCredentials?: RepoScopedModelProviderCredentials | null;
     __internal?: {
       resolveCredential?: ResolveCredentialFn;
@@ -218,6 +219,8 @@ export const buildProviderRoutingPlan = async (
     provider: params.primaryProvider,
     robotConfigRaw: params.primaryConfigRaw,
     userCredentials: params.userCredentials,
+    // Keep routing previews aligned with runtime execution when a robot selects admin-managed global credentials. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    globalCredentials: params.globalCredentials,
     repoScopedCredentials: params.repoScopedCredentials
   });
 
@@ -242,6 +245,7 @@ export const buildProviderRoutingPlan = async (
       provider: routingConfig.fallbackProvider,
       robotConfigRaw: fallbackConfigRaw,
       userCredentials: params.userCredentials,
+      globalCredentials: params.globalCredentials,
       repoScopedCredentials: params.repoScopedCredentials
     });
     attempts.push({

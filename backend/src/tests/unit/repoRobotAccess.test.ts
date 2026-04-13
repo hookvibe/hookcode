@@ -51,6 +51,23 @@ describe('repoRobotAccess', () => {
     expect(token).toBe('t2');
   });
 
+  // Lock explicit global profile ids to exact matches so shared robots cannot drift onto the default token after profile cleanup. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  test('resolveRobotProviderToken does not silently fall back to the default global profile when an explicit global profile id is missing', () => {
+    const token = resolveRobotProviderToken({
+      provider: 'gitlab',
+      robot: { repoCredentialProfileId: 'missing-global-profile' },
+      userCredentials: null,
+      globalCredentials: {
+        gitlab: {
+          profiles: [{ id: 'gl-default', remark: 'default', token: 'global-1' }],
+          defaultProfileId: 'gl-default'
+        }
+      },
+      source: 'global'
+    });
+    expect(token).toBe('');
+  });
+
   test('resolveRobotProviderToken does not use env fallback tokens', () => {
     const token = resolveRobotProviderToken({
       provider: 'gitlab',

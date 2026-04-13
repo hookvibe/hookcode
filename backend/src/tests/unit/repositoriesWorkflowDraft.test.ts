@@ -67,9 +67,11 @@ describe('RepositoriesController draft workflow test', () => {
       repoAccessService,
       {} as any,
       {} as any,
+      { listAvailableByRepo: jest.fn(), listAvailableByRepoWithToken: jest.fn() } as any,
       {} as any,
       {} as any,
       userService,
+      { getCredentialsRaw: jest.fn().mockResolvedValue({}) } as any,
       {} as any,
       {} as any,
       logWriter
@@ -141,4 +143,3 @@ describe('RepositoriesController draft workflow test', () => {
     expect(ensureGithubForkRepo).toHaveBeenCalledTimes(1);
   });
 });
-

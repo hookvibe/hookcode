@@ -9,8 +9,9 @@ export const SUPPORTED_ROUTED_PROVIDER_KEYS = ['codex', 'claude_code', 'gemini_c
 export type RoutedProviderKey = (typeof SUPPORTED_ROUTED_PROVIDER_KEYS)[number];
 export type ProviderRoutingMode = 'fixed' | 'availability_first';
 export type ProviderFailoverPolicy = 'disabled' | 'fallback_provider_once';
-export type ProviderStoredSource = 'robot' | 'repo' | 'user';
-export type ProviderResolutionLayer = 'local' | 'robot' | 'repo' | 'user' | 'none';
+// Keep routing result enums aligned with credential resolution so global-scoped profiles can be surfaced end-to-end. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+export type ProviderStoredSource = 'robot' | 'repo' | 'user' | 'global';
+export type ProviderResolutionLayer = 'local' | 'robot' | 'repo' | 'user' | 'global' | 'none';
 export type ProviderResolutionMethod =
   | 'env_api_key'
   | 'credentials_file'
@@ -19,6 +20,7 @@ export type ProviderResolutionMethod =
   | 'oauth_creds'
   | 'robot_embedded'
   | 'repo_profile'
+  | 'global_profile'
   | 'user_profile'
   | 'none';
 

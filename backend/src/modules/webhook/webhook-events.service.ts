@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { RepoWebhookDeliveryService, type RepoWebhookDeliveryDetail, type GlobalWebhookEventListOptions } from '../repositories/repo-webhook-delivery.service';
+import { GlobalCredentialService } from '../repositories/global-credentials.service';
 import { RepositoryService } from '../repositories/repository.service';
-import { RepoRobotService } from '../repositories/repo-robot.service';
 import { RepoAutomationService } from '../repositories/repo-automation.service';
+import { RobotCatalogService } from '../repositories/robot-catalog.service';
 import { UserService } from '../users/user.service';
 import { SkillsService } from '../skills/skills.service';
 import { TaskService } from '../tasks/task.service';
@@ -38,8 +39,9 @@ export class WebhookEventsService {
   constructor(
     private readonly repoWebhookDeliveryService: RepoWebhookDeliveryService,
     private readonly repositoryService: RepositoryService,
-    private readonly repoRobotService: RepoRobotService,
+    private readonly robotCatalogService: RobotCatalogService,
     private readonly repoAutomationService: RepoAutomationService,
+    private readonly globalCredentialService: GlobalCredentialService,
     private readonly userService: UserService,
     private readonly skillsService: SkillsService,
     private readonly taskService: TaskService,
@@ -134,12 +136,13 @@ export class WebhookEventsService {
 
     const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repo.id);
     const userCredentials = await this.userService.getModelCredentialsRaw(actorUserId);
+    const globalCredentials = await this.globalCredentialService.getCredentialsRaw();
     const skillPromptPrefix = await this.skillsService.buildPromptPrefix(Array.isArray(repo.skillDefaults) ? repo.skillDefaults : null);
 
     const execution = await executeWebhookAutomation(
       {
         taskService: this.taskService,
-        repoRobotService: this.repoRobotService,
+        robotCatalogService: this.robotCatalogService,
         repoAutomationService: this.repoAutomationService
       },
       {
@@ -154,6 +157,7 @@ export class WebhookEventsService {
         dryRunContext: dryRun
           ? {
               userCredentials,
+              globalCredentials,
               repoScopedCredentials: repoScopedCredentials?.modelProvider ?? null,
               skillPromptPrefix
             }

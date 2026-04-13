@@ -2,11 +2,11 @@
 
 import { useMemo } from 'react';
 import { Alert, Badge, Divider, Select, Space, Switch, Tabs, Typography } from 'antd';
-import type { AutomationEventKey, RepoRobot } from '../../../api';
+import type { AutomationEventKey, AvailableRobot } from '../../../api';
 import type { TFunction } from '../../../i18n';
 import { TemplateEditor } from '../../TemplateEditor';
 import type { TemplateVariableGroup } from '../../templateEditorVariables';
-import { getRobotProviderLabel } from '../../../utils/robot';
+import { formatRobotOptionLabel } from '../../../utils/robot';
 import { uuid } from '../utils';
 
 export type TriggerRuleActionState = { id: string; promptPatch?: string; promptOverride?: string; enabled: boolean };
@@ -15,7 +15,7 @@ export type TriggerRuleActionsSectionProps = {
   t: TFunction;
   eventKey: AutomationEventKey;
   readOnly: boolean;
-  robots: RepoRobot[];
+  robots: AvailableRobot[];
   robotIds: string[];
   robotIdsTouched: boolean;
   setRobotIdsTouched: (next: boolean) => void;
@@ -42,19 +42,19 @@ export const TriggerRuleActionsSection = ({
   updateAction,
   templateVariables
 }: TriggerRuleActionsSectionProps) => {
-  const getRobotStatus = (r: RepoRobot): { text: string; color: string; short?: string } => {
+  const getRobotStatus = (r: AvailableRobot): { text: string; color: string; short?: string } => {
     if (r.enabled) return { text: t('common.enabled'), color: 'green' };
-    if (r.activatedAt) return { text: t('common.disabled'), color: 'red', short: t('common.disabled') };
+    if (r.scope === 'repo' && r.activatedAt) return { text: t('common.disabled'), color: 'red', short: t('common.disabled') };
     return { text: t('repos.robots.status.pending'), color: 'gold', short: t('repos.robots.status.pending') };
   };
 
-  const getRobotPermissionColor = (r: RepoRobot): string => (r.permission === 'write' ? 'volcano' : 'blue');
+  const getRobotPermissionColor = (r: AvailableRobot): string => (r.permission === 'write' ? 'volcano' : 'blue');
 
   const robotOptions = useMemo(
     () =>
       robots.map((r) => ({
         value: r.id,
-        label: r.name,
+        label: formatRobotOptionLabel(r),
         robot: r
       })),
     [robots]
@@ -85,8 +85,6 @@ export const TriggerRuleActionsSection = ({
             options={robotOptions.map((o) => {
               const r = o.robot;
               const status = getRobotStatus(r);
-              // Surface bound AI provider alongside robot badges in automation selectors. docs/en/developer/plans/rbtaidisplay20260128/task_plan.md rbtaidisplay20260128
-              const providerLabel = getRobotProviderLabel(r.modelProvider);
               return {
                 value: o.value,
                 label: (
@@ -94,11 +92,6 @@ export const TriggerRuleActionsSection = ({
                     <Badge color={status.color} text={status.short ?? status.text} />
                     <Badge color={getRobotPermissionColor(r)} text={r.permission} />
                     <span>{o.label}</span>
-                    {providerLabel ? (
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {providerLabel}
-                      </Typography.Text>
-                    ) : null}
                   </Space>
                 )
               } as any;

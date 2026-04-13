@@ -1,7 +1,8 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, NotFoundException, Param, Post, UnauthorizedException } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import { GlobalCredentialService } from '../repositories/global-credentials.service';
 import { RepositoryService } from '../repositories/repository.service';
-import { RepoRobotService } from '../repositories/repo-robot.service';
+import { RobotCatalogService } from '../repositories/robot-catalog.service';
 import { SkillsService } from '../skills/skills.service';
 import { AgentService } from '../tasks/agent.service';
 import { TaskRunner } from '../tasks/task-runner.service';
@@ -44,7 +45,8 @@ export class WorkersInternalController {
     private readonly taskLogStream: TaskLogStream,
     private readonly taskLogsService: TaskLogsService,
     private readonly repositoryService: RepositoryService,
-    private readonly repoRobotService: RepoRobotService,
+    private readonly robotCatalogService: RobotCatalogService,
+    private readonly globalCredentialService: GlobalCredentialService,
     private readonly userService: UserService,
     private readonly userApiTokenService: UserApiTokenService,
     private readonly skillsService: SkillsService
@@ -82,7 +84,8 @@ export class WorkersInternalController {
   @Get('repos/:repoId/robots')
   async getRepoRobots(@Headers() headers: Record<string, string | string[] | undefined>, @Param('repoId') repoId: string) {
     await this.authenticate(headers);
-    return { robots: await this.repoRobotService.listByRepoWithToken(repoId) };
+    // Return mixed-scope robots so external workers resolve the same robot catalog as the API and webhook runtime. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    return { robots: await this.robotCatalogService.listAvailableByRepoWithToken(repoId) };
   }
 
   @Get('users/default-credentials')
@@ -97,7 +100,8 @@ export class WorkersInternalController {
     const task = await this.requireAssignedTask(taskId, worker.id);
     const repo = task.repoId ? await this.repositoryService.getById(task.repoId) : null;
     const repoScopedCredentials = task.repoId ? await this.repositoryService.getRepoScopedCredentials(task.repoId) : null;
-    const robotsInRepo = task.repoId ? await this.repoRobotService.listByRepoWithToken(task.repoId) : [];
+    const robotsInRepo = task.repoId ? await this.robotCatalogService.listAvailableByRepoWithToken(task.repoId) : [];
+    const globalCredentials = await this.globalCredentialService.getCredentialsRaw();
     const defaultUserCredentials = await this.userService.getDefaultUserCredentialsRaw();
     // Return the complete execution context needed by the external worker runtime without granting DB access. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     return {
@@ -105,6 +109,7 @@ export class WorkersInternalController {
       repo,
       // Return raw repo/user credentials only to authenticated workers so remote execution can clone repos and call providers. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
       repoScopedCredentials: repoScopedCredentials ?? null,
+      globalCredentials,
       robotsInRepo,
       defaultUserCredentials
     };

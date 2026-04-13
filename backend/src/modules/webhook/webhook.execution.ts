@@ -5,8 +5,8 @@ import type { TaskEventType } from '../../types/task';
 import { attachTaskSchedule, isTimeWindowActive, resolveTaskSchedule } from '../../utils/timeWindow';
 import type { UserModelCredentials } from '../users/user.service';
 import type { RepoScopedModelProviderCredentials } from '../repositories/repository.service';
-import type { RepoRobotService, RepoRobotWithToken } from '../repositories/repo-robot.service';
 import type { RepoAutomationService } from '../repositories/repo-automation.service';
+import type { RobotCatalogService, SharedRobotWithToken } from '../repositories/robot-catalog.service';
 import type { TaskService } from '../tasks/task.service';
 import { runRepoRobotDryRun } from '../repositories/repo-robot-dry-run';
 import { buildGithubTaskMeta } from './webhook.meta';
@@ -18,7 +18,7 @@ import type { WebhookDryRunResult, WebhookErrorLayer, WebhookReplayMode, Webhook
 
 export interface ExecuteWebhookAutomationDeps {
   taskService: TaskService;
-  repoRobotService: RepoRobotService;
+  robotCatalogService: RobotCatalogService;
   repoAutomationService: RepoAutomationService;
 }
 
@@ -40,6 +40,7 @@ export interface ExecuteWebhookAutomationParams {
   selection: WebhookReplaySelection;
   dryRunContext?: {
     userCredentials?: UserModelCredentials | null;
+    globalCredentials?: UserModelCredentials | null;
     repoScopedCredentials?: RepoScopedModelProviderCredentials | null;
     skillPromptPrefix?: string;
   };
@@ -77,7 +78,7 @@ const dedupeStrings = (values: Array<string | undefined | null>): string[] => {
 };
 
 const buildPromptCustom = (
-  robot: Pick<RepoRobotWithToken, 'promptDefault'>,
+  robot: Pick<SharedRobotWithToken, 'promptDefault'>,
   action?: Pick<{ promptOverride?: string; promptPatch?: string }, 'promptOverride' | 'promptPatch'> | null
 ): string | null => {
   const override = safeTrim(action?.promptOverride);
@@ -96,7 +97,7 @@ const resolveProviderGuard = (
   provider: RepoProvider,
   eventType: TaskEventType,
   payload: any,
-  robots: RepoRobotWithToken[]
+  robots: SharedRobotWithToken[]
 ): { allowed: boolean; reason?: string } => {
   return provider === 'github'
     ? canCreateGithubAutomationTask(eventType, payload, robots)
@@ -116,7 +117,7 @@ const getRuleById = (config: RepoAutomationConfig, eventType: string, ruleId: st
 const resolveCurrentActions = (params: {
   repo: Repository;
   payload: any;
-  robots: RepoRobotWithToken[];
+  robots: SharedRobotWithToken[];
   config: RepoAutomationConfig;
   mappedEventType: TaskEventType;
   selection: WebhookReplaySelection;
@@ -170,7 +171,7 @@ const resolveCurrentActions = (params: {
 };
 
 const resolveStoredActions = (params: {
-  robots: RepoRobotWithToken[];
+  robots: SharedRobotWithToken[];
   selection: WebhookReplaySelection;
 }): { actions: WebhookResolvedActionSnapshot[]; code?: string; message?: string } => {
   const stored = Array.isArray(params.selection.storedActions) ? params.selection.storedActions : [];
@@ -199,7 +200,7 @@ export const executeWebhookAutomation = async (
     meta: { provider: params.provider, eventName: params.eventName, replayMode: params.selection.mode, dryRun: Boolean(params.dryRun) }
   });
 
-  const robots = (await deps.repoRobotService.listByRepoWithToken(params.repo.id)).filter((robot) => robot.enabled);
+  const robots = (await deps.robotCatalogService.listAvailableByRepoWithToken(params.repo.id)).filter((robot) => robot.enabled);
   params.trace.addStep({
     key: 'robots',
     title: 'Enabled robots loaded',
@@ -342,6 +343,7 @@ export const executeWebhookAutomation = async (
             }
           },
           userCredentials: params.dryRunContext?.userCredentials ?? null,
+          globalCredentials: params.dryRunContext?.globalCredentials ?? null,
           repoScopedCredentials: params.dryRunContext?.repoScopedCredentials ?? null,
           robotsInRepo: robots,
           skillPromptPrefix: params.dryRunContext?.skillPromptPrefix

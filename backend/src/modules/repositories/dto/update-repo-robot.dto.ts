@@ -16,7 +16,7 @@ export class UpdateRepoRobotDto {
 
   @ApiPropertyOptional({
     nullable: true,
-    description: 'Repo provider credential source (robot/user/repo). Set null to let backend infer.'
+    description: 'Repo provider credential source (robot/user/repo/global). Set null to let backend infer.'
   })
   @IsOptional()
   @IsString()

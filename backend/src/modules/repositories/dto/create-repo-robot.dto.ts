@@ -16,7 +16,7 @@ export class CreateRepoRobotDto {
 
   @ApiPropertyOptional({
     nullable: true,
-    description: 'Repo provider credential source (robot/user/repo). Required when using credential profiles.'
+    description: 'Repo provider credential source (robot/user/repo/global). Required when using credential profiles.'
   })
   @IsOptional()
   @IsString()

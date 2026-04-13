@@ -1,8 +1,16 @@
-import type { RepoRobot } from '../types/repoRobot';
 import type { RepoAutomationConfig, AutomationClause, AutomationEventConfig, AutomationRule } from '../types/automation';
 import type { TaskEventType } from '../types/task';
 import type { Repository } from '../types/repository';
 import type { TimeWindow } from '../types/timeWindow';
+
+type AutomationRobot = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  promptDefault?: string | null;
+  repoTokenUsername?: string | null;
+  repoTokenUserName?: string | null;
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -125,7 +133,7 @@ export interface ResolvedAutomationAction {
   timeWindow?: TimeWindow;
 }
 
-const buildPromptCustom = (robot: RepoRobot, action: { promptOverride?: string; promptPatch?: string }): string | null => {
+const buildPromptCustom = (robot: AutomationRobot, action: { promptOverride?: string; promptPatch?: string }): string | null => {
   const override = (action.promptOverride ?? '').trim();
   if (override) return override;
 
@@ -249,7 +257,8 @@ const buildContext = (
   eventType: TaskEventType,
   payload: any,
   repo?: Pick<Repository, 'branches'> | null,
-  robots?: Array<Pick<RepoRobot, 'id' | 'name' | 'repoTokenUsername' | 'repoTokenUserName'>> | null
+  // Accept shared robot candidates so automation rules can target global robots as well as repo robots. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  robots?: Array<Pick<AutomationRobot, 'id' | 'name' | 'repoTokenUsername' | 'repoTokenUserName'>> | null
 ): Record<string, unknown> => {
   const branchName = extractBranchName(eventType, payload);
   const branchRole = resolveBranchRole(branchName, repo);
@@ -339,7 +348,7 @@ const buildContext = (
 export const resolveAutomationActions = (input: {
   eventType: TaskEventType;
   payload: any;
-  robots: RepoRobot[];
+  robots: AutomationRobot[];
   config: RepoAutomationConfig;
   repo?: Pick<Repository, 'branches'> | null;
 }): ResolvedAutomationAction[] => {

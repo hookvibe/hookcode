@@ -9,7 +9,7 @@ import {
 
 export const CLAUDE_CODE_PROVIDER_KEY = 'claude_code' as const;
 
-export type ClaudeCodeCredentialSource = 'user' | 'repo' | 'robot';
+export type ClaudeCodeCredentialSource = 'user' | 'repo' | 'global' | 'robot';
 
 export interface ClaudeCodeCredential {
   /**
@@ -82,6 +82,7 @@ const normalizeCredentialProfileId = (value: unknown): string | undefined => {
 const normalizeCredentialSource = (value: unknown): ClaudeCodeCredentialSource => {
   const raw = asString(value).trim().toLowerCase();
   if (raw === 'robot') return 'robot';
+  if (raw === 'global') return 'global';
   if (raw === 'repo') return 'repo';
   return 'user';
 };

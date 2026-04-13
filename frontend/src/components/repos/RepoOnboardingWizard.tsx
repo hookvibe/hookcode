@@ -1,6 +1,6 @@
 import { FC, useMemo, useState } from 'react';
 import { Button, Card, Space, Steps, Typography } from 'antd';
-import type { RepoRobot, RepoScopedCredentialsPublic, Repository, UserModelCredentialsPublic } from '../../api';
+import type { AvailableRobot, RepoScopedCredentialsPublic, Repository, UserModelCredentialsPublic } from '../../api';
 import { useT } from '../../i18n';
 import { isLocalhostUrl } from '../../utils/url';
 import { RepoOnboardingChatStep } from './onboarding/RepoOnboardingChatStep';
@@ -15,7 +15,7 @@ import { useRepoOnboardingVisibility } from './onboarding/useRepoOnboardingVisib
 
 export interface RepoOnboardingWizardProps {
   repo: Repository;
-  robots: RepoRobot[];
+  robots: AvailableRobot[];
   repoScopedCredentials: RepoScopedCredentialsPublic | null;
   userModelCredentials: UserModelCredentialsPublic | null;
   userModelCredentialsLoading?: boolean;

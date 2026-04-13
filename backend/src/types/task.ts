@@ -243,9 +243,12 @@ export interface TaskRepoSummary {
 
 export interface TaskRobotSummary {
   id: string;
-  repoId: string;
+  // Surface robot scope so task/task-group payloads can distinguish repository-owned and global robots. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  scope: 'repo' | 'global';
+  repoId?: string;
   name: string;
   permission: RobotPermission;
+  modelProvider?: string;
   enabled: boolean;
 }
 

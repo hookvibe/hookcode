@@ -7,8 +7,10 @@ import { RepoAutomationService } from '../../modules/repositories/repo-automatio
 import { RepoAccessService } from '../../modules/repositories/repo-access.service'; // Provide RepoAccessService mock for RBAC checks in unit tests. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
 import { RepoMemberService } from '../../modules/repositories/repo-member.service'; // Provide RepoMemberService mock for repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
 import { RepoRobotService } from '../../modules/repositories/repo-robot.service';
+import { RobotCatalogService } from '../../modules/repositories/robot-catalog.service';
 import { RepoWebhookDeliveryService } from '../../modules/repositories/repo-webhook-delivery.service';
 import { RepositoryService } from '../../modules/repositories/repository.service';
+import { GlobalCredentialService } from '../../modules/repositories/global-credentials.service';
 import { UserService } from '../../modules/users/user.service';
 // Use PreviewService token for controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
 import { PreviewService } from '../../modules/tasks/preview.service';
@@ -18,6 +20,8 @@ import { LogWriterService } from '../../modules/logs/log-writer.service'; // Pro
 describe('Archived repo read-only API guard', () => {
   // Provide a stable PreviewService mock to satisfy controller DI across tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
   const previewService = {};
+  const robotCatalogService = {};
+  const globalCredentialService = {};
   // Provide a stable SkillsService mock to satisfy controller DI across tests. docs/en/developer/plans/skills-registry-20260225/task_plan.md skills-registry-20260225
   const skillsService = {};
   // Provide a stable LogWriterService mock for audit logging dependencies. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
@@ -55,11 +59,13 @@ describe('Archived repo read-only API guard', () => {
       providers: [
         { provide: RepositoryService, useValue: repositoryService },
         { provide: RepoRobotService, useValue: {} },
+        { provide: RobotCatalogService, useValue: robotCatalogService },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: RepoAccessService, useValue: repoAccessService }, // Inject RepoAccessService mock for RBAC guard coverage. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: RepoMemberService, useValue: {} }, // Inject RepoMemberService mock to satisfy repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: UserService, useValue: {} },
+        { provide: GlobalCredentialService, useValue: globalCredentialService },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
         { provide: SkillsService, useValue: skillsService },
@@ -83,11 +89,13 @@ describe('Archived repo read-only API guard', () => {
       providers: [
         { provide: RepositoryService, useValue: repositoryService },
         { provide: RepoRobotService, useValue: repoRobotService },
+        { provide: RobotCatalogService, useValue: robotCatalogService },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: RepoAccessService, useValue: repoAccessService }, // Inject RepoAccessService mock for RBAC guard coverage. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: RepoMemberService, useValue: {} }, // Inject RepoMemberService mock to satisfy repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: UserService, useValue: {} },
+        { provide: GlobalCredentialService, useValue: globalCredentialService },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
         { provide: SkillsService, useValue: skillsService },
@@ -111,11 +119,13 @@ describe('Archived repo read-only API guard', () => {
       providers: [
         { provide: RepositoryService, useValue: repositoryService },
         { provide: RepoRobotService, useValue: repoRobotService },
+        { provide: RobotCatalogService, useValue: robotCatalogService },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: RepoAccessService, useValue: repoAccessService }, // Inject RepoAccessService mock for RBAC guard coverage. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: RepoMemberService, useValue: {} }, // Inject RepoMemberService mock to satisfy repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: UserService, useValue: {} },
+        { provide: GlobalCredentialService, useValue: globalCredentialService },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
         { provide: SkillsService, useValue: skillsService },
@@ -139,11 +149,13 @@ describe('Archived repo read-only API guard', () => {
       providers: [
         { provide: RepositoryService, useValue: repositoryService },
         { provide: RepoRobotService, useValue: repoRobotService },
+        { provide: RobotCatalogService, useValue: robotCatalogService },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: RepoAccessService, useValue: repoAccessService }, // Inject RepoAccessService mock for RBAC guard coverage. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: RepoMemberService, useValue: {} }, // Inject RepoMemberService mock to satisfy repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: UserService, useValue: {} },
+        { provide: GlobalCredentialService, useValue: globalCredentialService },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
         { provide: SkillsService, useValue: skillsService },
@@ -167,11 +179,13 @@ describe('Archived repo read-only API guard', () => {
       providers: [
         { provide: RepositoryService, useValue: repositoryService },
         { provide: RepoRobotService, useValue: repoRobotService },
+        { provide: RobotCatalogService, useValue: robotCatalogService },
         { provide: RepoAutomationService, useValue: {} },
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: RepoAccessService, useValue: repoAccessService }, // Inject RepoAccessService mock for RBAC guard coverage. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: RepoMemberService, useValue: {} }, // Inject RepoMemberService mock to satisfy repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: UserService, useValue: {} },
+        { provide: GlobalCredentialService, useValue: globalCredentialService },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
         { provide: SkillsService, useValue: skillsService },
@@ -195,11 +209,13 @@ describe('Archived repo read-only API guard', () => {
       providers: [
         { provide: RepositoryService, useValue: repositoryService },
         { provide: RepoRobotService, useValue: {} },
+        { provide: RobotCatalogService, useValue: robotCatalogService },
         { provide: RepoAutomationService, useValue: repoAutomationService },
         { provide: RepoWebhookDeliveryService, useValue: {} },
         { provide: RepoAccessService, useValue: repoAccessService }, // Inject RepoAccessService mock for RBAC guard coverage. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: RepoMemberService, useValue: {} }, // Inject RepoMemberService mock to satisfy repositories controller DI. docs/en/developer/plans/multiuserauth20260226/task_plan.md multiuserauth20260226
         { provide: UserService, useValue: {} },
+        { provide: GlobalCredentialService, useValue: globalCredentialService },
         // Provide PreviewService mock to satisfy controller DI in unit tests. docs/en/developer/plans/preview-service-test-di-20260129/task_plan.md preview-service-test-di-20260129
         { provide: PreviewService, useValue: previewService },
         { provide: SkillsService, useValue: skillsService },

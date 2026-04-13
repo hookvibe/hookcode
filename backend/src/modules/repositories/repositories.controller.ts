@@ -38,6 +38,8 @@ import { RepoMemberService } from './repo-member.service';
 import { RepoRobotService } from './repo-robot.service';
 import { RepoWebhookDeliveryService } from './repo-webhook-delivery.service';
 import { RepositoryService, type ArchiveScope } from './repository.service';
+import { GlobalCredentialService } from './global-credentials.service';
+import { RobotCatalogService } from './robot-catalog.service';
 import { db } from '../../db';
 import { GitlabService } from '../../services/gitlabService';
 import { GithubService } from '../../services/githubService';
@@ -71,6 +73,7 @@ import {
   DeleteRobotResponseDto,
   GetRepoWebhookDeliveryResponseDto,
   GetRepositoryResponseDto,
+  ListAvailableRobotsResponseDto,
   ListRepoInvitesResponseDto,
   ListRepoMembersResponseDto,
   ListRepoRobotsResponseDto,
@@ -144,14 +147,14 @@ const normalizeRepoUpdatedAt = (value: unknown): string => {
 
 const normalizeRepoCredentialSource = (
   value: unknown
-): 'robot' | 'user' | 'repo' | null | undefined => {
+): 'robot' | 'user' | 'repo' | 'global' | null | undefined => {
   if (value === undefined) return undefined;
   if (value === null) return null;
   if (typeof value !== 'string') throw new Error('repoCredentialSource must be string or null');
   const raw = value.trim().toLowerCase();
   if (!raw) return null;
-  if (raw === 'robot' || raw === 'user' || raw === 'repo') return raw;
-  throw new Error('repoCredentialSource must be robot/user/repo or null');
+  if (raw === 'robot' || raw === 'user' || raw === 'repo' || raw === 'global') return raw;
+  throw new Error('repoCredentialSource must be robot/user/repo/global or null');
 };
 
 const normalizeRepoWorkflowModeInput = (value: unknown): 'auto' | 'direct' | 'fork' | null | undefined => {
@@ -225,9 +228,11 @@ export class RepositoriesController {
     private readonly repoAccessService: RepoAccessService,
     private readonly repoMemberService: RepoMemberService,
     private readonly repoRobotService: RepoRobotService,
+    private readonly robotCatalogService: RobotCatalogService,
     private readonly repoAutomationService: RepoAutomationService,
     private readonly repoWebhookDeliveryService: RepoWebhookDeliveryService,
     private readonly userService: UserService,
+    private readonly globalCredentialService: GlobalCredentialService,
     private readonly previewService: PreviewService,
     private readonly skillsService: SkillsService,
     // Log repo mutations with a shared audit writer for admin visibility. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302
@@ -285,6 +290,14 @@ export class RepositoriesController {
     return user;
   }
 
+  private async getAvailableRobotWithConfig(repoId: string, robotId: string) {
+    const robot = await this.robotCatalogService.getByIdWithToken(robotId);
+    if (!robot) return null;
+    // Restrict saved-robot repo endpoints to robots that are visible in the current repository context. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    if (robot.scope === 'repo' && robot.repoId !== repoId) return null;
+    return robot;
+  }
+
   // Reuse one controller path for both saved-robot and unsaved-draft playground requests. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
   private async executeRepoRobotDryRun(
     req: Request,
@@ -298,14 +311,15 @@ export class RepositoriesController {
       if (!repo) throw new NotFoundException({ error: 'Repo not found' });
       await this.repoAccessService.requireRepoManage(user, repoId);
 
-      const existingRobot = options?.robotId ? await this.repoRobotService.getByIdWithToken(options.robotId) : null;
-      if (options?.robotId && (!existingRobot || existingRobot.repoId !== repoId)) {
+      const existingRobot = options?.robotId ? await this.getAvailableRobotWithConfig(repoId, options.robotId) : null;
+      if (options?.robotId && !existingRobot) {
         throw new NotFoundException({ error: 'Robot not found' });
       }
 
       const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
       const userCredentials = await this.userService.getModelCredentialsRaw(user.id);
-      const robotsInRepo = await this.repoRobotService.listByRepoWithToken(repoId);
+      const globalCredentials = await this.globalCredentialService.getCredentialsRaw();
+      const robotsInRepo = await this.robotCatalogService.listAvailableByRepoWithToken(repoId);
       const skillPromptPrefix = await this.skillsService.buildPromptPrefix(Array.isArray(repo.skillDefaults) ? repo.skillDefaults : null);
       // Normalize the controller DTO into the repository dry-run contract before the helper applies simulation defaults. docs/en/developer/plans/robot-dryrun-playground-20260313/task_plan.md robot-dryrun-playground-20260313
       const dryRunInput: RepoRobotDryRunInput = {
@@ -324,6 +338,7 @@ export class RepositoriesController {
         existingRobot,
         input: dryRunInput,
         userCredentials,
+        globalCredentials,
         repoScopedCredentials: repoScopedCredentials?.modelProvider ?? null,
         robotsInRepo,
         skillPromptPrefix
@@ -1319,6 +1334,7 @@ export class RepositoriesController {
       const inlineApiKey = typeof body?.credential?.apiKey === 'string' ? body.credential.apiKey.trim() : '';
 
       const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
+      const globalCredentials = await this.globalCredentialService.getCredentialsRaw();
       if (!repoScopedCredentials) throw new NotFoundException({ error: 'Repo not found' });
 
       const providerProfiles = profileId ? ((repoScopedCredentials as any)?.modelProvider?.[provider]?.profiles ?? []) : [];
@@ -1333,6 +1349,7 @@ export class RepositoriesController {
           ? await resolveProviderExecutionCredential({
               provider,
               userCredentials: await this.userService.getModelCredentialsRaw(user.id),
+              globalCredentials,
               repoScopedCredentials: repoScopedCredentials.modelProvider,
               // Start repo-scoped model discovery from repo credentials when the caller did not choose a profile explicitly. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
               defaultStoredSource: 'repo'
@@ -1402,6 +1419,32 @@ export class RepositoriesController {
     }
   }
 
+  @Get(':id/available-robots')
+  @ApiOperation({
+    summary: 'List available robots',
+    description: 'List repository-scoped robots plus globally shared robots available to this repository.',
+    operationId: 'repos_list_available_robots'
+  })
+  @ApiOkResponse({ description: 'OK', type: ListAvailableRobotsResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized', type: ErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found', type: ErrorResponseDto })
+  async listAvailableRobots(@Req() req: Request, @Param('id') id: string) {
+    try {
+      const user = ensureRequestUser(req);
+      const repoId = id;
+      const repo = await this.repositoryService.getById(repoId);
+      if (!repo) throw new NotFoundException({ error: 'Repo not found' });
+      await this.repoAccessService.requireRepoRead(user, repoId);
+
+      const robots = await this.robotCatalogService.listAvailableByRepo(repoId);
+      return { robots };
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      console.error('[repos] list available robots failed', err);
+      throw new InternalServerErrorException({ error: 'Failed to fetch available robots' });
+    }
+  }
+
   @Post(':id/robots')
   @ApiOperation({
     summary: 'Create robot',
@@ -1434,9 +1477,14 @@ export class RepositoriesController {
       // De-duplicate repoWorkflowMode input parsing to avoid scope redeclare errors. docs/en/developer/plans/repoctrlfix20260124/task_plan.md repoctrlfix20260124
       const repoWorkflowMode = normalizeRepoWorkflowModeInput(body?.repoWorkflowMode);
 
-      // Enforce explicit scope selection (robot/user/repo) now that both user/repo credentials can have multiple profiles.
-      const repoCredentialSource: 'robot' | 'user' | 'repo' = (() => {
-        if (repoCredentialSourceRaw === 'robot' || repoCredentialSourceRaw === 'user' || repoCredentialSourceRaw === 'repo') {
+      // Enforce explicit scope selection (robot/user/repo/global) now that stored credential profiles can come from multiple scopes. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+      const repoCredentialSource: 'robot' | 'user' | 'repo' | 'global' = (() => {
+        if (
+          repoCredentialSourceRaw === 'robot' ||
+          repoCredentialSourceRaw === 'user' ||
+          repoCredentialSourceRaw === 'repo' ||
+          repoCredentialSourceRaw === 'global'
+        ) {
           return repoCredentialSourceRaw;
         }
         if (token) return 'robot';
@@ -1452,9 +1500,9 @@ export class RepositoriesController {
         }
       } else {
         if (token) {
-          throw new BadRequestException({ error: 'token must be null when repoCredentialSource is user/repo' });
+          throw new BadRequestException({ error: 'token must be null when repoCredentialSource is user/repo/global' });
         }
-        if (!repoCredentialProfileId) {
+        if (repoCredentialSource !== 'global' && !repoCredentialProfileId) {
           throw new BadRequestException({ error: 'repoCredentialProfileId is required when repoCredentialSource is user/repo' });
         }
         if (repoCredentialRemark !== undefined) {
@@ -1491,6 +1539,9 @@ export class RepositoriesController {
       const loadUserCredentials = async () => {
         return await this.userService.getModelCredentialsRaw(user.id);
       };
+      const loadGlobalCredentials = async () => {
+        return await this.globalCredentialService.getCredentialsRaw();
+      };
 
       // Repo provider credential validation by scope.
       if (repoCredentialSource === 'user') {
@@ -1512,6 +1563,21 @@ export class RepositoriesController {
         if (!String(profile.token ?? '').trim()) {
           throw new BadRequestException({ error: 'selected repo-scoped repo provider token is missing' });
         }
+      } else if (repoCredentialSource === 'global') {
+        const rawCredentials = await loadGlobalCredentials();
+        const providerCredentials = repo.provider === 'github' ? rawCredentials?.github : rawCredentials?.gitlab;
+        const profile = repoCredentialProfileId ? (providerCredentials?.profiles ?? []).find((p) => p.id === repoCredentialProfileId) : null;
+        if (repoCredentialProfileId && !profile) {
+          throw new BadRequestException({ error: 'repoCredentialProfileId does not exist in global credentials' });
+        }
+        const fallbackProfile =
+          profile ??
+          ((providerCredentials?.profiles ?? []).find((p) => p.id === providerCredentials?.defaultProfileId) ??
+            (providerCredentials?.profiles ?? [])[0] ??
+            null);
+        if (!String(fallbackProfile?.token ?? '').trim()) {
+          throw new BadRequestException({ error: 'selected global repo provider token is missing' });
+        }
       }
 
       const normalizedModelProvider = typeof modelProvider === 'string' ? modelProvider.trim().toLowerCase() : CODEX_PROVIDER_KEY;
@@ -1525,7 +1591,7 @@ export class RepositoriesController {
         }
 
         const profileId = String(cfg.credentialProfileId ?? '').trim();
-        if (!profileId) {
+        if (!profileId && credentialSource !== 'global') {
           throw new BadRequestException({ error: `${providerKey} credentialProfileId is required when credentialSource is user/repo` });
         }
 
@@ -1545,6 +1611,26 @@ export class RepositoriesController {
           if (!profile) throw new BadRequestException({ error: `${providerKey} credentialProfileId does not exist in repo-scoped credentials` });
           if (!String(profile.apiKey ?? '').trim()) throw new BadRequestException({ error: `selected repo-scoped ${providerKey} apiKey is missing` });
           return;
+        }
+
+        if (credentialSource === 'global') {
+          const rawCredentials = await loadGlobalCredentials();
+          const providerCredentials = (rawCredentials as any)?.[providerKey] as any;
+          const profile = profileId
+            ? Array.isArray(providerCredentials?.profiles)
+              ? providerCredentials.profiles.find((p: any) => p && p.id === profileId)
+              : null
+            : null;
+          if (profileId && !profile) throw new BadRequestException({ error: `${providerKey} credentialProfileId does not exist in global credentials` });
+          const fallbackProfile =
+            profile ??
+            (Array.isArray(providerCredentials?.profiles)
+              ? providerCredentials.profiles.find((p: any) => p && String(p.id ?? '').trim() === String(providerCredentials?.defaultProfileId ?? '').trim()) ??
+                providerCredentials.profiles.find((p: any) => p && String(p.id ?? '').trim())
+              : null);
+          if (!String(fallbackProfile?.apiKey ?? '').trim()) {
+            throw new BadRequestException({ error: `selected global ${providerKey} apiKey is missing` });
+          }
         }
       };
 
@@ -1665,7 +1751,10 @@ export class RepositoriesController {
       const repoCredentialSourceRaw =
         body?.repoCredentialSource === undefined ? undefined : normalizeRepoCredentialSource(body?.repoCredentialSource);
       const repoCredentialSource =
-        repoCredentialSourceRaw === 'robot' || repoCredentialSourceRaw === 'user' || repoCredentialSourceRaw === 'repo'
+        repoCredentialSourceRaw === 'robot' ||
+        repoCredentialSourceRaw === 'user' ||
+        repoCredentialSourceRaw === 'repo' ||
+        repoCredentialSourceRaw === 'global'
           ? repoCredentialSourceRaw
           : undefined;
       const repoCredentialProfileId =
@@ -1747,7 +1836,7 @@ export class RepositoriesController {
       const nextRepoCredentialSource = repoCredentialSource ?? existingRepoCredentialSource;
 
       // Repo provider credential validation by scope.
-      const validateRepoProviderCredential = async (source: 'robot' | 'user' | 'repo') => {
+      const validateRepoProviderCredential = async (source: 'robot' | 'user' | 'repo' | 'global') => {
         if (source === 'robot') {
           if (repoCredentialProfileId !== undefined && repoCredentialProfileId !== null && repoCredentialProfileId.trim()) {
             throw new BadRequestException({ error: 'repoCredentialProfileId must be null when repoCredentialSource=robot' });
@@ -1756,13 +1845,13 @@ export class RepositoriesController {
         }
 
         if (token !== undefined && token !== null && token.trim()) {
-          throw new BadRequestException({ error: 'token must be null when repoCredentialSource is user/repo' });
+          throw new BadRequestException({ error: 'token must be null when repoCredentialSource is user/repo/global' });
         }
 
         const profileId = (repoCredentialProfileId === undefined
           ? String((existing as any).repoCredentialProfileId ?? '').trim()
           : String(repoCredentialProfileId ?? '').trim());
-        if (!profileId) {
+        if (!profileId && source !== 'global') {
           throw new BadRequestException({ error: 'repoCredentialProfileId is required when repoCredentialSource is user/repo' });
         }
 
@@ -1779,6 +1868,24 @@ export class RepositoriesController {
           }
           if (!String(profile.token ?? '').trim()) {
             throw new BadRequestException({ error: 'selected repo credential profile token is missing' });
+          }
+          return;
+        }
+
+        if (source === 'global') {
+          const rawCredentials = await this.globalCredentialService.getCredentialsRaw();
+          const providerCredentials = repo.provider === 'github' ? rawCredentials?.github : rawCredentials?.gitlab;
+          const profile = profileId ? (providerCredentials?.profiles ?? []).find((p) => p.id === profileId) : null;
+          if (profileId && !profile) {
+            throw new BadRequestException({ error: 'repoCredentialProfileId does not exist in global credentials' });
+          }
+          const fallbackProfile =
+            profile ??
+            ((providerCredentials?.profiles ?? []).find((p) => p.id === providerCredentials?.defaultProfileId) ??
+              (providerCredentials?.profiles ?? [])[0] ??
+              null);
+          if (!String(fallbackProfile?.token ?? '').trim()) {
+            throw new BadRequestException({ error: 'selected global repo provider token is missing' });
           }
           return;
         }
@@ -1816,7 +1923,7 @@ export class RepositoriesController {
         }
 
         const profileId = String(cfg.credentialProfileId ?? '').trim();
-        if (!profileId) {
+        if (!profileId && credentialSource !== 'global') {
           throw new BadRequestException({ error: `${providerKey} credentialProfileId is required when credentialSource is user/repo` });
         }
 
@@ -1839,6 +1946,27 @@ export class RepositoriesController {
             : null;
           if (!profile) throw new BadRequestException({ error: `${providerKey} credentialProfileId does not exist in repo-scoped credentials` });
           if (!String(profile.apiKey ?? '').trim()) throw new BadRequestException({ error: `selected repo-scoped ${providerKey} apiKey is missing` });
+          return;
+        }
+
+        if (credentialSource === 'global') {
+          const rawCredentials = await this.globalCredentialService.getCredentialsRaw();
+          const providerCredentials = (rawCredentials as any)?.[providerKey] as any;
+          const profile = profileId
+            ? Array.isArray(providerCredentials?.profiles)
+              ? providerCredentials.profiles.find((p: any) => p && p.id === profileId)
+              : null
+            : null;
+          if (profileId && !profile) throw new BadRequestException({ error: `${providerKey} credentialProfileId does not exist in global credentials` });
+          const fallbackProfile =
+            profile ??
+            (Array.isArray(providerCredentials?.profiles)
+              ? providerCredentials.profiles.find((p: any) => p && String(p.id ?? '').trim() === String(providerCredentials?.defaultProfileId ?? '').trim()) ??
+                providerCredentials.profiles.find((p: any) => p && String(p.id ?? '').trim())
+              : null);
+          if (!String(fallbackProfile?.apiKey ?? '').trim()) {
+            throw new BadRequestException({ error: `selected global ${providerKey} apiKey is missing` });
+          }
           return;
         }
       };
@@ -1955,12 +2083,14 @@ export class RepositoriesController {
       }
 
       const userCredentials = await this.userService.getModelCredentialsRaw(user.id);
+      const globalCredentials = await this.globalCredentialService.getCredentialsRaw();
       const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
       const source = inferRobotRepoProviderCredentialSource(existing);
       const token = resolveRobotProviderToken({
         provider: repo.provider,
         robot: existing,
         userCredentials,
+        globalCredentials,
         repoCredentials: repoScopedCredentials?.repoProvider ?? null,
         source
       });
@@ -2192,12 +2322,14 @@ export class RepositoriesController {
       resolvedMode = resolveRepoWorkflowMode(requestedMode ?? existing.repoWorkflowMode);
 
       const userCredentials = await this.userService.getModelCredentialsRaw(user.id);
+      const globalCredentials = await this.globalCredentialService.getCredentialsRaw();
       const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
       const source = inferRobotRepoProviderCredentialSource(existing);
       const token = resolveRobotProviderToken({
         provider: repo.provider,
         robot: existing,
         userCredentials,
+        globalCredentials,
         repoCredentials: repoScopedCredentials?.repoProvider ?? null,
         source
       });
@@ -2322,6 +2454,7 @@ export class RepositoriesController {
       }
 
       const userCredentials = await this.userService.getModelCredentialsRaw(user.id);
+      const globalCredentials = await this.globalCredentialService.getCredentialsRaw();
       const repoScopedCredentials = await this.repositoryService.getRepoScopedCredentials(repoId);
       const token = resolveRobotProviderToken({
         provider: repo.provider,
@@ -2331,6 +2464,7 @@ export class RepositoriesController {
           repoCredentialProfileId
         },
         userCredentials,
+        globalCredentials,
         repoCredentials: repoScopedCredentials?.repoProvider ?? null,
         source
       });

@@ -1,8 +1,8 @@
 import { BadRequestException, Controller, HttpException, InternalServerErrorException, NotFoundException, Post, Body, Req } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { RepoRobotService } from '../repositories/repo-robot.service';
 import { RepositoryService } from '../repositories/repository.service';
+import { RobotCatalogService } from '../repositories/robot-catalog.service';
 import { buildChatTaskPayload } from '../../services/chatPayload';
 import { normalizeString } from '../../utils/parse';
 import { attachTaskSchedule, normalizeTimeWindow, resolveTaskSchedule } from '../../utils/timeWindow';
@@ -58,7 +58,7 @@ export class ChatController {
   constructor(
     private readonly taskService: TaskService,
     private readonly repositoryService: RepositoryService,
-    private readonly repoRobotService: RepoRobotService,
+    private readonly robotCatalogService: RobotCatalogService,
     private readonly taskRunner: TaskRunner
   ) {}
 
@@ -91,8 +91,8 @@ export class ChatController {
       if (repo.archivedAt) throw new BadRequestException({ error: 'Repo is archived' });
       if (!repo.enabled) throw new BadRequestException({ error: 'Repo is disabled' });
 
-      const robot = await this.repoRobotService.getById(robotId);
-      if (!robot || robot.repoId !== repoId) throw new NotFoundException({ error: 'Robot not found' });
+      const robot = await this.robotCatalogService.getById(robotId);
+      if (!robot || (robot.scope === 'repo' && robot.repoId !== repoId)) throw new NotFoundException({ error: 'Robot not found' });
       if (!robot.enabled) throw new BadRequestException({ error: 'Robot is disabled' });
 
       // Parse optional chat-level time windows for scheduling. docs/en/developer/plans/timewindowtask20260126/task_plan.md timewindowtask20260126

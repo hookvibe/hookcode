@@ -18,6 +18,7 @@ const baseRepo = (): Repository => ({
 });
 
 const baseRobot = (): RepoRobot => ({
+  scope: 'repo',
   id: 'rb-1',
   repoId: 'repo-1',
   name: 'hookcode-review',

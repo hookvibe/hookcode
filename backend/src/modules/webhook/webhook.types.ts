@@ -1,9 +1,9 @@
 import type { TaskService } from '../tasks/task.service';
 import type { TaskRunner } from '../tasks/task-runner.service';
 import type { RepositoryService } from '../repositories/repository.service';
-import type { RepoRobotService } from '../repositories/repo-robot.service';
 import type { RepoAutomationService } from '../repositories/repo-automation.service';
 import type { RepoWebhookDeliveryService } from '../repositories/repo-webhook-delivery.service';
+import type { RobotCatalogService } from '../repositories/robot-catalog.service';
 import type { TaskEventType } from '../../types/task';
 import type { LogWriterService } from '../logs/log-writer.service';
 import type { NotificationRecipientService } from '../notifications/notification-recipient.service';
@@ -13,7 +13,7 @@ export interface WebhookDeps {
   taskService: TaskService;
   taskRunner: TaskRunner;
   repositoryService: RepositoryService;
-  repoRobotService: RepoRobotService;
+  robotCatalogService: RobotCatalogService;
   repoAutomationService: RepoAutomationService;
   repoWebhookDeliveryService: RepoWebhookDeliveryService;
   // Include log writer so webhook handlers can emit system logs. docs/en/developer/plans/logs-audit-20260302/task_plan.md logs-audit-20260302

@@ -14,7 +14,7 @@ import {
 
 // Keep GitLab webhook ingress aligned with replay/debug execution by delegating shared automation flow. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
 export const handleGitlabWebhook = async (req: Request, res: Response, deps: WebhookDeps) => {
-  const { taskService, taskRunner, repositoryService, repoRobotService, repoAutomationService, repoWebhookDeliveryService, logWriter, notificationRecipients } = deps;
+  const { taskService, taskRunner, repositoryService, robotCatalogService, repoAutomationService, repoWebhookDeliveryService, logWriter, notificationRecipients } = deps;
   const repoId = String(req.params.repoId ?? '').trim();
   const eventName = safeString(req.header('x-gitlab-event') ?? '').trim();
   const deliveryId = safeString(req.header('x-gitlab-event-uuid') ?? req.header('X-Gitlab-Event-UUID') ?? '').trim();
@@ -210,7 +210,7 @@ export const handleGitlabWebhook = async (req: Request, res: Response, deps: Web
 
     const actorUserId = (await notificationRecipients.resolveActorUserIdFromPayload(repoId, basePayload)) ?? undefined;
     const execution = await executeWebhookAutomation(
-      { taskService, repoRobotService, repoAutomationService },
+      { taskService, robotCatalogService, repoAutomationService },
       {
         provider: 'gitlab',
         repo: repoAuth.repo,

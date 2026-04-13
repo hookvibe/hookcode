@@ -6,14 +6,15 @@ import { CODEX_PROVIDER_KEY, normalizeCodexRobotProviderConfig } from './codex';
 import { GEMINI_CLI_PROVIDER_KEY, normalizeGeminiCliRobotProviderConfig } from './geminiCli';
 import type { RepoScopedModelProviderCredentials, RepoScopedModelProviderCredentialsByProvider } from '../modules/repositories/repository.service';
 import type { UserModelCredentials, UserModelProviderCredentials } from '../modules/users/user.service';
+import { pickStoredProfileById } from '../utils/credentialProfiles';
 
 export type SupportedProviderRuntimeKey =
   | typeof CODEX_PROVIDER_KEY
   | typeof CLAUDE_CODE_PROVIDER_KEY
   | typeof GEMINI_CLI_PROVIDER_KEY;
 
-export type ProviderStoredSource = 'robot' | 'repo' | 'user';
-export type ProviderResolutionLayer = 'local' | 'robot' | 'repo' | 'user' | 'none';
+export type ProviderStoredSource = 'robot' | 'repo' | 'user' | 'global';
+export type ProviderResolutionLayer = 'local' | 'robot' | 'repo' | 'user' | 'global' | 'none';
 export type ProviderResolutionMethod =
   | 'env_api_key'
   | 'credentials_file'
@@ -22,6 +23,7 @@ export type ProviderResolutionMethod =
   | 'oauth_creds'
   | 'robot_embedded'
   | 'repo_profile'
+  | 'global_profile'
   | 'user_profile'
   | 'none';
 
@@ -108,12 +110,12 @@ const pickStoredProfile = (
   requestedProfileId?: string | null
 ): { profileId: string; apiKey: string; apiBaseUrl: string } | null => {
   const profiles = Array.isArray(creds?.profiles) ? creds!.profiles : [];
-  const requestedId = safeTrim(requestedProfileId);
-  const defaultId = safeTrim((creds as any)?.defaultProfileId);
-  const selected =
-    (requestedId && profiles.find((profile) => safeTrim(profile?.id) === requestedId)) ||
-    (defaultId && profiles.find((profile) => safeTrim(profile?.id) === defaultId)) ||
-    profiles.find((profile) => Boolean(profile && safeTrim(profile?.id)));
+  // Keep explicit model-provider profile ids exact so a deleted selection cannot silently hop to another stored API key. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+  const selected = pickStoredProfileById({
+    profiles,
+    requestedProfileId,
+    defaultProfileId: (creds as any)?.defaultProfileId
+  });
   const profileId = safeTrim(selected?.id);
   if (!profileId) return null;
   return {
@@ -162,6 +164,14 @@ const getProviderRepoCredentials = (
 ): RepoScopedModelProviderCredentialsByProvider | null => {
   if (!creds) return null;
   return ((creds as any)?.[provider] as RepoScopedModelProviderCredentialsByProvider | null | undefined) ?? null;
+};
+
+const getProviderGlobalCredentials = (
+  provider: SupportedProviderRuntimeKey,
+  creds: UserModelCredentials | null | undefined
+): UserModelProviderCredentials | null => {
+  if (!creds) return null;
+  return ((creds as any)?.[provider] as UserModelProviderCredentials | null | undefined) ?? null;
 };
 
 const resolveClaudeLocalCredential = async (): Promise<InternalLocalProviderCredential> => {
@@ -373,6 +383,7 @@ export const resolveProviderExecutionCredential = async (params: {
   robotConfigRaw?: unknown;
   userCredentials?: UserModelCredentials | null;
   repoScopedCredentials?: RepoScopedModelProviderCredentials | null;
+  globalCredentials?: UserModelCredentials | null;
   defaultStoredSource?: ProviderStoredSource;
 }): Promise<ResolvedProviderCredential> => {
   const local =
@@ -419,6 +430,11 @@ export const resolveProviderExecutionCredential = async (params: {
 
   const repoCredentials = getProviderRepoCredentials(params.provider, params.repoScopedCredentials);
   const userCredentials = getProviderUserCredentials(params.provider, params.userCredentials);
+  const globalCredentials = getProviderGlobalCredentials(params.provider, params.globalCredentials);
+  const globalProfile = pickStoredProfile(
+    globalCredentials,
+    requestedStoredSource === 'global' ? normalizedRobotConfig.credentialProfileId : undefined
+  );
 
   const repoProfile = pickStoredProfile(
     repoCredentials,
@@ -428,6 +444,37 @@ export const resolveProviderExecutionCredential = async (params: {
     userCredentials,
     requestedStoredSource === 'user' ? normalizedRobotConfig.credentialProfileId : undefined
   );
+
+  if (requestedStoredSource === 'global' && globalProfile?.apiKey) {
+    return {
+      provider: params.provider,
+      requestedStoredSource,
+      resolvedLayer: 'global',
+      resolvedMethod: 'global_profile',
+      canExecute: true,
+      profileId: globalProfile.profileId,
+      apiKey: globalProfile.apiKey,
+      apiBaseUrl: globalProfile.apiBaseUrl || undefined,
+      supportsModelListing: true,
+      fallbackUsed: false
+    };
+  }
+
+  if (requestedStoredSource === 'global' && userProfile?.apiKey) {
+    return {
+      provider: params.provider,
+      requestedStoredSource,
+      resolvedLayer: 'user',
+      resolvedMethod: 'user_profile',
+      canExecute: true,
+      profileId: userProfile.profileId,
+      apiKey: userProfile.apiKey,
+      apiBaseUrl: userProfile.apiBaseUrl || undefined,
+      supportsModelListing: true,
+      fallbackUsed: true,
+      reason: 'Requested global profile was unavailable, so the resolver fell back to the user-scoped profile.'
+    };
+  }
 
   if (requestedStoredSource === 'repo' && repoProfile?.apiKey) {
     return {
@@ -460,6 +507,21 @@ export const resolveProviderExecutionCredential = async (params: {
     };
   }
 
+  if (globalProfile?.apiKey) {
+    return {
+      provider: params.provider,
+      requestedStoredSource,
+      resolvedLayer: 'global',
+      resolvedMethod: 'global_profile',
+      canExecute: true,
+      profileId: globalProfile.profileId,
+      apiKey: globalProfile.apiKey,
+      apiBaseUrl: globalProfile.apiBaseUrl || undefined,
+      supportsModelListing: true,
+      fallbackUsed: requestedStoredSource !== 'global'
+    };
+  }
+
   if (userProfile?.apiKey) {
     return {
       provider: params.provider,
@@ -483,7 +545,7 @@ export const resolveProviderExecutionCredential = async (params: {
     canExecute: false,
     supportsModelListing: false,
     fallbackUsed: false,
-    reason: 'No local auth, embedded robot credential, repo-scoped profile, or user-scoped profile was available for this provider.'
+    reason: 'No local auth, embedded robot credential, global-scoped profile, repo-scoped profile, or user-scoped profile was available for this provider.'
   };
 };
 
