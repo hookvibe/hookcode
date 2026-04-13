@@ -1,5 +1,5 @@
 <!-- Record the implementation plan for shared global robots, global credentials, and the next hardening batch. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa -->
-# Task Plan: Global robots, global credentials, and next hardening batch
+# Task Plan: Global robots, global credentials, and ongoing hardening batches
 {/* WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk." WHY: After 50+ tool calls, your original goals can get forgotten. This file keeps them fresh. WHEN: Create this FIRST, before starting any work. Update after each phase completes. */}
 
 {/* Track code changes with this session hash for traceability. 52d0x2aa8umrjgjklgwa */}
@@ -11,11 +11,11 @@
 
 ## Goal
 {/* WHAT: One clear sentence describing what you're trying to achieve. WHY: This is your north star. Re-reading this keeps you focused on the end state. EXAMPLE: "Create a Python CLI todo app with add, list, and delete functionality." */}
-Continue the same shared global robots and global credentials hardening session after commit `0249536`, focusing next on disabled-global-robot execution guards and stronger backend error handling.
+Continue the same shared global robots and global credentials hardening session after commit `04bf5de`, focusing next on the remaining user and repository credential validation paths that still rely on message matching.
 
 ## Current Phase
 {/* WHAT: Which phase you're currently working on (e.g., "Phase 1", "Phase 3"). WHY: Quick reference for where you are in the task. Update this as you progress. */}
-Phase 8
+Phase 14
 
 ## Phases
 {/* WHAT: Break your task into 3-7 logical phases. Each phase should be completable. WHY: Breaking work into phases prevents overwhelm and makes progress visible. WHEN: Update status after completing each phase: pending → in_progress → complete */}
@@ -77,28 +77,70 @@ Phase 8
 - [x] Confirm the next baseline now includes feature commit `c00eeb6` plus first hardening batch commit `0249536`
 - [x] Identify the next highest-priority fixes: disabled global robot execution guards and stronger backend error handling
 - [x] Record the new follow-up risks and likely touch points before implementation starts
-- **Status:** in_progress
+- **Status:** complete
 
 ### Phase 9: Disabled Robot Guard & Error Handling
 {/* WHAT: Implement the next hardening fixes. WHY: The next likely bugs are direct-id disabled global robot execution and brittle controller error handling. */}
-- [ ] Prevent disabled global robots from resolving through mixed-scope direct-id runtime lookup
-- [ ] Replace brittle global robot controller error mapping with stronger backend error handling
-- [ ] Add focused regression coverage for the new guard and error-handling behavior
-- **Status:** pending
+- [x] Prevent disabled global robots from resolving through mixed-scope direct-id runtime lookup
+- [x] Replace brittle global robot controller error mapping with stronger backend error handling
+- [x] Add focused regression coverage for the new guard and error-handling behavior
+- **Status:** complete
 
 ### Phase 10: Hardening Verification & Commit Prep
 {/* WHAT: Verify the next hardening fixes and prepare the next clean commit. WHY: The user wants validated changes before the next commit. */}
-- [ ] Run targeted and full validation for the next hardening batch
-- [ ] Summarize the next hardening changes and any remaining risks
+- [x] Run targeted and full validation for the next hardening batch
+- [x] Summarize the next hardening changes and any remaining risks
+- [x] Prepare the next hardening batch for a clean commit
+- **Status:** complete
+
+### Phase 11: Global Credentials Validation Scope
+{/* WHAT: Lock the next hardening target after commit `4b2afe3`. WHY: The next remaining validation gap is in the system-level global credential admin flow rather than mixed-scope robot execution. */}
+- [x] Confirm the next baseline now includes feature commit `c00eeb6`, first hardening batch commit `0249536`, and disabled-global-robot hardening commit `4b2afe3`
+- [x] Identify the remaining system-level gap in global credential validation and controller error handling
+- [x] Record the narrow service/controller scope and adjacent out-of-scope controllers before implementation starts
+- **Status:** complete
+
+### Phase 12: Global Credentials Validation Hardening
+{/* WHAT: Harden the remaining system global-credentials validation path. WHY: The current `PATCH` flow still depends on brittle message matching instead of a stable validation contract. */}
+- [x] Add stable service-level validation errors for missing global credential profile remarks
+- [x] Replace controller-side message matching in the global credentials `PATCH` flow with stable error-code handling
+- [x] Add focused service and controller regression coverage for the new validation behavior
+- **Status:** complete
+
+### Phase 13: Validation & Commit Prep
+{/* WHAT: Finish verification for the current global-credentials hardening slice. WHY: The latest targeted validation passed, but the full backend suite still needs to run before commit prep is complete. */}
+- [x] Run targeted validation for the current global-credentials hardening slice
+- [x] Run the full backend suite after the current validation changes
+- [x] Summarize remaining risks and prepare the batch for a clean commit
+- **Status:** complete
+
+### Phase 14: User & Repository Credential Validation Scope
+{/* WHAT: Lock the next adjacent hardening batch after commit `04bf5de`. WHY: The remaining message-based credential validation mapping now lives in user and repository controller flows rather than the already-hardened global credential path. */}
+- [x] Confirm the next baseline now includes commits `c00eeb6`, `0249536`, `4b2afe3`, and `04bf5de`
+- [x] Identify the remaining user and repository credential validation paths that still rely on message matching
+- [x] Decide whether the next batch should share a validation abstraction or stay scoped to user and repository service/controller pairs
+- **Status:** complete
+
+### Phase 15: User & Repository Credential Validation Hardening
+{/* WHAT: Harden the remaining non-global credential validation flows. WHY: Users and repositories still have controller-side message matching fed by service errors, which is the next adjacent consistency gap. */}
+- [x] Add stable service-level validation errors for the remaining user and repository credential remark validation paths
+- [x] Replace controller-side message matching in `users.controller` and `repositories.controller` with stable error-code handling
+- [x] Add focused regression coverage for the user and repository validation behavior
+- **Status:** complete
+
+### Phase 16: Validation & Commit Prep
+{/* WHAT: Verify the next user/repository credential hardening batch and prepare it for commit. WHY: The current session should keep each hardening slice fully validated before another handoff. */}
+- [ ] Run targeted and full validation for the user and repository credential hardening batch
+- [ ] Summarize remaining risks after the user/repository validation changes
 - [ ] Prepare the next hardening batch for a clean commit
-- **Status:** pending
+- **Status:** in_progress
 
 ## Key Questions
 {/* WHAT: Important questions you need to answer during the task. WHY: These guide your research and decision-making. Answer them as you go. EXAMPLE: 1. Should tasks persist between sessions? (Yes - need file storage) 2. What format for storing tasks? (JSON file) */}
-1. Which runtime callers can still resolve a disabled global robot by id, and what is the least-breaking guard behavior?
-2. Should the next guard tighten only `getByIdWithToken`, or does plain `getById` also require matching hardening?
-3. Which domain error shape should replace brittle string matching in the global robot admin controller?
-4. What targeted tests and full validation are required before the next hardening commit is ready?
+1. Which user and repository credential validation paths still rely on raw message matching after commit `04bf5de`?
+2. How should the shared credential-validation helper expose stable code and details so user, repository, and already-hardened global flows stay aligned?
+3. Do any full-suite regressions remain after the shared refactor now passes targeted coverage and backend build validation?
+4. What full validation and remaining risk review are required before the current user/repository credential hardening batch is ready to commit?
 
 ## Decisions Made
 {/* WHAT: Technical and design decisions you've made, with the reasoning behind them. WHY: You'll forget why you made choices. This table helps you remember and justify decisions. WHEN: Update whenever you make a significant choice (technology, approach, structure). EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | */}
@@ -117,12 +159,19 @@ Phase 8
 | Implement the first hardening batch with dedicated system DTOs, new controller and DTO tests, and i18n extraction in the existing locale domain files. | The current worktree is already committed at `c00eeb6`, existing DTO patterns are module-local, and the frontend locale structure already has a domain-based organization to extend. |
 | Treat commit `0249536` as the new baseline for the next hardening batch. | The user explicitly said the baseline feature commit `c00eeb6` and the first hardening batch commit `0249536` are complete, so new planning should start after those changes. |
 | Prioritize disabled global robot execution guards and stronger backend error handling next. | The current audit narrowed the remaining high-priority issues to direct-id disabled global robot resolution and brittle controller error mapping. |
+| Treat commit `4b2afe3` as the next baseline for the current hardening slice. | The user explicitly said the baseline feature commit `c00eeb6`, first hardening batch commit `0249536`, and disabled-global-robot hardening commit `4b2afe3` are complete before starting the next validation-focused batch. |
+| Keep the current hardening slice narrowly scoped to `GlobalCredentialService` and `GlobalRobotsController`. | The remaining brittle validation mapping is isolated to the system global-credentials admin flow, while similar user and repository controllers are fed by different services and should not expand the batch unless necessary. |
+| Treat commit `04bf5de` as the next baseline for the current hardening slice. | The user explicitly said commits `c00eeb6`, `0249536`, `4b2afe3`, and `04bf5de` are complete before checking the remaining user and repository credential validation paths. |
+| Move the next batch to the user and repository credential validation flows without reopening the already-hardened global credential path. | The current adjacent gap is controller-side message matching in `users.controller` and `repositories.controller`, while the global credential `PATCH` flow was just stabilized in commit `04bf5de`. |
+| Reuse one shared credential-validation helper instead of adding more one-off local error classes. | `user.service`, `repository.service`, and the already-hardened global credential flow now share the same missing-remark validation pattern, so one helper keeps code/details aligned across adjacent APIs. |
+| Advance the current batch to validation after the shared credential-validation helper compiled and passed targeted coverage. | The service/controller refactor is now implemented across global, user, and repository flows, so the remaining work is full-suite validation and final risk review rather than more design churn. |
 
 ## Errors Encountered
 {/* WHAT: Every error you encounter, what attempt number it was, and how you resolved it. WHY: Logging errors prevents repeating the same mistakes. This is critical for learning. WHEN: Add immediately when an error occurs, even if you fix it quickly. EXAMPLE: | FileNotFoundError | 1 | Check if file exists, create empty list if not | | JSONDecodeError | 2 | Handle empty file case explicitly | */}
 | Error | Attempt | Resolution |
 |-------|---------|------------|
 | The first initialization turn was interrupted after creating the session directory but before the planning docs were populated. | 1 | Reused the same session hash and continued filling the planning files instead of creating a duplicate session. |
+| The shared credential-validation refactor introduced one build-blocking TypeScript error in `repository.service` plus stale test assertions against the old global-only error shape. | 1 | Patched the out-of-scope repository-provider lookup, updated the affected assertions to the stable code/details contract, and moved the batch forward after targeted coverage plus backend build passed. |
 
 ## Notes
 {/* REMINDERS: - Update phase status as you progress: pending → in_progress → complete - Re-read this plan before major decisions (attention manipulation) - Log ALL errors - they help avoid repetition - Never repeat a failed action - mutate your approach instead */}

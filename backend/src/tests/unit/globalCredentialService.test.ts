@@ -128,10 +128,9 @@ describe('global credential service', () => {
         }
       })
     ).rejects.toMatchObject<Partial<InstanceType<typeof GlobalCredentialValidationError>>>({
-      name: 'GlobalCredentialValidationError',
-      message: 'model provider credential profile remark is required',
+      name: 'CredentialValidationError',
       code: 'GLOBAL_CREDENTIAL_MODEL_PROFILE_REMARK_REQUIRED',
-      details: { provider: 'codex', profileId: 'codex-1' }
+      details: { scope: 'global', provider: 'codex', profileId: 'codex-1' }
     });
 
     expect(db.globalCredentialSettings.upsert).not.toHaveBeenCalled();
@@ -150,10 +149,9 @@ describe('global credential service', () => {
         }
       })
     ).rejects.toMatchObject<Partial<InstanceType<typeof GlobalCredentialValidationError>>>({
-      name: 'GlobalCredentialValidationError',
-      message: 'repo provider credential profile remark is required',
+      name: 'CredentialValidationError',
       code: 'GLOBAL_CREDENTIAL_REPO_PROFILE_REMARK_REQUIRED',
-      details: { provider: 'github', profileId: 'github-1' }
+      details: { scope: 'global', provider: 'github', profileId: 'github-1' }
     });
 
     expect(db.globalCredentialSettings.upsert).not.toHaveBeenCalled();

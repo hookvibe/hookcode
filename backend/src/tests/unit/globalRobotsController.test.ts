@@ -169,7 +169,7 @@ describe('GlobalRobotsController', () => {
     globalCredentialService.updateCredentials.mockRejectedValueOnce(
       new GlobalCredentialValidationError('repo provider credential profile remark is required', {
         code: 'GLOBAL_CREDENTIAL_REPO_PROFILE_REMARK_REQUIRED',
-        details: { provider: 'github', profileId: 'github-1' }
+        details: { scope: 'global', provider: 'github', profileId: 'github-1' }
       })
     );
 
@@ -187,7 +187,7 @@ describe('GlobalRobotsController', () => {
         expect.objectContaining({
           error: 'repo provider credential profile remark is required',
           code: 'GLOBAL_CREDENTIAL_REPO_PROFILE_REMARK_REQUIRED',
-          details: { provider: 'github', profileId: 'github-1' }
+          details: { scope: 'global', provider: 'github', profileId: 'github-1' }
         })
       );
     }

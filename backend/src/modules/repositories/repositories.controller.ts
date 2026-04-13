@@ -37,7 +37,7 @@ import { RepoAccessService, type RepoRole } from './repo-access.service';
 import { RepoMemberService } from './repo-member.service';
 import { RepoRobotService } from './repo-robot.service';
 import { RepoWebhookDeliveryService } from './repo-webhook-delivery.service';
-import { RepositoryService, type ArchiveScope } from './repository.service';
+import { RepositoryService, RepoScopedCredentialValidationError, type ArchiveScope } from './repository.service';
 import { GlobalCredentialService } from './global-credentials.service';
 import { RobotCatalogService } from './robot-catalog.service';
 import { db } from '../../db';
@@ -288,6 +288,15 @@ export class RepositoriesController {
     const user = ensureRequestUser(req);
     await this.repoAccessService.requireRepoOwner(user, repoId);
     return user;
+  }
+
+  private buildCredentialValidationBadRequest(err: InstanceType<typeof RepoScopedCredentialValidationError>): BadRequestException {
+    // Convert repo-scoped credential validation errors into stable 400 payloads so repo settings edits no longer depend on substring matching. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
+    return new BadRequestException({
+      error: err.message,
+      code: err.code,
+      ...(err.details ? { details: err.details } : {})
+    });
   }
 
   private async getAvailableRobotWithConfig(repoId: string, robotId: string) {
@@ -1290,6 +1299,9 @@ export class RepositoriesController {
       }
       if (message.includes('name is required')) {
         throw new BadRequestException({ error: message });
+      }
+      if (err instanceof RepoScopedCredentialValidationError) {
+        throw this.buildCredentialValidationBadRequest(err);
       }
       // Match repo env validation errors precisely for 400 responses. docs/en/developer/plans/preview-env-config-20260302/task_plan.md preview-env-config-20260302
       const isRepoEnvError =

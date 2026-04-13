@@ -28,6 +28,10 @@
 - Validate the first hardening batch and prepare a clean follow-up commit once the changes land.
 - Continue the same hardening session after first hardening batch commit `0249536` instead of starting a separate session.
 - Focus the next hardening batch on disabled-global-robot execution guards and stronger backend error handling.
+- Continue the same hardening session after disabled-global-robot hardening commit `4b2afe3` instead of starting a separate session.
+- Focus the next hardening batch on stabilizing global credential validation and error handling in the system admin flow.
+- Continue the same hardening session after global-credentials validation hardening commit `04bf5de` instead of starting a separate session.
+- Focus the next adjacent hardening batch on the remaining user and repository credential validation paths that still rely on message matching.
 
 ## Research Findings
 {/* WHAT: Key discoveries from web searches, documentation reading, or exploration. WHY: Multimodal content (images, browser results) doesn't persist. Write it down immediately. WHEN: After EVERY 2 view/browser/search operations, update this section (2-Action Rule). EXAMPLE: - Python's argparse module supports subcommands for clean CLI design - JSON module handles file persistence easily - Standard pattern: python script.py <command> [args] */}
@@ -179,6 +183,19 @@
 - Worker internal and webhook execution paths consume enabled-only robot lists, which already exclude disabled global robots.
 - The baseline feature commit `c00eeb6` and the first hardening batch commit `0249536` are complete, so the next batch starts from that combined baseline rather than from the original feature boundary.
 - The next likely high-priority fixes are preventing disabled global robots from being executed through mixed-scope direct-id runtime lookups and reducing brittle error mapping in the global robot admin controller.
+- The worktree was code-clean after commit `4b2afe3`, so the next hardening step could stay tightly scoped to global credential validation and controller error handling instead of reopening broader mixed-scope runtime work.
+- `GlobalRobotsController.patchGlobalCredentials` previously mapped validation to `400` via `message.includes('remark is required')`, which made the system-level global-credentials `PATCH` flow brittle until the service/controller path was hardened.
+- `GlobalCredentialService.updateCredentials` previously threw raw `Error` strings for missing model-provider and repo-provider profile remarks, and that pattern was the remaining system-level validation gap before commit `04bf5de`.
+- `normalizeHttpBaseUrl` fails closed to `undefined` rather than throwing, so the global-credentials validation risk was concentrated in missing profile remarks rather than in base-url parsing.
+- The global-credentials validation hardening batch added stable `GlobalCredentialValidationError` codes/details for the missing-remark cases, removed controller-side substring matching in `patchGlobalCredentials`, and passed targeted plus full backend validation before commit `04bf5de`.
+- `replaceCredentials` was intentionally left unchanged in that batch because `normalizeUserModelCredentials` already fails closed without surfacing the same remark-validation errors.
+- The worktree is code-clean after commit `04bf5de` except for recorder-owned planning churn, so the next adjacent batch can stay focused on the remaining user and repository validation paths.
+- `user.service.updateModelCredentials` still throws raw `Error` strings for missing model-provider and repo-provider profile remarks, and `repository.service.updateRepository` still throws the same raw strings for repository-scoped credential profile remarks.
+- `users.controller` and `repositories.controller` still convert those failures into `400` responses via `message.includes(...)` matching.
+- `user.service.updateModelCredentials` and `repository.service.updateRepository` now look close enough to the already-hardened global flow that a shared credential-validation helper is likely the cleanest next step instead of another pair of local error classes.
+- The shared credential-validation refactor is now the active implementation path, and the controller-side `instanceof` mapping pattern is already validated by a passing `UsersController` credential validation test.
+- The current mechanical failure set is narrow: `repository.service` references an out-of-scope repository-provider variable when building repository-scoped validation details, and several tests still assert the older global-only error name/message shape instead of the new stable code/details contract.
+- The repository-provider lookup issue is the only currently reported build-blocking TypeScript error in the shared refactor pass.
 
 ## Technical Decisions
 {/* WHAT: Architecture and implementation choices you've made, with reasoning. WHY: You'll forget why you chose a technology or approach. This table preserves that knowledge. WHEN: Update whenever you make a significant technical choice. EXAMPLE: | Use JSON for storage | Simple, human-readable, built-in Python support | | argparse with subcommands | Clean CLI: python todo.py add "task" | */}
@@ -217,6 +234,11 @@
 | Guard runtime id-based global robot resolution with enabled-state checks. | Falling through from repository lookup straight to `globalRobotService.getByIdWithConfig` can bypass the enabled-only catalog paths, so the next hardening change should block disabled global robots from being resolved by id. |
 | Treat commit `0249536` as the new baseline for the next hardening batch. | The user explicitly said the baseline feature commit `c00eeb6` and the first hardening batch commit `0249536` are complete, so the next planning and validation work should start after those changes. |
 | Prioritize disabled global robot execution guards and stronger backend error handling next. | The current audit already narrowed the remaining likely bugs to direct-id disabled global robot resolution and brittle controller error mapping. |
+| Treat commit `4b2afe3` as the next baseline for the global-credentials validation batch. | The user explicitly said commits `c00eeb6`, `0249536`, and `4b2afe3` were complete before hardening the remaining global-credentials validation path. |
+| Keep the global-credentials validation batch scoped to `GlobalCredentialService` and `GlobalRobotsController`. | The remaining brittle validation mapping in that slice was isolated to the system admin flow, while similar user/repository patterns could wait for a later batch. |
+| Treat commit `04bf5de` as the next baseline for the current adjacent hardening slice. | The user explicitly said commits `c00eeb6`, `0249536`, `4b2afe3`, and `04bf5de` are complete before checking the remaining user and repository credential validation paths. |
+| Prefer a shared credential-validation helper for the remaining user and repository flows if the test surface stays small enough. | The user/repository services now repeat the same missing-remark validation pattern that was just hardened in the global flow, so one reusable helper is likely cleaner than another round of duplicated local error classes. |
+| Keep the shared `CredentialValidationError` code/details contract stable while updating adjacent tests. | The refactor already proves the shared helper shape works conceptually, so the remaining work is mechanical alignment in `repository.service` and test assertions rather than another error-contract redesign. |
 
 ## Issues Encountered
 {/* WHAT: Problems you ran into and how you solved them. WHY: Similar to errors in task_plan.md, but focused on broader issues (not just code errors). WHEN: Document when you encounter blockers or unexpected challenges. EXAMPLE: | Empty file causes JSONDecodeError | Added explicit empty file check before json.load() | */}
@@ -272,6 +294,15 @@
 - `docs/en/developer/plans/52d0x2aa8umrjgjklgwa/findings.md`
 - `docs/en/developer/plans/52d0x2aa8umrjgjklgwa/progress.md`
 - `docs/docs.json`
+- `backend/src/modules/users/user.service.ts`
+- `backend/src/modules/repositories/repository.service.ts`
+- `backend/src/modules/users/users.controller.ts`
+- `backend/src/modules/repositories/repositories.controller.ts`
+- `backend/src/modules/repositories/global-credentials.service.ts`
+- `backend/src/tests/unit/globalCredentialService.test.ts`
+- `backend/src/tests/unit/globalRobotsController.test.ts`
+- `pnpm --filter hookcode-backend build`
+- `pnpm --filter hookcode-backend test -- --runInBand ...`
 - `backend/prisma/schema.prisma`
 - `backend/src/types/repoRobot.ts`
 - `backend/src/modules/repositories/repositories.controller.ts`

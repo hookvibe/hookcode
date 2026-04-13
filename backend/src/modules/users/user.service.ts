@@ -8,6 +8,7 @@ import type { User } from '../../types/user';
 import { CODEX_PROVIDER_KEY } from '../../modelProviders/codex';
 import { CLAUDE_CODE_PROVIDER_KEY } from '../../modelProviders/claudeCode';
 import { GEMINI_CLI_PROVIDER_KEY } from '../../modelProviders/geminiCli';
+import { CredentialValidationError, createCredentialProfileRemarkRequiredError } from '../../utils/credentialValidation';
 import { normalizeHttpBaseUrl } from '../../utils/url';
 
 dotenv.config();
@@ -75,6 +76,8 @@ const isNotFoundError = (err: unknown): boolean =>
 
 const isUniqueError = (err: unknown): boolean =>
   err instanceof PrismaClientKnownRequestError && err.code === 'P2002';
+
+export const UserCredentialValidationError = CredentialValidationError;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -493,6 +496,7 @@ export class UserService {
     const next: UserModelCredentials = { ...current };
 
     const applyModelProviderUpdate = (
+      providerKey: 'codex' | 'claude_code' | 'gemini_cli',
       currentProvider: UserModelProviderCredentials | undefined,
       update:
         | UpdateUserModelCredentialsInput['codex']
@@ -530,7 +534,12 @@ export class UserService {
               ? ''
               : asTrimmedString(patch.remark);
         if (!remark) {
-          throw new Error('model provider credential profile remark is required');
+          throw createCredentialProfileRemarkRequiredError({
+            scope: 'user',
+            kind: 'model',
+            provider: providerKey,
+            profileId: patchId
+          });
         }
 
         const apiKey =
@@ -571,20 +580,21 @@ export class UserService {
 
     if (input.codex !== undefined) {
       // Change record: account-scoped Codex credentials now support multiple profiles.
-      next.codex = applyModelProviderUpdate(current.codex, input.codex);
+      next.codex = applyModelProviderUpdate('codex', current.codex, input.codex);
     }
 
     if (input.claude_code !== undefined) {
       // Change record: account-scoped Claude Code credentials now support multiple profiles + API Base URL.
-      next.claude_code = applyModelProviderUpdate(current.claude_code, input.claude_code);
+      next.claude_code = applyModelProviderUpdate('claude_code', current.claude_code, input.claude_code);
     }
 
     if (input.gemini_cli !== undefined) {
       // Change record: account-scoped Gemini CLI credentials now support multiple profiles + API Base URL.
-      next.gemini_cli = applyModelProviderUpdate(current.gemini_cli, input.gemini_cli);
+      next.gemini_cli = applyModelProviderUpdate('gemini_cli', current.gemini_cli, input.gemini_cli);
     }
 
     const applyRepoProviderUpdate = (
+      providerKey: 'gitlab' | 'github',
       currentProvider: UserRepoProviderCredentials | undefined,
       update: UpdateUserModelCredentialsInput['gitlab'] | UpdateUserModelCredentialsInput['github']
     ): UserRepoProviderCredentials => {
@@ -621,7 +631,12 @@ export class UserService {
               ? ''
               : asTrimmedString(patch.remark);
         if (!remark) {
-          throw new Error('repo provider credential profile remark is required');
+          throw createCredentialProfileRemarkRequiredError({
+            scope: 'user',
+            kind: 'repo',
+            provider: providerKey,
+            profileId: patchId
+          });
         }
 
         const token =
@@ -659,11 +674,11 @@ export class UserService {
     };
 
     if (input.gitlab !== undefined) {
-      next.gitlab = applyRepoProviderUpdate(current.gitlab, input.gitlab);
+      next.gitlab = applyRepoProviderUpdate('gitlab', current.gitlab, input.gitlab);
     }
 
     if (input.github !== undefined) {
-      next.github = applyRepoProviderUpdate(current.github, input.github);
+      next.github = applyRepoProviderUpdate('github', current.github, input.github);
     }
 
     const row = await db.user.update({

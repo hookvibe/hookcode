@@ -13,6 +13,7 @@ import {
   type UserModelCredentialsPublic
 } from '../users/user.service';
 import { normalizeHttpBaseUrl } from '../../utils/url';
+import { CredentialValidationError, createCredentialProfileRemarkRequiredError } from '../../utils/credentialValidation';
 
 const GLOBAL_CREDENTIAL_SETTINGS_ID = 'global';
 
@@ -40,19 +41,6 @@ const toStoredCredentialPayload = (credentials: UserModelCredentials): {
 
 @Injectable()
 export class GlobalCredentialService {
-  // Use stable service-level validation errors so admin credential APIs do not depend on fragile message matching. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
-  static ValidationError = class GlobalCredentialValidationError extends Error {
-    readonly code: string;
-    readonly details?: Record<string, unknown>;
-
-    constructor(message: string, params: { code: string; details?: Record<string, unknown> }) {
-      super(message);
-      this.name = 'GlobalCredentialValidationError';
-      this.code = params.code;
-      this.details = params.details;
-    }
-  };
-
   private mergeStoredCredentialPayload(row: {
     modelProviderCredentials?: unknown;
     repoProviderCredentials?: unknown;
@@ -141,9 +129,11 @@ export class GlobalCredentialService {
               ? ''
               : asTrimmedString(patch.remark);
         if (!remark) {
-          throw new GlobalCredentialService.ValidationError('model provider credential profile remark is required', {
-            code: 'GLOBAL_CREDENTIAL_MODEL_PROFILE_REMARK_REQUIRED',
-            details: { provider: providerKey, profileId: patchId }
+          throw createCredentialProfileRemarkRequiredError({
+            scope: 'global',
+            kind: 'model',
+            provider: providerKey,
+            profileId: patchId
           });
         }
 
@@ -218,9 +208,11 @@ export class GlobalCredentialService {
               ? ''
               : asTrimmedString(patch.remark);
         if (!remark) {
-          throw new GlobalCredentialService.ValidationError('repo provider credential profile remark is required', {
-            code: 'GLOBAL_CREDENTIAL_REPO_PROFILE_REMARK_REQUIRED',
-            details: { provider: providerKey, profileId: patchId }
+          throw createCredentialProfileRemarkRequiredError({
+            scope: 'global',
+            kind: 'repo',
+            provider: providerKey,
+            profileId: patchId
           });
         }
 
@@ -298,4 +290,4 @@ export class GlobalCredentialService {
   }
 }
 
-export const GlobalCredentialValidationError = GlobalCredentialService.ValidationError;
+export const GlobalCredentialValidationError = CredentialValidationError;

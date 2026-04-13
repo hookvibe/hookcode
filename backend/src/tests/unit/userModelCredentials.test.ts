@@ -9,7 +9,7 @@ jest.mock('../../db', () => ({
 }));
 
 import { db } from '../../db';
-import { UserService } from '../../modules/users/user.service';
+import { UserCredentialValidationError, UserService } from '../../modules/users/user.service';
 
 const userService = new UserService();
 
@@ -161,5 +161,43 @@ describe('user model credentials', () => {
         defaultProfileId: undefined
       }
     });
+  });
+
+  test('updateModelCredentials rejects model provider patches without a remark using a stable validation code', async () => {
+    (db.user.findUnique as any).mockResolvedValueOnce({
+      modelCredentials: {}
+    });
+
+    await expect(
+      userService.updateModelCredentials('u1', {
+        codex: { profiles: [{ id: 'codex-1', apiKey: 'secret-1', remark: '' }] }
+      })
+    ).rejects.toMatchObject<Partial<InstanceType<typeof UserCredentialValidationError>>>({
+      name: 'CredentialValidationError',
+      message: 'model provider credential profile remark is required',
+      code: 'USER_CREDENTIAL_MODEL_PROFILE_REMARK_REQUIRED',
+      details: { scope: 'user', provider: 'codex', profileId: 'codex-1' }
+    });
+
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  test('updateModelCredentials rejects repo provider patches without a remark using a stable validation code', async () => {
+    (db.user.findUnique as any).mockResolvedValueOnce({
+      modelCredentials: {}
+    });
+
+    await expect(
+      userService.updateModelCredentials('u1', {
+        github: { profiles: [{ id: 'github-1', token: 'ghp_1', remark: null }] }
+      })
+    ).rejects.toMatchObject<Partial<InstanceType<typeof UserCredentialValidationError>>>({
+      name: 'CredentialValidationError',
+      message: 'repo provider credential profile remark is required',
+      code: 'USER_CREDENTIAL_REPO_PROFILE_REMARK_REQUIRED',
+      details: { scope: 'user', provider: 'github', profileId: 'github-1' }
+    });
+
+    expect(db.user.update).not.toHaveBeenCalled();
   });
 });
