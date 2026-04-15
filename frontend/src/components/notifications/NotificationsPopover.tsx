@@ -6,6 +6,7 @@ import type { NotificationEntry } from '../../api';
 import { createAuthedEventSource } from '../../utils/sse';
 import { buildSettingsHash } from '../../router';
 import { useT } from '../../i18n';
+import { NotificationMessageLink } from './NotificationMessageLink';
 
 const formatTimestamp = (value: string): string => {
   const date = new Date(value);
@@ -106,7 +107,11 @@ export const NotificationsPopover: FC = () => {
                     <span className={`hc-notifications-popover__level hc-notifications-popover__level--${item.level}`}>{formatLevelLabel(item.level)}</span>
                     <span className="hc-notifications-popover__time">{formatTimestamp(item.createdAt)}</span>
                   </div>
-                  <div className="hc-notifications-popover__message">{item.message}</div>
+                  <NotificationMessageLink
+                    notification={item}
+                    className="hc-notifications-popover__message"
+                    onNavigate={() => setOpen(false)} // Close the popover before notification navigation so internal hash jumps and external tabs share one UX path. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
+                  />
                 </div>
               ))}
             </div>

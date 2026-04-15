@@ -6,6 +6,7 @@ import type { NotificationEntry, NotificationLevel } from '../../api';
 import { createAuthedEventSource } from '../../utils/sse';
 import { useT } from '../../i18n';
 import { SETTINGS_DATA_TABLE_CLASS_NAME, SETTINGS_DATA_TABLE_SCROLL_X } from './layout';
+import { NotificationMessageLink } from '../notifications/NotificationMessageLink';
 
 const formatTimestamp = (value: string): string => {
   const date = new Date(value);
@@ -65,7 +66,9 @@ export const SettingsNotificationsPanel: FC = () => {
         dataIndex: 'message',
         key: 'message',
         width: 360,
-        render: (value: string) => <span>{value}</span>
+        render: (_value: string, record) => (
+          <NotificationMessageLink notification={record} /> // Reuse the shared notification link renderer so settings-table navigation matches the header popover. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
+        )
       },
       {
         title: 'Context',

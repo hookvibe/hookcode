@@ -68,4 +68,36 @@ describe('NotificationsPopover', () => {
     await waitFor(() => expect(api.markAllNotificationsRead).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByText('View all')).not.toBeInTheDocument());
   });
+
+  // Ensure in-app notification links close the popover and update the hash router. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
+  test('navigates to an internal notification link from the popover', async () => {
+    vi.mocked(api.fetchNotificationsUnreadCount).mockResolvedValue({ count: 0 });
+    vi.mocked(api.fetchNotifications).mockResolvedValue({
+      notifications: [
+        {
+          id: 'n1',
+          userId: 'u1',
+          type: 'TASK_SUCCEEDED',
+          level: 'info',
+          message: 'Open task',
+          linkUrl: '#/tasks/task-1',
+          createdAt: '2026-03-03T00:00:00.000Z'
+        }
+      ],
+      nextCursor: undefined
+    });
+    vi.mocked(api.markAllNotificationsRead).mockResolvedValue({ updated: 0, readAt: '2026-03-03T00:00:00.000Z' });
+    window.location.hash = '#/';
+
+    render(<NotificationsPopover />);
+
+    const trigger = await screen.findByRole('button', { name: 'Notifications' });
+    await userEvent.setup().click(trigger);
+
+    const link = await screen.findByRole('link', { name: 'Open task' });
+    await userEvent.setup().click(link);
+
+    await waitFor(() => expect(window.location.hash).toBe('#/tasks/task-1'));
+    await waitFor(() => expect(screen.queryByText('View all')).not.toBeInTheDocument());
+  });
 });

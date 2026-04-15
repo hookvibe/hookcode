@@ -13,6 +13,7 @@ export interface NotificationEntry {
   repoId?: string;
   taskId?: string;
   taskGroupId?: string;
+  linkUrl?: string; // Keep the notification destination in the shared frontend contract for in-app hash and external navigation. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
   meta?: unknown;
   readAt?: string;
   createdAt: string;

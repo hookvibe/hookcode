@@ -29,6 +29,9 @@ export class NotificationEntryDto {
   @ApiPropertyOptional({ nullable: true })
   taskGroupId?: string | null;
 
+  @ApiPropertyOptional({ nullable: true, description: 'Primary notification target; in-app links use hash URLs and external targets keep absolute URLs.' })
+  linkUrl?: string | null; // Expose the notification destination in the public API contract. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
+
   @ApiPropertyOptional()
   meta?: Record<string, any>;
 

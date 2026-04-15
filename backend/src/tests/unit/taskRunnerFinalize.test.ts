@@ -187,6 +187,35 @@ describe('TaskRunner (worker dispatch + finalization)', () => {
     expect(workersService.releaseWorkerSlot).toHaveBeenCalledWith('worker-local');
   });
 
+  test('creates task-detail notification links when worker success notifications are emitted', async () => {
+    const task = createTask('t-notify-link', {
+      repoId: 'r1',
+      groupId: 'g1',
+      actorUserId: 'u1'
+    });
+    const taskService = {
+      patchResult: jest.fn().mockResolvedValueOnce({ ...task, status: 'succeeded' } as any)
+    };
+    const notificationsService = createNotificationsService();
+    const notificationRecipients = {
+      resolveRecipientsForTask: jest.fn().mockResolvedValue(['u1'])
+    };
+    const { runner } = createRunner({ taskService, notificationsService, notificationRecipients });
+
+    await runner.reportWorkerSuccess(task, { providerCommentUrl: 'https://example.com/comment/1', durationMs: 12 });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(notificationsService.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'u1',
+        taskId: 't-notify-link',
+        taskGroupId: 'g1',
+        linkUrl: '#/tasks/t-notify-link'
+      })
+    );
+  });
+
   test('calls hooks on dispatch start and worker success finish', async () => {
     const events: string[] = [];
     const task = createTask('t-hooks', { status: 'queued' });

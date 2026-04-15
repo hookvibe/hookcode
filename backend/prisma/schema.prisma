@@ -313,6 +313,8 @@ model Notification {
   repoId      String?  @map("repo_id") @db.Uuid
   taskId      String?  @map("task_id") @db.Uuid
   taskGroupId String?  @map("task_group_id") @db.Uuid
+  /// Persist the primary notification target so the UI can navigate with in-app hashes or preserved external URLs. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
+  linkUrl     String?  @map("link_url") @db.Text
   meta        Json?    @map("meta_json") @db.JsonB
   readAt      DateTime? @map("read_at") @db.Timestamptz(6)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

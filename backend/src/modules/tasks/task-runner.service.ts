@@ -5,6 +5,7 @@ import { AgentService } from './agent.service';
 import { TaskService } from './task.service';
 import { TaskLogsService } from './task-logs.service';
 import { LogWriterService } from '../logs/log-writer.service';
+import { buildNotificationLinkUrl } from '../notifications/notification-links';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
 import { TASK_MANUAL_STOP_MESSAGE } from './task-control.constants';
@@ -230,6 +231,7 @@ export class TaskRunner {
         level: 'info',
         message: `Task succeeded: ${buildTaskLabel(task)}`,
         code: 'TASK_SUCCEEDED',
+        externalUrl: params.providerCommentUrl,
         meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
       });
       await this.runHookFinish(task, {
@@ -273,6 +275,7 @@ export class TaskRunner {
           level: 'warn',
           message: `Task stopped: ${buildTaskLabel(task)}`,
           code: 'TASK_STOPPED',
+          externalUrl: params.providerCommentUrl,
           meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
         });
         await this.runHookFinish(task, {
@@ -299,6 +302,7 @@ export class TaskRunner {
           level: 'error',
           message: `Task deleted: ${buildTaskLabel(task)}`,
           code: 'TASK_DELETED',
+          externalUrl: params.providerCommentUrl,
           meta: { durationMs: params.durationMs ?? 0, retries: task.retries, workerId: task.workerId }
         });
         await this.runHookFinish(task, {
@@ -329,6 +333,7 @@ export class TaskRunner {
         level: 'error',
         message: `Task failed: ${buildTaskLabel(task)}`,
         code: 'TASK_FAILED',
+        externalUrl: params.providerCommentUrl,
         meta: { durationMs: params.durationMs ?? 0, retries: task.retries, error: params.message, workerId: task.workerId }
       });
       await this.runHookFinish(task, {
@@ -422,6 +427,7 @@ export class TaskRunner {
         level: 'info',
         message: `Task succeeded: ${buildTaskLabel(task)}`,
         code: 'TASK_SUCCEEDED',
+        externalUrl: providerCommentUrl,
         meta: { durationMs: Date.now() - startedAt, retries: task.retries }
       });
       await this.runHookFinish(task, {
@@ -464,6 +470,7 @@ export class TaskRunner {
           level: 'warn',
           message: `Task failed: ${buildTaskLabel(task)}`,
           code: 'TASK_RUNTIME_LIMIT',
+          externalUrl: providerCommentUrl,
           meta: { durationMs: Date.now() - startedAt, retries: task.retries }
         });
         await this.runHookFinish(task, {
@@ -499,6 +506,7 @@ export class TaskRunner {
           level: 'warn',
           message: `Task stopped: ${buildTaskLabel(task)}`,
           code: 'TASK_STOPPED',
+          externalUrl: providerCommentUrl,
           meta: { durationMs: Date.now() - startedAt, retries: task.retries }
         });
         await this.runHookFinish(task, {
@@ -528,6 +536,7 @@ export class TaskRunner {
           level: 'error',
           message: `Task deleted: ${buildTaskLabel(task)}`,
           code: 'TASK_DELETED',
+          externalUrl: providerCommentUrl,
           meta: { durationMs: Date.now() - startedAt, retries: task.retries }
         });
         await this.runHookFinish(task, {
@@ -558,6 +567,7 @@ export class TaskRunner {
         level: 'error',
         message: `Task failed: ${buildTaskLabel(task)}`,
         code: 'TASK_FAILED',
+        externalUrl: providerCommentUrl,
         meta: { durationMs: Date.now() - startedAt, retries: task.retries, error: message }
       });
       await this.runHookFinish(task, {
@@ -574,7 +584,14 @@ export class TaskRunner {
 
   private async emitTaskNotification(
     task: Task,
-    params: { type: 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_STOPPED' | 'TASK_DELETED'; level: 'info' | 'warn' | 'error'; message: string; code: string; meta?: Record<string, unknown> }
+    params: {
+      type: 'TASK_SUCCEEDED' | 'TASK_FAILED' | 'TASK_STOPPED' | 'TASK_DELETED';
+      level: 'info' | 'warn' | 'error';
+      message: string;
+      code: string;
+      externalUrl?: string; // Carry optional provider-side URLs into the notification link helper without splitting the public notification schema. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
+      meta?: Record<string, unknown>;
+    }
   ): Promise<void> {
     // Best-effort: emit user notifications without blocking task completion. docs/en/developer/plans/notify-panel-20260302/task_plan.md notify-panel-20260302
     try {
@@ -597,6 +614,7 @@ export class TaskRunner {
             repoId: task.repoId,
             taskId: task.id,
             taskGroupId: task.groupId,
+            linkUrl: buildNotificationLinkUrl({ taskId: task.id, externalUrl: params.externalUrl }), // Prefer task detail hashes while preserving external URLs only when no in-app target exists. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
             meta: params.meta
           })
         )

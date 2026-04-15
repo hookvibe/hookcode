@@ -10,13 +10,14 @@ This page documents the per-user notification APIs used by the console header pa
 Each notification contains:
 - `id` (string)
 - `userId` (string)
-- `type` (`TASK_SUCCEEDED` | `TASK_FAILED` | `TASK_PAUSED` | `TASK_DELETED`)
+- `type` (`TASK_SUCCEEDED` | `TASK_FAILED` | `TASK_STOPPED` | `TASK_DELETED`)
 - `level` (`info` | `warn` | `error`)
 - `message` (string)
 - `code` (string, optional)
 - `repoId` (string, optional)
 - `taskId` (string, optional)
 - `taskGroupId` (string, optional)
+- `linkUrl` (string, optional): the primary notification destination; in-app pages use relative hash URLs like `#/tasks/<id>`, while external targets keep their original absolute URL. <!-- Document notification link targets for in-app hashes and external absolute URLs. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9 -->
 - `meta` (object, optional)
 - `readAt` (ISO timestamp, optional)
 - `createdAt` (ISO timestamp)

@@ -16,6 +16,7 @@ export interface CreateNotificationInput {
   repoId?: string;
   taskId?: string;
   taskGroupId?: string;
+  linkUrl?: string; // Persist the primary notification destination so producers can hand the UI one canonical target. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
   meta?: unknown;
 }
 
@@ -51,6 +52,7 @@ export class NotificationsService {
         repoId: input.repoId ?? null,
         taskId: input.taskId ?? null,
         taskGroupId: input.taskGroupId ?? null,
+        linkUrl: input.linkUrl ?? null,
         meta: input.meta === undefined ? undefined : (input.meta as any)
       }
     });
@@ -67,7 +69,7 @@ export class NotificationsService {
       repoId: entry.repoId,
       taskId: entry.taskId,
       taskGroupId: entry.taskGroupId,
-      meta: { notificationId: entry.id, type: entry.type }
+      meta: { notificationId: entry.id, type: entry.type, hasLink: Boolean(entry.linkUrl) } // Record link presence without logging raw URLs. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
     });
 
     return entry;
@@ -151,6 +153,7 @@ export class NotificationsService {
       repoId: row.repoId ?? undefined,
       taskId: row.taskId ?? undefined,
       taskGroupId: row.taskGroupId ?? undefined,
+      linkUrl: row.linkUrl ?? undefined,
       meta: row.meta ?? undefined,
       readAt: row.readAt ? (row.readAt instanceof Date ? row.readAt.toISOString() : String(row.readAt)) : undefined,
       createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt)

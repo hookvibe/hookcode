@@ -1386,6 +1386,15 @@
                     "expanded": false
                   },
                   {
+                    "group": "Add notification target links (cv3zazhx2a716nfc0wn9)",
+                    "pages": [
+                      "en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan",
+                      "en/developer/plans/cv3zazhx2a716nfc0wn9/findings",
+                      "en/developer/plans/cv3zazhx2a716nfc0wn9/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
                     "group": "Cross-platform compatibility audit and fixes (crossplatformcompat20260318)",
                     "pages": [
                       "en/developer/plans/crossplatformcompat20260318/task_plan",
@@ -1566,7 +1575,7 @@
                     "expanded": false
                   },
                   {
-                    "group": "Global robots, global credentials, and first hardening batch (52d0x2aa8umrjgjklgwa)",
+                    "group": "Global robots, global credentials, ongoing hardening, and test stabilization (52d0x2aa8umrjgjklgwa)",
                     "pages": [
                       "en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan",
                       "en/developer/plans/52d0x2aa8umrjgjklgwa/findings",

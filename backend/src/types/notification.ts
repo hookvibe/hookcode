@@ -12,6 +12,7 @@ export interface NotificationEntry {
   repoId?: string;
   taskId?: string;
   taskGroupId?: string;
+  linkUrl?: string; // Store the primary notification destination for in-app task pages or preserved external URLs. docs/en/developer/plans/cv3zazhx2a716nfc0wn9/task_plan.md cv3zazhx2a716nfc0wn9
   meta?: unknown;
   readAt?: string;
   createdAt: string;
