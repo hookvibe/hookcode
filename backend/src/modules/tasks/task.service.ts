@@ -34,6 +34,8 @@ import {
   TASK_MANUAL_STOP_REASON,
   type TaskReorderAction
 } from './task-control.constants';
+import { TaskCreationGuardError } from './task-creation-guard-error';
+import { normalizeSupportedModelProviderKey } from '../../services/modelProviderModels';
 
 /**
  * tasks table access layer (the "source of truth" for the queue/task state machine):
@@ -478,20 +480,35 @@ export class TaskService {
     return this.workersService.findEffectiveWorkerId(params);
   }
 
-  private async assertWorkerReadyForNewTask(workerId: string | null): Promise<void> {
+  private async resolveTaskProviderForRobot(robotId?: string | null): Promise<string | null> {
+    const normalizedRobotId = safeTrim(robotId);
+    if (!normalizedRobotId) return null;
+    if (!this.robotCatalogService) return 'codex';
+    const robot = await this.robotCatalogService.getById(normalizedRobotId);
+    try {
+      return normalizeSupportedModelProviderKey(robot?.modelProvider);
+    } catch {
+      return 'codex';
+    }
+  }
+
+  private async assertWorkerReadyForNewTask(workerId: string | null, provider?: string | null): Promise<void> {
     const normalized = safeTrim(workerId);
     if (!this.workersService) return;
     // Fail fast when no default or explicit worker is available so disabled/bootstrap-misconfigured deployments never enqueue tasks onto a null worker id silently. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     if (!normalized) {
-      const error = new Error('No ready worker is configured for this task');
-      (error as Error & { code?: string }).code = 'WORKER_NOT_CONFIGURED';
-      throw error;
+      throw new TaskCreationGuardError('WORKER_NOT_CONFIGURED', 'No ready worker is configured for this task');
     }
-    const readiness = await this.workersService.requireWorkerReadyForNewTask(normalized);
+    const readiness = await this.workersService.requireWorkerReadyForNewTask(normalized, provider);
     if (readiness.ok) return;
-    const error = new Error(readiness.message);
-    (error as Error & { code?: string }).code = readiness.code;
-    throw error;
+    // Audit worker/provider gating failures so operators can see why tasks were blocked before any executor-side error occurred. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
+    void this.logWriter?.logSystem({
+      level: 'warn',
+      message: `Task creation blocked: ${readiness.message}`,
+      code: readiness.code === 'WORKER_PROVIDER_NOT_READY' ? 'TASK_WORKER_PROVIDER_NOT_READY' : 'TASK_WORKER_NOT_READY',
+      meta: { workerId: normalized, provider: provider ?? null, readinessCode: readiness.code }
+    });
+    throw new TaskCreationGuardError(readiness.code, readiness.message);
   }
 
   private async attachMeta(tasks: TaskWithMeta[]): Promise<TaskWithMeta[]> {
@@ -932,7 +949,8 @@ export class TaskService {
       taskGroupId: groupId,
       robotId: meta?.robotId ?? null
     });
-    await this.assertWorkerReadyForNewTask(effectiveWorkerId);
+    const provider = await this.resolveTaskProviderForRobot(meta?.robotId ?? null);
+    await this.assertWorkerReadyForNewTask(effectiveWorkerId, provider);
     const groupOrder = await this.getNextGroupOrder(groupId);
     const created = await db.task.create({
       data: {
@@ -1012,7 +1030,8 @@ export class TaskService {
         taskGroupId: String(group.id),
         robotId: meta?.robotId ?? null
       });
-      await this.assertWorkerReadyForNewTask(effectiveWorkerId);
+      const provider = await this.resolveTaskProviderForRobot(meta?.robotId ?? null);
+      await this.assertWorkerReadyForNewTask(effectiveWorkerId, provider);
     } catch (err) {
       if (isNotFoundError(err)) throw new Error('task group not found');
       throw err;
@@ -1069,7 +1088,8 @@ export class TaskService {
   }): Promise<TaskGroup> {
     const now = new Date();
     const workerId = await this.resolveEffectiveWorkerId({ requestedWorkerId: params.workerId ?? null, robotId: params.robotId ?? null });
-    await this.assertWorkerReadyForNewTask(workerId);
+    const provider = await this.resolveTaskProviderForRobot(params.robotId ?? null);
+    await this.assertWorkerReadyForNewTask(workerId, provider);
 
     // Retry on extremely unlikely bindingKey collisions (unique constraint).
     for (let attempt = 0; attempt < 3; attempt += 1) {

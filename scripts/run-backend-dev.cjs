@@ -47,12 +47,16 @@ function readBackendDevEnvFile(envPath = DEFAULT_BACKEND_ENV_PATH) {
   }
 }
 
-// Resolve the effective source-mode database target from backend/.env plus shell overrides so `pnpm dev:backend` can block accidental shared/prod DB usage before Nest bootstraps a worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-function resolveBackendDevDatabaseUrl({ env = process.env, envPath = DEFAULT_BACKEND_ENV_PATH } = {}) {
-  return buildDatabaseUrl({
+function resolveBackendDevEnv({ env = process.env, envPath = DEFAULT_BACKEND_ENV_PATH } = {}) {
+  return {
     ...readBackendDevEnvFile(envPath),
     ...env
-  });
+  };
+}
+
+// Resolve the effective source-mode database target from backend/.env plus shell overrides so `pnpm dev:backend` can block accidental shared/prod DB usage before Nest bootstraps a worker. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+function resolveBackendDevDatabaseUrl({ env = process.env, envPath = DEFAULT_BACKEND_ENV_PATH } = {}) {
+  return buildDatabaseUrl(resolveBackendDevEnv({ env, envPath }));
 }
 
 function isLoopbackDatabaseUrl(databaseUrl) {
@@ -65,9 +69,10 @@ function isLoopbackDatabaseUrl(databaseUrl) {
 }
 
 function assertSafeLocalDevDatabase({ env = process.env, envPath = DEFAULT_BACKEND_ENV_PATH } = {}) {
-  if (isTruthy(env.HOOKCODE_ALLOW_REMOTE_DEV_DB)) return;
+  const resolvedEnv = resolveBackendDevEnv({ env, envPath });
+  if (isTruthy(resolvedEnv.HOOKCODE_ALLOW_REMOTE_DEV_DB)) return;
 
-  const databaseUrl = resolveBackendDevDatabaseUrl({ env, envPath });
+  const databaseUrl = resolveBackendDevDatabaseUrl({ env: resolvedEnv, envPath });
   if (isLoopbackDatabaseUrl(databaseUrl)) return;
 
   const parsed = new URL(databaseUrl);
@@ -127,6 +132,7 @@ module.exports = {
   isLoopbackDatabaseUrl,
   parseSimpleDotenv,
   readBackendDevEnvFile,
+  resolveBackendDevEnv,
   resolveBackendDevDatabaseUrl,
   runBackendDev
 };

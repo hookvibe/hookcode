@@ -14,17 +14,25 @@ import {
 } from '../../api';
 import { getApiErrorMessage } from '../../api/client';
 import { useLocale, useT, type TFunction } from '../../i18n';
+import {
+  getWorkerProviderGuardDetails,
+  getWorkerProviderLabel,
+  getWorkerProviderRuntimeEntry,
+  getWorkerProviderRuntimeStatus,
+  isWorkerProviderReady,
+  WORKER_PROVIDER_KEYS
+} from '../../utils/workerRuntime';
 import { formatWorkerOptionLabel, getWorkerRuntimeStatusLabel } from '../../utils/workers';
 import { WorkerSummaryTag } from '../workers/WorkerSummaryTag';
 import { SETTINGS_DATA_TABLE_SCROLL_X, SETTINGS_STICKY_ACTIONS_TABLE_CLASS_NAME } from './layout';
 
-const DEFAULT_PROVIDER_OPTIONS = [
-  { value: 'codex', label: 'Codex' },
-  { value: 'claude_code', label: 'Claude Code' },
-  { value: 'gemini_cli', label: 'Gemini CLI' }
-];
+const DEFAULT_PROVIDER_OPTIONS = WORKER_PROVIDER_KEYS.map((provider) => ({
+  value: provider,
+  label: getWorkerProviderLabel(provider)
+}));
 
 const powerShellQuote = (value: string): string => `'${String(value).replace(/'/g, "''")}'`;
+const dotenvQuote = (value: string): string => JSON.stringify(String(value));
 
 const trimString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
@@ -46,21 +54,27 @@ const formatDateTime = (locale: string, value?: string | null): string => {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(parsed);
 };
 
-const describeRuntimeProviders = (providers?: string[] | null): string => {
-  if (!Array.isArray(providers) || providers.length === 0) return '-';
-  return providers.join(', ');
-};
-
 const resolveRuntimeStatus = (worker: WorkerRecord): 'idle' | 'preparing' | 'ready' | 'error' => {
-  if (worker.runtimeState?.lastPrepareError) return 'error';
-  if ((worker.runtimeState?.preparingProviders?.length ?? 0) > 0) return 'preparing';
-  if ((worker.runtimeState?.preparedProviders?.length ?? 0) > 0) return 'ready';
+  const statuses = WORKER_PROVIDER_KEYS.map((provider) => getWorkerProviderRuntimeStatus(worker, provider));
+  if (statuses.includes('preparing')) return 'preparing';
+  if (statuses.includes('error')) return 'error';
+  if (statuses.includes('ready')) return 'ready';
   return 'idle';
 };
 
-const resolveRuntimeProviders = (worker: WorkerRecord): string[] => {
-  if ((worker.runtimeState?.preparingProviders?.length ?? 0) > 0) return worker.runtimeState?.preparingProviders ?? [];
-  return worker.runtimeState?.preparedProviders ?? [];
+const resolveDefaultPrepareProviders = (worker: WorkerRecord): string[] => {
+  const missingProviders = WORKER_PROVIDER_KEYS.filter((provider) => !isWorkerProviderReady(worker, provider));
+  return missingProviders.length > 0 ? missingProviders : [...WORKER_PROVIDER_KEYS];
+};
+
+const hasPreparingWorkerRuntime = (worker: WorkerRecord): boolean =>
+  WORKER_PROVIDER_KEYS.some((provider) => getWorkerProviderRuntimeStatus(worker, provider) === 'preparing');
+
+const getProviderTagColor = (status: ReturnType<typeof getWorkerProviderRuntimeStatus>): string => {
+  if (status === 'ready') return 'success';
+  if (status === 'preparing') return 'processing';
+  if (status === 'error') return 'error';
+  return 'default';
 };
 
 const requiresWorkerUpgrade = (worker: WorkerRecord): boolean => Boolean(worker.versionState?.upgradeRequired);
@@ -95,6 +109,13 @@ const buildInstallScripts = (info: WorkerBindInfo) => {
   const workerName = worker.name || 'HookCode Worker';
   const concurrency = String(worker.maxConcurrency || 1);
   const installCommand = `npm install -g @hookvibe/hookcode-worker@${requiredVersion}`;
+  const workerDevEnv = [
+    `HOOKCODE_WORK_DIR=${dotenvQuote(`~/.hookcode/workers/${worker.id}`)}`,
+    `HOOKCODE_WORKER_BIND_CODE=${dotenvQuote(info.bindCode)}`,
+    'HOOKCODE_WORKER_KIND=remote',
+    `HOOKCODE_WORKER_NAME=${dotenvQuote(workerName)}`,
+    `HOOKCODE_WORKER_MAX_CONCURRENCY=${concurrency}`
+  ].join('\n');
   const linuxEnvFile = [
     `HOOKCODE_WORK_DIR=${linuxWorkDir}`,
     `HOOKCODE_WORKER_BIND_CODE='${info.bindCode}'`,
@@ -149,6 +170,8 @@ const buildInstallScripts = (info: WorkerBindInfo) => {
     linuxSystemdEnv: linuxEnvFile,
     linuxSystemdUnit,
     linuxSystemdUnitName: systemdUnitName,
+    workerDevEnv,
+    workerDevCommand: 'pnpm dev',
     windows: [
       `$workDir = ${windowsWorkDir}`,
       'New-Item -ItemType Directory -Force $workDir | Out-Null',
@@ -206,6 +229,15 @@ export const SettingsWorkersPanel: FC = () => {
   useEffect(() => {
     void loadWorkers();
   }, [loadWorkers]);
+
+  useEffect(() => {
+    if (!workers.some((worker) => hasPreparingWorkerRuntime(worker))) return;
+    // Poll while a worker is preparing runtimes so the admin table can show Codex/Claude/Gemini progress without a manual refresh. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
+    const timer = window.setTimeout(() => {
+      void loadWorkers();
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [loadWorkers, workers]);
 
   const handleCreate = useCallback(async (values: { name: string; maxConcurrency?: number; backendUrl: string }) => {
     try {
@@ -357,17 +389,47 @@ export const SettingsWorkersPanel: FC = () => {
       {
         title: t('workers.table.runtime'),
         key: 'runtime',
-        width: 260,
+        width: 360,
         render: (_value, record) => {
           const runtimeStatus = resolveRuntimeStatus(record);
-          const providerText = describeRuntimeProviders(resolveRuntimeProviders(record));
+          const readyCount = WORKER_PROVIDER_KEYS.filter((provider) => isWorkerProviderReady(record, provider)).length;
           return (
-            <Space direction="vertical" size={2}>
+            <Space direction="vertical" size={6}>
               <Typography.Text>{getWorkerRuntimeStatusLabel(t, runtimeStatus)}</Typography.Text>
-              <Typography.Text type="secondary">{t('workers.field.providers')}: {providerText}</Typography.Text>
-              {record.runtimeState?.lastPrepareError ? (
-                <Typography.Text type="danger">{record.runtimeState.lastPrepareError}</Typography.Text>
-              ) : null}
+              <Typography.Text type="secondary">{t('workers.field.providers')}: {readyCount}/{WORKER_PROVIDER_KEYS.length}</Typography.Text>
+              {WORKER_PROVIDER_KEYS.map((provider) => {
+                const status = getWorkerProviderRuntimeStatus(record, provider);
+                const entry = getWorkerProviderRuntimeEntry(record.runtimeState, provider);
+                const guard = getWorkerProviderGuardDetails({
+                  workerName: record.name || record.id,
+                  provider,
+                  worker: record
+                });
+                const guardMessage =
+                  guard?.reason === 'preparing'
+                    ? t('workers.runtime.providerPreparingHint', { provider: guard.providerLabel, worker: guard.workerName })
+                    : guard?.reason === 'error'
+                      ? t('workers.runtime.providerErrorHint', {
+                          provider: guard.providerLabel,
+                          worker: guard.workerName,
+                          error: guard.error || record.runtimeState?.lastPrepareError || '-'
+                        })
+                      : guard?.reason === 'missing'
+                        ? t('workers.runtime.providerMissingHint', { provider: guard.providerLabel, worker: guard.workerName })
+                        : null;
+                return (
+                  <Space key={provider} direction="vertical" size={1} style={{ width: '100%' }}>
+                    <Space size={6} wrap>
+                      <Typography.Text strong>{getWorkerProviderLabel(provider)}</Typography.Text>
+                      <Tag color={getProviderTagColor(status)}>{getWorkerRuntimeStatusLabel(t, status)}</Tag>
+                    </Space>
+                    {entry?.error ? <Typography.Text type="danger">{entry.error}</Typography.Text> : null}
+                    {!entry?.error && status !== 'ready' && guardMessage ? (
+                      <Typography.Text type="secondary">{guardMessage}</Typography.Text>
+                    ) : null}
+                  </Space>
+                );
+              })}
             </Space>
           );
         }
@@ -401,7 +463,7 @@ export const SettingsWorkersPanel: FC = () => {
         fixed: 'right',
         render: (_value, record) => {
           const isBusy = rowLoadingId === record.id;
-          const isPreparing = prepareLoadingId === record.id;
+          const isPreparing = prepareLoadingId === record.id || hasPreparingWorkerRuntime(record);
           const nextStatus = record.status === 'disabled' ? 'offline' : 'disabled';
           const toggleLabel = record.status === 'disabled' ? t('workers.action.enable') : t('workers.action.disable');
           const defaultToggleLabel = record.isGlobalDefault ? t('workers.action.unsetDefault') : t('workers.action.setDefault');
@@ -419,7 +481,7 @@ export const SettingsWorkersPanel: FC = () => {
                 loading={isPreparing}
                 disabled={record.status !== 'online' || requiresWorkerUpgrade(record)}
                 onClick={() => {
-                  prepareForm.setFieldsValue({ providers: ['codex', 'claude_code', 'gemini_cli'] });
+                  prepareForm.setFieldsValue({ providers: resolveDefaultPrepareProviders(record) });
                   setPrepareOpen(record);
                 }}
               >
@@ -637,6 +699,19 @@ export const SettingsWorkersPanel: FC = () => {
             <Tabs
               items={[
                 { key: 'macos', label: 'macOS', children: <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.macos}</pre> },
+                {
+                  key: 'worker-dev',
+                  label: 'hookcode-worker dev',
+                  children: (
+                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                      <Alert showIcon type="success" message={t('workers.install.devTitle')} description={t('workers.install.devDesc')} />
+                      <Typography.Text strong>{t('workers.install.devEnvFile')}</Typography.Text>
+                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.workerDevEnv}</pre>
+                      <Typography.Text strong>{t('workers.install.devCommand')}</Typography.Text>
+                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.workerDevCommand}</pre>
+                    </Space>
+                  )
+                },
                 {
                   key: 'linux-systemd',
                   label: 'Linux (systemd)',

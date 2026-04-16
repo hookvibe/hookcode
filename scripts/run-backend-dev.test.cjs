@@ -10,6 +10,7 @@ const {
   getPnpmCommand,
   isLoopbackDatabaseUrl,
   parseSimpleDotenv,
+  resolveBackendDevEnv,
   resolveBackendDevDatabaseUrl
 } = require('./run-backend-dev.cjs');
 const { buildLocalDevDatabaseUrl, buildLocalDevDbDockerArgs, getLocalDevDbConfig } = require('./run-local-dev-db.cjs');
@@ -70,6 +71,29 @@ test('resolveBackendDevDatabaseUrl prefers shell env overrides over backend/.env
   fs.unlinkSync(envPath);
 });
 
+test('resolveBackendDevEnv preserves backend/.env flags and lets shell env override them', () => {
+  const envPath = path.join(os.tmpdir(), `hookcode-backend-dev-env-${Date.now()}.env`);
+  fs.writeFileSync(
+    envPath,
+    [
+      'DATABASE_URL=postgresql://hookcode_admin:secret@yuhe.space:7214/hookcode?schema=public',
+      'HOOKCODE_ALLOW_REMOTE_DEV_DB=true'
+    ].join('\n')
+  );
+
+  assert.deepEqual(resolveBackendDevEnv({ envPath, env: {} }), {
+    DATABASE_URL: 'postgresql://hookcode_admin:secret@yuhe.space:7214/hookcode?schema=public',
+    HOOKCODE_ALLOW_REMOTE_DEV_DB: 'true'
+  });
+
+  assert.deepEqual(resolveBackendDevEnv({ envPath, env: { HOOKCODE_ALLOW_REMOTE_DEV_DB: 'false' } }), {
+    DATABASE_URL: 'postgresql://hookcode_admin:secret@yuhe.space:7214/hookcode?schema=public',
+    HOOKCODE_ALLOW_REMOTE_DEV_DB: 'false'
+  });
+
+  fs.unlinkSync(envPath);
+});
+
 test('isLoopbackDatabaseUrl only treats loopback hosts as safe source-mode dev databases', () => {
   assert.equal(
     isLoopbackDatabaseUrl('postgresql://hookcode:hookcode@127.0.0.1:55432/hookcode_local?schema=public'),
@@ -103,6 +127,21 @@ test('assertSafeLocalDevDatabase blocks non-loopback backend/.env targets unless
       env: { HOOKCODE_ALLOW_REMOTE_DEV_DB: 'true' }
     })
   );
+
+  fs.unlinkSync(envPath);
+});
+
+test('assertSafeLocalDevDatabase accepts backend/.env overrides for remote dev databases', () => {
+  const envPath = path.join(os.tmpdir(), `hookcode-backend-dev-remote-allow-${Date.now()}.env`);
+  fs.writeFileSync(
+    envPath,
+    [
+      'DATABASE_URL=postgresql://hookcode_admin:secret@yuhe.space:7214/hookcode?schema=public',
+      'HOOKCODE_ALLOW_REMOTE_DEV_DB=true'
+    ].join('\n')
+  );
+
+  assert.doesNotThrow(() => assertSafeLocalDevDatabase({ envPath, env: {} }));
 
   fs.unlinkSync(envPath);
 });

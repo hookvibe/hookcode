@@ -25,12 +25,13 @@ export type WorkerTaskAcceptedMessage = {
 
 export type WorkerRuntimePrepareStartedMessage = {
   type: 'runtimePrepareStarted';
-  providers?: string[];
+  providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>;
+  runtimeState?: WorkerRuntimeState;
 };
 
 export type WorkerRuntimePrepareFinishedMessage = {
   type: 'runtimePrepareFinished';
-  providers?: string[];
+  providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>;
   runtimeState?: WorkerRuntimeState;
   error?: string;
 };
@@ -62,7 +63,7 @@ export type WorkerAssignTaskMessage = {
 
 export type WorkerPrepareRuntimeMessage = {
   type: 'prepareRuntime';
-  providers?: string[];
+  providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>;
 };
 
 export type WorkerCancelTaskMessage = {

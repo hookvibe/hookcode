@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, HttpException, InternalServerErrorException, NotFoundException, Post, Body, Req } from '@nestjs/common';
+import { BadRequestException, ConflictException, Controller, HttpException, InternalServerErrorException, NotFoundException, Post, Body, Req } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RepositoryService } from '../repositories/repository.service';
@@ -11,6 +11,7 @@ import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
 import { ChatExecuteRequestDto, ChatExecuteResponseDto } from './dto/chat-swagger.dto';
+import { isTaskCreationGuardError } from './task-creation-guard-error';
 
 /**
  * Chat API (manual trigger):
@@ -160,6 +161,10 @@ export class ChatController {
 
       return { task: taskWithMeta as any, taskGroup: groupWithMeta as any };
     } catch (err) {
+      if (isTaskCreationGuardError(err)) {
+        // Return explicit worker/provider readiness failures so chat submits stop before executor dispatch instead of degrading into opaque 500 errors. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
+        throw new ConflictException({ error: err.message, code: err.code });
+      }
       if (err instanceof HttpException) throw err;
       console.error('[chat] execute failed', err);
       throw new InternalServerErrorException({ error: 'Failed to execute chat task' });

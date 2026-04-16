@@ -12,9 +12,11 @@ import {
   listAvailableRepoRobots,
   updateTaskGroupSkillSelection
 } from '../../api';
+import { getApiErrorMessage } from '../../api/client';
 import type { TFunction } from '../../i18n';
 import { buildTaskGroupHash } from '../../router';
 import { formatRobotOptionLabel } from '../../utils/robot';
+import { getWorkerProviderGuardDetails, normalizeWorkerProviderKey } from '../../utils/workerRuntime';
 import { formatWorkerOptionLabel } from '../../utils/workers';
 import { getStoredUser } from '../../auth';
 import { createAuthedEventSource } from '../../utils/sse';
@@ -208,6 +210,35 @@ export const useTaskGroupWorkspaceData = ({
   );
 
   const taskById = useMemo(() => new Map(orderedTasks.map((task) => [task.id, task])), [orderedTasks]);
+  const selectedRobotProvider = useMemo(() => {
+    const robot = robots.find((item) => item.id === robotId);
+    return normalizeWorkerProviderKey(robot?.modelProvider ?? 'codex');
+  }, [robotId, robots]);
+  const selectedWorkerRecord = useMemo(() => {
+    const targetWorkerId = String(workerId ?? '').trim();
+    if (!targetWorkerId) return null;
+    return workers.find((worker) => worker.id === targetWorkerId) ?? null;
+  }, [workerId, workers]);
+  const selectedWorkerProviderGuardMessage = useMemo(() => {
+    if (!selectedWorkerRecord || !selectedRobotProvider) return null;
+    const guard = getWorkerProviderGuardDetails({
+      workerName: selectedWorkerRecord.name || selectedWorkerRecord.id,
+      provider: selectedRobotProvider,
+      worker: selectedWorkerRecord
+    });
+    if (!guard) return null;
+    if (guard.reason === 'preparing') {
+      return t('chat.validation.workerProviderPreparing', { provider: guard.providerLabel, worker: guard.workerName });
+    }
+    if (guard.reason === 'error') {
+      return t('chat.validation.workerProviderUnavailable', {
+        provider: guard.providerLabel,
+        worker: guard.workerName,
+        error: guard.error || selectedWorkerRecord.runtimeState?.lastPrepareError || '-'
+      });
+    }
+    return t('chat.validation.workerProviderMissing', { provider: guard.providerLabel, worker: guard.workerName });
+  }, [selectedRobotProvider, selectedWorkerRecord, t]);
 
   const groupTitle = useMemo(() => {
     if (!group) return '';
@@ -496,6 +527,11 @@ export const useTaskGroupWorkspaceData = ({
       message.warning(t('chat.validation.textRequired'));
       return;
     }
+    if (selectedWorkerProviderGuardMessage) {
+      // Block obvious provider/runtime mismatches in the composer when the admin already chose a concrete worker, while backend validation remains the real safety boundary. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
+      message.warning(selectedWorkerProviderGuardMessage);
+      return;
+    }
     if (sending) return;
 
     setSending(true);
@@ -525,11 +561,11 @@ export const useTaskGroupWorkspaceData = ({
       if (nextGroupId) void refreshGroupDetail(nextGroupId, { mode: 'refreshing' });
     } catch (error) {
       console.error(error);
-      message.error(t('toast.chat.executeFailed'));
+      message.error(getApiErrorMessage(error) || t('toast.chat.executeFailed'));
     } finally {
       setSending(false);
     }
-  }, [chatTimeWindow, message, refreshGroupDetail, repoId, robotId, sending, t, taskGroupId, workerId]);
+  }, [chatTimeWindow, message, refreshGroupDetail, repoId, robotId, selectedWorkerProviderGuardMessage, sending, t, taskGroupId, workerId]);
 
   const canRunChatInGroup = Boolean(
     !taskGroupId || group?.kind === 'chat' || group?.kind === 'issue' || group?.kind === 'merge_request' || group?.kind === 'commit'

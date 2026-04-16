@@ -89,7 +89,8 @@ export class WorkersConnectionService {
     return this.send(workerId, { type: 'assignTask', taskId });
   }
 
-  sendPrepareRuntime(workerId: string, providers?: string[]): boolean {
+  sendPrepareRuntime(workerId: string, providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>): boolean {
+    // Forward provider-scoped prepare requests so remote workers can report live Codex/Claude/Gemini status changes back to the admin panel. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
     return this.send(workerId, { type: 'prepareRuntime', providers });
   }
 
@@ -204,7 +205,7 @@ export class WorkersConnectionService {
         }
         if (message.type === 'runtimePrepareStarted') {
           this.lastSeenAt.set(workerId, Date.now());
-          await this.workersService.markRuntimePreparing(workerId, message.providers);
+          await this.workersService.markRuntimePreparing(workerId, { providers: message.providers, runtimeState: message.runtimeState });
           return;
         }
         if (message.type === 'runtimePrepareFinished') {

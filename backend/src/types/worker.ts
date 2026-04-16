@@ -1,18 +1,31 @@
 export type WorkerKind = 'local' | 'remote';
 export type WorkerStatus = 'online' | 'offline' | 'disabled';
 export type WorkerVersionStatus = 'compatible' | 'mismatch' | 'unknown';
+export type WorkerProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
+export type WorkerProviderRuntimeStatus = 'idle' | 'preparing' | 'ready' | 'error';
+
+export interface WorkerProviderRuntimeEntry {
+  status: WorkerProviderRuntimeStatus;
+  startedAt?: string;
+  finishedAt?: string;
+  error?: string;
+}
+
+export type WorkerProviderRuntimeStatuses = Partial<Record<WorkerProviderKey, WorkerProviderRuntimeEntry>>;
 
 export interface WorkerCapabilities {
   // Limit preview support to local workers in v1 so remote dev-server proxying stays explicit. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
   preview?: boolean;
   runtimes?: Array<{ language: string; version?: string; path?: string }>;
-  providers?: string[];
+  providers?: WorkerProviderKey[];
 }
 
 export interface WorkerRuntimeState {
   // Persist provider/runtime preparation state for the admin worker panel. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-  preparedProviders?: string[];
-  preparingProviders?: string[];
+  // Track provider-level readiness so worker routing can block missing Codex/Claude/Gemini runtimes before task dispatch. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
+  providerStatuses?: WorkerProviderRuntimeStatuses;
+  preparedProviders?: WorkerProviderKey[];
+  preparingProviders?: WorkerProviderKey[];
   lastPrepareAt?: string;
   lastPrepareError?: string;
 }

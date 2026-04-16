@@ -3,6 +3,17 @@
 export type WorkerKind = 'local' | 'remote';
 export type WorkerStatus = 'online' | 'offline' | 'disabled';
 export type WorkerVersionStatus = 'compatible' | 'mismatch' | 'unknown';
+export type WorkerProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
+export type WorkerProviderRuntimeStatus = 'idle' | 'preparing' | 'ready' | 'error';
+
+export interface WorkerProviderRuntimeEntry {
+  status: WorkerProviderRuntimeStatus;
+  startedAt?: string;
+  finishedAt?: string;
+  error?: string;
+}
+
+export type WorkerProviderRuntimeStatuses = Partial<Record<WorkerProviderKey, WorkerProviderRuntimeEntry>>;
 
 export interface WorkerRuntimeCapability {
   language: string;
@@ -13,12 +24,14 @@ export interface WorkerRuntimeCapability {
 export interface WorkerCapabilities {
   preview?: boolean;
   runtimes?: WorkerRuntimeCapability[];
-  providers?: string[];
+  providers?: WorkerProviderKey[];
 }
 
 export interface WorkerRuntimeState {
-  preparedProviders?: string[];
-  preparingProviders?: string[];
+  // Mirror provider-level runtime readiness so chat and worker settings can render Codex/Claude/Gemini availability consistently. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
+  providerStatuses?: WorkerProviderRuntimeStatuses;
+  preparedProviders?: WorkerProviderKey[];
+  preparingProviders?: WorkerProviderKey[];
   lastPrepareAt?: string;
   lastPrepareError?: string;
 }

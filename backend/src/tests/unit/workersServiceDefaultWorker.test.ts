@@ -12,8 +12,10 @@ jest.mock('../../db', () => ({
 
 import { db } from '../../db';
 import { WorkersService } from '../../modules/workers/workers.service';
+import { getWorkerVersionRequirement } from '../../modules/workers/worker-version-policy';
 
 describe('WorkersService default worker routing', () => {
+  const compatibleWorkerVersion = getWorkerVersionRequirement().requiredVersion;
   const logWriter = {
     logSystem: jest.fn(),
     logExecution: jest.fn()
@@ -59,5 +61,47 @@ describe('WorkersService default worker routing', () => {
     await expect(service.reconcileStaleWorkers(new Date('2026-04-09T00:01:00.000Z'))).resolves.toBe(1);
     expect(markOfflineSpy).toHaveBeenCalledWith('stale-worker', 'startup_stale_reconcile');
     expect(markOfflineSpy).not.toHaveBeenCalledWith('fresh-worker', expect.anything());
+  });
+
+  test('blocks task creation when the selected provider is not prepared on the worker', async () => {
+    (db.worker.findUnique as jest.Mock).mockResolvedValue({
+      status: 'online',
+      disabledAt: null,
+      name: 'remote-1',
+      version: compatibleWorkerVersion,
+      lastSeenAt: new Date(),
+      runtimeState: {
+        providerStatuses: {
+          claude_code: { status: 'ready' }
+        }
+      },
+      capabilities: { providers: ['claude_code'] }
+    });
+
+    const service = new WorkersService(logWriter as any);
+    await expect(service.requireWorkerReadyForNewTask('worker-1', 'codex')).resolves.toEqual({
+      ok: false,
+      code: 'WORKER_PROVIDER_NOT_READY',
+      message: 'Codex is not prepared on remote-1. Prepare that runtime in the worker panel before starting the task.'
+    });
+  });
+
+  test('accepts task creation when the selected provider is already prepared', async () => {
+    (db.worker.findUnique as jest.Mock).mockResolvedValue({
+      status: 'online',
+      disabledAt: null,
+      name: 'remote-1',
+      version: compatibleWorkerVersion,
+      lastSeenAt: new Date(),
+      runtimeState: {
+        providerStatuses: {
+          codex: { status: 'ready' }
+        }
+      },
+      capabilities: { providers: ['codex'] }
+    });
+
+    const service = new WorkersService(logWriter as any);
+    await expect(service.requireWorkerReadyForNewTask('worker-1', 'codex')).resolves.toEqual({ ok: true });
   });
 });

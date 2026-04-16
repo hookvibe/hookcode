@@ -136,10 +136,14 @@ describe('SettingsWorkersPanel', () => {
 
     await waitFor(() => expect(api.createWorker).toHaveBeenCalledWith({ name: 'Remote worker', maxConcurrency: 1, backendUrl: defaultBackendUrl }));
     expect(await screen.findByText('Manual deployment')).toBeInTheDocument();
+    await ui.click(screen.getByRole('tab', { name: 'hookcode-worker dev' }));
     expect(screen.getByRole('tab', { name: 'Linux (systemd)' })).toBeInTheDocument();
     expect(screen.getAllByText(/hcw1\.bind-code/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(new RegExp(`npm install -g @hookvibe/hookcode-worker@${TEST_WORKER_VERSION.replace(/\./g, '\\.')}`)).length).toBeGreaterThan(0);
     expect(screen.getByText(new RegExp(defaultBackendUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))).toBeInTheDocument();
+    expect(screen.getByText('.env.worker.local')).toBeInTheDocument();
+    expect(screen.getByText('pnpm dev')).toBeInTheDocument();
+    expect(screen.getAllByText(/HOOKCODE_WORKER_BIND_CODE=\"hcw1\.bind-code\"/).length).toBeGreaterThan(0);
   });
 
   test('allows promoting a worker as the global default', async () => {
@@ -165,6 +169,51 @@ describe('SettingsWorkersPanel', () => {
     await ui.click(screen.getByRole('button', { name: 'Set default' }));
 
     await waitFor(() => expect(api.updateWorker).toHaveBeenCalledWith('w_local', { isGlobalDefault: true }));
+  });
+
+  test('shows per-provider runtime states and defaults prepare requests to missing providers', async () => {
+    const ui = userEvent.setup();
+    vi.mocked(api.fetchWorkersRegistry).mockResolvedValueOnce({
+      workers: [
+        {
+          id: 'w_local',
+          name: 'Local worker',
+          kind: 'local',
+          status: 'online',
+          isGlobalDefault: false,
+          systemManaged: true,
+          version: TEST_WORKER_VERSION,
+          versionState: { currentVersion: TEST_WORKER_VERSION, status: 'compatible', upgradeRequired: false },
+          runtimeState: {
+            providerStatuses: {
+              codex: { status: 'ready' },
+              claude_code: { status: 'error', error: 'npm exited with code 1' },
+              gemini_cli: { status: 'idle' }
+            },
+            preparedProviders: ['codex'],
+            lastPrepareError: 'Claude Code: npm exited with code 1'
+          },
+          maxConcurrency: 2,
+          currentConcurrency: 0,
+          createdAt: '2026-03-07T00:00:00.000Z',
+          updatedAt: '2026-03-07T00:00:00.000Z'
+        } as any
+      ],
+      versionRequirement: buildVersionRequirement(),
+      defaultBackendUrl
+    } as any);
+    vi.mocked(api.prepareWorkerRuntime).mockResolvedValue({ success: true } as any);
+    renderPanel();
+
+    expect(await screen.findByText('Codex')).toBeInTheDocument();
+    expect(screen.getByText('Claude Code')).toBeInTheDocument();
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument();
+    expect(screen.getByText('npm exited with code 1')).toBeInTheDocument();
+
+    await ui.click(screen.getByRole('button', { name: 'Prepare runtime' }));
+    await ui.click(screen.getByRole('dialog').querySelector('.ant-btn-primary') as HTMLButtonElement);
+
+    await waitFor(() => expect(api.prepareWorkerRuntime).toHaveBeenCalledWith('w_local', ['claude_code', 'gemini_cli']));
   });
 
   test('allows overriding the backend url before generating the bind code', async () => {

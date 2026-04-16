@@ -1548,6 +1548,15 @@
                     "expanded": false
                   },
                   {
+                    "group": "worker runtime provider readiness gating (7i9tp61el8rrb4r7j5xj)",
+                    "pages": [
+                      "en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan",
+                      "en/developer/plans/7i9tp61el8rrb4r7j5xj/findings",
+                      "en/developer/plans/7i9tp61el8rrb4r7j5xj/progress"
+                    ],
+                    "expanded": false
+                  },
+                  {
                     "group": "Optimize dashboard polling for task APIs (7bqwou6abx4ste96ikhv)",
                     "pages": [
                       "en/developer/plans/7bqwou6abx4ste96ikhv/task_plan",

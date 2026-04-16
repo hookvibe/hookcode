@@ -115,7 +115,9 @@ export class WorkersController {
   async prepareRuntime(@Req() req: Request, @Body() body: PrepareRuntimeRequestDto) {
     this.requireAdmin(req);
     const id = String(req.params.id ?? '').trim();
-    const ok = this.workersConnections.sendPrepareRuntime(id, Array.isArray(body?.providers) ? body.providers : undefined);
+    // Pass only validated provider keys to the worker socket so runtime preparation stays provider-scoped end to end. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
+    const providers = (Array.isArray(body?.providers) ? body.providers : undefined) as Array<'codex' | 'claude_code' | 'gemini_cli'> | undefined;
+    const ok = this.workersConnections.sendPrepareRuntime(id, providers);
     if (!ok) throw new ConflictException({ error: 'Worker is not connected' });
     return { success: true };
   }

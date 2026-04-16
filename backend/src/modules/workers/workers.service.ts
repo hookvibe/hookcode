@@ -3,7 +3,15 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { db } from '../../db';
 import type { TaskResult, TaskStatus } from '../../types/task';
-import type { WorkerBindInfo, WorkerCapabilities, WorkerRecord, WorkerRuntimeState, WorkerSummary, WorkerVersionRequirement } from '../../types/worker';
+import type {
+  WorkerBindInfo,
+  WorkerCapabilities,
+  WorkerProviderKey,
+  WorkerRecord,
+  WorkerRuntimeState,
+  WorkerSummary,
+  WorkerVersionRequirement
+} from '../../types/worker';
 import type { WorkerHelloMessage, WorkerHeartbeatMessage } from '../../types/workerProtocol';
 import { parsePositiveInt } from '../../utils/parse';
 import { hashToken } from '../../utils/token';
@@ -15,6 +23,13 @@ import {
   isWorkerBindCodeExpired,
   parseWorkerBindCode
 } from './worker-bind-code';
+import {
+  buildWorkerProviderNotReadyMessage,
+  getWorkerProviderRuntimeEntry,
+  listPreparedWorkerProviders,
+  mergeWorkerRuntimeState,
+  normalizeWorkerProviderKey
+} from './worker-runtime-state';
 import { buildWorkerVersionMismatchMessage, evaluateWorkerVersion, getWorkerVersionRequirement } from './worker-version-policy';
 
 const toIso = (value: unknown): string => {
@@ -378,7 +393,7 @@ export class WorkersService {
         arch: trimString(message.arch),
         hostname: trimString(message.hostname),
         capabilities: toJsonValue(message.capabilities),
-        runtimeState: toJsonValue(message.runtimeState),
+        runtimeState: toJsonValue(mergeWorkerRuntimeState(undefined, message.runtimeState)),
         maxConcurrency: Number.isFinite(message.maxConcurrency) && Number(message.maxConcurrency) > 0 ? Math.floor(Number(message.maxConcurrency)) : undefined,
         currentConcurrency: Array.isArray(message.activeTaskIds) ? message.activeTaskIds.length : undefined,
         lastHelloAt: new Date(),
@@ -417,25 +432,30 @@ export class WorkersService {
       data: {
         status: 'online',
         currentConcurrency: Array.isArray(message.activeTaskIds) ? message.activeTaskIds.length : undefined,
-        runtimeState: toJsonValue(message.runtimeState),
+        runtimeState: toJsonValue(mergeWorkerRuntimeState(undefined, message.runtimeState)),
         lastSeenAt: new Date(),
         updatedAt: new Date()
       }
     });
   }
 
-  async markRuntimePreparing(workerId: string, providers?: string[]): Promise<void> {
+  async markRuntimePreparing(workerId: string, params: { providers?: string[]; runtimeState?: WorkerRuntimeState }): Promise<void> {
     const existing = await db.worker.findUnique({ where: { id: workerId }, select: { runtimeState: true } });
-    const runtimeState = (existing?.runtimeState ?? {}) as WorkerRuntimeState;
+    const runtimeState = mergeWorkerRuntimeState((existing?.runtimeState ?? {}) as WorkerRuntimeState, params.runtimeState) ?? {};
+    const preparingProviders = (params.providers ?? runtimeState.preparingProviders ?? [])
+      .map((provider) => normalizeWorkerProviderKey(provider))
+      .filter(Boolean) as WorkerProviderKey[];
     await db.worker.updateMany({
       where: { id: workerId },
       data: {
-        runtimeState: {
-          ...runtimeState,
-          preparingProviders: providers ?? runtimeState.preparingProviders ?? [],
-          lastPrepareAt: new Date().toISOString(),
-          lastPrepareError: undefined
-        },
+        runtimeState: toJsonInput(
+          mergeWorkerRuntimeState(runtimeState, {
+            ...params.runtimeState,
+            preparingProviders,
+            lastPrepareAt: new Date().toISOString(),
+            lastPrepareError: undefined
+          }) ?? runtimeState
+        ),
         updatedAt: new Date()
       }
     });
@@ -444,17 +464,21 @@ export class WorkersService {
   async markRuntimePrepared(workerId: string, params: { providers?: string[]; runtimeState?: WorkerRuntimeState; error?: string }): Promise<void> {
     const existing = await db.worker.findUnique({ where: { id: workerId }, select: { runtimeState: true } });
     const prior = (existing?.runtimeState ?? {}) as WorkerRuntimeState;
+    const preparedProviders = (params.providers ?? params.runtimeState?.preparedProviders ?? prior.preparedProviders ?? [])
+      .map((provider) => normalizeWorkerProviderKey(provider))
+      .filter(Boolean) as WorkerProviderKey[];
+    const mergedRuntimeState =
+      mergeWorkerRuntimeState(prior, {
+        ...params.runtimeState,
+        preparingProviders: [],
+        preparedProviders,
+        lastPrepareAt: new Date().toISOString(),
+        lastPrepareError: trimString(params.error)
+      }) ?? prior;
     await db.worker.updateMany({
       where: { id: workerId },
       data: {
-        runtimeState: {
-          ...prior,
-          ...params.runtimeState,
-          preparingProviders: [],
-          preparedProviders: params.providers ?? params.runtimeState?.preparedProviders ?? prior.preparedProviders ?? [],
-          lastPrepareAt: new Date().toISOString(),
-          lastPrepareError: trimString(params.error)
-        },
+        runtimeState: toJsonInput(mergedRuntimeState),
         updatedAt: new Date()
       }
     });
@@ -609,8 +633,14 @@ export class WorkersService {
     }));
   }
 
-  async requireWorkerReadyForNewTask(workerId: string): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
-    const worker = await db.worker.findUnique({ where: { id: workerId }, select: { status: true, disabledAt: true, name: true, version: true, lastSeenAt: true } });
+  async requireWorkerReadyForNewTask(
+    workerId: string,
+    provider?: string | null
+  ): Promise<{ ok: true } | { ok: false; code: string; message: string }> {
+    const worker = await db.worker.findUnique({
+      where: { id: workerId },
+      select: { status: true, disabledAt: true, name: true, version: true, lastSeenAt: true, runtimeState: true, capabilities: true }
+    });
     if (!worker) {
       return { ok: false, code: 'WORKER_NOT_FOUND', message: 'Selected worker not found' };
     }
@@ -627,6 +657,16 @@ export class WorkersService {
     if (worker.status !== 'online' || !isWorkerHeartbeatFresh(worker.lastSeenAt)) {
       return { ok: false, code: 'WORKER_OFFLINE_TASK_GROUP_BLOCKED', message: `Selected worker is offline: ${worker.name}` };
     }
-    return { ok: true };
+    const normalizedProvider = normalizeWorkerProviderKey(provider);
+    if (!normalizedProvider) return { ok: true };
+    const preparedProviders = listPreparedWorkerProviders(worker.runtimeState as WorkerRuntimeState | undefined, worker.capabilities as any);
+    if (preparedProviders.includes(normalizedProvider)) return { ok: true };
+    const providerState = getWorkerProviderRuntimeEntry(worker.runtimeState as WorkerRuntimeState | undefined, normalizedProvider);
+    const reason = providerState?.status === 'preparing' ? 'preparing' : providerState?.status === 'error' ? 'error' : 'missing';
+    return {
+      ok: false,
+      code: 'WORKER_PROVIDER_NOT_READY',
+      message: buildWorkerProviderNotReadyMessage(worker.name, normalizedProvider, reason)
+    };
   }
 }

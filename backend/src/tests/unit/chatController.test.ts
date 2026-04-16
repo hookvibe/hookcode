@@ -1,4 +1,5 @@
 import { ChatController } from '../../modules/tasks/chat.controller';
+import { TaskCreationGuardError } from '../../modules/tasks/task-creation-guard-error';
 
 describe('ChatController.execute', () => {
   beforeEach(() => {
@@ -90,5 +91,36 @@ describe('ChatController.execute', () => {
       expect.objectContaining({ updateGroupRobotId: false })
     );
     expect(res).toEqual({ task: { id: 't2' }, taskGroup: { id: 'g2', kind: 'issue', repoId: 'r1' } });
+  });
+
+  test('returns a conflict when task creation is blocked by worker provider readiness', async () => {
+    const taskService: any = {
+      createManualTaskGroup: jest.fn().mockRejectedValue(
+        new TaskCreationGuardError('WORKER_PROVIDER_NOT_READY', 'Codex is not prepared on remote-1. Prepare that runtime in the worker panel before starting the task.')
+      )
+    };
+    const repositoryService: any = {
+      getById: jest.fn().mockResolvedValue({
+        id: 'r1',
+        provider: 'gitlab',
+        name: 'group/project',
+        apiBaseUrl: 'https://gitlab.example.com',
+        externalId: '123',
+        branches: [],
+        enabled: true
+      })
+    };
+    const repoRobotService: any = {
+      getById: jest.fn().mockResolvedValue({ id: 'rb1', repoId: 'r1', name: 'robot', enabled: true, promptDefault: 'PROMPT' })
+    };
+    const taskRunner: any = { trigger: jest.fn().mockResolvedValue(undefined) };
+    const controller = new ChatController(taskService, repositoryService, repoRobotService, taskRunner);
+
+    await expect(controller.execute({ user: { id: 'u1' } } as any, { repoId: 'r1', robotId: 'rb1', text: 'hello' } as any)).rejects.toMatchObject({
+      response: {
+        error: 'Codex is not prepared on remote-1. Prepare that runtime in the worker panel before starting the task.',
+        code: 'WORKER_PROVIDER_NOT_READY'
+      }
+    });
   });
 });
