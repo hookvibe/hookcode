@@ -1,5 +1,5 @@
 import { ValidationPipe } from '@nestjs/common';
-import { CreateWorkerRequestDto, PrepareRuntimeRequestDto, ResetWorkerBindCodeRequestDto, UpdateWorkerRequestDto } from '../../modules/workers/dto/workers-swagger.dto';
+import { CreateWorkerRequestDto, ResetWorkerBindCodeRequestDto, UpdateWorkerRequestDto } from '../../modules/workers/dto/workers-swagger.dto';
 
 describe('Workers request DTOs', () => {
   test('preserves create-worker fields with ValidationPipe whitelist', async () => {
@@ -16,14 +16,6 @@ describe('Workers request DTOs', () => {
     const payload = { name: '  renamed worker  ', status: 'disabled', maxConcurrency: 3, isGlobalDefault: true };
     const result = await pipe.transform(payload, { type: 'body', metatype: UpdateWorkerRequestDto });
     expect(result).toMatchObject({ name: 'renamed worker', status: 'disabled', maxConcurrency: 3, isGlobalDefault: true });
-  });
-
-  test('preserves provider arrays for runtime preparation requests', async () => {
-    // Verify runtime-prep DTO fields survive whitelist validation so worker prepare requests still forward provider names. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    const pipe = new ValidationPipe({ whitelist: true, transform: true });
-    const payload = { providers: [' codex ', 'gemini_cli'] };
-    const result = await pipe.transform(payload, { type: 'body', metatype: PrepareRuntimeRequestDto });
-    expect(result).toMatchObject({ providers: ['codex', 'gemini_cli'] });
   });
 
   test('normalizes reset-bind-code backend urls', async () => {

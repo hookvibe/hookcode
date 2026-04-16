@@ -89,11 +89,6 @@ export class WorkersConnectionService {
     return this.send(workerId, { type: 'assignTask', taskId });
   }
 
-  sendPrepareRuntime(workerId: string, providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>): boolean {
-    // Forward provider-scoped prepare requests so remote workers can report live Codex/Claude/Gemini status changes back to the admin panel. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
-    return this.send(workerId, { type: 'prepareRuntime', providers });
-  }
-
   sendCancelTask(workerId: string, taskId: string): boolean {
     // Forward explicit stop requests to connected workers so long-running providers abort faster than the poll fallback. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     return this.send(workerId, { type: 'cancelTask', taskId });
@@ -201,16 +196,6 @@ export class WorkersConnectionService {
         if (message.type === 'taskAccepted') {
           this.lastSeenAt.set(workerId, Date.now());
           await this.workersService.recordTaskAccepted(workerId, message.taskId);
-          return;
-        }
-        if (message.type === 'runtimePrepareStarted') {
-          this.lastSeenAt.set(workerId, Date.now());
-          await this.workersService.markRuntimePreparing(workerId, { providers: message.providers, runtimeState: message.runtimeState });
-          return;
-        }
-        if (message.type === 'runtimePrepareFinished') {
-          this.lastSeenAt.set(workerId, Date.now());
-          await this.workersService.markRuntimePrepared(workerId, message);
           return;
         }
         if (message.type === 'workspaceResponse') {

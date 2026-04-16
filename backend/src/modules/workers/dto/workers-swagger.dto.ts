@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Min } from 'class-validator';
 import { normalizeWorkerApiBaseUrl } from '../worker-public-url';
 
 const trimString = (value: unknown): unknown => (typeof value === 'string' ? value.trim() : value);
@@ -213,17 +213,6 @@ export class ResetWorkerBindCodeRequestDto {
   @IsNotEmpty()
   @IsUrl({ require_protocol: true, require_tld: false })
   backendUrl?: string;
-}
-
-export class PrepareRuntimeRequestDto {
-  @ApiPropertyOptional({ type: [String] })
-  @IsOptional()
-  @IsArray()
-  @ArrayNotEmpty()
-  @IsString({ each: true })
-  @Transform(({ value }) => (Array.isArray(value) ? value.map((item) => trimString(item)).filter((item) => typeof item === 'string' && item) : value))
-  // Preserve provider lists for runtime preparation requests so connected workers receive explicit install targets after whitelist filtering. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-  providers?: string[];
 }
 
 export class WorkerContextDto {

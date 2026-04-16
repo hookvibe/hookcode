@@ -227,14 +227,11 @@ export const useTaskGroupWorkspaceData = ({
       worker: selectedWorkerRecord
     });
     if (!guard) return null;
-    if (guard.reason === 'preparing') {
-      return t('chat.validation.workerProviderPreparing', { provider: guard.providerLabel, worker: guard.workerName });
-    }
     if (guard.reason === 'error') {
       return t('chat.validation.workerProviderUnavailable', {
         provider: guard.providerLabel,
         worker: guard.workerName,
-        error: guard.error || selectedWorkerRecord.runtimeState?.lastPrepareError || '-'
+        error: guard.error || selectedWorkerRecord.runtimeState?.lastCheckError || '-'
       });
     }
     return t('chat.validation.workerProviderMissing', { provider: guard.providerLabel, worker: guard.workerName });

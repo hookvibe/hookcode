@@ -5,7 +5,6 @@ import {
   createWorker,
   deleteWorker,
   fetchWorkersRegistry,
-  prepareWorkerRuntime,
   resetWorkerBindCode,
   updateWorker,
   type WorkerBindInfo,
@@ -25,11 +24,8 @@ import {
 import { formatWorkerOptionLabel, getWorkerRuntimeStatusLabel } from '../../utils/workers';
 import { WorkerSummaryTag } from '../workers/WorkerSummaryTag';
 import { SETTINGS_DATA_TABLE_SCROLL_X, SETTINGS_STICKY_ACTIONS_TABLE_CLASS_NAME } from './layout';
-
-const DEFAULT_PROVIDER_OPTIONS = WORKER_PROVIDER_KEYS.map((provider) => ({
-  value: provider,
-  label: getWorkerProviderLabel(provider)
-}));
+const WORKER_ENV_POLL_INTERVAL_MS = 5_000;
+type LoadWorkersMode = 'initial' | 'manual' | 'silent';
 
 const powerShellQuote = (value: string): string => `'${String(value).replace(/'/g, "''")}'`;
 const dotenvQuote = (value: string): string => JSON.stringify(String(value));
@@ -54,25 +50,15 @@ const formatDateTime = (locale: string, value?: string | null): string => {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(parsed);
 };
 
-const resolveRuntimeStatus = (worker: WorkerRecord): 'idle' | 'preparing' | 'ready' | 'error' => {
+const resolveRuntimeStatus = (worker: WorkerRecord): 'idle' | 'ready' | 'error' => {
   const statuses = WORKER_PROVIDER_KEYS.map((provider) => getWorkerProviderRuntimeStatus(worker, provider));
-  if (statuses.includes('preparing')) return 'preparing';
   if (statuses.includes('error')) return 'error';
   if (statuses.includes('ready')) return 'ready';
   return 'idle';
 };
 
-const resolveDefaultPrepareProviders = (worker: WorkerRecord): string[] => {
-  const missingProviders = WORKER_PROVIDER_KEYS.filter((provider) => !isWorkerProviderReady(worker, provider));
-  return missingProviders.length > 0 ? missingProviders : [...WORKER_PROVIDER_KEYS];
-};
-
-const hasPreparingWorkerRuntime = (worker: WorkerRecord): boolean =>
-  WORKER_PROVIDER_KEYS.some((provider) => getWorkerProviderRuntimeStatus(worker, provider) === 'preparing');
-
 const getProviderTagColor = (status: ReturnType<typeof getWorkerProviderRuntimeStatus>): string => {
   if (status === 'ready') return 'success';
-  if (status === 'preparing') return 'processing';
   if (status === 'error') return 'error';
   return 'default';
 };
@@ -196,48 +182,53 @@ export const SettingsWorkersPanel: FC = () => {
   const [versionRequirement, setVersionRequirement] = useState<WorkerVersionRequirement | null>(null);
   const [defaultBackendUrl, setDefaultBackendUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [prepareLoadingId, setPrepareLoadingId] = useState<string | null>(null);
   const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
   const [installInfo, setInstallInfo] = useState<WorkerBindInfo | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [prepareOpen, setPrepareOpen] = useState<WorkerRecord | null>(null);
   const [createForm] = Form.useForm<{ name: string; maxConcurrency?: number; backendUrl: string }>();
   const [resetForm] = Form.useForm<{ backendUrl: string }>();
-  const [prepareForm] = Form.useForm<{ providers: string[] }>();
   const [resetOpen, setResetOpen] = useState<WorkerRecord | null>(null);
   const globalDefaultWorker = useMemo(() => workers.find((worker) => worker.isGlobalDefault) ?? null, [workers]);
 
-  const loadWorkers = useCallback(async () => {
-    setLoading(true);
+  const loadWorkers = useCallback(async (mode: LoadWorkersMode = 'manual') => {
+    if (mode === 'initial') setLoading(true);
+    if (mode === 'manual') setRefreshing(true);
     try {
       const data = await fetchWorkersRegistry();
       setWorkers(data.workers);
       setVersionRequirement(data.versionRequirement);
       setDefaultBackendUrl(data.defaultBackendUrl || '');
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error(error);
-      message.error(getApiErrorMessage(error) || t('workers.toast.fetchFailed'));
-      setWorkers([]);
-      setVersionRequirement(null);
-      setDefaultBackendUrl('');
+      if (mode !== 'silent') {
+        message.error(getApiErrorMessage(error) || t('workers.toast.fetchFailed'));
+      }
+      if (mode === 'initial') {
+        setWorkers([]);
+        setVersionRequirement(null);
+        setDefaultBackendUrl('');
+      }
     } finally {
-      setLoading(false);
+      if (mode === 'initial') setLoading(false);
+      if (mode === 'manual') setRefreshing(false);
     }
   }, [message, t]);
 
   useEffect(() => {
-    void loadWorkers();
+    void loadWorkers('initial');
   }, [loadWorkers]);
 
   useEffect(() => {
-    if (!workers.some((worker) => hasPreparingWorkerRuntime(worker))) return;
-    // Poll while a worker is preparing runtimes so the admin table can show Codex/Claude/Gemini progress without a manual refresh. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
-    const timer = window.setTimeout(() => {
-      void loadWorkers();
-    }, 1500);
-    return () => window.clearTimeout(timer);
-  }, [loadWorkers, workers]);
+    // Poll worker environment status so Codex/Claude/Gemini availability refreshes shortly after admins install or fix a global CLI on the remote machine. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
+    const timer = window.setInterval(() => {
+      void loadWorkers('silent');
+    }, WORKER_ENV_POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [loadWorkers]);
 
   const handleCreate = useCallback(async (values: { name: string; maxConcurrency?: number; backendUrl: string }) => {
     try {
@@ -251,7 +242,7 @@ export const SettingsWorkersPanel: FC = () => {
       setCreateOpen(false);
       createForm.resetFields();
       message.success(t('workers.toast.created'));
-      await loadWorkers();
+      await loadWorkers('silent');
     } catch (error: any) {
       console.error(error);
       message.error(getApiErrorMessage(error) || t('workers.toast.createFailed'));
@@ -265,7 +256,7 @@ export const SettingsWorkersPanel: FC = () => {
     try {
       await updateWorker(worker.id, { status });
       message.success(t('workers.toast.updated'));
-      await loadWorkers();
+      await loadWorkers('silent');
     } catch (error) {
       console.error(error);
       message.error(getApiErrorMessage(error) || t('workers.toast.updateFailed'));
@@ -279,7 +270,7 @@ export const SettingsWorkersPanel: FC = () => {
     try {
       await updateWorker(worker.id, { isGlobalDefault: nextIsGlobalDefault });
       message.success(t('workers.toast.updated'));
-      await loadWorkers();
+      await loadWorkers('silent');
     } catch (error) {
       console.error(error);
       message.error(getApiErrorMessage(error) || t('workers.toast.updateFailed'));
@@ -303,7 +294,7 @@ export const SettingsWorkersPanel: FC = () => {
       setResetOpen(null);
       resetForm.resetFields();
       message.success(t('workers.toast.bindCodeReset'));
-      await loadWorkers();
+      await loadWorkers('silent');
     } catch (error: any) {
       if (error?.errorFields) return;
       console.error(error);
@@ -339,7 +330,7 @@ export const SettingsWorkersPanel: FC = () => {
     try {
       await deleteWorker(worker.id);
       message.success(t('workers.toast.deleted'));
-      await loadWorkers();
+      await loadWorkers('silent');
     } catch (error) {
       console.error(error);
       message.error(getApiErrorMessage(error) || t('workers.toast.deleteFailed'));
@@ -347,24 +338,6 @@ export const SettingsWorkersPanel: FC = () => {
       setRowLoadingId(null);
     }
   }, [loadWorkers, message, t]);
-
-  const handlePrepareRuntime = useCallback(async () => {
-    if (!prepareOpen) return;
-    try {
-      const values = await prepareForm.validateFields();
-      setPrepareLoadingId(prepareOpen.id);
-      await prepareWorkerRuntime(prepareOpen.id, values.providers);
-      message.success(t('workers.toast.runtimeRequested'));
-      setPrepareOpen(null);
-      await loadWorkers();
-    } catch (error: any) {
-      if (error?.errorFields) return;
-      console.error(error);
-      message.error(getApiErrorMessage(error) || t('workers.toast.runtimeRequestFailed'));
-    } finally {
-      setPrepareLoadingId(null);
-    }
-  }, [loadWorkers, message, prepareForm, prepareOpen, t]);
 
   const columns = useMemo<ColumnsType<WorkerRecord>>(
     () => [
@@ -389,7 +362,7 @@ export const SettingsWorkersPanel: FC = () => {
       {
         title: t('workers.table.runtime'),
         key: 'runtime',
-        width: 360,
+        width: 420,
         render: (_value, record) => {
           const runtimeStatus = resolveRuntimeStatus(record);
           const readyCount = WORKER_PROVIDER_KEYS.filter((provider) => isWorkerProviderReady(record, provider)).length;
@@ -397,6 +370,11 @@ export const SettingsWorkersPanel: FC = () => {
             <Space direction="vertical" size={6}>
               <Typography.Text>{getWorkerRuntimeStatusLabel(t, runtimeStatus)}</Typography.Text>
               <Typography.Text type="secondary">{t('workers.field.providers')}: {readyCount}/{WORKER_PROVIDER_KEYS.length}</Typography.Text>
+              {record.runtimeState?.lastCheckedAt ? (
+                <Typography.Text type="secondary">
+                  {t('workers.field.lastCheckedAt')}: {formatDateTime(locale, record.runtimeState.lastCheckedAt)}
+                </Typography.Text>
+              ) : null}
               {WORKER_PROVIDER_KEYS.map((provider) => {
                 const status = getWorkerProviderRuntimeStatus(record, provider);
                 const entry = getWorkerProviderRuntimeEntry(record.runtimeState, provider);
@@ -406,13 +384,11 @@ export const SettingsWorkersPanel: FC = () => {
                   worker: record
                 });
                 const guardMessage =
-                  guard?.reason === 'preparing'
-                    ? t('workers.runtime.providerPreparingHint', { provider: guard.providerLabel, worker: guard.workerName })
-                    : guard?.reason === 'error'
+                  guard?.reason === 'error'
                       ? t('workers.runtime.providerErrorHint', {
                           provider: guard.providerLabel,
                           worker: guard.workerName,
-                          error: guard.error || record.runtimeState?.lastPrepareError || '-'
+                          error: guard.error || record.runtimeState?.lastCheckError || '-'
                         })
                       : guard?.reason === 'missing'
                         ? t('workers.runtime.providerMissingHint', { provider: guard.providerLabel, worker: guard.workerName })
@@ -423,6 +399,21 @@ export const SettingsWorkersPanel: FC = () => {
                       <Typography.Text strong>{getWorkerProviderLabel(provider)}</Typography.Text>
                       <Tag color={getProviderTagColor(status)}>{getWorkerRuntimeStatusLabel(t, status)}</Tag>
                     </Space>
+                    {entry?.version ? (
+                      <Typography.Text type="secondary">
+                        {t('workers.field.version')}: {entry.version}
+                      </Typography.Text>
+                    ) : null}
+                    {entry?.path ? (
+                      <Typography.Text type="secondary">
+                        {t('workers.field.path')}: {entry.path}
+                      </Typography.Text>
+                    ) : null}
+                    {!entry?.path && entry?.command ? (
+                      <Typography.Text type="secondary">
+                        {t('workers.field.command')}: {entry.command}
+                      </Typography.Text>
+                    ) : null}
                     {entry?.error ? <Typography.Text type="danger">{entry.error}</Typography.Text> : null}
                     {!entry?.error && status !== 'ready' && guardMessage ? (
                       <Typography.Text type="secondary">{guardMessage}</Typography.Text>
@@ -459,11 +450,10 @@ export const SettingsWorkersPanel: FC = () => {
       {
         title: t('common.actions'),
         key: 'actions',
-        width: 320,
+        width: 240,
         fixed: 'right',
         render: (_value, record) => {
           const isBusy = rowLoadingId === record.id;
-          const isPreparing = prepareLoadingId === record.id || hasPreparingWorkerRuntime(record);
           const nextStatus = record.status === 'disabled' ? 'offline' : 'disabled';
           const toggleLabel = record.status === 'disabled' ? t('workers.action.enable') : t('workers.action.disable');
           const defaultToggleLabel = record.isGlobalDefault ? t('workers.action.unsetDefault') : t('workers.action.setDefault');
@@ -475,17 +465,6 @@ export const SettingsWorkersPanel: FC = () => {
                 onClick={() => void handleToggleGlobalDefault(record, !record.isGlobalDefault)}
               >
                 {defaultToggleLabel}
-              </Button>
-              <Button
-                size="small"
-                loading={isPreparing}
-                disabled={record.status !== 'online' || requiresWorkerUpgrade(record)}
-                onClick={() => {
-                  prepareForm.setFieldsValue({ providers: resolveDefaultPrepareProviders(record) });
-                  setPrepareOpen(record);
-                }}
-              >
-                {t('workers.action.prepareRuntime')}
               </Button>
               <Button size="small" loading={isBusy} disabled={record.systemManaged} onClick={() => void handleUpdateStatus(record, nextStatus)}>
                 {toggleLabel}
@@ -511,7 +490,7 @@ export const SettingsWorkersPanel: FC = () => {
         }
       }
     ],
-    [handleDelete, handlePrepareRuntime, handleResetBindCode, handleToggleGlobalDefault, handleUpdateStatus, locale, prepareForm, prepareLoadingId, rowLoadingId, t, versionRequirement]
+    [handleDelete, handleResetBindCode, handleToggleGlobalDefault, handleUpdateStatus, locale, rowLoadingId, t, versionRequirement]
   );
 
   const installScripts = installInfo ? buildInstallScripts(installInfo) : null;
@@ -554,12 +533,12 @@ export const SettingsWorkersPanel: FC = () => {
         title={t('workers.page.title')}
         extra={
           <Space>
-            <Button onClick={() => void loadWorkers()}>{t('common.refresh')}</Button>
+            <Button loading={refreshing} onClick={() => void loadWorkers('manual')}>{t('common.refresh')}</Button>
             <Button type="primary" onClick={openCreateModal}>{t('workers.action.create')}</Button>
           </Space>
         }
       >
-        {loading ? (
+        {loading && !hasLoadedOnce ? (
           <Skeleton active paragraph={{ rows: 6 }} />
         ) : (
           <Table
@@ -732,23 +711,6 @@ export const SettingsWorkersPanel: FC = () => {
             />
           </Space>
         ) : null}
-      </Modal>
-
-      <Modal
-        className="hc-dialog--compact"
-        title={t('workers.modal.prepareTitle', { name: prepareOpen?.name || '' })}
-        open={Boolean(prepareOpen)}
-        onCancel={() => setPrepareOpen(null)}
-        onOk={() => void handlePrepareRuntime()}
-        confirmLoading={Boolean(prepareOpen && prepareLoadingId === prepareOpen.id)}
-        okText={t('workers.action.prepareRuntime')}
-        cancelText={t('common.cancel')}
-      >
-        <Form form={prepareForm} layout="vertical" initialValues={{ providers: ['codex', 'claude_code', 'gemini_cli'] }}>
-          <Form.Item label={t('workers.field.providers')} name="providers">
-            <Select mode="multiple" options={DEFAULT_PROVIDER_OPTIONS} />
-          </Form.Item>
-        </Form>
       </Modal>
     </Space>
   );

@@ -18,7 +18,7 @@ export const getWorkerStatusLabel = (t: TFunction, status: WorkerSummary['status
 export const getWorkerRuntimeStatusLabel = (t: TFunction, status?: string | null): string => {
   const normalized = String(status ?? '').trim().toLowerCase();
   if (!normalized) return t('workers.runtime.unknown');
-  if (normalized === 'idle' || normalized === 'preparing' || normalized === 'ready' || normalized === 'error') {
+  if (normalized === 'idle' || normalized === 'ready' || normalized === 'error') {
     return t(`workers.runtime.${normalized}` as any);
   }
   return normalized;

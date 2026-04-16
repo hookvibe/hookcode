@@ -2,12 +2,14 @@ export type WorkerKind = 'local' | 'remote';
 export type WorkerStatus = 'online' | 'offline' | 'disabled';
 export type WorkerVersionStatus = 'compatible' | 'mismatch' | 'unknown';
 export type WorkerProviderKey = 'codex' | 'claude_code' | 'gemini_cli';
-export type WorkerProviderRuntimeStatus = 'idle' | 'preparing' | 'ready' | 'error';
+export type WorkerProviderRuntimeStatus = 'idle' | 'ready' | 'error';
 
 export interface WorkerProviderRuntimeEntry {
   status: WorkerProviderRuntimeStatus;
-  startedAt?: string;
-  finishedAt?: string;
+  checkedAt?: string;
+  command?: string;
+  path?: string;
+  version?: string;
   error?: string;
 }
 
@@ -21,13 +23,11 @@ export interface WorkerCapabilities {
 }
 
 export interface WorkerRuntimeState {
-  // Persist provider/runtime preparation state for the admin worker panel. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-  // Track provider-level readiness so worker routing can block missing Codex/Claude/Gemini runtimes before task dispatch. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
+  // Persist provider-level environment availability so task creation can stop before dispatch when the selected worker lacks a global Codex/Claude/Gemini CLI. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
   providerStatuses?: WorkerProviderRuntimeStatuses;
-  preparedProviders?: WorkerProviderKey[];
-  preparingProviders?: WorkerProviderKey[];
-  lastPrepareAt?: string;
-  lastPrepareError?: string;
+  availableProviders?: WorkerProviderKey[];
+  lastCheckedAt?: string;
+  lastCheckError?: string;
 }
 
 export interface WorkerVersionRequirement {

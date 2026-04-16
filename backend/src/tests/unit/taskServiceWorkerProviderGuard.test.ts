@@ -29,7 +29,7 @@ describe('TaskService worker provider guard', () => {
       requireWorkerReadyForNewTask: jest.fn().mockResolvedValue({
         ok: false,
         code: 'WORKER_PROVIDER_NOT_READY',
-        message: 'Codex is not prepared on remote-1. Prepare that runtime in the worker panel before starting the task.'
+        message: 'Codex is not available in remote-1\'s environment. Install or configure the global Codex CLI on that machine before starting the task.'
       })
     };
     const robotCatalogService = {

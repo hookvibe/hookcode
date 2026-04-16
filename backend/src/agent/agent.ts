@@ -1392,12 +1392,31 @@ export const buildRemoteExecutionBundle = async (task: Task): Promise<RemoteExec
     primaryConfigRaw: execution.robot.modelProviderConfigRaw,
     override: taskExecutionOverride
   });
+  const resolveRemoteWorkerCredential = async (params: {
+    provider: RoutedProviderKey;
+    robotConfigRaw?: unknown;
+  }) =>
+    await resolveProviderExecutionCredential({
+      provider: params.provider,
+      robotConfigRaw: params.robotConfigRaw,
+      userCredentials: execution.userCredentials,
+      globalCredentials: execution.globalCredentials,
+      repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null,
+      executionContext: 'remote_worker'
+    });
   const routingPlan = await buildProviderRoutingPlan({
     primaryProvider: resolvedExecutionPlan.provider,
     primaryConfigRaw: resolvedExecutionPlan.configRaw,
     userCredentials: execution.userCredentials,
     globalCredentials: execution.globalCredentials,
-    repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
+    repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null,
+    __internal: {
+      resolveCredential: async ({ provider, robotConfigRaw }) =>
+        await resolveRemoteWorkerCredential({
+          provider,
+          robotConfigRaw
+        })
+    }
   });
   const providerRouting = toProviderRoutingResult(routingPlan);
   const selectedAttempt = routingPlan.attempts.find((attempt) => attempt.provider === routingPlan.selectedProvider) ?? routingPlan.attempts[0];
@@ -1411,12 +1430,9 @@ export const buildRemoteExecutionBundle = async (task: Task): Promise<RemoteExec
       provider: attempt.provider,
       role: attempt.role,
       runConfig: resolveProviderRunConfig(attempt.provider, attempt.providerConfigRaw),
-      credential: await resolveProviderExecutionCredential({
+      credential: await resolveRemoteWorkerCredential({
         provider: attempt.provider,
-        robotConfigRaw: attempt.providerConfigRaw,
-        userCredentials: execution.userCredentials,
-        globalCredentials: execution.globalCredentials,
-        repoScopedCredentials: execution.repoScopedCredentials?.modelProvider ?? null
+        robotConfigRaw: attempt.providerConfigRaw
       })
     }))
   );

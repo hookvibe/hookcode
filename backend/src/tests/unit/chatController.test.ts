@@ -96,7 +96,10 @@ describe('ChatController.execute', () => {
   test('returns a conflict when task creation is blocked by worker provider readiness', async () => {
     const taskService: any = {
       createManualTaskGroup: jest.fn().mockRejectedValue(
-        new TaskCreationGuardError('WORKER_PROVIDER_NOT_READY', 'Codex is not prepared on remote-1. Prepare that runtime in the worker panel before starting the task.')
+        new TaskCreationGuardError(
+          'WORKER_PROVIDER_NOT_READY',
+          'Codex is not available in remote-1\'s environment. Install or configure the global Codex CLI on that machine before starting the task.'
+        )
       )
     };
     const repositoryService: any = {
@@ -118,7 +121,7 @@ describe('ChatController.execute', () => {
 
     await expect(controller.execute({ user: { id: 'u1' } } as any, { repoId: 'r1', robotId: 'rb1', text: 'hello' } as any)).rejects.toMatchObject({
       response: {
-        error: 'Codex is not prepared on remote-1. Prepare that runtime in the worker panel before starting the task.',
+        error: 'Codex is not available in remote-1\'s environment. Install or configure the global Codex CLI on that machine before starting the task.',
         code: 'WORKER_PROVIDER_NOT_READY'
       }
     });

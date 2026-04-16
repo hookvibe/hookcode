@@ -2,17 +2,18 @@ import { describe, expect, test } from 'vitest';
 import { getWorkerProviderGuardDetails, getWorkerProviderRuntimeStatus } from '../utils/workerRuntime';
 
 describe('workerRuntime utils', () => {
-  test('derives provider runtime status from providerStatuses first', () => {
+  test('derives provider runtime status from environment providerStatuses first', () => {
     const worker = {
       runtimeState: {
         providerStatuses: {
-          codex: { status: 'preparing' }
-        }
+          codex: { status: 'ready', path: '/usr/local/bin/codex' }
+        },
+        availableProviders: ['codex']
       },
       capabilities: { providers: [] }
     } as any;
 
-    expect(getWorkerProviderRuntimeStatus(worker, 'codex')).toBe('preparing');
+    expect(getWorkerProviderRuntimeStatus(worker, 'codex')).toBe('ready');
   });
 
   test('builds a provider guard for missing runtimes', () => {

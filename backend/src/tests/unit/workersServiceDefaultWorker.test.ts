@@ -63,7 +63,7 @@ describe('WorkersService default worker routing', () => {
     expect(markOfflineSpy).not.toHaveBeenCalledWith('fresh-worker', expect.anything());
   });
 
-  test('blocks task creation when the selected provider is not prepared on the worker', async () => {
+  test('blocks task creation when the selected provider is not available on the worker machine', async () => {
     (db.worker.findUnique as jest.Mock).mockResolvedValue({
       status: 'online',
       disabledAt: null,
@@ -82,11 +82,11 @@ describe('WorkersService default worker routing', () => {
     await expect(service.requireWorkerReadyForNewTask('worker-1', 'codex')).resolves.toEqual({
       ok: false,
       code: 'WORKER_PROVIDER_NOT_READY',
-      message: 'Codex is not prepared on remote-1. Prepare that runtime in the worker panel before starting the task.'
+      message: 'Codex is not available in remote-1\'s environment. Install or configure the global Codex CLI on that machine before starting the task.'
     });
   });
 
-  test('accepts task creation when the selected provider is already prepared', async () => {
+  test('accepts task creation when the selected provider is available in the environment', async () => {
     (db.worker.findUnique as jest.Mock).mockResolvedValue({
       status: 'online',
       disabledAt: null,

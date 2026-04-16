@@ -42,12 +42,6 @@ export const resetWorkerBindCode = async (id: string, backendUrl?: string): Prom
   return data;
 };
 
-export const prepareWorkerRuntime = async (id: string, providers?: string[]): Promise<{ success: boolean }> => {
-  const { data } = await api.post<{ success: boolean }>(`/workers/${id}/prepare-runtime`, { providers });
-  invalidateWorkerCaches();
-  return data;
-};
-
 export const deleteWorker = async (id: string): Promise<{ success: boolean }> => {
   const { data } = await api.delete<{ success: boolean }>(`/workers/${id}`);
   invalidateWorkerCaches();

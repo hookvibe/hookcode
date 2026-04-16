@@ -6,7 +6,6 @@ import type { TaskResult, TaskStatus } from '../../types/task';
 import type {
   WorkerBindInfo,
   WorkerCapabilities,
-  WorkerProviderKey,
   WorkerRecord,
   WorkerRuntimeState,
   WorkerSummary,
@@ -26,7 +25,7 @@ import {
 import {
   buildWorkerProviderNotReadyMessage,
   getWorkerProviderRuntimeEntry,
-  listPreparedWorkerProviders,
+  listAvailableWorkerProviders,
   mergeWorkerRuntimeState,
   normalizeWorkerProviderKey
 } from './worker-runtime-state';
@@ -54,10 +53,6 @@ const buildBindCodeSecret = (): string =>
 const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined =>
   // Cast worker protocol payloads into Prisma JSON inputs without loosening the public worker types. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
   value == null ? undefined : (value as Prisma.InputJsonValue);
-
-const toJsonInput = <T>(value: T): Prisma.InputJsonValue =>
-  // Normalize worker protocol payloads before Prisma writes so executor metadata remains DB-safe. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-  value as Prisma.InputJsonValue;
 
 const resolveWorkerHeartbeatTimeoutMs = (env: NodeJS.ProcessEnv = process.env): number =>
   parsePositiveInt(env.WORKER_HEARTBEAT_TIMEOUT_MS, 30_000);
@@ -439,51 +434,6 @@ export class WorkersService {
     });
   }
 
-  async markRuntimePreparing(workerId: string, params: { providers?: string[]; runtimeState?: WorkerRuntimeState }): Promise<void> {
-    const existing = await db.worker.findUnique({ where: { id: workerId }, select: { runtimeState: true } });
-    const runtimeState = mergeWorkerRuntimeState((existing?.runtimeState ?? {}) as WorkerRuntimeState, params.runtimeState) ?? {};
-    const preparingProviders = (params.providers ?? runtimeState.preparingProviders ?? [])
-      .map((provider) => normalizeWorkerProviderKey(provider))
-      .filter(Boolean) as WorkerProviderKey[];
-    await db.worker.updateMany({
-      where: { id: workerId },
-      data: {
-        runtimeState: toJsonInput(
-          mergeWorkerRuntimeState(runtimeState, {
-            ...params.runtimeState,
-            preparingProviders,
-            lastPrepareAt: new Date().toISOString(),
-            lastPrepareError: undefined
-          }) ?? runtimeState
-        ),
-        updatedAt: new Date()
-      }
-    });
-  }
-
-  async markRuntimePrepared(workerId: string, params: { providers?: string[]; runtimeState?: WorkerRuntimeState; error?: string }): Promise<void> {
-    const existing = await db.worker.findUnique({ where: { id: workerId }, select: { runtimeState: true } });
-    const prior = (existing?.runtimeState ?? {}) as WorkerRuntimeState;
-    const preparedProviders = (params.providers ?? params.runtimeState?.preparedProviders ?? prior.preparedProviders ?? [])
-      .map((provider) => normalizeWorkerProviderKey(provider))
-      .filter(Boolean) as WorkerProviderKey[];
-    const mergedRuntimeState =
-      mergeWorkerRuntimeState(prior, {
-        ...params.runtimeState,
-        preparingProviders: [],
-        preparedProviders,
-        lastPrepareAt: new Date().toISOString(),
-        lastPrepareError: trimString(params.error)
-      }) ?? prior;
-    await db.worker.updateMany({
-      where: { id: workerId },
-      data: {
-        runtimeState: toJsonInput(mergedRuntimeState),
-        updatedAt: new Date()
-      }
-    });
-  }
-
   async markWorkerOffline(workerId: string, reason: string): Promise<void> {
     const now = new Date();
     const current = await db.worker.findUnique({
@@ -659,10 +609,10 @@ export class WorkersService {
     }
     const normalizedProvider = normalizeWorkerProviderKey(provider);
     if (!normalizedProvider) return { ok: true };
-    const preparedProviders = listPreparedWorkerProviders(worker.runtimeState as WorkerRuntimeState | undefined, worker.capabilities as any);
-    if (preparedProviders.includes(normalizedProvider)) return { ok: true };
+    const availableProviders = listAvailableWorkerProviders(worker.runtimeState as WorkerRuntimeState | undefined, worker.capabilities as any);
+    if (availableProviders.includes(normalizedProvider)) return { ok: true };
     const providerState = getWorkerProviderRuntimeEntry(worker.runtimeState as WorkerRuntimeState | undefined, normalizedProvider);
-    const reason = providerState?.status === 'preparing' ? 'preparing' : providerState?.status === 'error' ? 'error' : 'missing';
+    const reason = providerState?.status === 'error' ? 'error' : 'missing';
     return {
       ok: false,
       code: 'WORKER_PROVIDER_NOT_READY',

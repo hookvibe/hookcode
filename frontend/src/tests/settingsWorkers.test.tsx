@@ -13,7 +13,6 @@ vi.mock('../api', () => ({
   createWorker: vi.fn(),
   updateWorker: vi.fn(),
   resetWorkerBindCode: vi.fn(),
-  prepareWorkerRuntime: vi.fn(),
   deleteWorker: vi.fn()
 }));
 
@@ -94,6 +93,51 @@ describe('SettingsWorkersPanel', () => {
     expect(document.querySelector('.ant-table-has-fix-end')).toBeTruthy();
   });
 
+  test('keeps the current table visible during silent polling refresh', async () => {
+    vi.mocked(api.fetchWorkersRegistry).mockReset();
+    const intervalHandlers: Array<() => void> = [];
+    const setIntervalSpy = vi.spyOn(window, 'setInterval').mockImplementation(((handler: TimerHandler) => {
+      if (typeof handler === 'function') intervalHandlers.push(handler);
+      return 1 as unknown as number;
+    }) as typeof window.setInterval);
+    vi.mocked(api.fetchWorkersRegistry)
+      .mockResolvedValueOnce({
+        workers: [
+          {
+            id: 'w_local',
+            name: 'Local worker',
+            kind: 'local',
+            status: 'online',
+            isGlobalDefault: false,
+            systemManaged: true,
+            version: TEST_WORKER_VERSION,
+            versionState: { currentVersion: TEST_WORKER_VERSION, status: 'compatible', upgradeRequired: false },
+            maxConcurrency: 2,
+            currentConcurrency: 0,
+            createdAt: '2026-03-07T00:00:00.000Z',
+            updatedAt: '2026-03-07T00:00:00.000Z'
+          } as any
+        ],
+        versionRequirement: buildVersionRequirement(),
+        defaultBackendUrl
+      } as any)
+      .mockImplementationOnce(() => new Promise(() => {}));
+
+    try {
+      renderPanel();
+
+      expect(await screen.findByText('Local worker')).toBeInTheDocument();
+      expect(intervalHandlers.length).toBeGreaterThan(0);
+
+      intervalHandlers.forEach((handler) => handler());
+
+      await waitFor(() => expect(api.fetchWorkersRegistry).toHaveBeenCalledTimes(2));
+      expect(screen.getByText('Local worker')).toBeInTheDocument();
+    } finally {
+      setIntervalSpy.mockRestore();
+    }
+  });
+
 
   test('surfaces backend create validation errors to the user', async () => {
     const ui = userEvent.setup();
@@ -171,8 +215,7 @@ describe('SettingsWorkersPanel', () => {
     await waitFor(() => expect(api.updateWorker).toHaveBeenCalledWith('w_local', { isGlobalDefault: true }));
   });
 
-  test('shows per-provider runtime states and defaults prepare requests to missing providers', async () => {
-    const ui = userEvent.setup();
+  test('shows per-provider environment availability details', async () => {
     vi.mocked(api.fetchWorkersRegistry).mockResolvedValueOnce({
       workers: [
         {
@@ -186,12 +229,25 @@ describe('SettingsWorkersPanel', () => {
           versionState: { currentVersion: TEST_WORKER_VERSION, status: 'compatible', upgradeRequired: false },
           runtimeState: {
             providerStatuses: {
-              codex: { status: 'ready' },
-              claude_code: { status: 'error', error: 'npm exited with code 1' },
-              gemini_cli: { status: 'idle' }
+              codex: {
+                status: 'ready',
+                version: 'codex 0.120.0',
+                path: '/usr/local/bin/codex'
+              },
+              claude_code: {
+                status: 'error',
+                version: 'claude 1.0.0',
+                path: '/usr/local/bin/claude',
+                error: 'permission denied'
+              },
+              gemini_cli: {
+                status: 'idle',
+                command: 'gemini'
+              }
             },
-            preparedProviders: ['codex'],
-            lastPrepareError: 'Claude Code: npm exited with code 1'
+            availableProviders: ['codex'],
+            lastCheckedAt: '2026-03-07T01:02:03.000Z',
+            lastCheckError: 'Claude Code: permission denied'
           },
           maxConcurrency: 2,
           currentConcurrency: 0,
@@ -202,18 +258,18 @@ describe('SettingsWorkersPanel', () => {
       versionRequirement: buildVersionRequirement(),
       defaultBackendUrl
     } as any);
-    vi.mocked(api.prepareWorkerRuntime).mockResolvedValue({ success: true } as any);
     renderPanel();
 
     expect(await screen.findByText('Codex')).toBeInTheDocument();
     expect(screen.getByText('Claude Code')).toBeInTheDocument();
     expect(screen.getByText('Gemini CLI')).toBeInTheDocument();
-    expect(screen.getByText('npm exited with code 1')).toBeInTheDocument();
-
-    await ui.click(screen.getByRole('button', { name: 'Prepare runtime' }));
-    await ui.click(screen.getByRole('dialog').querySelector('.ant-btn-primary') as HTMLButtonElement);
-
-    await waitFor(() => expect(api.prepareWorkerRuntime).toHaveBeenCalledWith('w_local', ['claude_code', 'gemini_cli']));
+    expect(screen.getByText(/Version: codex 0\.120\.0/)).toBeInTheDocument();
+    expect(screen.getByText(/Path: \/usr\/local\/bin\/codex/)).toBeInTheDocument();
+    expect(screen.getByText(/Path: \/usr\/local\/bin\/claude/)).toBeInTheDocument();
+    expect(screen.getByText('permission denied')).toBeInTheDocument();
+    expect(screen.getByText(/Command: gemini/)).toBeInTheDocument();
+    expect(screen.getByText(/Last checked:/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Prepare runtime' })).not.toBeInTheDocument();
   });
 
   test('allows overriding the backend url before generating the bind code', async () => {

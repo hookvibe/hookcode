@@ -24,13 +24,10 @@ const cloneProviderStatuses = (value?: WorkerProviderRuntimeStatuses | null): Wo
   return next;
 };
 
-const resolvePreparedProvidersFromStatuses = (statuses: WorkerProviderRuntimeStatuses): WorkerProviderKey[] =>
+const resolveAvailableProvidersFromStatuses = (statuses: WorkerProviderRuntimeStatuses): WorkerProviderKey[] =>
   WORKER_PROVIDER_KEYS.filter((provider) => statuses[provider]?.status === 'ready');
 
-const resolvePreparingProvidersFromStatuses = (statuses: WorkerProviderRuntimeStatuses): WorkerProviderKey[] =>
-  WORKER_PROVIDER_KEYS.filter((provider) => statuses[provider]?.status === 'preparing');
-
-const resolveLastPrepareErrorFromStatuses = (statuses: WorkerProviderRuntimeStatuses): string | undefined => {
+const resolveLastCheckErrorFromStatuses = (statuses: WorkerProviderRuntimeStatuses): string | undefined => {
   const messages = WORKER_PROVIDER_KEYS
     .map((provider) => {
       const entry = statuses[provider];
@@ -47,17 +44,17 @@ export const normalizeWorkerProviderKey = (value: unknown): WorkerProviderKey | 
   return WORKER_PROVIDER_KEYS.find((provider) => provider === normalized) ?? null;
 };
 
-export const listPreparedWorkerProviders = (
+export const listAvailableWorkerProviders = (
   runtimeState?: WorkerRuntimeState | null,
   capabilities?: WorkerCapabilities | null
 ): WorkerProviderKey[] => {
   const providerStatuses = cloneProviderStatuses(runtimeState?.providerStatuses);
-  const fromStatuses = resolvePreparedProvidersFromStatuses(providerStatuses);
-  if (fromStatuses.length > 0) return fromStatuses;
-  const fromRuntimeState = Array.isArray(runtimeState?.preparedProviders)
-    ? runtimeState.preparedProviders.map((provider) => normalizeWorkerProviderKey(provider)).filter(Boolean)
+  const fromAvailableProviders = Array.isArray(runtimeState?.availableProviders)
+    ? runtimeState.availableProviders.map((provider) => normalizeWorkerProviderKey(provider)).filter(Boolean)
     : [];
-  if (fromRuntimeState.length > 0) return Array.from(new Set(fromRuntimeState)) as WorkerProviderKey[];
+  if (fromAvailableProviders.length > 0) return Array.from(new Set(fromAvailableProviders)) as WorkerProviderKey[];
+  const fromStatuses = resolveAvailableProvidersFromStatuses(providerStatuses);
+  if (fromStatuses.length > 0) return fromStatuses;
   const fromCapabilities = Array.isArray(capabilities?.providers)
     ? capabilities.providers.map((provider) => normalizeWorkerProviderKey(provider)).filter(Boolean)
     : [];
@@ -70,8 +67,7 @@ export const getWorkerProviderRuntimeEntry = (
 ): WorkerProviderRuntimeEntry | undefined => {
   const direct = runtimeState?.providerStatuses?.[provider];
   if (direct) return direct;
-  if (runtimeState?.preparingProviders?.includes(provider)) return { status: 'preparing' };
-  if (runtimeState?.preparedProviders?.includes(provider)) return { status: 'ready' };
+  if (runtimeState?.availableProviders?.includes(provider)) return { status: 'ready' };
   return undefined;
 };
 
@@ -84,12 +80,12 @@ export const mergeWorkerRuntimeState = (
     ...cloneProviderStatuses(priorState?.providerStatuses),
     ...cloneProviderStatuses(nextState?.providerStatuses)
   };
-  for (const provider of priorState?.preparedProviders ?? []) {
+  for (const provider of priorState?.availableProviders ?? []) {
     const normalized = normalizeWorkerProviderKey(provider);
     if (!normalized || providerStatuses[normalized]) continue;
     providerStatuses[normalized] = { status: 'ready' };
   }
-  for (const provider of nextState?.preparedProviders ?? []) {
+  for (const provider of nextState?.availableProviders ?? []) {
     const normalized = normalizeWorkerProviderKey(provider);
     if (!normalized) continue;
     providerStatuses[normalized] = {
@@ -98,45 +94,30 @@ export const mergeWorkerRuntimeState = (
       error: undefined
     };
   }
-  for (const provider of priorState?.preparingProviders ?? []) {
-    const normalized = normalizeWorkerProviderKey(provider);
-    if (!normalized || providerStatuses[normalized]) continue;
-    providerStatuses[normalized] = { status: 'preparing' };
-  }
-  for (const provider of nextState?.preparingProviders ?? []) {
-    const normalized = normalizeWorkerProviderKey(provider);
-    if (!normalized) continue;
-    providerStatuses[normalized] = {
-      ...providerStatuses[normalized],
-      status: 'preparing'
-    };
-  }
-  const preparedProviders = resolvePreparedProvidersFromStatuses(providerStatuses);
-  const preparingProviders = resolvePreparingProvidersFromStatuses(providerStatuses);
-  const lastPrepareError = resolveLastPrepareErrorFromStatuses(providerStatuses) ?? nextState?.lastPrepareError ?? priorState?.lastPrepareError;
+  const availableProviders = resolveAvailableProvidersFromStatuses(providerStatuses);
+  const lastCheckError =
+    resolveLastCheckErrorFromStatuses(providerStatuses) ??
+    nextState?.lastCheckError ??
+    priorState?.lastCheckError;
 
   return {
     ...priorState,
     ...nextState,
     providerStatuses,
-    preparedProviders,
-    preparingProviders,
-    lastPrepareAt: nextState?.lastPrepareAt ?? priorState?.lastPrepareAt,
-    lastPrepareError
+    availableProviders,
+    lastCheckedAt: nextState?.lastCheckedAt ?? priorState?.lastCheckedAt,
+    lastCheckError
   };
 };
 
 export const buildWorkerProviderNotReadyMessage = (
   workerName: string,
   provider: WorkerProviderKey,
-  reason: 'missing' | 'preparing' | 'error'
+  reason: 'missing' | 'error'
 ): string => {
   const providerLabel = PROVIDER_LABELS[provider];
-  if (reason === 'preparing') {
-    return `${providerLabel} is still preparing on ${workerName}. Wait for runtime preparation to finish before starting the task.`;
-  }
   if (reason === 'error') {
-    return `${providerLabel} is unavailable on ${workerName}. Fix the runtime error in the worker panel before starting the task.`;
+    return `${providerLabel} is unavailable on ${workerName}. Fix the CLI environment on that machine before starting the task.`;
   }
-  return `${providerLabel} is not prepared on ${workerName}. Prepare that runtime in the worker panel before starting the task.`;
+  return `${providerLabel} is not available in ${workerName}'s environment. Install or configure the global ${providerLabel} CLI on that machine before starting the task.`;
 };

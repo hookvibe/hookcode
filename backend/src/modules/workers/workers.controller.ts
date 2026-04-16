@@ -1,5 +1,5 @@
-import { BadRequestException, Body, ConflictException, Controller, Delete, Get, NotFoundException, Patch, Post, Req, UnauthorizedException } from '@nestjs/common';
-import { ApiBadRequestResponse, ApiBearerAuth, ApiConflictResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Patch, Post, Req, UnauthorizedException } from '@nestjs/common';
+import { ApiBadRequestResponse, ApiBearerAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { AuthScopeGroup, Public } from '../auth/auth.decorator';
@@ -9,7 +9,6 @@ import { resolveWorkerPublicApiBaseUrl } from './worker-public-url';
 import {
   CreateWorkerRequestDto,
   ListWorkersResponseDto,
-  PrepareRuntimeRequestDto,
   RegisterWorkerRequestDto,
   RegisterWorkerResponseDto,
   ResetWorkerBindCodeRequestDto,
@@ -106,20 +105,6 @@ export class WorkersController {
       this.workersConnections.disconnect(id, 'admin_status_update');
     }
     return { worker: updated };
-  }
-
-  @Post(':id/prepare-runtime')
-  @ApiOperation({ summary: 'Prepare worker runtime', description: 'Ask a connected worker to install provider CLI dependencies.', operationId: 'workers_prepare_runtime' })
-  @ApiOkResponse({ description: 'OK' })
-  @ApiConflictResponse({ description: 'Conflict', type: ErrorResponseDto })
-  async prepareRuntime(@Req() req: Request, @Body() body: PrepareRuntimeRequestDto) {
-    this.requireAdmin(req);
-    const id = String(req.params.id ?? '').trim();
-    // Pass only validated provider keys to the worker socket so runtime preparation stays provider-scoped end to end. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
-    const providers = (Array.isArray(body?.providers) ? body.providers : undefined) as Array<'codex' | 'claude_code' | 'gemini_cli'> | undefined;
-    const ok = this.workersConnections.sendPrepareRuntime(id, providers);
-    if (!ok) throw new ConflictException({ error: 'Worker is not connected' });
-    return { success: true };
   }
 
   @Delete(':id')

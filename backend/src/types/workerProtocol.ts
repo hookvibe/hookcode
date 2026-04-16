@@ -23,19 +23,6 @@ export type WorkerTaskAcceptedMessage = {
   taskId: string;
 };
 
-export type WorkerRuntimePrepareStartedMessage = {
-  type: 'runtimePrepareStarted';
-  providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>;
-  runtimeState?: WorkerRuntimeState;
-};
-
-export type WorkerRuntimePrepareFinishedMessage = {
-  type: 'runtimePrepareFinished';
-  providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>;
-  runtimeState?: WorkerRuntimeState;
-  error?: string;
-};
-
 export type WorkerWorkspaceResponseMessage = {
   type: 'workspaceResponse';
   requestId: string;
@@ -52,18 +39,11 @@ export type WorkerInboundMessage =
   | WorkerHelloMessage
   | WorkerHeartbeatMessage
   | WorkerTaskAcceptedMessage
-  | WorkerRuntimePrepareStartedMessage
-  | WorkerRuntimePrepareFinishedMessage
   | WorkerWorkspaceResponseMessage;
 
 export type WorkerAssignTaskMessage = {
   type: 'assignTask';
   taskId: string;
-};
-
-export type WorkerPrepareRuntimeMessage = {
-  type: 'prepareRuntime';
-  providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>;
 };
 
 export type WorkerCancelTaskMessage = {
@@ -86,7 +66,6 @@ export type WorkerWorkspaceRequestMessage = {
 
 export type WorkerOutboundMessage =
   | WorkerAssignTaskMessage
-  | WorkerPrepareRuntimeMessage
   | WorkerCancelTaskMessage
   | WorkerPingMessage
   | WorkerWorkspaceRequestMessage;

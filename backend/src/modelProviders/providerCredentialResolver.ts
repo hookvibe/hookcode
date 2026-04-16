@@ -13,6 +13,7 @@ export type SupportedProviderRuntimeKey =
   | typeof CLAUDE_CODE_PROVIDER_KEY
   | typeof GEMINI_CLI_PROVIDER_KEY;
 
+export type ProviderExecutionContext = 'host' | 'remote_worker';
 export type ProviderStoredSource = 'robot' | 'repo' | 'user' | 'global';
 export type ProviderResolutionLayer = 'local' | 'robot' | 'repo' | 'user' | 'global' | 'none';
 export type ProviderResolutionMethod =
@@ -172,6 +173,18 @@ const getProviderGlobalCredentials = (
 ): UserModelProviderCredentials | null => {
   if (!creds) return null;
   return ((creds as any)?.[provider] as UserModelProviderCredentials | null | undefined) ?? null;
+};
+
+const isLocalCredentialTransferableToRemoteWorker = (credential: InternalLocalProviderCredential): boolean =>
+  credential.hasApiKey && Boolean(safeTrim(credential.apiKey));
+
+const getRemoteWorkerLocalCredentialReason = (
+  provider: SupportedProviderRuntimeKey,
+  local: InternalLocalProviderCredential
+): string => {
+  const providerLabel =
+    provider === CODEX_PROVIDER_KEY ? 'Codex' : provider === CLAUDE_CODE_PROVIDER_KEY ? 'Claude Code' : 'Gemini CLI';
+  return `${providerLabel} local auth is only available on the backend host and cannot be forwarded to remote workers. Configure an API key credential in HookCode for this provider.`;
 };
 
 const resolveClaudeLocalCredential = async (): Promise<InternalLocalProviderCredential> => {
@@ -385,6 +398,7 @@ export const resolveProviderExecutionCredential = async (params: {
   repoScopedCredentials?: RepoScopedModelProviderCredentials | null;
   globalCredentials?: UserModelCredentials | null;
   defaultStoredSource?: ProviderStoredSource;
+  executionContext?: ProviderExecutionContext;
 }): Promise<ResolvedProviderCredential> => {
   const local =
     params.provider === CLAUDE_CODE_PROVIDER_KEY
@@ -396,7 +410,8 @@ export const resolveProviderExecutionCredential = async (params: {
   const normalizedRobotConfig = getRequestedStoredSource(params.provider, params.robotConfigRaw);
   // Allow callers without robot config to choose whether stored fallback should start from repo or user. docs/en/developer/plans/providerclimigrate20260313/task_plan.md providerclimigrate20260313
   const requestedStoredSource = params.defaultStoredSource ?? normalizedRobotConfig.credentialSource;
-  if (local.authenticated) {
+  const executionContext = params.executionContext ?? 'host';
+  if (executionContext === 'host' && local.authenticated) {
     return {
       provider: params.provider,
       requestedStoredSource,
@@ -534,6 +549,37 @@ export const resolveProviderExecutionCredential = async (params: {
       apiBaseUrl: userProfile.apiBaseUrl || undefined,
       supportsModelListing: true,
       fallbackUsed: requestedStoredSource !== 'user'
+    };
+  }
+
+  if (executionContext === 'remote_worker' && local.authenticated) {
+    if (isLocalCredentialTransferableToRemoteWorker(local)) {
+      return {
+        provider: params.provider,
+        requestedStoredSource,
+        resolvedLayer: 'local',
+        resolvedMethod: local.method ?? 'none',
+        canExecute: true,
+        displayName: local.displayName,
+        apiKey: local.apiKey,
+        apiBaseUrl: local.apiBaseUrl,
+        supportsModelListing: local.supportsModelListing,
+        fallbackUsed: true,
+        reason: 'Stored HookCode credentials were unavailable, so remote execution fell back to backend local API key auth.',
+        geminiLocalConfigSourceDir: local.geminiLocalConfigSourceDir
+      };
+    }
+
+    return {
+      provider: params.provider,
+      requestedStoredSource,
+      resolvedLayer: 'local',
+      resolvedMethod: local.method ?? 'none',
+      canExecute: false,
+      displayName: local.displayName,
+      supportsModelListing: false,
+      fallbackUsed: false,
+      reason: getRemoteWorkerLocalCredentialReason(params.provider, local)
     };
   }
 

@@ -102,6 +102,89 @@ describe('providerCredentialResolver', () => {
     await rm(fakeHome, { recursive: true, force: true });
   });
 
+  test('remote worker execution prefers stored Codex credentials over backend local auth.json api keys', async () => {
+    delete process.env.OPENAI_API_KEY;
+    const fakeHome = await mkdtemp(path.join(os.tmpdir(), 'hookcode-provider-home-'));
+    try {
+      jest.spyOn(os, 'homedir').mockReturnValue(fakeHome);
+      await mkdir(path.join(fakeHome, '.codex'), { recursive: true });
+      await writeFile(path.join(fakeHome, '.codex', 'auth.json'), JSON.stringify({ OPENAI_API_KEY: 'sk-local-codex' }), 'utf8');
+
+      const resolved = await resolveProviderExecutionCredential({
+        provider: CODEX_PROVIDER_KEY,
+        robotConfigRaw: {
+          credentialSource: 'user',
+          credentialProfileId: 'user-1'
+        },
+        userCredentials: {
+          codex: {
+            profiles: [{ id: 'user-1', remark: 'user', apiKey: 'sk-user-codex', apiBaseUrl: 'http://yuhe.space:9000/v1' }],
+            defaultProfileId: 'user-1'
+          }
+        } as any,
+        executionContext: 'remote_worker'
+      });
+
+      expect(resolved.resolvedLayer).toBe('user');
+      expect(resolved.resolvedMethod).toBe('user_profile');
+      expect(resolved.apiKey).toBe('sk-user-codex');
+      expect(resolved.apiBaseUrl).toBe('http://yuhe.space:9000/v1');
+    } finally {
+      await rm(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  test('remote worker execution falls back to transferable backend env api keys when stored credentials are unavailable', async () => {
+    process.env.OPENAI_API_KEY = 'sk-local-codex';
+    process.env.OPENAI_BASE_URL = 'http://yuhe.space:9000/v1';
+    const fakeHome = await mkdtemp(path.join(os.tmpdir(), 'hookcode-provider-home-'));
+    try {
+      jest.spyOn(os, 'homedir').mockReturnValue(fakeHome);
+
+      const resolved = await resolveProviderExecutionCredential({
+        provider: CODEX_PROVIDER_KEY,
+        userCredentials: { codex: { profiles: [], defaultProfileId: undefined } } as any,
+        executionContext: 'remote_worker'
+      });
+
+      expect(resolved.resolvedLayer).toBe('local');
+      expect(resolved.resolvedMethod).toBe('env_api_key');
+      expect(resolved.apiKey).toBe('sk-local-codex');
+      expect(resolved.apiBaseUrl).toBe('http://yuhe.space:9000/v1');
+      expect(resolved.canExecute).toBe(true);
+      expect(resolved.fallbackUsed).toBe(true);
+    } finally {
+      await rm(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  test('remote worker execution rejects non-transferable backend local Codex oauth auth', async () => {
+    delete process.env.OPENAI_API_KEY;
+    const fakeHome = await mkdtemp(path.join(os.tmpdir(), 'hookcode-provider-home-'));
+    try {
+      jest.spyOn(os, 'homedir').mockReturnValue(fakeHome);
+      await mkdir(path.join(fakeHome, '.codex'), { recursive: true });
+      await writeFile(
+        path.join(fakeHome, '.codex', 'auth.json'),
+        JSON.stringify({ tokens: { id_token: 'header.eyJlbWFpbCI6Imhvb2tjb2RlQGV4YW1wbGUuY29tIn0.signature' } }),
+        'utf8'
+      );
+
+      const resolved = await resolveProviderExecutionCredential({
+        provider: CODEX_PROVIDER_KEY,
+        userCredentials: { codex: { profiles: [], defaultProfileId: undefined } } as any,
+        executionContext: 'remote_worker'
+      });
+
+      expect(resolved.resolvedLayer).toBe('local');
+      expect(resolved.resolvedMethod).toBe('auth_json_tokens');
+      expect(resolved.canExecute).toBe(false);
+      expect(resolved.reason).toContain('cannot be forwarded to remote workers');
+    } finally {
+      await rm(fakeHome, { recursive: true, force: true });
+    }
+  });
+
   test('falls back from missing repo profile to user profile', async () => {
     const fakeHome = await mkdtemp(path.join(os.tmpdir(), 'hookcode-provider-home-'));
     jest.spyOn(os, 'homedir').mockReturnValue(fakeHome);

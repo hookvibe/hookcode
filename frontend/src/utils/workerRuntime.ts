@@ -28,8 +28,7 @@ export const getWorkerProviderRuntimeEntry = (
 ): WorkerProviderRuntimeEntry | undefined => {
   const direct = runtimeState?.providerStatuses?.[provider];
   if (direct) return direct;
-  if (runtimeState?.preparingProviders?.includes(provider)) return { status: 'preparing' };
-  if (runtimeState?.preparedProviders?.includes(provider)) return { status: 'ready' };
+  if (runtimeState?.availableProviders?.includes(provider)) return { status: 'ready' };
   return undefined;
 };
 
@@ -53,8 +52,7 @@ const hasKnownWorkerProviderRuntime = (
 ): boolean => {
   if (Array.isArray(worker.capabilities?.providers)) return true;
   if (worker.runtimeState?.providerStatuses) return true;
-  if (Array.isArray(worker.runtimeState?.preparedProviders)) return true;
-  if (Array.isArray(worker.runtimeState?.preparingProviders)) return true;
+  if (Array.isArray(worker.runtimeState?.availableProviders)) return true;
   return false;
 };
 
@@ -62,12 +60,11 @@ export const getWorkerProviderGuardDetails = (params: {
   workerName: string;
   provider: WorkerProviderKey;
   worker: Pick<WorkerRecord, 'runtimeState' | 'capabilities'>;
-}): { reason: 'preparing' | 'error' | 'missing'; providerLabel: string; workerName: string; error?: string } | null => {
+}): { reason: 'error' | 'missing'; providerLabel: string; workerName: string; error?: string } | null => {
   const status = getWorkerProviderRuntimeStatus(params.worker, params.provider);
   const providerLabel = getWorkerProviderLabel(params.provider);
   if (status === 'ready') return null;
   if (!hasKnownWorkerProviderRuntime(params.worker)) return null;
-  if (status === 'preparing') return { reason: 'preparing', providerLabel, workerName: params.workerName };
   const error = getWorkerProviderRuntimeEntry(params.worker.runtimeState, params.provider)?.error?.trim();
   if (status === 'error') return { reason: 'error', providerLabel, workerName: params.workerName, error };
   return { reason: 'missing', providerLabel, workerName: params.workerName };
