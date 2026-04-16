@@ -33,7 +33,6 @@ import type { TaskLogStreamEvent } from './task-log-stream.service';
 import { TaskLogStream } from './task-log-stream.service';
 import { TaskLogsService } from './task-logs.service';
 import { TaskGitPushService } from './task-git-push.service';
-import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
 import { TaskWorkspaceService, TaskWorkspaceServiceError } from './task-workspace.service';
 import type { TaskStatus } from '../../types/task';
@@ -49,7 +48,6 @@ import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { SuccessResponseDto } from '../common/dto/basic-response.dto';
 import { RepoAccessService, type RepoRole } from '../repositories/repo-access.service';
 import { LogWriterService } from '../logs/log-writer.service';
-import { WorkersConnectionService } from '../workers/workers-connection.service';
 import { TASK_REORDER_ACTIONS, type TaskReorderAction } from './task-control.constants';
 import {
   GetTaskResponseDto,
@@ -70,12 +68,10 @@ export class TasksController {
     private readonly taskService: TaskService,
     private readonly taskLogStream: TaskLogStream,
     private readonly taskLogsService: TaskLogsService, // Serve paged task log reads from the log table. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
-    private readonly taskRunner: TaskRunner,
     private readonly taskGitPushService: TaskGitPushService,
     private readonly taskWorkspaceService: TaskWorkspaceService,
     private readonly repoAccessService: RepoAccessService,
-    private readonly logWriter: LogWriterService, // Emit audit events for log-clearing actions. docs/en/developer/plans/task-logs-table-20260306/task_plan.md task-logs-table-20260306
-    private readonly workersConnections: WorkersConnectionService
+    private readonly logWriter: LogWriterService
   ) {}
 
   private normalizeTaskStatusFilter(value: unknown): TaskStatus | 'success' | undefined {
@@ -618,8 +614,6 @@ export class TasksController {
       if (!task) {
         throw new NotFoundException({ error: 'Task not found' });
       }
-      // Kick the dispatcher after queue mutations so connected workers receive tasks without polling delays. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
       const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {
@@ -661,8 +655,7 @@ export class TasksController {
         throw new NotFoundException({ error: 'Task not found' });
       }
       if (task.status === 'processing' && task.workerId) {
-        // Push explicit cancel messages to connected workers so manual stops do not wait solely on control-state polling. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-        this.workersConnections.sendCancelTask(task.workerId, task.id);
+        // Workers detect stop via control-state polling; no push cancel needed.
       }
       void this.logWriter.logOperation({
         level: 'warn',
@@ -824,8 +817,6 @@ export class TasksController {
       if (!task) {
         throw new ConflictException({ error: 'Task schedule override failed' });
       }
-      // Kick the dispatcher after queue mutations so connected workers receive tasks without polling delays. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      this.taskRunner.trigger().catch((err: unknown) => console.error('[tasks] trigger task runner failed', err));
       const [decorated] = await this.attachTaskPermissions([task] as any[], req.user);
       return { task: decorated };
     } catch (err) {

@@ -1,5 +1,4 @@
 import type { TaskService } from '../tasks/task.service';
-import type { TaskRunner } from '../tasks/task-runner.service';
 import type { RepositoryService } from '../repositories/repository.service';
 import type { RepoAutomationService } from '../repositories/repo-automation.service';
 import type { RepoWebhookDeliveryService } from '../repositories/repo-webhook-delivery.service';
@@ -11,7 +10,6 @@ import type { NotificationRecipientService } from '../notifications/notification
 // Split webhook shared types into a dedicated module for cleaner imports. docs/en/developer/plans/split-long-files-20260202/task_plan.md split-long-files-20260202
 export interface WebhookDeps {
   taskService: TaskService;
-  taskRunner: TaskRunner;
   repositoryService: RepositoryService;
   robotCatalogService: RobotCatalogService;
   repoAutomationService: RepoAutomationService;

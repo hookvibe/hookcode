@@ -25,6 +25,8 @@ describe('WorkersService default worker routing', () => {
     jest.clearAllMocks();
     (db.worker.findFirst as jest.Mock).mockReset();
     (db.worker.findMany as jest.Mock).mockReset();
+    (db.worker.findUnique as jest.Mock).mockReset();
+    (db.worker.updateMany as jest.Mock).mockReset();
     (db.taskGroup.findUnique as jest.Mock).mockReset();
     (db.repoRobot.findUnique as jest.Mock).mockReset();
     (db.taskGroup.findUnique as jest.Mock).mockResolvedValue(null);
@@ -103,5 +105,79 @@ describe('WorkersService default worker routing', () => {
 
     const service = new WorkersService(logWriter as any);
     await expect(service.requireWorkerReadyForNewTask('worker-1', 'codex')).resolves.toEqual({ ok: true });
+  });
+
+  test('keeps failed provider installs in error state when the worker reports runtime errors', async () => {
+    (db.worker.findUnique as jest.Mock).mockResolvedValue({
+      runtimeState: {
+        providerStatuses: {
+          claude_code: { status: 'ready' },
+          codex: { status: 'preparing' }
+        },
+        preparedProviders: ['claude_code'],
+        preparingProviders: ['codex']
+      }
+    });
+
+    const service = new WorkersService(logWriter as any);
+    await service.markRuntimePrepared('worker-1', {
+      providers: ['codex'],
+      runtimeState: {
+        providerStatuses: {
+          claude_code: { status: 'ready' },
+          codex: { status: 'error', error: 'pnpm exited with code 1' }
+        },
+        preparedProviders: ['claude_code'],
+        preparingProviders: [],
+        lastPrepareError: 'Codex: pnpm exited with code 1'
+      },
+      error: 'Codex: pnpm exited with code 1'
+    });
+
+    expect(db.worker.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'worker-1' },
+        data: expect.objectContaining({
+          runtimeState: expect.objectContaining({
+            preparedProviders: ['claude_code'],
+            preparingProviders: [],
+            lastPrepareError: 'Codex: pnpm exited with code 1',
+            providerStatuses: expect.objectContaining({
+              claude_code: expect.objectContaining({ status: 'ready' }),
+              codex: expect.objectContaining({ status: 'error', error: 'pnpm exited with code 1' })
+            })
+          })
+        })
+      })
+    );
+  });
+
+  test('falls back to the requested providers for legacy success payloads without runtime snapshots', async () => {
+    (db.worker.findUnique as jest.Mock).mockResolvedValue({
+      runtimeState: {
+        providerStatuses: {},
+        preparedProviders: [],
+        preparingProviders: ['codex']
+      }
+    });
+
+    const service = new WorkersService(logWriter as any);
+    await service.markRuntimePrepared('worker-1', {
+      providers: ['codex']
+    });
+
+    expect(db.worker.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          runtimeState: expect.objectContaining({
+            preparedProviders: ['codex'],
+            preparingProviders: [],
+            providerStatuses: expect.objectContaining({
+              codex: expect.objectContaining({ status: 'ready' })
+            })
+          })
+        })
+      })
+    );
   });
 });

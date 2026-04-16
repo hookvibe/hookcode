@@ -16,7 +16,7 @@ import { getApiErrorMessage } from '../../api/client';
 import type { TFunction } from '../../i18n';
 import { buildTaskGroupHash } from '../../router';
 import { formatRobotOptionLabel } from '../../utils/robot';
-import { getWorkerProviderGuardDetails, normalizeWorkerProviderKey } from '../../utils/workerRuntime';
+import { getWorkerProviderLabel, isWorkerProviderAvailable, normalizeWorkerProviderKey } from '../../utils/workerRuntime';
 import { formatWorkerOptionLabel } from '../../utils/workers';
 import { getStoredUser } from '../../auth';
 import { createAuthedEventSource } from '../../utils/sse';
@@ -221,23 +221,10 @@ export const useTaskGroupWorkspaceData = ({
   }, [workerId, workers]);
   const selectedWorkerProviderGuardMessage = useMemo(() => {
     if (!selectedWorkerRecord || !selectedRobotProvider) return null;
-    const guard = getWorkerProviderGuardDetails({
-      workerName: selectedWorkerRecord.name || selectedWorkerRecord.id,
-      provider: selectedRobotProvider,
-      worker: selectedWorkerRecord
-    });
-    if (!guard) return null;
-    if (guard.reason === 'preparing') {
-      return t('chat.validation.workerProviderPreparing', { provider: guard.providerLabel, worker: guard.workerName });
-    }
-    if (guard.reason === 'error') {
-      return t('chat.validation.workerProviderUnavailable', {
-        provider: guard.providerLabel,
-        worker: guard.workerName,
-        error: guard.error || selectedWorkerRecord.runtimeState?.lastPrepareError || '-'
-      });
-    }
-    return t('chat.validation.workerProviderMissing', { provider: guard.providerLabel, worker: guard.workerName });
+    if (isWorkerProviderAvailable(selectedWorkerRecord, selectedRobotProvider)) return null;
+    const providerLabel = getWorkerProviderLabel(selectedRobotProvider);
+    const workerName = selectedWorkerRecord.name || selectedWorkerRecord.id;
+    return t('chat.validation.workerProviderMissing', { provider: providerLabel, worker: workerName });
   }, [selectedRobotProvider, selectedWorkerRecord, t]);
 
   const groupTitle = useMemo(() => {

@@ -31,7 +31,6 @@ import { normalizeString, parsePositiveInt } from '../../utils/parse';
 import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { RepoAccessService } from '../repositories/repo-access.service';
-import { TaskRunner } from './task-runner.service';
 import {
   ApprovalActionRequestDto,
   ApprovalActionResponseDto,
@@ -51,8 +50,7 @@ const normalizeApprovalStatus = (value: unknown): ApprovalRequestStatus | undefi
 export class ApprovalsController {
   constructor(
     private readonly approvalsService: ApprovalQueueService,
-    private readonly repoAccessService: RepoAccessService,
-    private readonly taskRunner: TaskRunner
+    private readonly repoAccessService: RepoAccessService
   ) {}
 
   private requireUser(req: Request) {
@@ -145,7 +143,6 @@ export class ApprovalsController {
       await this.requireApprovalManage(req, id);
       const taskId = await this.approvalsService.approveOnce(id, req.user!.id, { note: body?.note, action: 'approve' });
       if (!taskId) throw new NotFoundException({ error: 'Approval request not found' });
-      this.taskRunner.trigger().catch((err) => console.error('[approvals] trigger task runner failed', err));
       const approval = await this.approvalsService.getApprovalRequest(id);
       if (!approval) throw new NotFoundException({ error: 'Approval request not found' });
       return { approval };
@@ -212,7 +209,6 @@ export class ApprovalsController {
       await this.requireApprovalManage(req, id);
       const taskId = await this.approvalsService.approveAlways(id, req.user!.id, { note: body?.note });
       if (!taskId) throw new NotFoundException({ error: 'Approval request not found' });
-      this.taskRunner.trigger().catch((err) => console.error('[approvals] trigger task runner failed', err));
       const approval = await this.approvalsService.getApprovalRequest(id);
       if (!approval) throw new NotFoundException({ error: 'Approval request not found' });
       return { approval };

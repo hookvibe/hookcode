@@ -1,8 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import {
-  buildTaskGroupWorkspaceDir,
-  getRepoSlug
-} from '../../agent/agent';
 import type { Task, TaskGitStatus, TaskResult } from '../../types/task';
 import type {
   TaskWorkspaceOperation,
@@ -11,9 +7,6 @@ import type {
   TaskWorkspaceState
 } from '../../types/taskWorkspace';
 import { computeGitPushState, computeGitStatusDelta } from '../../utils/gitStatus';
-import { WorkersConnectionService } from '../workers/workers-connection.service';
-import { WorkersService } from '../workers/workers.service';
-import { LocalTaskWorkspaceError, collectLocalTaskWorkspace, executeLocalTaskWorkspaceOperation } from './task-workspace.local';
 import { TaskService } from './task.service';
 
 const trimString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
@@ -43,9 +36,7 @@ const countDiffStats = (unifiedDiff: string): { additions: number; deletions: nu
 @Injectable()
 export class TaskWorkspaceService {
   constructor(
-    private readonly taskService: TaskService,
-    private readonly workersService: WorkersService,
-    private readonly workersConnections: WorkersConnectionService
+    private readonly taskService: TaskService
   ) {}
 
   async getWorkspace(taskId: string): Promise<TaskWorkspaceState> {
@@ -65,44 +56,6 @@ export class TaskWorkspaceService {
       throw new TaskWorkspaceServiceError('WORKSPACE_READONLY', 'Workspace actions are disabled while the task is still running');
     }
 
-    const worker = task.workerId ? await this.workersService.getWorkerById(task.workerId) : null;
-    if (worker && this.workersConnections.hasConnection(worker.id)) {
-      try {
-        const raw = await this.workersConnections.requestWorkspaceOperation(worker.id, {
-          taskId: task.id,
-          action,
-          payload: input
-        });
-        const result = this.parseWorkerOperationResult(raw);
-        await this.persistWorkspace(task, result.workspace);
-        return result;
-      } catch (error) {
-        if (worker.kind !== 'local') {
-          throw new TaskWorkspaceServiceError('WORKSPACE_REMOTE_FAILED', error instanceof Error ? error.message : 'Worker workspace request failed');
-        }
-      }
-    }
-
-    // Fall back to the colocated worker only when the worker kind is local because system-managed flags were removed from the worker model. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
-    if (worker?.kind === 'local') {
-      const repoDir = this.resolveBackendWorkspaceDir(task);
-      try {
-        const result = await executeLocalTaskWorkspaceOperation({
-          repoDir,
-          action,
-          paths: input?.paths,
-          message: input?.message
-        });
-        await this.persistWorkspace(task, result.workspace);
-        return result;
-      } catch (error) {
-        if (error instanceof LocalTaskWorkspaceError) {
-          throw new TaskWorkspaceServiceError(error.code, error.message);
-        }
-        throw error;
-      }
-    }
-
     throw new TaskWorkspaceServiceError('WORKSPACE_READONLY', 'Live task workspace is not available for write actions');
   }
 
@@ -115,45 +68,8 @@ export class TaskWorkspaceService {
   }
 
   private async tryLoadLiveWorkspace(task: Task): Promise<TaskWorkspaceState | null> {
-    const worker = task.workerId ? await this.workersService.getWorkerById(task.workerId) : null;
-    if (worker && this.workersConnections.hasConnection(worker.id)) {
-      try {
-        const raw = await this.workersConnections.requestWorkspaceOperation(worker.id, {
-          taskId: task.id,
-          action: 'snapshot'
-        });
-        return this.parseWorkerOperationResult(raw).workspace;
-      } catch (error) {
-        if (worker.kind !== 'local') {
-          return null;
-        }
-      }
-    }
-
-    // Reuse the same local-worker fallback for snapshots so task workspace reads stay compatible with the simplified worker records. docs/en/developer/plans/external-worker-bind-existing-20260312/task_plan.md external-worker-bind-existing-20260312
-    if (worker?.kind === 'local') {
-      try {
-        return await collectLocalTaskWorkspace(this.resolveBackendWorkspaceDir(task));
-      } catch (error) {
-        if (error instanceof LocalTaskWorkspaceError) {
-          return null;
-        }
-        throw error;
-      }
-    }
 
     return null;
-  }
-
-  private resolveBackendWorkspaceDir(task: Task): string {
-    const provider = (task.repoProvider ?? 'gitlab') as 'gitlab' | 'github';
-    const repoSlug = getRepoSlug(provider, task.payload ?? {}, task.id);
-    return buildTaskGroupWorkspaceDir({
-      taskGroupId: task.groupId,
-      taskId: task.id,
-      provider,
-      repoSlug
-    });
   }
 
   private buildSnapshotWorkspace(task: Task): TaskWorkspaceState | null {

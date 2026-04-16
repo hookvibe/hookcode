@@ -375,8 +375,8 @@ export class TaskWorkerSummaryDto {
   @ApiProperty()
   name!: string;
 
-  @ApiProperty({ enum: ['local', 'remote'] })
-  kind!: 'local' | 'remote';
+  @ApiProperty({ enum: ['remote'] })
+  kind!: 'remote';
 
   @ApiProperty({ enum: ['online', 'offline', 'disabled'] })
   status!: 'online' | 'offline' | 'disabled';
@@ -397,8 +397,8 @@ export class WorkerSummaryDto {
   @ApiProperty()
   name!: string;
 
-  @ApiProperty({ enum: ['local', 'remote'] })
-  kind!: 'local' | 'remote';
+  @ApiProperty({ enum: ['remote'] })
+  kind!: 'remote';
 
   @ApiProperty({ enum: ['online', 'offline', 'disabled'] })
   status!: 'online' | 'offline' | 'disabled';

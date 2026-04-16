@@ -1,92 +1,55 @@
-import type { WorkerCapabilities, WorkerRuntimeState } from './worker';
+/**
+ * Worker HTTP Pull Protocol (v2)
+ *
+ * Replaces WebSocket protocol. Workers authenticate via API key (Bearer token)
+ * and poll for tasks via HTTP long-polling.
+ */
+import type { WorkerCapabilities, WorkerProviderKey } from './worker';
 
-export type WorkerHelloMessage = {
-  type: 'hello';
+// ── Worker → Backend (HTTP requests) ──
+
+/** POST /api/workers/poll — request body */
+export type WorkerPollRequest = {
+  providers?: WorkerProviderKey[];
+  activeTaskIds?: string[];
   version?: string;
   platform?: string;
   arch?: string;
   hostname?: string;
   capabilities?: WorkerCapabilities;
-  runtimeState?: WorkerRuntimeState;
-  maxConcurrency?: number;
-  activeTaskIds?: string[];
 };
 
-export type WorkerHeartbeatMessage = {
-  type: 'heartbeat';
-  runtimeState?: WorkerRuntimeState;
-  activeTaskIds?: string[];
-};
-
-export type WorkerTaskAcceptedMessage = {
-  type: 'taskAccepted';
+/** POST /api/workers/poll — response body (null if no task available) */
+export type WorkerPollResponse = {
   taskId: string;
+} | null;
+
+/** POST /api/workers/heartbeat — request body */
+export type WorkerHeartbeatRequest = {
+  activeTaskIds?: string[];
+  version?: string;
+  providers?: WorkerProviderKey[];
 };
 
-export type WorkerRuntimePrepareStartedMessage = {
-  type: 'runtimePrepareStarted';
-  providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>;
-  runtimeState?: WorkerRuntimeState;
+/** POST /api/tasks/:id/accept — request body */
+export type WorkerTaskAcceptRequest = {
+  // intentionally empty — presence means acceptance
 };
 
-export type WorkerRuntimePrepareFinishedMessage = {
-  type: 'runtimePrepareFinished';
-  providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>;
-  runtimeState?: WorkerRuntimeState;
-  error?: string;
-};
-
-export type WorkerWorkspaceResponseMessage = {
-  type: 'workspaceResponse';
-  requestId: string;
-  taskId: string;
-  success: boolean;
+/** POST /api/tasks/:id/finalize — request body */
+export type WorkerTaskFinalizeRequest = {
+  status: 'succeeded' | 'failed';
+  message?: string;
   result?: Record<string, unknown>;
-  error?: {
-    code?: string;
-    message?: string;
+  durationMs?: number;
+  providerCommentUrl?: string;
+  outputText?: string;
+  gitStatus?: unknown;
+  stopReason?: string;
+  tokenUsage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
   };
 };
 
-export type WorkerInboundMessage =
-  | WorkerHelloMessage
-  | WorkerHeartbeatMessage
-  | WorkerTaskAcceptedMessage
-  | WorkerRuntimePrepareStartedMessage
-  | WorkerRuntimePrepareFinishedMessage
-  | WorkerWorkspaceResponseMessage;
-
-export type WorkerAssignTaskMessage = {
-  type: 'assignTask';
-  taskId: string;
-};
-
-export type WorkerPrepareRuntimeMessage = {
-  type: 'prepareRuntime';
-  providers?: Array<'codex' | 'claude_code' | 'gemini_cli'>;
-};
-
-export type WorkerCancelTaskMessage = {
-  type: 'cancelTask';
-  taskId: string;
-};
-
-export type WorkerPingMessage = { type: 'ping' };
-
-export type WorkerWorkspaceRequestMessage = {
-  type: 'workspaceRequest';
-  requestId: string;
-  taskId: string;
-  action: 'snapshot' | 'stage' | 'unstage' | 'discard' | 'delete_untracked' | 'commit';
-  payload?: {
-    paths?: string[];
-    message?: string;
-  };
-};
-
-export type WorkerOutboundMessage =
-  | WorkerAssignTaskMessage
-  | WorkerPrepareRuntimeMessage
-  | WorkerCancelTaskMessage
-  | WorkerPingMessage
-  | WorkerWorkspaceRequestMessage;

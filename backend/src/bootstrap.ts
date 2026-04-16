@@ -20,11 +20,7 @@ import { RuntimeService } from './services/runtimeService';
 import { OpenApiSpecStore } from './modules/openapi/openapi-spec.store';
 import { PreviewWsProxyService } from './modules/tasks/preview-ws-proxy.service';
 import { PreviewHostProxyService } from './modules/tasks/preview-host-proxy.service';
-import { WorkersConnectionService } from './modules/workers/workers-connection.service';
-import { LocalWorkerSupervisorService } from './modules/workers/local-worker-supervisor.service';
 import { WorkersService } from './modules/workers/workers.service';
-import { REQUIRED_WORKER_VERSION, isDeclaredWorkerDependencyAligned, readDeclaredWorkerDependencyVersion } from './modules/workers/worker-version-policy';
-import { readSystemWorkerMode } from './modules/workers/system-worker-config';
 import { HttpErrorMessageFilter } from './modules/common/filters/http-error-message.filter';
 import { AuditLogInterceptor } from './modules/logs/audit-log.interceptor';
 import { LogsService } from './modules/logs/logs.service';
@@ -94,6 +90,7 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
   let adminTools: AdminToolsHandle | null = null;
   let staleReaperTimer: NodeJS.Timeout | null = null;
   let logRetentionTimer: NodeJS.Timeout | null = null;
+  let heartbeatReaperTimer: NodeJS.Timeout | null = null;
 
   await ensureSchema();
 
@@ -176,18 +173,6 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
     logsService = app.get(LogsService);
   } catch (err) {
     console.warn(`${logTag} log services unavailable`, err);
-  }
-
-  if (!isDeclaredWorkerDependencyAligned()) {
-    const declaredWorkerVersion = readDeclaredWorkerDependencyVersion() ?? 'missing';
-    const message = `Backend declares ${declaredWorkerVersion} for @hookvibe/hookcode-worker but runtime requires ${REQUIRED_WORKER_VERSION}. Update backend/package.json to match.`;
-    console.warn(`${logTag} ${message}`);
-    void logWriter?.logSystem({
-      level: 'warn',
-      message,
-      code: 'WORKER_DEPENDENCY_VERSION_MISMATCH',
-      meta: { declaredWorkerVersion, requiredWorkerVersion: REQUIRED_WORKER_VERSION }
-    });
   }
 
   const runtimeService = app.get(RuntimeService);
@@ -316,17 +301,6 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
     console.warn(`${logTag} preview WS proxy attach failed`, err);
   }
 
-  try {
-    // Attach the worker control socket so remote/local executors can register and receive task assignments. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-    const workersConnections = app.get(WorkersConnectionService);
-    workersConnections.attach(app.getHttpServer());
-  } catch (err) {
-    console.warn(`${logTag} worker WS attach failed`, err);
-  }
-
-  let localWorkerSupervisor: LocalWorkerSupervisorService | null = null;
-  const backendBaseUrl = `http://${host}:${port}/${globalPrefix}`;
-  const systemWorkerMode = readSystemWorkerMode(process.env);
   const workersService = app.get(WorkersService);
   try {
     const reconciledWorkers = await workersService.reconcileStaleWorkers();
@@ -342,25 +316,17 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
     console.warn(`${logTag} stale worker reconciliation failed`, err);
   }
 
-  if (systemWorkerMode === 'local') {
+  // Periodically reconcile stale workers (check heartbeat timeouts)
+  heartbeatReaperTimer = setInterval(async () => {
     try {
-      // Start one colocated worker for each backend instance only in local mode so source-based deployments keep the simplest default executor. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      const resolvedLocalWorkerSupervisor = app.get(LocalWorkerSupervisorService);
-      localWorkerSupervisor = resolvedLocalWorkerSupervisor;
-      await resolvedLocalWorkerSupervisor.start({ backendBaseUrl });
+      const reconciled = await workersService.reconcileStaleWorkers();
+      if (reconciled > 0) {
+        console.warn(`${logTag} reconciled ${reconciled} stale worker(s)`);
+      }
     } catch (err) {
-      console.warn(`${logTag} local worker supervisor start failed`, err);
-      localWorkerSupervisor = null;
+      console.warn(`${logTag} heartbeat reaper failed`, err);
     }
-  } else {
-    // Keep production deployments on manually bound remote workers by disabling backend-owned bootstrap workers.
-    void logWriter?.logSystem({
-      level: 'info',
-      message: 'System worker bootstrap disabled via HOOKCODE_SYSTEM_WORKER_MODE',
-      code: 'WORKER_SYSTEM_BOOTSTRAP_DISABLED',
-      meta: { mode: systemWorkerMode }
-    });
-  }
+  }, 30_000);
 
   const adminToolsEmbedded = isAdminToolsEmbeddedEnabled();
   if (adminToolsEmbedded) {
@@ -373,14 +339,7 @@ export const bootstrapHttpServer = async (options: BootstrapOptions): Promise<Bo
   const stop = async () => {
     if (staleReaperTimer) clearInterval(staleReaperTimer);
     if (logRetentionTimer) clearInterval(logRetentionTimer);
-    try {
-      if (localWorkerSupervisor) {
-        // Stop the colocated worker only when bootstrap started it successfully for this backend instance. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-        await localWorkerSupervisor.stop();
-      }
-    } catch (err) {
-      console.error(`${logTag} stop local worker supervisor failed`, err);
-    }
+    if (heartbeatReaperTimer) clearInterval(heartbeatReaperTimer);
     try {
       await adminTools?.stop();
     } catch (err) {

@@ -20,9 +20,6 @@ const normalizeWorkerApiBaseUrl = (value: unknown): string => {
   }
 };
 
-const buildWorkerWsUrl = (backendUrl: string): string =>
-  backendUrl.replace(/^https?:/i, (protocol) => (protocol.toLowerCase() === 'https:' ? 'wss:' : 'ws:')) + '/workers/connect';
-
 const hasExplicitPort = (host: string): boolean => {
   const trimmed = trimString(host);
   if (!trimmed) return false;
@@ -47,15 +44,10 @@ const appendPortToHost = (host: string, port: string): string => {
 export const resolveWorkerPublicApiBaseUrl = (
   req: Pick<Request, 'get' | 'protocol'>,
   env: NodeJS.ProcessEnv = process.env
-): { backendUrl: string; wsUrl: string; source: 'env' | 'request' } => {
-  // Prefer the explicit worker connect API base URL while accepting the old env name as a temporary alias.
+): { backendUrl: string; source: 'env' | 'request' } => {
   const configuredUrl = normalizeWorkerApiBaseUrl(env.HOOKCODE_WORKER_CONNECT_API_BASE_URL || env.HOOKCODE_WORKER_PUBLIC_API_BASE_URL);
   if (configuredUrl) {
-    return {
-      backendUrl: configuredUrl,
-      wsUrl: buildWorkerWsUrl(configuredUrl),
-      source: 'env'
-    };
+    return { backendUrl: configuredUrl, source: 'env' };
   }
 
   const forwardedProto = firstHeaderValue(req.get('x-forwarded-proto'));
@@ -67,11 +59,7 @@ export const resolveWorkerPublicApiBaseUrl = (
   const fallbackUrl = normalizeWorkerApiBaseUrl(`${protocol}://${normalizedHost}`);
   const backendUrl = fallbackUrl || DEFAULT_BACKEND_API_URL;
 
-  return {
-    backendUrl,
-    wsUrl: buildWorkerWsUrl(backendUrl),
-    source: 'request'
-  };
+  return { backendUrl, source: 'request' };
 };
 
 export { normalizeWorkerApiBaseUrl };

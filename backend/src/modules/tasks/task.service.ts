@@ -883,7 +883,8 @@ export class TaskService {
           kind: String(worker.kind) as any,
           status: String(worker.status) as any,
           isGlobalDefault: Boolean(worker.isGlobalDefault),
-          preview: Boolean((worker.capabilities as any)?.preview ?? false)
+          preview: Boolean((worker.capabilities as any)?.preview ?? false),
+          providers: Array.isArray(worker.providers) ? worker.providers : []
         }
       ] as const)
     );

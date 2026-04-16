@@ -8,7 +8,6 @@ import { normalizeString } from '../../utils/parse';
 import { attachTaskSchedule, normalizeTimeWindow, resolveTaskSchedule } from '../../utils/timeWindow';
 import { AuthScopeGroup } from '../auth/auth.decorator';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
-import { TaskRunner } from './task-runner.service';
 import { TaskService } from './task.service';
 import { ChatExecuteRequestDto, ChatExecuteResponseDto } from './dto/chat-swagger.dto';
 import { isTaskCreationGuardError } from './task-creation-guard-error';
@@ -59,8 +58,7 @@ export class ChatController {
   constructor(
     private readonly taskService: TaskService,
     private readonly repositoryService: RepositoryService,
-    private readonly robotCatalogService: RobotCatalogService,
-    private readonly taskRunner: TaskRunner
+    private readonly robotCatalogService: RobotCatalogService
   ) {}
 
   @Post()
@@ -148,9 +146,6 @@ export class ChatController {
         },
         { updateGroupRobotId: group.kind === 'chat' }
       );
-
-      // Trigger dispatcher immediately so chat-created tasks start on the selected worker without waiting for a poll loop. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      this.taskRunner.trigger().catch((err: unknown) => console.error('[chat] trigger task runner failed', err));
 
       const [taskWithMeta, groupWithMeta] = await Promise.all([
         this.taskService.getTask(created.id, { includeMeta: true }),

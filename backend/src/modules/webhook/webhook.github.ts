@@ -14,7 +14,7 @@ import {
 
 // Keep GitHub webhook ingress thin while shared execution/replay logic lives in webhook.execution.ts. docs/en/developer/plans/webhook-replay-debug-20260313/task_plan.md webhook-replay-debug-20260313
 export const handleGithubWebhook = async (req: Request, res: Response, deps: WebhookDeps) => {
-  const { taskService, taskRunner, repositoryService, robotCatalogService, repoAutomationService, repoWebhookDeliveryService, logWriter, notificationRecipients } = deps;
+  const { taskService, repositoryService, robotCatalogService, repoAutomationService, repoWebhookDeliveryService, logWriter, notificationRecipients } = deps;
   const repoId = String(req.params.repoId ?? '').trim();
   const eventName = safeString(req.header('x-github-event') ?? '').trim();
   const deliveryId = safeString(req.header('x-github-delivery') ?? '').trim();
@@ -208,7 +208,6 @@ export const handleGithubWebhook = async (req: Request, res: Response, deps: Web
     );
 
     if (execution.result === 'accepted') {
-      taskRunner.trigger().catch((err) => console.error('[webhook] trigger task runner failed', err));
       return respond(202, { tasks: execution.createdTasks }, {
         result: 'accepted',
         message: execution.message,

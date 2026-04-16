@@ -4,7 +4,6 @@ import { RepoAutomationService } from '../repositories/repo-automation.service';
 import { RepoWebhookDeliveryService } from '../repositories/repo-webhook-delivery.service';
 import { RepositoryService } from '../repositories/repository.service';
 import { RobotCatalogService } from '../repositories/robot-catalog.service';
-import { TaskRunner } from '../tasks/task-runner.service';
 import { TaskService } from '../tasks/task.service';
 import { LogWriterService } from '../logs/log-writer.service';
 import { NotificationRecipientService } from '../notifications/notification-recipient.service';
@@ -14,7 +13,6 @@ import { handleGithubWebhook, handleGitlabWebhook } from './webhook.handlers';
 export class WebhookService {
   constructor(
     private readonly taskService: TaskService,
-    private readonly taskRunner: TaskRunner,
     private readonly repositoryService: RepositoryService,
     private readonly robotCatalogService: RobotCatalogService,
     private readonly repoAutomationService: RepoAutomationService,
@@ -28,7 +26,6 @@ export class WebhookService {
   handleGitlabWebhook(req: Request, res: Response) {
     return handleGitlabWebhook(req, res, {
       taskService: this.taskService,
-      taskRunner: this.taskRunner,
       repositoryService: this.repositoryService,
       robotCatalogService: this.robotCatalogService,
       repoAutomationService: this.repoAutomationService,
@@ -41,7 +38,6 @@ export class WebhookService {
   handleGithubWebhook(req: Request, res: Response) {
     return handleGithubWebhook(req, res, {
       taskService: this.taskService,
-      taskRunner: this.taskRunner,
       repositoryService: this.repositoryService,
       robotCatalogService: this.robotCatalogService,
       repoAutomationService: this.repoAutomationService,

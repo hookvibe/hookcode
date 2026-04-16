@@ -1,10 +1,10 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, NotFoundException, Param, Post, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, NotFoundException, Param, Post, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { GlobalCredentialService } from '../repositories/global-credentials.service';
 import { RepositoryService } from '../repositories/repository.service';
 import { RobotCatalogService } from '../repositories/robot-catalog.service';
 import { SkillsService } from '../skills/skills.service';
-import { AgentService } from '../tasks/agent.service';
 import { TaskRunner } from '../tasks/task-runner.service';
 import { TaskLogStream } from '../tasks/task-log-stream.service';
 import { TaskLogsService } from '../tasks/task-logs.service';
@@ -13,34 +13,20 @@ import { UserApiTokenService } from '../users/user-api-token.service';
 import { UserService } from '../users/user.service';
 import { Public } from '../auth/auth.decorator';
 import { WorkersService } from './workers.service';
+import type { WorkerRecord } from '../../types/worker';
+import type { WorkerPollRequest, WorkerHeartbeatRequest, WorkerTaskFinalizeRequest } from '../../types/workerProtocol';
+import { parsePositiveInt } from '../../utils/parse';
 
 const trimString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
-const lookupString = (root: unknown, path: string[]): string => {
-  let current: unknown = root;
-  for (const segment of path) {
-    if (!current || typeof current !== 'object') return '';
-    current = (current as Record<string, unknown>)[segment];
-  }
-  return trimString(current);
-};
-const TASK_COMMAND_PATHS = [
-  ['executionCommand'],
-  ['command'],
-  ['executor', 'command'],
-  ['payload', 'command'],
-  ['payload', 'executor', 'command'],
-  ['payload', 'hookcode', 'command']
-] as const;
-const taskHasWorkerCommand = (task: unknown): boolean => TASK_COMMAND_PATHS.some((path) => Boolean(lookupString(task, [...path])));
+const LONG_POLL_TIMEOUT_MS = parsePositiveInt(process.env.WORKER_POLL_TIMEOUT_MS, 30_000);
 
 @ApiExcludeController()
-@Public() // Keep worker-runtime internal APIs outside bearer auth because they authenticate with worker headers instead. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+@Public()
 @Controller('workers/internal')
 export class WorkersInternalController {
   constructor(
     private readonly workersService: WorkersService,
     private readonly taskService: TaskService,
-    private readonly agentService: AgentService,
     private readonly taskRunner: TaskRunner,
     private readonly taskLogStream: TaskLogStream,
     private readonly taskLogsService: TaskLogsService,
@@ -52,10 +38,11 @@ export class WorkersInternalController {
     private readonly skillsService: SkillsService
   ) {}
 
-  private async authenticate(headers: Record<string, string | string[] | undefined>) {
-    const workerId = trimString(headers['x-hookcode-worker-id']);
-    const token = trimString(headers['x-hookcode-worker-token']);
-    const worker = await this.workersService.verifyWorkerToken(workerId, token);
+  private async authenticate(headers: Record<string, string | string[] | undefined>): Promise<WorkerRecord> {
+    const authHeader = trimString(headers['authorization']);
+    const apiKey = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (!apiKey) throw new UnauthorizedException({ error: 'Missing API key' });
+    const worker = await this.workersService.authenticateByApiKey(apiKey);
     if (!worker) throw new UnauthorizedException({ error: 'Invalid worker credentials' });
     return worker;
   }
@@ -68,6 +55,56 @@ export class WorkersInternalController {
     return task;
   }
 
+  // ── Poll & Heartbeat ──
+
+  @Post('poll')
+  async poll(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() body: WorkerPollRequest,
+    @Res() res: Response
+  ) {
+    const worker = await this.authenticate(headers);
+    await this.workersService.markWorkerOnlineFromPoll(worker.id, body ?? {});
+
+    // Try immediate claim
+    const hasCapacity = await this.workersService.hasCapacity(worker.id);
+    if (hasCapacity) {
+      const claimed = await this.workersService.claimNextTask(worker.id);
+      if (claimed) {
+        res.json({ task: { id: claimed.taskId } });
+        return;
+      }
+    }
+
+    // Long-poll: wait up to LONG_POLL_TIMEOUT_MS for a task
+    const deadline = Date.now() + LONG_POLL_TIMEOUT_MS;
+    const pollInterval = 2_000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      const cap = await this.workersService.hasCapacity(worker.id);
+      if (!cap) break;
+      const claimed = await this.workersService.claimNextTask(worker.id);
+      if (claimed) {
+        res.json({ task: { id: claimed.taskId } });
+        return;
+      }
+    }
+
+    res.json({ task: null });
+  }
+
+  @Post('heartbeat')
+  async heartbeat(
+    @Headers() headers: Record<string, string | string[] | undefined>,
+    @Body() body: WorkerHeartbeatRequest
+  ) {
+    const worker = await this.authenticate(headers);
+    await this.workersService.recordHeartbeat(worker.id, body ?? {});
+    return { ok: true, workerId: worker.id, workerName: worker.name };
+  }
+
+  // ── Task Context & Data ──
+
   @Get('repos/:repoId')
   async getRepo(@Headers() headers: Record<string, string | string[] | undefined>, @Param('repoId') repoId: string) {
     await this.authenticate(headers);
@@ -77,14 +114,12 @@ export class WorkersInternalController {
   @Get('repos/:repoId/credentials')
   async getRepoScopedCredentials(@Headers() headers: Record<string, string | string[] | undefined>, @Param('repoId') repoId: string) {
     await this.authenticate(headers);
-    // Return raw repo-scoped credentials only to authenticated workers so remote execution can clone repos and call providers. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     return { repoScopedCredentials: await this.repositoryService.getRepoScopedCredentials(repoId) };
   }
 
   @Get('repos/:repoId/robots')
   async getRepoRobots(@Headers() headers: Record<string, string | string[] | undefined>, @Param('repoId') repoId: string) {
     await this.authenticate(headers);
-    // Return mixed-scope robots so external workers resolve the same robot catalog as the API and webhook runtime. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
     return { robots: await this.robotCatalogService.listAvailableByRepoWithToken(repoId) };
   }
 
@@ -103,11 +138,9 @@ export class WorkersInternalController {
     const robotsInRepo = task.repoId ? await this.robotCatalogService.listAvailableByRepoWithToken(task.repoId) : [];
     const globalCredentials = await this.globalCredentialService.getCredentialsRaw();
     const defaultUserCredentials = await this.userService.getDefaultUserCredentialsRaw();
-    // Return the complete execution context needed by the external worker runtime without granting DB access. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     return {
       task,
       repo,
-      // Return raw repo/user credentials only to authenticated workers so remote execution can clone repos and call providers. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
       repoScopedCredentials: repoScopedCredentials ?? null,
       globalCredentials,
       robotsInRepo,
@@ -124,47 +157,7 @@ export class WorkersInternalController {
     return state;
   }
 
-  @Post('tasks/:taskId/execute-inline')
-  async executeInlineTask(
-    @Headers() headers: Record<string, string | string[] | undefined>,
-    @Param('taskId') taskId: string,
-    @Body() body: { reason?: string }
-  ) {
-    const worker = await this.authenticate(headers);
-    const task = await this.requireAssignedTask(taskId, worker.id);
-    const missingCommandFallback = trimString(body?.reason) === 'missing_command';
-    const localSystemWorker = worker.kind === 'local' && worker.systemManaged;
-    const taskMissingWorkerCommand = !taskHasWorkerCommand(task);
-    if (!localSystemWorker && (!missingCommandFallback || !taskMissingWorkerCommand)) {
-      // Allow non-local workers to delegate only commandless-task fallback so selected remote workers can still run older tasks while command envelopes roll out, without turning this endpoint into a generic remote tunnel for command-capable tasks. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
-      throw new ForbiddenException({ error: 'Inline execution is only available to the local system worker unless the assigned task has no runnable worker command' });
-    }
-    await this.taskRunner.executeAssignedTaskInline(task);
-    return { success: true };
-  }
-
-  @Get('tasks/:taskId/execution-bundle')
-  async getExecutionBundle(@Headers() headers: Record<string, string | string[] | undefined>, @Param('taskId') taskId: string) {
-    const worker = await this.authenticate(headers);
-    const task = await this.requireAssignedTask(taskId, worker.id);
-    return { bundle: await this.agentService.buildRemoteExecutionBundle(task) };
-  }
-
-  @Post('tasks/:taskId/provider-result')
-  async postProviderResult(
-    @Headers() headers: Record<string, string | string[] | undefined>,
-    @Param('taskId') taskId: string,
-    @Body() body: { status?: 'succeeded' | 'failed'; outputText?: string; message?: string }
-  ) {
-    const worker = await this.authenticate(headers);
-    const task = await this.requireAssignedTask(taskId, worker.id);
-    const status = body?.status === 'failed' ? 'failed' : 'succeeded';
-    return await this.agentService.postRemoteExecutionResult(task, {
-      status,
-      outputText: trimString(body?.outputText),
-      message: trimString(body?.message)
-    });
-  }
+  // ── Task Logs & Progress ──
 
   @Post('tasks/:taskId/logs')
   async appendLogs(
@@ -212,32 +205,40 @@ export class WorkersInternalController {
     return { success: true };
   }
 
+  // ── Task Finalize ──
+
   @Post('tasks/:taskId/finalize')
   async finalizeTask(
     @Headers() headers: Record<string, string | string[] | undefined>,
     @Param('taskId') taskId: string,
-    @Body() body: { status?: 'succeeded' | 'failed'; message?: string; providerCommentUrl?: string; outputText?: string; gitStatus?: unknown; durationMs?: number; stopReason?: 'manual_stop' | 'deleted' }
+    @Body() body: WorkerTaskFinalizeRequest
   ) {
     const worker = await this.authenticate(headers);
     const task = await this.requireAssignedTask(taskId, worker.id);
-    if (body?.status === 'succeeded') {
-      await this.taskRunner.reportWorkerSuccess(task, {
-        providerCommentUrl: trimString(body.providerCommentUrl),
-        outputText: trimString(body.outputText),
-        gitStatus: body.gitStatus as any,
-        durationMs: Number(body.durationMs ?? 0) || 0
+    try {
+      if (body?.status === 'succeeded') {
+        await this.taskRunner.reportWorkerSuccess(task, {
+          providerCommentUrl: trimString(body.providerCommentUrl),
+          outputText: trimString(body.outputText),
+          gitStatus: body.gitStatus as any,
+          durationMs: Number(body.durationMs ?? 0) || 0
+        });
+        return { success: true };
+      }
+      await this.taskRunner.reportWorkerFailure(task, {
+        message: trimString(body?.message) || 'Worker execution failed',
+        providerCommentUrl: trimString(body?.providerCommentUrl),
+        gitStatus: body?.gitStatus as any,
+        durationMs: Number(body?.durationMs ?? 0) || 0,
+        stopReason: body?.stopReason as any
       });
-      return { success: true };
+    } finally {
+      await this.workersService.releaseWorkerSlot(worker.id);
     }
-    await this.taskRunner.reportWorkerFailure(task, {
-      message: trimString(body?.message) || 'Worker execution failed',
-      providerCommentUrl: trimString(body?.providerCommentUrl),
-      gitStatus: body?.gitStatus as any,
-      durationMs: Number(body?.durationMs ?? 0) || 0,
-      stopReason: body?.stopReason
-    });
     return { success: true };
   }
+
+  // ── Task Group ──
 
   @Post('tasks/:taskId/ensure-group-id')
   async ensureGroupId(@Headers() headers: Record<string, string | string[] | undefined>, @Param('taskId') taskId: string) {
@@ -284,8 +285,10 @@ export class WorkersInternalController {
   @Post('skills/prompt-prefix')
   async getPromptPrefix(@Headers() headers: Record<string, string | string[] | undefined>, @Body() body: { selection?: string[] | null }) {
     await this.authenticate(headers);
-    return { promptPrefix: await this.skillsService.buildPromptPrefix(Array.isArray(body?.selection) ? body.selection : body?.selection === null ? null : null) };
+    return { promptPrefix: await this.skillsService.buildPromptPrefix(Array.isArray(body?.selection) ? body.selection : null) };
   }
+
+  // ── Auth Utility ──
 
   @Post('pat/verify')
   async verifyPat(@Headers() headers: Record<string, string | string[] | undefined>, @Body() body: { token?: string }) {
@@ -296,7 +299,6 @@ export class WorkersInternalController {
   @Post('bootstrap-user')
   async ensureBootstrapUser(@Headers() headers: Record<string, string | string[] | undefined>) {
     await this.authenticate(headers);
-    // Let external workers request bootstrap-user creation only through the authenticated internal channel. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
     await this.userService.ensureBootstrapUser();
     return { success: true };
   }
@@ -309,7 +311,6 @@ export class WorkersInternalController {
     await this.authenticate(headers);
     let userId = trimString(body?.userId);
     if (!userId) {
-      // Resolve a default PAT owner inside backend so external workers do not need direct user bootstrap logic. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
       const current = await this.userService.getDefaultUserCredentialsRaw();
       if (current?.userId) {
         userId = trimString(current.userId);

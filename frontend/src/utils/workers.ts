@@ -15,15 +15,6 @@ export const getWorkerKindLabel = (t: TFunction, kind: WorkerSummary['kind']): s
 export const getWorkerStatusLabel = (t: TFunction, status: WorkerSummary['status']): string =>
   t(`workers.status.${status}` as any);
 
-export const getWorkerRuntimeStatusLabel = (t: TFunction, status?: string | null): string => {
-  const normalized = String(status ?? '').trim().toLowerCase();
-  if (!normalized) return t('workers.runtime.unknown');
-  if (normalized === 'idle' || normalized === 'preparing' || normalized === 'ready' || normalized === 'error') {
-    return t(`workers.runtime.${normalized}` as any);
-  }
-  return normalized;
-};
-
 export const formatWorkerOptionLabel = (t: TFunction, worker: WorkerSummary | WorkerRecord): string => {
   // Keep worker selector labels consistent across settings, repo robots, and chat routing. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
   return `${worker.name} · ${getWorkerKindLabel(t, worker.kind)} · ${getWorkerStatusLabel(t, worker.status)}`;

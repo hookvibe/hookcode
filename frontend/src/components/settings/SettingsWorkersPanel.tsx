@@ -5,24 +5,19 @@ import {
   createWorker,
   deleteWorker,
   fetchWorkersRegistry,
-  prepareWorkerRuntime,
-  resetWorkerBindCode,
+  rotateWorkerApiKey,
   updateWorker,
-  type WorkerBindInfo,
+  type WorkerApiKeyInfo,
   type WorkerRecord,
-  type WorkerVersionRequirement
 } from '../../api';
 import { getApiErrorMessage } from '../../api/client';
 import { useLocale, useT, type TFunction } from '../../i18n';
 import {
-  getWorkerProviderGuardDetails,
   getWorkerProviderLabel,
-  getWorkerProviderRuntimeEntry,
-  getWorkerProviderRuntimeStatus,
-  isWorkerProviderReady,
+  isWorkerProviderAvailable,
   WORKER_PROVIDER_KEYS
 } from '../../utils/workerRuntime';
-import { formatWorkerOptionLabel, getWorkerRuntimeStatusLabel } from '../../utils/workers';
+import { formatWorkerOptionLabel } from '../../utils/workers';
 import { WorkerSummaryTag } from '../workers/WorkerSummaryTag';
 import { SETTINGS_DATA_TABLE_SCROLL_X, SETTINGS_STICKY_ACTIONS_TABLE_CLASS_NAME } from './layout';
 
@@ -31,21 +26,7 @@ const DEFAULT_PROVIDER_OPTIONS = WORKER_PROVIDER_KEYS.map((provider) => ({
   label: getWorkerProviderLabel(provider)
 }));
 
-const powerShellQuote = (value: string): string => `'${String(value).replace(/'/g, "''")}'`;
 const dotenvQuote = (value: string): string => JSON.stringify(String(value));
-
-const trimString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
-
-const isValidBackendUrl = (value: string): boolean => {
-  const raw = trimString(value);
-  if (!raw) return false;
-  try {
-    const url = new URL(raw);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-};
 
 const formatDateTime = (locale: string, value?: string | null): string => {
   if (!value) return '-';
@@ -54,71 +35,27 @@ const formatDateTime = (locale: string, value?: string | null): string => {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(parsed);
 };
 
-const resolveRuntimeStatus = (worker: WorkerRecord): 'idle' | 'preparing' | 'ready' | 'error' => {
-  const statuses = WORKER_PROVIDER_KEYS.map((provider) => getWorkerProviderRuntimeStatus(worker, provider));
-  if (statuses.includes('preparing')) return 'preparing';
-  if (statuses.includes('error')) return 'error';
-  if (statuses.includes('ready')) return 'ready';
-  return 'idle';
-};
-
-const resolveDefaultPrepareProviders = (worker: WorkerRecord): string[] => {
-  const missingProviders = WORKER_PROVIDER_KEYS.filter((provider) => !isWorkerProviderReady(worker, provider));
-  return missingProviders.length > 0 ? missingProviders : [...WORKER_PROVIDER_KEYS];
-};
-
-const hasPreparingWorkerRuntime = (worker: WorkerRecord): boolean =>
-  WORKER_PROVIDER_KEYS.some((provider) => getWorkerProviderRuntimeStatus(worker, provider) === 'preparing');
-
-const getProviderTagColor = (status: ReturnType<typeof getWorkerProviderRuntimeStatus>): string => {
-  if (status === 'ready') return 'success';
-  if (status === 'preparing') return 'processing';
-  if (status === 'error') return 'error';
-  return 'default';
-};
-
-const requiresWorkerUpgrade = (worker: WorkerRecord): boolean => Boolean(worker.versionState?.upgradeRequired);
-
-const describeWorkerVersionState = (
-  t: TFunction,
-  worker: WorkerRecord,
-  versionRequirement?: WorkerVersionRequirement | null
-): string | null => {
-  const requiredVersion = versionRequirement?.requiredVersion;
-  if (!requiredVersion) return null;
-  if (worker.versionState?.status === 'mismatch') {
-    return t('workers.version.mismatch', {
-      current: worker.versionState.currentVersion || '-',
-      required: requiredVersion
-    });
-  }
-  if (worker.versionState?.status === 'unknown') {
-    return t('workers.version.unknown', { required: requiredVersion });
-  }
-  return null;
-};
-
-const buildInstallScripts = (info: WorkerBindInfo) => {
+const buildInstallScripts = (info: WorkerApiKeyInfo, backendUrl: string) => {
   const worker = info.worker;
-  const requiredVersion = info.versionRequirement.requiredVersion;
   const unixWorkDir = `"$HOME/.hookcode/workers/${worker.id}"`;
-  const windowsWorkDir = `"$env:USERPROFILE\\.hookcode\\workers\\${worker.id}"`;
   const linuxWorkDir = `/var/lib/hookcode/workers/${worker.id}`;
   const systemdEnvPath = `/etc/hookcode-worker/${worker.id}.env`;
   const systemdUnitName = `hookcode-worker-${worker.id}.service`;
   const workerName = worker.name || 'HookCode Worker';
   const concurrency = String(worker.maxConcurrency || 1);
-  const installCommand = `npm install -g @hookvibe/hookcode-worker@${requiredVersion}`;
+  const installCommand = 'npm install -g @hookvibe/hookcode-worker';
   const workerDevEnv = [
     `HOOKCODE_WORK_DIR=${dotenvQuote(`~/.hookcode/workers/${worker.id}`)}`,
-    `HOOKCODE_WORKER_BIND_CODE=${dotenvQuote(info.bindCode)}`,
+    `HOOKCODE_WORKER_API_KEY=${dotenvQuote(info.apiKey)}`,
+    `HOOKCODE_WORKER_BACKEND_URL=${dotenvQuote(backendUrl)}`,
     'HOOKCODE_WORKER_KIND=remote',
     `HOOKCODE_WORKER_NAME=${dotenvQuote(workerName)}`,
     `HOOKCODE_WORKER_MAX_CONCURRENCY=${concurrency}`
   ].join('\n');
   const linuxEnvFile = [
     `HOOKCODE_WORK_DIR=${linuxWorkDir}`,
-    `HOOKCODE_WORKER_BIND_CODE='${info.bindCode}'`,
+    `HOOKCODE_WORKER_API_KEY='${info.apiKey}'`,
+    `HOOKCODE_WORKER_BACKEND_URL='${backendUrl}'`,
     'HOOKCODE_WORKER_KIND=remote',
     `HOOKCODE_WORKER_NAME='${workerName.replace(/'/g, `'\\''`)}'`,
     `HOOKCODE_WORKER_MAX_CONCURRENCY='${concurrency}'`
@@ -142,17 +79,16 @@ const buildInstallScripts = (info: WorkerBindInfo) => {
   ].join('\n');
 
   return {
-    macos: [
+    manual: [
       `mkdir -p ${unixWorkDir}`,
       installCommand,
-      `HOOKCODE_WORK_DIR=${unixWorkDir} HOOKCODE_WORKER_BIND_CODE='${info.bindCode}' hookcode-worker configure`,
-      `HOOKCODE_WORK_DIR=${unixWorkDir} HOOKCODE_WORKER_KIND=remote HOOKCODE_WORKER_NAME='${workerName.replace(/'/g, `'\\''`)}' HOOKCODE_WORKER_MAX_CONCURRENCY='${concurrency}' hookcode-worker run`
-    ].join('\n'),
-    linux: [
-      `mkdir -p ${unixWorkDir}`,
-      installCommand,
-      `HOOKCODE_WORK_DIR=${unixWorkDir} HOOKCODE_WORKER_BIND_CODE='${info.bindCode}' hookcode-worker configure`,
-      `HOOKCODE_WORK_DIR=${unixWorkDir} HOOKCODE_WORKER_KIND=remote HOOKCODE_WORKER_NAME='${workerName.replace(/'/g, `'\\''`)}' HOOKCODE_WORKER_MAX_CONCURRENCY='${concurrency}' hookcode-worker run`
+      `export HOOKCODE_WORKER_API_KEY='${info.apiKey}'`,
+      `export HOOKCODE_WORKER_BACKEND_URL='${backendUrl}'`,
+      `export HOOKCODE_WORK_DIR=${unixWorkDir}`,
+      `export HOOKCODE_WORKER_KIND=remote`,
+      `export HOOKCODE_WORKER_NAME='${workerName.replace(/'/g, `'\\''`)}'`,
+      `export HOOKCODE_WORKER_MAX_CONCURRENCY='${concurrency}'`,
+      'hookcode-worker run'
     ].join('\n'),
     linuxSystemdSetup: [
       `sudo mkdir -p /etc/hookcode-worker ${linuxWorkDir}`,
@@ -172,19 +108,6 @@ const buildInstallScripts = (info: WorkerBindInfo) => {
     linuxSystemdUnitName: systemdUnitName,
     workerDevEnv,
     workerDevCommand: 'pnpm dev',
-    windows: [
-      `$workDir = ${windowsWorkDir}`,
-      'New-Item -ItemType Directory -Force $workDir | Out-Null',
-      installCommand,
-      '$env:HOOKCODE_WORK_DIR = $workDir',
-      `$env:HOOKCODE_WORKER_BIND_CODE = ${powerShellQuote(info.bindCode)}`,
-      'hookcode-worker configure',
-      'Remove-Item Env:HOOKCODE_WORKER_BIND_CODE -ErrorAction SilentlyContinue',
-      `$env:HOOKCODE_WORKER_KIND = 'remote'`,
-      `$env:HOOKCODE_WORKER_NAME = ${powerShellQuote(workerName)}`,
-      `$env:HOOKCODE_WORKER_MAX_CONCURRENCY = ${powerShellQuote(concurrency)}`,
-      'hookcode-worker run'
-    ].join('\n')
   };
 };
 
@@ -193,19 +116,14 @@ export const SettingsWorkersPanel: FC = () => {
   const t = useT();
   const { message } = App.useApp();
   const [workers, setWorkers] = useState<WorkerRecord[]>([]);
-  const [versionRequirement, setVersionRequirement] = useState<WorkerVersionRequirement | null>(null);
   const [defaultBackendUrl, setDefaultBackendUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [prepareLoadingId, setPrepareLoadingId] = useState<string | null>(null);
   const [rowLoadingId, setRowLoadingId] = useState<string | null>(null);
-  const [installInfo, setInstallInfo] = useState<WorkerBindInfo | null>(null);
+  const [installInfo, setInstallInfo] = useState<{ info: WorkerApiKeyInfo; backendUrl: string } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [prepareOpen, setPrepareOpen] = useState<WorkerRecord | null>(null);
-  const [createForm] = Form.useForm<{ name: string; maxConcurrency?: number; backendUrl: string }>();
-  const [resetForm] = Form.useForm<{ backendUrl: string }>();
-  const [prepareForm] = Form.useForm<{ providers: string[] }>();
-  const [resetOpen, setResetOpen] = useState<WorkerRecord | null>(null);
+  const [rotateConfirmWorker, setRotateConfirmWorker] = useState<WorkerRecord | null>(null);
+  const [createForm] = Form.useForm<{ name: string; maxConcurrency?: number; providers: string[] }>();
   const globalDefaultWorker = useMemo(() => workers.find((worker) => worker.isGlobalDefault) ?? null, [workers]);
 
   const loadWorkers = useCallback(async () => {
@@ -213,13 +131,11 @@ export const SettingsWorkersPanel: FC = () => {
     try {
       const data = await fetchWorkersRegistry();
       setWorkers(data.workers);
-      setVersionRequirement(data.versionRequirement);
       setDefaultBackendUrl(data.defaultBackendUrl || '');
     } catch (error) {
       console.error(error);
       message.error(getApiErrorMessage(error) || t('workers.toast.fetchFailed'));
       setWorkers([]);
-      setVersionRequirement(null);
       setDefaultBackendUrl('');
     } finally {
       setLoading(false);
@@ -230,24 +146,15 @@ export const SettingsWorkersPanel: FC = () => {
     void loadWorkers();
   }, [loadWorkers]);
 
-  useEffect(() => {
-    if (!workers.some((worker) => hasPreparingWorkerRuntime(worker))) return;
-    // Poll while a worker is preparing runtimes so the admin table can show Codex/Claude/Gemini progress without a manual refresh. docs/en/developer/plans/7i9tp61el8rrb4r7j5xj/task_plan.md 7i9tp61el8rrb4r7j5xj
-    const timer = window.setTimeout(() => {
-      void loadWorkers();
-    }, 1500);
-    return () => window.clearTimeout(timer);
-  }, [loadWorkers, workers]);
-
-  const handleCreate = useCallback(async (values: { name: string; maxConcurrency?: number; backendUrl: string }) => {
+  const handleCreate = useCallback(async (values: { name: string; maxConcurrency?: number; providers: string[] }) => {
     try {
       setSubmitting(true);
-      const nextInstallInfo = await createWorker({
+      const result = await createWorker({
         name: String(values.name ?? '').trim(),
         maxConcurrency: values.maxConcurrency ? Number(values.maxConcurrency) : undefined,
-        backendUrl: trimString(values.backendUrl)
+        providers: values.providers,
       });
-      setInstallInfo(nextInstallInfo);
+      setInstallInfo({ info: result, backendUrl: defaultBackendUrl });
       setCreateOpen(false);
       createForm.resetFields();
       message.success(t('workers.toast.created'));
@@ -258,7 +165,7 @@ export const SettingsWorkersPanel: FC = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [createForm, loadWorkers, message, t]);
+  }, [createForm, defaultBackendUrl, loadWorkers, message, t]);
 
   const handleUpdateStatus = useCallback(async (worker: WorkerRecord, status: 'offline' | 'disabled') => {
     setRowLoadingId(worker.id);
@@ -288,51 +195,28 @@ export const SettingsWorkersPanel: FC = () => {
     }
   }, [loadWorkers, message, t]);
 
-  const handleResetBindCode = useCallback(async (worker: WorkerRecord) => {
-    resetForm.setFieldsValue({ backendUrl: trimString(worker.backendBaseUrl) || defaultBackendUrl });
-    setResetOpen(worker);
-  }, [defaultBackendUrl, resetForm]);
-
-  const handleConfirmResetBindCode = useCallback(async () => {
-    if (!resetOpen) return;
-    setRowLoadingId(resetOpen.id);
+  const handleRotateApiKey = useCallback(async () => {
+    if (!rotateConfirmWorker) return;
+    setRowLoadingId(rotateConfirmWorker.id);
     try {
-      const values = await resetForm.validateFields();
-      const nextInstallInfo = await resetWorkerBindCode(resetOpen.id, trimString(values.backendUrl));
-      setInstallInfo(nextInstallInfo);
-      setResetOpen(null);
-      resetForm.resetFields();
-      message.success(t('workers.toast.bindCodeReset'));
+      const result = await rotateWorkerApiKey(rotateConfirmWorker.id);
+      setInstallInfo({ info: result, backendUrl: defaultBackendUrl });
+      setRotateConfirmWorker(null);
+      message.success(t('workers.toast.apiKeyRotated'));
       await loadWorkers();
-    } catch (error: any) {
-      if (error?.errorFields) return;
+    } catch (error) {
       console.error(error);
-      message.error(getApiErrorMessage(error) || t('workers.toast.bindCodeResetFailed'));
+      message.error(getApiErrorMessage(error) || t('workers.toast.apiKeyRotateFailed'));
     } finally {
       setRowLoadingId(null);
     }
-  }, [loadWorkers, message, resetForm, resetOpen, t]);
+  }, [defaultBackendUrl, loadWorkers, message, rotateConfirmWorker, t]);
 
   const openCreateModal = useCallback(() => {
     createForm.resetFields();
-    createForm.setFieldsValue({ name: '', maxConcurrency: 1, backendUrl: defaultBackendUrl });
+    createForm.setFieldsValue({ name: '', maxConcurrency: 1, providers: ['codex', 'claude_code', 'gemini_cli'] });
     setCreateOpen(true);
-  }, [createForm, defaultBackendUrl]);
-
-  useEffect(() => {
-    if (!createOpen) return;
-    if (trimString(createForm.getFieldValue('backendUrl'))) return;
-    createForm.setFieldsValue({ backendUrl: defaultBackendUrl });
-  }, [createForm, createOpen, defaultBackendUrl]);
-
-  const renderBackendUrlHelp = useMemo(
-    () => (
-      <Typography.Text type="secondary">
-        {t('workers.field.backendUrlHelp', { defaultUrl: defaultBackendUrl || '-' })}
-      </Typography.Text>
-    ),
-    [defaultBackendUrl, t]
-  );
+  }, [createForm]);
 
   const handleDelete = useCallback(async (worker: WorkerRecord) => {
     setRowLoadingId(worker.id);
@@ -348,24 +232,6 @@ export const SettingsWorkersPanel: FC = () => {
     }
   }, [loadWorkers, message, t]);
 
-  const handlePrepareRuntime = useCallback(async () => {
-    if (!prepareOpen) return;
-    try {
-      const values = await prepareForm.validateFields();
-      setPrepareLoadingId(prepareOpen.id);
-      await prepareWorkerRuntime(prepareOpen.id, values.providers);
-      message.success(t('workers.toast.runtimeRequested'));
-      setPrepareOpen(null);
-      await loadWorkers();
-    } catch (error: any) {
-      if (error?.errorFields) return;
-      console.error(error);
-      message.error(getApiErrorMessage(error) || t('workers.toast.runtimeRequestFailed'));
-    } finally {
-      setPrepareLoadingId(null);
-    }
-  }, [loadWorkers, message, prepareForm, prepareOpen, t]);
-
   const columns = useMemo<ColumnsType<WorkerRecord>>(
     () => [
       {
@@ -380,56 +246,30 @@ export const SettingsWorkersPanel: FC = () => {
               {record.systemManaged ? <Tag>{t('workers.common.systemManaged')}</Tag> : null}
               {record.isGlobalDefault ? <Tag color="gold">{t('workers.common.globalDefault')}</Tag> : null}
               {record.preview ? <Tag color="geekblue">{t('workers.common.preview')}</Tag> : null}
-              {requiresWorkerUpgrade(record) ? <Tag color="red">{t('workers.version.upgradeRequired')}</Tag> : null}
             </Space>
             <Typography.Text type="secondary">{formatWorkerOptionLabel(t, record)}</Typography.Text>
           </Space>
         )
       },
       {
-        title: t('workers.table.runtime'),
-        key: 'runtime',
-        width: 360,
+        title: t('workers.table.providers'),
+        key: 'providers',
+        width: 300,
         render: (_value, record) => {
-          const runtimeStatus = resolveRuntimeStatus(record);
-          const readyCount = WORKER_PROVIDER_KEYS.filter((provider) => isWorkerProviderReady(record, provider)).length;
+          const available = WORKER_PROVIDER_KEYS.filter((p) => isWorkerProviderAvailable(record, p));
           return (
-            <Space direction="vertical" size={6}>
-              <Typography.Text>{getWorkerRuntimeStatusLabel(t, runtimeStatus)}</Typography.Text>
-              <Typography.Text type="secondary">{t('workers.field.providers')}: {readyCount}/{WORKER_PROVIDER_KEYS.length}</Typography.Text>
-              {WORKER_PROVIDER_KEYS.map((provider) => {
-                const status = getWorkerProviderRuntimeStatus(record, provider);
-                const entry = getWorkerProviderRuntimeEntry(record.runtimeState, provider);
-                const guard = getWorkerProviderGuardDetails({
-                  workerName: record.name || record.id,
-                  provider,
-                  worker: record
-                });
-                const guardMessage =
-                  guard?.reason === 'preparing'
-                    ? t('workers.runtime.providerPreparingHint', { provider: guard.providerLabel, worker: guard.workerName })
-                    : guard?.reason === 'error'
-                      ? t('workers.runtime.providerErrorHint', {
-                          provider: guard.providerLabel,
-                          worker: guard.workerName,
-                          error: guard.error || record.runtimeState?.lastPrepareError || '-'
-                        })
-                      : guard?.reason === 'missing'
-                        ? t('workers.runtime.providerMissingHint', { provider: guard.providerLabel, worker: guard.workerName })
-                        : null;
-                return (
-                  <Space key={provider} direction="vertical" size={1} style={{ width: '100%' }}>
-                    <Space size={6} wrap>
-                      <Typography.Text strong>{getWorkerProviderLabel(provider)}</Typography.Text>
-                      <Tag color={getProviderTagColor(status)}>{getWorkerRuntimeStatusLabel(t, status)}</Tag>
-                    </Space>
-                    {entry?.error ? <Typography.Text type="danger">{entry.error}</Typography.Text> : null}
-                    {!entry?.error && status !== 'ready' && guardMessage ? (
-                      <Typography.Text type="secondary">{guardMessage}</Typography.Text>
-                    ) : null}
-                  </Space>
-                );
-              })}
+            <Space direction="vertical" size={4}>
+              <Typography.Text type="secondary">{t('workers.field.providers')}: {available.length}/{WORKER_PROVIDER_KEYS.length}</Typography.Text>
+              <Space size={4} wrap>
+                {WORKER_PROVIDER_KEYS.map((provider) => {
+                  const isAvail = isWorkerProviderAvailable(record, provider);
+                  return (
+                    <Tag key={provider} color={isAvail ? 'success' : 'default'}>
+                      {getWorkerProviderLabel(provider)}
+                    </Tag>
+                  );
+                })}
+              </Space>
             </Space>
           );
         }
@@ -438,23 +278,22 @@ export const SettingsWorkersPanel: FC = () => {
         title: t('workers.table.connection'),
         key: 'connection',
         width: 220,
-        render: (_value, record) => {
-          const versionStateText = describeWorkerVersionState(t, record, versionRequirement);
-          return (
-            <Space direction="vertical" size={2}>
-              <Typography.Text>{record.hostname || '-'}</Typography.Text>
-              <Typography.Text type="secondary">{record.version || '-'}</Typography.Text>
-              {versionStateText ? <Typography.Text type="danger">{versionStateText}</Typography.Text> : null}
-              <Typography.Text type="secondary">{t('workers.field.lastSeenAt')}: {formatDateTime(locale, record.lastSeenAt)}</Typography.Text>
-            </Space>
-          );
-        }
+        render: (_value, record) => (
+          <Space direction="vertical" size={2}>
+            <Typography.Text>{record.hostname || '-'}</Typography.Text>
+            <Typography.Text type="secondary">{record.version || '-'}</Typography.Text>
+            {record.apiKeyPrefix ? (
+              <Typography.Text type="secondary">{t('workers.field.apiKeyPrefix')}: {record.apiKeyPrefix}…</Typography.Text>
+            ) : null}
+            <Typography.Text type="secondary">{t('workers.field.lastHeartbeatAt')}: {formatDateTime(locale, record.lastHeartbeatAt)}</Typography.Text>
+          </Space>
+        )
       },
       {
         title: t('workers.table.concurrency'),
         key: 'concurrency',
         width: 120,
-        render: (_value, record) => <Typography.Text>{record.currentConcurrency}/{record.maxConcurrency}</Typography.Text>
+        render: (_value, record) => <Typography.Text>{record.activeTaskCount}/{record.maxConcurrency}</Typography.Text>
       },
       {
         title: t('common.actions'),
@@ -463,7 +302,6 @@ export const SettingsWorkersPanel: FC = () => {
         fixed: 'right',
         render: (_value, record) => {
           const isBusy = rowLoadingId === record.id;
-          const isPreparing = prepareLoadingId === record.id || hasPreparingWorkerRuntime(record);
           const nextStatus = record.status === 'disabled' ? 'offline' : 'disabled';
           const toggleLabel = record.status === 'disabled' ? t('workers.action.enable') : t('workers.action.disable');
           const defaultToggleLabel = record.isGlobalDefault ? t('workers.action.unsetDefault') : t('workers.action.setDefault');
@@ -476,23 +314,12 @@ export const SettingsWorkersPanel: FC = () => {
               >
                 {defaultToggleLabel}
               </Button>
-              <Button
-                size="small"
-                loading={isPreparing}
-                disabled={record.status !== 'online' || requiresWorkerUpgrade(record)}
-                onClick={() => {
-                  prepareForm.setFieldsValue({ providers: resolveDefaultPrepareProviders(record) });
-                  setPrepareOpen(record);
-                }}
-              >
-                {t('workers.action.prepareRuntime')}
-              </Button>
               <Button size="small" loading={isBusy} disabled={record.systemManaged} onClick={() => void handleUpdateStatus(record, nextStatus)}>
                 {toggleLabel}
               </Button>
               {!record.systemManaged ? (
-                <Button size="small" loading={isBusy} onClick={() => void handleResetBindCode(record)}>
-                  {t('workers.action.resetBindCode')}
+                <Button size="small" loading={isBusy} onClick={() => setRotateConfirmWorker(record)}>
+                  {t('workers.action.rotateApiKey')}
                 </Button>
               ) : null}
               {!record.systemManaged ? (
@@ -511,10 +338,10 @@ export const SettingsWorkersPanel: FC = () => {
         }
       }
     ],
-    [handleDelete, handlePrepareRuntime, handleResetBindCode, handleToggleGlobalDefault, handleUpdateStatus, locale, prepareForm, prepareLoadingId, rowLoadingId, t, versionRequirement]
+    [handleDelete, handleToggleGlobalDefault, handleUpdateStatus, locale, rowLoadingId, t]
   );
 
-  const installScripts = installInfo ? buildInstallScripts(installInfo) : null;
+  const installScripts = installInfo ? buildInstallScripts(installInfo.info, installInfo.backendUrl) : null;
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -528,24 +355,6 @@ export const SettingsWorkersPanel: FC = () => {
           type="error"
           message={t('workers.default.offlineTitle', { name: globalDefaultWorker.name })}
           description={t('workers.default.offlineDesc')}
-        />
-      ) : null}
-      {versionRequirement ? (
-        <Alert
-          showIcon
-          type="warning"
-          message={t('workers.version.policyTitle')}
-          description={
-            <Space direction="vertical" size={4}>
-              <Typography.Text>{t('workers.version.policyDesc', { packageName: versionRequirement.packageName, version: versionRequirement.requiredVersion })}</Typography.Text>
-              <Typography.Text copyable={{ text: versionRequirement.npmInstallCommand }}>
-                {t('workers.version.npmCommand')}: {versionRequirement.npmInstallCommand}
-              </Typography.Text>
-              <Typography.Text copyable={{ text: versionRequirement.cliUpgradeCommand }}>
-                {t('workers.version.cliCommand')}: {versionRequirement.cliUpgradeCommand}
-              </Typography.Text>
-            </Space>
-          }
         />
       ) : null}
 
@@ -574,6 +383,7 @@ export const SettingsWorkersPanel: FC = () => {
         )}
       </Card>
 
+      {/* Create worker modal */}
       <Modal
         className="hc-dialog--compact"
         title={t('workers.modal.createTitle')}
@@ -599,62 +409,31 @@ export const SettingsWorkersPanel: FC = () => {
           <Form.Item label={t('workers.field.maxConcurrency')} name="maxConcurrency">
             <Select options={[1, 2, 3, 4].map((value) => ({ value, label: String(value) }))} placeholder={t('workers.placeholder.maxConcurrency')} />
           </Form.Item>
-          <Form.Item
-            label={t('workers.field.backendUrl')}
-            name="backendUrl"
-            extra={renderBackendUrlHelp}
-            rules={[
-              { required: true, transform: (value) => trimString(value), message: t('panel.validation.required') },
-              {
-                validator: async (_rule, value) => {
-                  if (isValidBackendUrl(String(value ?? ''))) return;
-                  throw new Error(t('workers.validation.backendUrl'));
-                }
-              }
-            ]}
-          >
-            <Input placeholder={t('workers.placeholder.backendUrl')} />
+          <Form.Item label={t('workers.field.providers')} name="providers">
+            <Select mode="multiple" options={DEFAULT_PROVIDER_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>
 
+      {/* Rotate API key confirmation modal */}
       <Modal
         className="hc-dialog--compact"
-        title={t('workers.modal.resetTitle', { name: resetOpen?.name || '' })}
-        open={Boolean(resetOpen)}
-        onCancel={() => {
-          setResetOpen(null);
-          resetForm.resetFields();
-        }}
-        onOk={() => void handleConfirmResetBindCode()}
-        confirmLoading={Boolean(resetOpen && rowLoadingId === resetOpen.id)}
-        okText={t('workers.action.resetBindCode')}
+        title={t('workers.modal.rotateTitle', { name: rotateConfirmWorker?.name || '' })}
+        open={Boolean(rotateConfirmWorker)}
+        onCancel={() => setRotateConfirmWorker(null)}
+        onOk={() => void handleRotateApiKey()}
+        confirmLoading={Boolean(rotateConfirmWorker && rowLoadingId === rotateConfirmWorker.id)}
+        okText={t('workers.action.rotateApiKey')}
         cancelText={t('common.cancel')}
         destroyOnHidden
       >
-        <Form form={resetForm} layout="vertical" requiredMark={false}>
-          <Form.Item
-            label={t('workers.field.backendUrl')}
-            name="backendUrl"
-            extra={renderBackendUrlHelp}
-            rules={[
-              { required: true, transform: (value) => trimString(value), message: t('panel.validation.required') },
-              {
-                validator: async (_rule, value) => {
-                  if (isValidBackendUrl(String(value ?? ''))) return;
-                  throw new Error(t('workers.validation.backendUrl'));
-                }
-              }
-            ]}
-          >
-            <Input placeholder={t('workers.placeholder.backendUrl')} />
-          </Form.Item>
-        </Form>
+        <Typography.Paragraph>{t('workers.modal.rotateConfirm')}</Typography.Paragraph>
       </Modal>
 
+      {/* Install / API key info modal */}
       <Modal
         className="hc-dialog--compact"
-        title={t('workers.install.title', { name: installInfo?.worker?.name || '' })}
+        title={t('workers.install.title', { name: installInfo?.info?.worker?.name || '' })}
         open={Boolean(installInfo)}
         onCancel={() => setInstallInfo(null)}
         footer={[
@@ -667,38 +446,20 @@ export const SettingsWorkersPanel: FC = () => {
       >
         {installInfo && installScripts ? (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Alert showIcon type="info" message={t('workers.install.manualTitle')} description={t('workers.install.manualDesc')} />
-            <Alert
-              showIcon
-              type="warning"
-              message={t('workers.version.policyTitle')}
-              description={
-                <Space direction="vertical" size={4}>
-                  <Typography.Text>{t('workers.install.versionPinned', { packageName: installInfo.versionRequirement.packageName, version: installInfo.versionRequirement.requiredVersion })}</Typography.Text>
-                  <Typography.Text copyable={{ text: installInfo.versionRequirement.npmInstallCommand }}>
-                    {t('workers.version.npmCommand')}: {installInfo.versionRequirement.npmInstallCommand}
-                  </Typography.Text>
-                  <Typography.Text copyable={{ text: installInfo.versionRequirement.cliUpgradeCommand }}>
-                    {t('workers.version.cliCommand')}: {installInfo.versionRequirement.cliUpgradeCommand}
-                  </Typography.Text>
-                </Space>
-              }
-            />
-            <Typography.Paragraph copyable={{ text: installInfo.bindCode }}>
-              <strong>{t('workers.install.bindCode')}:</strong> {installInfo.bindCode}
-            </Typography.Paragraph>
-            <Typography.Paragraph>
-              <strong>{t('workers.install.expiresAt')}:</strong> {formatDateTime(locale, installInfo.bindCodeExpiresAt)}
+            <Alert showIcon type="warning" message={t('workers.install.apiKeyWarning')} />
+            <Typography.Paragraph copyable={{ text: installInfo.info.apiKey }}>
+              <strong>{t('workers.install.apiKey')}:</strong> {installInfo.info.apiKey}
             </Typography.Paragraph>
             <Typography.Paragraph copyable={{ text: installInfo.backendUrl }}>
               <strong>{t('workers.install.backendUrl')}:</strong> {installInfo.backendUrl}
             </Typography.Paragraph>
             <Typography.Paragraph type="secondary">
-              {t('workers.install.workDirHint', { workerId: installInfo.worker.id })}
+              {t('workers.install.workDirHint', { workerId: installInfo.info.worker.id })}
             </Typography.Paragraph>
+            <Alert showIcon type="info" message={t('workers.install.manualTitle')} description={t('workers.install.manualDesc')} />
             <Tabs
               items={[
-                { key: 'macos', label: 'macOS', children: <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.macos}</pre> },
+                { key: 'manual', label: 'macOS / Linux', children: <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.manual}</pre> },
                 {
                   key: 'worker-dev',
                   label: 'hookcode-worker dev',
@@ -725,30 +486,11 @@ export const SettingsWorkersPanel: FC = () => {
                       <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.linuxSystemdUnit}</pre>
                     </Space>
                   )
-                },
-                { key: 'linux', label: 'Linux (manual)', children: <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.linux}</pre> },
-                { key: 'windows', label: 'Windows', children: <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{installScripts.windows}</pre> }
+                }
               ]}
             />
           </Space>
         ) : null}
-      </Modal>
-
-      <Modal
-        className="hc-dialog--compact"
-        title={t('workers.modal.prepareTitle', { name: prepareOpen?.name || '' })}
-        open={Boolean(prepareOpen)}
-        onCancel={() => setPrepareOpen(null)}
-        onOk={() => void handlePrepareRuntime()}
-        confirmLoading={Boolean(prepareOpen && prepareLoadingId === prepareOpen.id)}
-        okText={t('workers.action.prepareRuntime')}
-        cancelText={t('common.cancel')}
-      >
-        <Form form={prepareForm} layout="vertical" initialValues={{ providers: ['codex', 'claude_code', 'gemini_cli'] }}>
-          <Form.Item label={t('workers.field.providers')} name="providers">
-            <Select mode="multiple" options={DEFAULT_PROVIDER_OPTIONS} />
-          </Form.Item>
-        </Form>
       </Modal>
     </Space>
   );

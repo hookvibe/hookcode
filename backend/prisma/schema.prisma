@@ -633,29 +633,29 @@ model GlobalCredentialSettings {
   @@map("global_credential_settings")
 }
 
-/// Track local and remote execution workers that can receive HookCode tasks. docs/en/developer/plans/worker-executor-refactor-20260307/task_plan.md worker-executor-refactor-20260307
+/// Track local and remote execution workers that can receive HookCode tasks.
+/// v2: HTTP Pull architecture — workers poll for tasks, authenticate via API key.
 model Worker {
   id                 String    @id @db.Uuid
   name               String
-  kind               String
-  status             String
+  kind               String    /// 'local' | 'remote'
+  status             String    /// 'online' | 'offline' | 'disabled'
   systemManaged      Boolean   @default(false) @map("system_managed")
   isGlobalDefault    Boolean   @default(false) @map("is_global_default")
   version            String?
   platform           String?
   arch               String?
   hostname           String?
-  backendBaseUrl     String?   @map("backend_base_url")
+  /// API key hash for worker authentication (replaces bind-code + WebSocket token)
+  apiKeyHash         String?   @map("api_key_hash")
+  /// Prefix for display (e.g. "hkw_abc...")
+  apiKeyPrefix       String?   @map("api_key_prefix")
+  /// Supported AI providers: codex, claude_code, gemini_cli
+  providers          String[]  @default([]) @map("providers")
   capabilities       Json?     @map("capabilities_json") @db.JsonB
-  runtimeState       Json?     @map("runtime_state_json") @db.JsonB
   maxConcurrency     Int       @default(1) @map("max_concurrency")
-  currentConcurrency Int       @default(0) @map("current_concurrency")
-  tokenHash          String?   @map("token_hash")
-  bindCodeHash       String?   @map("bind_code_hash")
-  bindCodeExpiresAt  DateTime? @map("bind_code_expires_at") @db.Timestamptz(6)
-  bindCodeUsedAt     DateTime? @map("bind_code_used_at") @db.Timestamptz(6)
-  lastSeenAt         DateTime? @map("last_seen_at") @db.Timestamptz(6)
-  lastHelloAt        DateTime? @map("last_hello_at") @db.Timestamptz(6)
+  activeTaskCount    Int       @default(0) @map("active_task_count")
+  lastHeartbeatAt    DateTime? @map("last_heartbeat_at") @db.Timestamptz(6)
   disabledAt         DateTime? @map("disabled_at") @db.Timestamptz(6)
   createdByUserId    String?   @map("created_by_user_id") @db.Uuid
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -664,13 +664,13 @@ model Worker {
   tasks        Task[]
   taskGroups   TaskGroup[]
   defaultRobots RepoRobot[] @relation("RepoRobotDefaultWorker")
-  /// Track globally shared robots that default to this worker for execution routing. docs/en/developer/plans/52d0x2aa8umrjgjklgwa/task_plan.md 52d0x2aa8umrjgjklgwa
   defaultGlobalRobots GlobalRobot[] @relation("GlobalRobotDefaultWorker")
 
   @@map("workers")
   @@index([status, updatedAt], map: "workers_status_updated_at_idx")
   @@index([kind, updatedAt], map: "workers_kind_updated_at_idx")
-  @@index([lastSeenAt], map: "workers_last_seen_at_idx")
+  @@index([lastHeartbeatAt], map: "workers_last_heartbeat_at_idx")
+  @@index([apiKeyHash], map: "workers_api_key_hash_idx")
 }
 
 model RepoAutomationConfig {

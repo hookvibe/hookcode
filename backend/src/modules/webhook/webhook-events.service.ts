@@ -7,7 +7,6 @@ import { RobotCatalogService } from '../repositories/robot-catalog.service';
 import { UserService } from '../users/user.service';
 import { SkillsService } from '../skills/skills.service';
 import { TaskService } from '../tasks/task.service';
-import { TaskRunner } from '../tasks/task-runner.service';
 import { LogWriterService } from '../logs/log-writer.service';
 import { executeWebhookAutomation, type WebhookReplaySelection } from './webhook.execution';
 import { WebhookTraceRecorder, hashWebhookPayload, type WebhookReplayMode } from './webhook-debug';
@@ -45,7 +44,6 @@ export class WebhookEventsService {
     private readonly userService: UserService,
     private readonly skillsService: SkillsService,
     private readonly taskService: TaskService,
-    private readonly taskRunner: TaskRunner,
     private readonly logWriter: LogWriterService
   ) {}
 
@@ -164,10 +162,6 @@ export class WebhookEventsService {
           : undefined
       }
     );
-
-    if (!dryRun && execution.result === 'accepted') {
-      this.taskRunner.trigger().catch((err) => console.error('[webhook] replay trigger task runner failed', err));
-    }
 
     const responseBody = dryRun
       ? { dryRun: execution.dryRunResult }
